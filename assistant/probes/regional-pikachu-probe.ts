@@ -6,15 +6,17 @@
 // constructed Player; `state` is {additionalPokemons: [], stageLevel: 0}. Establishes only the pure function of map -> list;
 // it does NOT establish how `player.map` is chosen in a game, nor shop/pool effects (mapChanged = true path).
 // Usage (inside a checkout of the pinned SHA with node_modules): node_modules/.bin/tsx assistant/probes/regional-pikachu-probe.ts --out <file.json>
+// (--out is required; the checkout's game source must equal the pinned SHA; see probe-guard.ts)
 import { ArraySchema } from "@colyseus/schema"
 import { writeFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { probeStartup } from "./probe-guard"
 import { RegionDetails } from "../../app/config/maps/regions"
 import Player from "../../app/models/colyseus-models/player"
 import PokemonFactory from "../../app/models/pokemon-factory"
 import { Pkm } from "../../app/types/enum/Pokemon"
 
-const out = process.argv[process.argv.indexOf("--out") + 1]
-if (!out || out.startsWith("--")) throw new Error("--out <file.json> required")
+const out = probeStartup(resolve(__dirname, "results", "regional-pikachu-probe.json")) // strict args + pinned-source check + output guard, before any scenario
 const pikachu: any = PokemonFactory.createPokemonFromName(Pkm.PIKACHU)
 const rows: any[] = []
 for (const map of Object.keys(RegionDetails)) {

@@ -12,16 +12,18 @@
 // Establishes: loop visiting behaviour, bench vs deployed eligibility, HP/maxHP/stacks at three points, for a no-item case.
 // Does NOT establish: item effects, other acquisition paths, synergy effects (updateSynergies is a no-op), live-game behaviour.
 // Usage (inside a checkout of the pinned SHA with node_modules): node_modules/.bin/tsx assistant/probes/cosmog-evolution-probe.ts --out <file.json>
+// (--out is required; the checkout's game source must equal the pinned SHA; see probe-guard.ts)
 import { MapSchema } from "@colyseus/schema"
 import { writeFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { probeStartup } from "./probe-guard"
 import { EvolutionManager } from "../../app/core/evolution-logic/evolution-manager"
 import { Pokemon, Cosmoem } from "../../app/models/colyseus-models/pokemon"
 import Player from "../../app/models/colyseus-models/player"
 import PokemonFactory from "../../app/models/pokemon-factory"
 import { Pkm } from "../../app/types/enum/Pokemon"
 
-const out = process.argv[process.argv.indexOf("--out") + 1]
-if (!out || out.startsWith("--")) throw new Error("--out <file.json> required")
+const out = probeStartup(resolve(__dirname, "results", "cosmog-evolution-probe.json")) // strict args + pinned-source check + output guard, before any scenario
 
 const snap = (p: any) => (p ? { name: p.name, hp: p.hp, maxHP: p.maxHP, stacks: p.stacks, positionX: p.positionX, positionY: p.positionY } : null)
 const log: any[] = []
