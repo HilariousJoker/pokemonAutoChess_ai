@@ -1,5 +1,7 @@
 # Baseline extraction checkpoint — status (hardened)
 
+> **Latest completion summary (production-reference pilot evolution).** Added `data/07367c34/pilot-evolution.json` (20 pilot units, production-branch reference `07367c34…`; deployment unverified) and source-backed notes `knowledge/07367c34/pilot-evolution.md` (MAGIKARP, PIKACHU, TYPE_NULL, PRIMEAPE, COSMOEM; paths/lines at that revision). `extract-evolution.ts --profile production-reference` (development defaults unchanged). Two runs identical; exactly the 20 pilot keys with matching identities; probes limited to TYPE_NULL and PIKACHU, both ran. Versus development: one value change (COSMOEM `stacksRequired` 10 → 8); three callback source lines relocated (PIKACHU, TYPE_NULL, COSMOEM). Not resolved: Cosmoem acquired HP in general (only the plain no-item case is traced), regionalPokemons, light cell, Primeape fight timing, MAGIKARP/TYPE_NULL passives. Lookup remains development-only. Details: section "Production-reference pilot evolution" below.
+
 Scope (cumulative): (1) the three-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN; `data/baseline.json`),
 (2) a 20-unit bare-instance pilot (`data/01a3e845/pilot-units.json`, `knowledge/pilot-units.md`), (3) evolution declarations for the same 20 units
 (`data/01a3e845/pilot-evolution.json`, `knowledge/pilot-evolution.md`), (4) lookup packaging, output-path guards and a version-alignment report
@@ -197,6 +199,13 @@ Separate 20-unit bare baseline of the upstream `prod` head `07367c341fe928763da2
 
 ### Catalog checkpoint rerun/mode checks (fix)
 `extract-baseline.ts`: the overwrite check is now exclusion-aware (catalog reruns expect records for every identifier except the declared exclusions, and the stored `inventory.identifiers` must equal the requested inventory), and checkpoint roles are enforced even when the target file does not exist: `catalog-units.json` accepts only `--profile production-reference --catalog`; catalog output is refused for every other checkpoint (pilot, baseline, other-profile). Verified in a disposable production worktree: in-place catalog rerun succeeded (`pokemon`, `inventory`, `registry` identical); non-catalog runs to the catalog path refused (exact extracted key set, one key, absent target); catalog to the pilot path refused (existing and absent); refusals changed nothing; committed datasets unchanged (hashes equal).
+
+## Production-reference pilot evolution (latest step)
+- Worktree `git worktree add --detach /home/user/pac_prod 07367c34…`, `npm ci --ignore-scripts --no-audit --no-fund` (813 packages, exit 0), Node 24.21.0 / npm 11.19.0; source matched the pinned SHA, `--allow-source-mismatch` not used.
+- Commands (in the worktree, tooling copied from `assistant/`):
+  `node_modules/.bin/tsx assistant/extract-evolution.ts --profile production-reference` (keys = production `pilot-units.json`; output `assistant/data/07367c34/pilot-evolution.json`); second run with `--out <scratch>`; `node assistant/compare-payloads.mjs <run1> <run2>` → identical; `node assistant/compare-evolution.mjs assistant/data/01a3e845/pilot-evolution.json assistant/data/07367c34/pilot-evolution.json`.
+- Checks: units/probes/default rule identical across runs; 20 keys and identities equal to `pilot-units.json`; source references carry `revision`; refused (nothing written): outputs to the production pilot-units/catalog, `baseline.json`, both development checkpoints, a development `pilot-evolution.json` and `app/`, explicit keys to the default output, and the development profile in the production worktree (source differs). In-place rerun of the own checkpoint succeeded and was identical. Committed baseline/catalog/development datasets unchanged (git diff and hashes).
+- Limitations: declarations and source reading only; no abilities, items effects, combat or live-game checks; `lookup-unit.mjs` unchanged and development-only.
 
 ## Remaining limitations
 - Verified on one toolchain only (Node 24.21.0 / npm 11.19.0, linux-x64); the minimum Node 24.19.0 and other platforms were not tried.

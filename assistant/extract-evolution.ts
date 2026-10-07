@@ -6,8 +6,10 @@
 //   node_modules/.bin/tsx assistant/extract-evolution.ts --out <file> KEY ...     # other units: --out mandatory
 //   flags: --out <file> | --out=<file>   output path (relative paths resolve against the current directory)
 //          --allow-source-mismatch      record, instead of failing on, game-source drift from the audited commit
+//          --profile production-reference   pinned production-branch reference (07367c34): default unit set = keys of
+//                                       data/07367c34/pilot-units.json, default output data/07367c34/pilot-evolution.json
 //
-// Default unit set = the keys of assistant/data/01a3e845/pilot-units.json (so both files cover the same units).
+// Default unit set = the keys of the profile's pilot-units.json (so both files cover the same units).
 //
 // What is and is not captured:
 //  * Scalars, enums and arrays are preserved. Every known rule property is reported as {present: boolean, ...} so a
@@ -32,19 +34,25 @@ import { SynergyGivenByItem } from "../app/types/enum/Item"
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
 import { checkOutputPath, OutputGuardError } from "./output-guard"
 
-const AUDITED_SOURCE_COMMIT = "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2"
+const PROFILES = {
+  development: { sourceCommit: "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2", label: "development snapshot", dir: "01a3e845" },
+  "production-reference": { sourceCommit: "07367c341fe928763da2b565c2eee010433e4fc1", label: "production-branch reference; deployment unverified", dir: "07367c34" }
+} as const
+type ProfileName = keyof typeof PROFILES
+let AUDITED_SOURCE_COMMIT: string = PROFILES.development.sourceCommit // set from --profile in main()
+let ACTIVE_PROFILE: ProfileName = "development"
+// Non-development profiles stamp every source reference with the revision it points to (development output is unchanged).
+const revisionRef = () => (ACTIVE_PROFILE === "development" ? {} : { revision: AUDITED_SOURCE_COMMIT })
 
 const SCRIPT_DIR = dirname(resolve(process.argv[1]))
 const REPO_ROOT = resolve(SCRIPT_DIR, "..")
-const PILOT_UNITS_JSON = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-units.json")
-const DEFAULT_OUT = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-evolution.json")
-// Checkpoints this extractor may regenerate / that belong to extract-baseline.ts (see output-guard.ts).
-const OWN_CHECKPOINTS = [DEFAULT_OUT]
-const OTHER_CHECKPOINTS = [
+const dataFile = (dir: string, f: string) => resolve(SCRIPT_DIR, "data", dir, f)
+// Each profile regenerates only its own pilot-evolution.json; every other checkpoint (baseline, pilot units, catalog,
+// the other profile's files) belongs to something else and is protected (see output-guard.ts).
+const ALL_CHECKPOINTS = [
   resolve(SCRIPT_DIR, "data", "baseline.json"),
-  PILOT_UNITS_JSON,
-  resolve(SCRIPT_DIR, "data", "07367c34", "catalog-units.json"),
-  resolve(SCRIPT_DIR, "data", "07367c34", "pilot-units.json") // production-reference snapshot (extract-baseline.ts --profile production-reference)
+  dataFile("01a3e845", "pilot-units.json"), dataFile("01a3e845", "pilot-evolution.json"),
+  dataFile("07367c34", "pilot-units.json"), dataFile("07367c34", "pilot-evolution.json"), dataFile("07367c34", "catalog-units.json")
 ]
 const POKEMON_SOURCE = "app/models/colyseus-models/pokemon.ts"
 
@@ -77,7 +85,7 @@ function git(...args: string[]): string {
 }
 const lines = (s: string) => (s ? s.split("\n") : [])
 
-function collectProvenance(allowMismatch: boolean) {
+function collectProvenance(profile: ProfileName, allowMismatch: boolean) {
   const checkoutCommit = git("rev-parse", "HEAD")
   try {
     execFileSync("git", ["-C", REPO_ROOT, "cat-file", "-e", `${AUDITED_SOURCE_COMMIT}^{commit}`], { stdio: "ignore" })
@@ -101,6 +109,8 @@ function collectProvenance(allowMismatch: boolean) {
     npm = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim()
   } catch {}
   return {
+    profile,
+    snapshotLabel: PROFILES[profile].label,
     auditedSourceCommit: AUDITED_SOURCE_COMMIT,
     checkoutCommit,
     checkoutIsAuditedCommit: checkoutCommit === AUDITED_SOURCE_COMMIT,
@@ -120,6 +130,7 @@ function parseArgs(argv: string[]) {
   const keys: string[] = []
   let out: string | undefined
   let allowMismatch = false
+  let profile: ProfileName = "development"
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--out") {
@@ -129,11 +140,15 @@ function parseArgs(argv: string[]) {
     } else if (a.startsWith("--out=")) {
       out = a.slice("--out=".length)
       if (!out) fail("--out requires a file path")
+    } else if (a === "--profile" || a.startsWith("--profile=")) {
+      const v = a === "--profile" ? argv[++i] : a.slice("--profile=".length)
+      if (!v || !Object.hasOwn(PROFILES, v)) fail(`--profile must be one of: ${Object.keys(PROFILES).join(", ")}`)
+      profile = v as ProfileName
     } else if (a === "--allow-source-mismatch") allowMismatch = true
     else if (a.startsWith("--")) fail(`unknown option ${a}`)
     else keys.push(a)
   }
-  return { keys, out, allowMismatch }
+  return { keys, out, allowMismatch, profile }
 }
 
 // ---- source lookup for callbacks (plain text search; not a parser) --------------------------------------------
@@ -142,15 +157,15 @@ function locateCallback(className: string, prop: string) {
   pokemonSourceLines ??= readFileSync(resolve(REPO_ROOT, POKEMON_SOURCE), "utf8").split("\n")
   const L = pokemonSourceLines
   const start = L.findIndex((l) => l.startsWith(`export class ${className} extends`))
-  if (start < 0) return { file: POKEMON_SOURCE, symbol: `${className}.evolutionRule.${prop}`, line: null, lookup: "class-not-found" }
+  if (start < 0) return { file: POKEMON_SOURCE, ...revisionRef(), symbol: `${className}.evolutionRule.${prop}`, line: null, lookup: "class-not-found" }
   let end = start
   while (end < L.length && !L[end].startsWith("}")) end++
   for (let i = start; i <= end; i++) {
     if (new RegExp(`^\\s*${prop}\\s*[:=(]`).test(L[i])) {
-      return { file: POKEMON_SOURCE, symbol: `${className}.evolutionRule.${prop}`, line: i + 1, lookup: "text-search-in-class-body" }
+      return { file: POKEMON_SOURCE, ...revisionRef(), symbol: `${className}.evolutionRule.${prop}`, line: i + 1, lookup: "text-search-in-class-body" }
     }
   }
-  return { file: POKEMON_SOURCE, symbol: `${className}.evolutionRule.${prop}`, line: null, lookup: "property-not-found-in-class-body" }
+  return { file: POKEMON_SOURCE, ...revisionRef(), symbol: `${className}.evolutionRule.${prop}`, line: null, lookup: "property-not-found-in-class-body" }
 }
 
 // ---- helpers -----------------------------------------------------------------------------------------------
@@ -316,7 +331,13 @@ function runProbes(units: Record<string, ReturnType<typeof extractUnit>>) {
 }
 
 function main() {
-  const { keys: argKeys, out, allowMismatch } = parseArgs(process.argv.slice(2))
+  const { keys: argKeys, out, allowMismatch, profile } = parseArgs(process.argv.slice(2))
+  AUDITED_SOURCE_COMMIT = PROFILES[profile].sourceCommit
+  ACTIVE_PROFILE = profile
+  const PILOT_UNITS_JSON = dataFile(PROFILES[profile].dir, "pilot-units.json")
+  const DEFAULT_OUT = dataFile(PROFILES[profile].dir, "pilot-evolution.json")
+  const OWN_CHECKPOINTS = [DEFAULT_OUT]
+  const OTHER_CHECKPOINTS = ALL_CHECKPOINTS.filter((c) => c !== DEFAULT_OUT)
   let keys = argKeys
   if (!keys.length) {
     if (!existsSync(PILOT_UNITS_JSON)) fail(`default unit set needs ${PILOT_UNITS_JSON}`)
@@ -334,7 +355,7 @@ function main() {
     throw e
   }
 
-  const provenance = collectProvenance(allowMismatch)
+  const provenance = collectProvenance(profile, allowMismatch)
   const baseDefaultRule = PokemonFactory.createPokemonFromName(Pkm.DEFAULT).evolutionRule
   const raw: Record<string, ReturnType<typeof extractUnit>> = {}
   for (const key of keys) raw[key] = extractUnit(key, baseDefaultRule)
@@ -354,7 +375,8 @@ function main() {
     baseDefaultRule: {
       type: baseDefaultRule.type,
       properties: Object.fromEntries(KNOWN_RULE_PROPS.map((p) => [p, Object.hasOwn(baseDefaultRule, p) ? { present: true, value: (baseDefaultRule as any)[p] } : { present: false }])),
-      source: `${POKEMON_SOURCE} class Pokemon, field evolutionRule`
+      source: `${POKEMON_SOURCE} class Pokemon, field evolutionRule`,
+      ...revisionRef()
     },
     units,
     probes
