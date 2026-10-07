@@ -5,6 +5,9 @@
 //   node_modules/.bin/tsx assistant/extract-baseline.ts --out <file> KEY ...  # any units, explicit output
 //   flags: --out <file> | --out=<file>   output path (relative paths resolve against the current directory)
 //          --allow-source-mismatch      record, instead of failing on, game-source drift from the audited commit
+//          --profile production-reference   use the pinned production-branch reference (07367c34) instead of the
+//                                       development snapshot (01a3e845); requires --out and explicit keys, and
+//                                       declares which legacy fields are absent on that revision (see PROFILES)
 //
 // Alternate unit sets MUST pass --out; they never write to the default checkpoint path.
 // Output paths are checked before anything is written (output-guard.ts): game files, root config and the other
@@ -17,21 +20,50 @@ import PokemonFactory, { getPokemonBaseline } from "../app/models/pokemon-factor
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
 import { checkOutputPath, OutputGuardError } from "./output-guard"
 
-const AUDITED_SOURCE_COMMIT = "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2"
 const DEFAULT_KEYS = ["CHARMANDER", "FARFETCH_D", "VESPIQUEN"]
+
+// A profile pins the source revision an extraction describes. `absentFields` are NUMERIC_FIELDS that the revision does
+// not define at all: they must be genuinely absent from the factory instance (checked), are left out of `stats` and are
+// recorded explicitly under `fieldAvailability`. Every other field is validated exactly as before.
+const PROFILES = {
+  development: {
+    sourceCommit: "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2",
+    label: "development snapshot",
+    checkpointDir: "01a3e845",
+    absentFields: [] as string[]
+  },
+  "production-reference": {
+    sourceCommit: "07367c341fe928763da2b565c2eee010433e4fc1",
+    label: "production-branch reference; deployment unverified",
+    checkpointDir: "07367c34",
+    absentFields: ["baseAtk"]
+  }
+} as const
+type ProfileName = keyof typeof PROFILES
 
 const SCRIPT_DIR = dirname(resolve(process.argv[1]))
 const REPO_ROOT = resolve(SCRIPT_DIR, "..")
 const DEFAULT_OUT = resolve(SCRIPT_DIR, "data", "baseline.json")
-// Checkpoints this extractor may regenerate / that belong to extract-evolution.ts (see output-guard.ts).
-const PILOT_UNITS_OUT = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-units.json")
-const OWN_CHECKPOINTS = [DEFAULT_OUT, PILOT_UNITS_OUT]
-const OTHER_CHECKPOINTS = [resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-evolution.json")]
+// Checkpoints this extractor may regenerate / that belong to extract-evolution.ts or to the other profile (see output-guard.ts).
+// Each profile may regenerate only its own pilot-units.json; the other profile's checkpoints are protected.
+const dataPath = (dir: string, file: string) => resolve(SCRIPT_DIR, "data", dir, file)
+function checkpointsFor(profile: ProfileName) {
+  const mine = PROFILES[profile].checkpointDir
+  const theirs = (Object.keys(PROFILES) as ProfileName[]).filter((n) => n !== profile).map((n) => PROFILES[n].checkpointDir)
+  return {
+    own: profile === "development" ? [DEFAULT_OUT, dataPath(mine, "pilot-units.json")] : [dataPath(mine, "pilot-units.json")],
+    other: [
+      dataPath(mine, "pilot-evolution.json"),
+      ...theirs.flatMap((d) => [dataPath(d, "pilot-units.json"), dataPath(d, "pilot-evolution.json")]),
+      ...(profile === "development" ? [] : [DEFAULT_OUT])
+    ]
+  }
+}
 
 const NUMERIC_FIELDS = [
   "stars", "hp", "maxHP", "atk", "def", "speDef", "speed", "range", "maxPP",
   "ap", "luck", "critChance", "critPower", "baseMaxPP", "baseAtk"
-] as const
+] as readonly string[]
 const STRING_FIELDS = ["rarity", "skill", "tm", "passive", "baseSkill"] as const
 const BOOLEAN_FIELDS = [
   "additional", "regional", "canHoldItems", "canBeBenched", "canBeSold"
@@ -68,7 +100,8 @@ function npmVersion(): string {
 
 // Provenance is measured, not asserted: the checkout commit is read from git, and the game
 // source (everything outside assistant/) is compared with the audited commit.
-function collectProvenance(allowMismatch: boolean) {
+function collectProvenance(profile: ProfileName, allowMismatch: boolean) {
+  const AUDITED_SOURCE_COMMIT = PROFILES[profile].sourceCommit
   const checkoutCommit = git("rev-parse", "HEAD")
   try {
     execFileSync("git", ["-C", REPO_ROOT, "cat-file", "-e", `${AUDITED_SOURCE_COMMIT}^{commit}`], {
@@ -93,6 +126,8 @@ function collectProvenance(allowMismatch: boolean) {
     )
   }
   return {
+    profile,
+    snapshotLabel: PROFILES[profile].label,
     auditedSourceCommit: AUDITED_SOURCE_COMMIT,
     checkoutCommit,
     checkoutIsAuditedCommit: checkoutCommit === AUDITED_SOURCE_COMMIT,
@@ -111,6 +146,7 @@ function parseArgs(argv: string[]) {
   const keys: string[] = []
   let out: string | undefined
   let allowMismatch = false
+  let profile: ProfileName = "development"
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--out") {
@@ -120,6 +156,10 @@ function parseArgs(argv: string[]) {
     } else if (a.startsWith("--out=")) {
       out = a.slice("--out=".length)
       if (!out) fail("--out requires a file path")
+    } else if (a === "--profile" || a.startsWith("--profile=")) {
+      const v = a === "--profile" ? argv[++i] : a.slice("--profile=".length)
+      if (!v || !Object.hasOwn(PROFILES, v)) fail(`--profile must be one of: ${Object.keys(PROFILES).join(", ")}`)
+      profile = v as ProfileName
     } else if (a === "--allow-source-mismatch") {
       allowMismatch = true
     } else if (a.startsWith("--")) {
@@ -128,7 +168,7 @@ function parseArgs(argv: string[]) {
       keys.push(a)
     }
   }
-  return { keys, out, allowMismatch }
+  return { keys, out, allowMismatch, profile }
 }
 
 function checkFinite(key: string, field: string, v: unknown) {
@@ -137,7 +177,8 @@ function checkFinite(key: string, field: string, v: unknown) {
   }
 }
 
-function extractUnit(key: string) {
+function extractUnit(key: string, profile: ProfileName) {
+  const absent: readonly string[] = PROFILES[profile].absentFields
   // own-property check: "toString", "__proto__", "constructor" etc. are not Pkm members
   if (!Object.hasOwn(Pkm, key)) fail(`unknown Pkm key "${key}"`)
   const name = Pkm[key as keyof typeof Pkm]
@@ -151,7 +192,14 @@ function extractUnit(key: string) {
   }
 
   const stats: Record<string, unknown> = {}
+  const fieldAvailability: Record<string, { present: false; note: string }> = {}
   for (const f of NUMERIC_FIELDS) {
+    if (absent.includes(f)) {
+      // declared absent on this revision: it must really be absent (no property, even undefined), not just unset
+      if (f in p) fail(`${key}.${f} is declared absent for profile ${profile} but the factory instance defines it (${String(p[f])})`)
+      fieldAvailability[f] = { present: false, note: `not defined on ${profile} (${PROFILES[profile].sourceCommit.slice(0, 8)}); no value invented` }
+      continue
+    }
     checkFinite(key, f, p[f])
     stats[f] = p[f]
   }
@@ -185,12 +233,15 @@ function extractUnit(key: string) {
     // See extract-evolution.ts for the rule shape.
     bareInstanceEvolution: { evolution: p.evolution as string, evolutions: [...p.evolutions] as string[] },
     types,
-    stats
+    stats,
+    ...(Object.keys(fieldAvailability).length ? { fieldAvailability } : {})
   }
 }
 
 function main() {
-  const { keys: argKeys, out, allowMismatch } = parseArgs(process.argv.slice(2))
+  const { keys: argKeys, out, allowMismatch, profile } = parseArgs(process.argv.slice(2))
+  if (profile !== "development" && (!out || !argKeys.length)) fail(`profile ${profile} requires --out and explicit unit keys`)
+  const { own: OWN_CHECKPOINTS, other: OTHER_CHECKPOINTS } = checkpointsFor(profile)
   const keys = argKeys.length ? argKeys : DEFAULT_KEYS
   if (new Set(keys).size !== keys.length) fail(`duplicate keys requested: ${keys.join(", ")}`)
 
@@ -218,14 +269,17 @@ function main() {
     }
   }
 
-  const provenance = collectProvenance(allowMismatch)
+  const provenance = collectProvenance(profile, allowMismatch)
   const pokemon: Record<string, ReturnType<typeof extractUnit>> = {}
-  for (const key of keys) pokemon[key] = extractUnit(key) // throws before anything is written
+  for (const key of keys) pokemon[key] = extractUnit(key, profile) // throws before anything is written
 
   const result = {
     note:
       "pokemon[*].identity is the unit; evolutionFamilyRoot is its family root; bareInstanceEvolution holds " +
-      "raw bare-instance fields and is not a complete evolution map. `provenance` varies by environment; compare `pokemon` only.",
+      "raw bare-instance fields and is not a complete evolution map. `provenance` varies by environment; compare `pokemon` only." +
+      (PROFILES[profile].absentFields.length
+        ? ` Fields listed under fieldAvailability are ABSENT on this revision (not zero, not null). Snapshot: ${PROFILES[profile].label}.`
+        : ""),
     provenance,
     pokemon
   }

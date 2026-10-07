@@ -12,6 +12,7 @@ function flat(rec) {
     return {
       key: rec.identity.key, name: rec.identity.name, index: rec.identity.index,
       evolutionFamilyRoot: rec.evolutionFamilyRoot,
+      ...(rec.fieldAvailability ? { fieldAvailability: rec.fieldAvailability } : {}),
       evolution: rec.bareInstanceEvolution.evolution,
       evolutions: rec.bareInstanceEvolution.evolutions,
       types: rec.types, ...rec.stats

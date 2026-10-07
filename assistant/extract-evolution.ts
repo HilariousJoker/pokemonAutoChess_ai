@@ -40,7 +40,11 @@ const PILOT_UNITS_JSON = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-units.js
 const DEFAULT_OUT = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-evolution.json")
 // Checkpoints this extractor may regenerate / that belong to extract-baseline.ts (see output-guard.ts).
 const OWN_CHECKPOINTS = [DEFAULT_OUT]
-const OTHER_CHECKPOINTS = [resolve(SCRIPT_DIR, "data", "baseline.json"), PILOT_UNITS_JSON]
+const OTHER_CHECKPOINTS = [
+  resolve(SCRIPT_DIR, "data", "baseline.json"),
+  PILOT_UNITS_JSON,
+  resolve(SCRIPT_DIR, "data", "07367c34", "pilot-units.json") // production-reference snapshot (extract-baseline.ts --profile production-reference)
+]
 const POKEMON_SOURCE = "app/models/colyseus-models/pokemon.ts"
 
 // Every property any EvolutionRule variant may carry (app/types/EvolutionRules.ts).

@@ -2,7 +2,8 @@
 
 A small, source-backed lookup for **20 units**, extracted from the game's own code at one audited revision:
 
-- **Audited game-source commit:** `01a3e845e91ebe3144b3c43fa9cd261a5dadafd2`
+- **Audited game-source commit:** `01a3e845e91ebe3144b3c43fa9cd261a5dadafd2` — the **development snapshot** (upstream `master`). `lookup-unit.mjs` and everything under `data/01a3e845/` and `knowledge/` describe this snapshot only.
+- A separate bare-baseline snapshot of the **production-branch reference** (`07367c341fe928763da2b565c2eee010433e4fc1`; *deployment unverified*) is in `data/07367c34/pilot-units.json`. It is not used by the lookup tool, and the notes in `knowledge/` do not apply to it. Comparison: [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md).
 - **Live-game parity is unverified.** Everything here is read from source at that commit. Nothing was compared with the running game, upstream data, a wiki or patch notes.
 - Values are **bare-instance** values (class definition + inherited defaults), *before* any player, item, board, synergy, hook or combat effect.
 
@@ -12,12 +13,14 @@ A small, source-backed lookup for **20 units**, extracted from the game's own co
 | [`lookup-unit.mjs`](lookup-unit.mjs) | Prints a Markdown card for one pilot unit from the JSON snapshots (no game code, no install needed). |
 | [`data/01a3e845/pilot-units.json`](data/01a3e845/pilot-units.json) | Bare-instance baseline for the 20 units (identity, family root, types, stats, skill/passive identifiers). |
 | [`data/01a3e845/pilot-evolution.json`](data/01a3e845/pilot-evolution.json) | Declared evolution data for the same 20 units: rule shape, callback presence + source references, evidence flags, callback probes. |
+| [`data/07367c34/pilot-units.json`](data/07367c34/pilot-units.json) | Bare-instance baseline of the same 20 keys at the production-branch reference (`baseAtk` is absent on that revision and recorded as such). Separate from the development data; no evolution data. |
+| [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md) | Field-by-field comparison of the two baselines (bare factory values only). |
 | [`data/baseline.json`](data/baseline.json) | The earlier 3-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN), kept unchanged. |
 | [`knowledge/pilot-units.md`](knowledge/pilot-units.md) | Notes on the baseline: what the numbers mean, a source cross-check of five units, context notes for five units. |
 | [`knowledge/pilot-evolution.md`](knowledge/pilot-evolution.md) | Source-backed evolution notes (MAGIKARP, PIKACHU, TYPE_NULL, PRIMEAPE, COSMOEM) and the list of paths not traced. |
 | [`STATUS.md`](STATUS.md) | What ran, exact commands, checks, limitations, next step. |
 | `extract-baseline.ts`, `extract-evolution.ts`, `output-guard.ts` | Extractors (run the game's factory) and their output-path guard. |
-| `compare-payloads.mjs`, `knowledge/make-pilot-table.mjs` | Payload comparison and table generation helpers. |
+| `compare-payloads.mjs`, `compare-snapshots.mjs`, `knowledge/make-pilot-table.mjs` | Payload comparison and table generation helpers. |
 | `repro/`, `lockfile-drift.patch` | Install evidence and a historical record of an old-toolchain install failure. |
 
 ## Look a unit up
@@ -43,6 +46,12 @@ Rules enforced before anything is written:
 - Output must be a `.json` file. Allowed: an extractor's **own** checkpoint (an intentional rerun) and scratch `.json` files (outside the repo, or new files under `assistant/`).
   **Refused:** game files and root config (anything in the repository outside `assistant/`), the **other** extractor's checkpoints, other tracked files under `assistant/`, and paths that reach those through a symlink. A refusal modifies nothing.
 - Evolution probes fail the run on any exception or a result that is not a real `Pkm` identifier.
+
+Production-reference extraction (run in a disposable worktree of that SHA, never in this checkout; see the comparison report for the full command list):
+```bash
+node_modules/.bin/tsx assistant/extract-baseline.ts --profile production-reference --out assistant/data/07367c34/pilot-units.json <20 keys>
+```
+The `production-reference` profile pins the SHA, requires `--out` and explicit keys, protects the development checkpoints (and vice versa), and fails if a field declared absent (`baseAtk`) exists.
 
 ## Coverage
 Exactly these 20 keys: CHARMANDER, CHARMELEON, CHARIZARD, PIKACHU, RAICHU, ALOLAN_RAICHU, GALAR_MEOWTH, VESPIQUEN, ARCEUS, MAGIKARP, GYARADOS, TYPE_NULL, PRIMEAPE, TEPIG, DITTO, UNOWN_D, FARFETCH_D, TOTODILE, COSMOEM, SUBSTITUTE. Stats are in the JSON and in `lookup-unit.mjs` output (not duplicated here).

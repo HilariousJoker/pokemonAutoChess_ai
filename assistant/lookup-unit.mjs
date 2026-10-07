@@ -1,5 +1,7 @@
 // Prints a concise Markdown card for one pilot unit from the committed pilot snapshots.
 // Reads JSON + Markdown headings only: it does not import or execute game code.
+// Default dataset: the DEVELOPMENT snapshot (data/01a3e845, development-branch commit). It does NOT read the separate
+// production-branch reference snapshot (data/07367c34); see analysis/pilot-baseline-comparison.md for that comparison.
 //
 // Usage: node assistant/lookup-unit.mjs <PKM_KEY>
 //        node assistant/lookup-unit.mjs --list
@@ -155,7 +157,7 @@ function render(key, snap) {
   const L = []
   L.push(`# ${key} — pilot lookup`)
   L.push("")
-  L.push(`> **Audited game source:** ${code(snap.audited)} (both snapshots record \`gameSourceMatchesAudited=true\`).`)
+  L.push(`> **Dataset: development snapshot** (not the production-branch reference). **Audited game source:** ${code(snap.audited)} (both snapshots record \`gameSourceMatchesAudited=true\`).`)
   L.push("> **Live-game parity is UNVERIFIED.** This card shows bare-instance data read through the game's factory and stub-argument callback probes — not observed gameplay. No acquisition stats, ability explanations or strategy advice are included.")
   L.push("")
   L.push("## Identity")
@@ -225,7 +227,7 @@ function main() {
   if (!o.list && o.key === undefined) fail(2, "usage: node assistant/lookup-unit.mjs <PKM_KEY> | --list")
   const snap = loadSnapshots(o)
   if (o.list) {
-    console.log(`Pilot units covered (${snap.keys.length}), audited source ${snap.audited}:\n${snap.keys.join(", ")}`)
+    console.log(`Pilot units covered (${snap.keys.length}), development snapshot, audited source ${snap.audited}:\n${snap.keys.join(", ")}`)
     return 0
   }
   if (!Object.hasOwn(snap.b.pokemon, o.key)) {
