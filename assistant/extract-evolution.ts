@@ -17,6 +17,9 @@
 //    explain their behaviour; behaviour is documented separately by inspection (knowledge/pilot-evolution.md).
 //  * `probes` call two callbacks (TYPE_NULL, PIKACHU) with stub arguments, only because their bodies were read and
 //    use nothing but the passed item / player.regionalPokemons. They are labelled as probes, not runtime game behaviour.
+//    Any probe exception, or a result that is not an actual Pkm identifier, fails the whole extraction.
+//  * Output paths are checked before anything is written (output-guard.ts): game files, root config and the other
+//    extractor's checkpoints are refused; own checkpoint reruns and scratch .json outputs are allowed.
 //  * The inherited default rule (COUNT, numberRequired 3, from the base `Pokemon` class) is reported separately from
 //    evidence that a unit can evolve (`evolutionEvidence`): a terminal unit keeps the inherited rule.
 import { execFileSync } from "node:child_process"
@@ -27,6 +30,7 @@ import PokemonFactory from "../app/models/pokemon-factory"
 import { EvolutionRuleType } from "../app/types/EvolutionRules"
 import { SynergyGivenByItem } from "../app/types/enum/Item"
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
+import { checkOutputPath, OutputGuardError } from "./output-guard"
 
 const AUDITED_SOURCE_COMMIT = "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2"
 
@@ -34,6 +38,9 @@ const SCRIPT_DIR = dirname(resolve(process.argv[1]))
 const REPO_ROOT = resolve(SCRIPT_DIR, "..")
 const PILOT_UNITS_JSON = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-units.json")
 const DEFAULT_OUT = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-evolution.json")
+// Checkpoints this extractor may regenerate / that belong to extract-baseline.ts (see output-guard.ts).
+const OWN_CHECKPOINTS = [DEFAULT_OUT]
+const OTHER_CHECKPOINTS = [resolve(SCRIPT_DIR, "data", "baseline.json"), PILOT_UNITS_JSON]
 const POKEMON_SOURCE = "app/models/colyseus-models/pokemon.ts"
 
 // Every property any EvolutionRule variant may carry (app/types/EvolutionRules.ts).
@@ -254,34 +261,50 @@ function extractUnit(key: string, baseDefaultRule: any) {
   }
 }
 
-// Probes: callbacks invoked with stub arguments (bodies were read and use only these inputs).
+// Probes: callbacks invoked with stub arguments (bodies were read and use only these inputs). A probe shows what the
+// callback returns for the stub input; it is NOT full gameplay behaviour. Any exception, or a result that is not an actual
+// Pkm identifier, fails the whole extraction. A requested unit whose callback is missing also fails (the probe's assumption broke).
 function runProbes(units: Record<string, ReturnType<typeof extractUnit>>) {
   const probes: Record<string, unknown> = {}
-  const call = (fn: any, ...args: unknown[]) => {
+  const call = (label: string, fn: any, ...args: unknown[]): Pkm => {
+    let result: unknown
     try {
-      return { ok: true, result: fn(...args) }
+      result = fn(...args)
     } catch (e: any) {
-      return { ok: false, error: String(e?.message ?? e) }
+      fail(`probe ${label} threw: ${String(e?.message ?? e)}`)
     }
+    if (!isPkmValue(result)) fail(`probe ${label} returned ${JSON.stringify(result)}, which is not a Pkm identifier`)
+    return result
   }
   const tn = units.TYPE_NULL?._rule
-  if (tn?.divergentEvolution && Array.isArray(tn.itemsTriggeringEvolution)) {
+  if (units.TYPE_NULL) {
+    if (!tn?.divergentEvolution || !Array.isArray(tn.itemsTriggeringEvolution)) {
+      fail("probe TYPE_NULL: expected an ITEM rule with itemsTriggeringEvolution and a divergentEvolution callback")
+    }
     probes.TYPE_NULL = {
       kind: "divergentEvolution called once per item in itemsTriggeringEvolution, stub pokemon/player ({})",
       itemCount: tn.itemsTriggeringEvolution.length,
       itemToVariant: tn.itemsTriggeringEvolution.map((item: string) => ({
         item,
         synergyGivenByItem: Object.hasOwn(SynergyGivenByItem, item) ? (SynergyGivenByItem as any)[item] : null,
-        ...call(tn.divergentEvolution, {}, {}, item)
+        ok: true,
+        result: call(`TYPE_NULL item ${item}`, tn.divergentEvolution, {}, {}, item)
       }))
     }
   }
   const pk = units.PIKACHU?._rule
-  if (pk?.divergentEvolution) {
+  if (units.PIKACHU) {
+    if (!pk?.divergentEvolution) fail("probe PIKACHU: expected a divergentEvolution callback")
     probes.PIKACHU = {
       kind: "divergentEvolution called with stub player objects differing only in regionalPokemons",
-      withoutAlolanRaichuInRegionalPokemons: call(pk.divergentEvolution, {}, { regionalPokemons: [] }),
-      withAlolanRaichuInRegionalPokemons: call(pk.divergentEvolution, {}, { regionalPokemons: [Pkm.ALOLAN_RAICHU] })
+      withoutAlolanRaichuInRegionalPokemons: {
+        ok: true,
+        result: call("PIKACHU (regionalPokemons: [])", pk.divergentEvolution, {}, { regionalPokemons: [] })
+      },
+      withAlolanRaichuInRegionalPokemons: {
+        ok: true,
+        result: call("PIKACHU (regionalPokemons: [ALOLAN_RAICHU])", pk.divergentEvolution, {}, { regionalPokemons: [Pkm.ALOLAN_RAICHU] })
+      }
     }
   }
   return probes
@@ -297,6 +320,14 @@ function main() {
   if (new Set(keys).size !== keys.length) fail(`duplicate keys requested: ${keys.join(", ")}`)
   const outPath = out ? resolve(process.cwd(), out) : DEFAULT_OUT
   if (argKeys.length && outPath === DEFAULT_OUT) fail(`refusing to write an explicit unit list to the default output ${DEFAULT_OUT}; pass --out <other file>`)
+
+  // Output checks come first: nothing is extracted, created or written if the target is not acceptable.
+  try {
+    checkOutputPath({ outPath, repoRoot: REPO_ROOT, ownCheckpoints: OWN_CHECKPOINTS, otherCheckpoints: OTHER_CHECKPOINTS })
+  } catch (e) {
+    if (e instanceof OutputGuardError) fail(e.message)
+    throw e
+  }
 
   const provenance = collectProvenance(allowMismatch)
   const baseDefaultRule = PokemonFactory.createPokemonFromName(Pkm.DEFAULT).evolutionRule

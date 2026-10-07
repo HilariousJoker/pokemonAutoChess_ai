@@ -7,11 +7,15 @@
 //          --allow-source-mismatch      record, instead of failing on, game-source drift from the audited commit
 //
 // Alternate unit sets MUST pass --out; they never write to the default checkpoint path.
+// Output paths are checked before anything is written (output-guard.ts): game files, root config and the other
+// extractor's checkpoints are refused; own checkpoint reruns (baseline.json, data/01a3e845/pilot-units.json with the same
+// unit set) and scratch .json outputs are allowed.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import PokemonFactory, { getPokemonBaseline } from "../app/models/pokemon-factory"
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
+import { checkOutputPath, OutputGuardError } from "./output-guard"
 
 const AUDITED_SOURCE_COMMIT = "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2"
 const DEFAULT_KEYS = ["CHARMANDER", "FARFETCH_D", "VESPIQUEN"]
@@ -19,6 +23,10 @@ const DEFAULT_KEYS = ["CHARMANDER", "FARFETCH_D", "VESPIQUEN"]
 const SCRIPT_DIR = dirname(resolve(process.argv[1]))
 const REPO_ROOT = resolve(SCRIPT_DIR, "..")
 const DEFAULT_OUT = resolve(SCRIPT_DIR, "data", "baseline.json")
+// Checkpoints this extractor may regenerate / that belong to extract-evolution.ts (see output-guard.ts).
+const PILOT_UNITS_OUT = resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-units.json")
+const OWN_CHECKPOINTS = [DEFAULT_OUT, PILOT_UNITS_OUT]
+const OTHER_CHECKPOINTS = [resolve(SCRIPT_DIR, "data", "01a3e845", "pilot-evolution.json")]
 
 const NUMERIC_FIELDS = [
   "stars", "hp", "maxHP", "atk", "def", "speDef", "speed", "range", "maxPP",
@@ -190,6 +198,24 @@ function main() {
   const outPath = out ? resolve(process.cwd(), out) : DEFAULT_OUT
   if (!isDefaultSet && outPath === DEFAULT_OUT) {
     fail(`refusing to write non-default unit set to the default checkpoint ${DEFAULT_OUT}; pass --out <other file>`)
+  }
+
+  // Output checks come first: nothing is extracted, created or written if the target is not acceptable.
+  try {
+    checkOutputPath({ outPath, repoRoot: REPO_ROOT, ownCheckpoints: OWN_CHECKPOINTS, otherCheckpoints: OTHER_CHECKPOINTS })
+  } catch (e) {
+    if (e instanceof OutputGuardError) fail(e.message)
+    throw e
+  }
+  if (existsSync(outPath) && OWN_CHECKPOINTS.includes(outPath)) {
+    // rerunning an existing checkpoint must keep its unit set (alternate sets go to a scratch --out)
+    let existing: string[] | undefined
+    try {
+      existing = Object.keys(JSON.parse(readFileSync(outPath, "utf8")).pokemon ?? {})
+    } catch {}
+    if (existing && (existing.length !== keys.length || !existing.every((k) => keys.includes(k)))) {
+      fail(`refusing to overwrite checkpoint ${outPath}: it holds ${existing.length} unit(s) but ${keys.length} different unit(s) were requested; use a scratch --out. Nothing was written.`)
+    }
   }
 
   const provenance = collectProvenance(allowMismatch)
