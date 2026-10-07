@@ -36,9 +36,11 @@ The exact npm-10 error text was not saved at the time; the list above is from th
 Identity, family root and bare-instance evolution fields are kept separate:
 - `pokemon[KEY].identity` — `{key, name, index}`: **the unit itself** (verified: factory `name` equals `Pkm[key]`, `index` equals `PkmIndex`).
 - `pokemon[KEY].evolutionFamilyRoot` — result of `getPokemonBaseline()`; the root of the evolution family, **not** the unit's identity (VESPIQUEN → `COMBEE`).
-- `pokemon[KEY].bareInstanceEvolution` — raw `evolution` / `evolutions` of a bare factory instance. **These do not form a complete evolution map**:
-  `evolution` is only the next stage set on the class (VESPIQUEN: `DEFAULT`, FARFETCH_D: `DEFAULT`), and `evolutions` is filled elsewhere
-  (empty for CHARMANDER although it evolves). Do not derive evolution trees from them.
+- `pokemon[KEY].bareInstanceEvolution` — raw `evolution` / `evolutions` of a bare factory instance. **These do not form a complete evolution map.**
+  `evolution` is the single default next stage declared on the class (`DEFAULT` for VESPIQUEN, FARFETCH_D and also PIKACHU); `evolutions` is non-empty only for classes that
+  declare branching targets in the class body (PIKACHU → RAICHU, ALOLAN_RAICHU; COSMOEM → SOLGALEO, LUNALA), and is `[]` otherwise (e.g. CHARMANDER, TYPE_NULL).
+  `evolutionRule` (counts, items, `divergentEvolution` callbacks, e.g. TYPE_NULL → many `SILVALLY_*`) is not extracted. Do not derive evolution trees from these fields.
+  (Correction: the first checkpoint's wording "filled elsewhere" was inaccurate; the 20-unit pilot showed it is class-declared.)
 - `pokemon[KEY].types`, `.stats` — types and numeric/string/boolean stat fields.
 - `provenance` — environment-dependent; compare `pokemon` only.
 (v1 layout, commit `1f9ee28`, was flat and called the family root `baseline`.)
@@ -66,6 +68,37 @@ Missing-required-field and non-finite checks cover the listed stat fields; they 
 | FARFETCH_D | FARFETCH_D | UNIQUE | 3 | 200 | 20 | 8/8 | 50 | 1 | 60 | RAZOR_WIND | NONE | FLYING, GOURMET, NORMAL |
 | VESPIQUEN | **COMBEE** | UNIQUE | 3 | 190 | 16 | 8/8 | 38 | 3 | 90 | VESPIQUEN_ORDERS | VESPIQUEN | BUG, FLORA, GOURMET |
 
+## 20-unit knowledge pilot (this step)
+Files: `data/01a3e845/pilot-units.json` (data), `knowledge/pilot-units.md` (notes, table, source cross-check), `knowledge/make-pilot-table.mjs` (table generator).
+The three-unit checkpoint (`data/baseline.json`) is untouched.
+
+Exact commands, run in a disposable worktree `/home/user/pac_repro` at `fcba0b4` (Node 24.21.0 / npm 11.19.0, existing `node_modules`, no reinstall;
+`PATH` had `/tmp/claude-0/node24/node-v24.21.0-linux-x64/bin` first):
+```bash
+KEYS="CHARMANDER CHARMELEON CHARIZARD PIKACHU RAICHU ALOLAN_RAICHU GALAR_MEOWTH VESPIQUEN ARCEUS MAGIKARP GYARADOS TYPE_NULL PRIMEAPE TEPIG DITTO UNOWN_D FARFETCH_D TOTODILE COSMOEM SUBSTITUTE"
+node_modules/.bin/tsx assistant/extract-baseline.ts --out assistant/data/01a3e845/pilot-units.json $KEYS
+node_modules/.bin/tsx assistant/extract-baseline.ts --out <scratch>/pilot-run2.json $KEYS
+node assistant/compare-payloads.mjs assistant/data/01a3e845/pilot-units.json <scratch>/pilot-run2.json
+node assistant/knowledge/make-pilot-table.mjs            # table pasted into knowledge/pilot-units.md
+```
+Outputs / checks:
+| Check | Result |
+|---|---|
+| Both extraction runs | exit 0 for all 20 keys; no identity/validation failure; `--allow-source-mismatch` **not** used; provenance: `gameSourceMatchesAudited=true`, no dirty files outside or inside `assistant/` |
+| Payload comparison | `IDENTICAL payloads (20 units)` |
+| Key set | exactly the 20 requested keys, same order, no extras, no duplicates (checked with a one-off `node -e`) |
+| Failures / partial file | none, so no partial-progress file exists |
+| Table | regenerated from the JSON and diffed against the notes: identical |
+| Source cross-check (CHARMANDER, FARFETCH_D, VESPIQUEN, ARCEUS, COSMOEM) | HP, attack, speed, types, skill all match the class definitions in `app/models/colyseus-models/pokemon.ts`; FARFETCH_D speed 50 is the inherited `DEFAULT_SPEED`; ARCEUS types are empty on a bare instance. No discrepancies. Details and line numbers in `knowledge/pilot-units.md` |
+
+Limitations of this step:
+- Bare-instance values only: not live-game values; **live-game parity is unverified** (no comparison with the game, upstream, wiki or patch notes).
+- The cross-check is a manual read of five classes, the base class and the factory, not an automated test; the other 15 units were not independently read.
+- Context notes (VESPIQUEN, ARCEUS, COSMOEM, TYPE_NULL, MAGIKARP) list what code establishes and what stays untested (ability implementations, evolution manager, whether COSMOEM `onAcquired` runs on evolution, passives with no `PassiveEffects` entry for TYPE_NULL/MAGIKARP).
+- Evolution maps, items, synergies, abilities and combat were not extracted; only one toolchain was used (Node 24.21.0, linux-x64).
+
+**Suggested next step:** pick one narrow, verifiable follow-up before scaling, e.g. extract `evolutionRule` shape (type, `numberRequired`, `itemsTriggeringEvolution`, whether `divergentEvolution` exists) for the same 20 units so evolution is represented honestly; leave the full catalog until that and a live-game spot-check of 2–3 units are done.
+
 ## Remaining limitations
 - Verified on one toolchain only (Node 24.21.0 / npm 11.19.0, linux-x64); the minimum Node 24.19.0 and other platforms were not tried.
 - Extraction of three units only; no typecheck, test suite, server start, or comparison against upstream/another data source.
@@ -88,6 +121,7 @@ node_modules/.bin/tsx assistant/extract-baseline.ts                             
 node_modules/.bin/tsx assistant/extract-baseline.ts --out /tmp/alt.json CHARMELEON CHARIZARD   # other units: --out is mandatory
 node_modules/.bin/tsx assistant/extract-baseline.ts --out /tmp/new.json            # re-extract the default 3 units elsewhere
 node assistant/compare-payloads.mjs assistant/data/baseline.json /tmp/new.json         # compare payloads (provenance ignored)
+node assistant/knowledge/make-pilot-table.mjs                                          # pilot table from data/01a3e845/pilot-units.json
 ```
 If `npm ci` fails on a different toolchain, keep the exact error text, and only then consider one
 `npm install --ignore-scripts` in a disposable worktree; save the resulting lockfile under `assistant/repro/` and
