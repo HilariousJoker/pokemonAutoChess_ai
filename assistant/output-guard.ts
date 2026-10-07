@@ -24,7 +24,7 @@ export interface OutputGuardOptions {
 }
 
 // realpath of the nearest existing ancestor + the not-yet-existing remainder (no filesystem changes).
-function realTarget(p: string): string {
+export function realTarget(p: string): string {
   const rest: string[] = []
   let cur = resolve(p)
   while (!existsSync(cur)) {

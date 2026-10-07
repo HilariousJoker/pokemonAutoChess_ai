@@ -1,6 +1,6 @@
 # Production-reference catalog coverage
 
-**Snapshot:** production-branch reference; deployment unverified — upstream `prod` head `07367c341fe928763da2b565c2eee010433e4fc1`. Data: [`../data/07367c34/catalog-units.json`](../data/07367c34/catalog-units.json). Separate from the development snapshot (`01a3e845…`) and from [`pilot-units.json`](../data/07367c34/pilot-units.json), which are unchanged.
+**Scope:** bare-baseline identifier catalog (1184 identifiers) of the production-branch reference; deployment unverified — upstream `prod` head `07367c341fe928763da2b565c2eee010433e4fc1`. Identifier inventory and bare factory values only; not availability, mechanics, behavior or live-game parity. Data: [`../data/07367c34/catalog-units.json`](../data/07367c34/catalog-units.json). Separate from the development snapshot (`01a3e845…`) and from [`pilot-units.json`](../data/07367c34/pilot-units.json), which are unchanged.
 
 ## Inventory and accounting
 | | Count |
@@ -35,6 +35,9 @@ Same shape as the pilot: `identity` (key/name/index), `evolutionFamilyRoot`, `ba
 - Guards (new catalog checkpoint registration): `--catalog` into `pilot-units.json` (set-size mismatch), into the development checkpoint, and into `app/` all refused; `--catalog` with explicit keys refused; a 1-key run into `catalog-units.json` refused; `extract-evolution.ts` refuses both production checkpoints. Nothing was written by any refused call.
 - Lookup: default development lookup works; a baseline/evolution pair with any audited SHA other than `01a3e845…` (e.g. the production pilot) is refused with exit 3.
 - Enum validation was exercised on the production profile only; the development profile shares the code but was not re-run.
+
+## Checkpoint rerun and role checks (fix)
+Reruns of the catalog checkpoint are exclusion-aware (records for every identifier except `DEFAULT`; stored inventory must equal the requested inventory), and roles are enforced even when the target does not exist: `catalog-units.json` accepts only `--profile production-reference --catalog`, and catalog output is refused for the pilot and all other checkpoints. Verified: in-place `--catalog` rerun succeeded with identical `pokemon`/`inventory`/`registry`; non-catalog output to the catalog path refused (exact extracted key set, one key, absent file); catalog output to the pilot path refused (existing and absent); no refusal changed a file; committed datasets unchanged.
 
 ## Toolchain and commands
 Node `v24.21.0` (official tarball, SHA-256 verified), npm `11.19.0`, linux-x64. Disposable worktree `git worktree add --detach /home/user/pac_prod 07367c341fe928763da2b565c2eee010433e4fc1`; `npm ci --ignore-scripts --no-audit --no-fund` exit 0, 813 packages (EBADENGINE warning: production pins Node 24.19.0).

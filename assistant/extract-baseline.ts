@@ -26,7 +26,7 @@ import { Rarity } from "../app/types/enum/Game"
 import { Passive } from "../app/types/enum/Passive"
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
 import { Synergy } from "../app/types/enum/Synergy"
-import { checkOutputPath, OutputGuardError } from "./output-guard"
+import { checkOutputPath, OutputGuardError, realTarget } from "./output-guard"
 
 const DEFAULT_KEYS = ["CHARMANDER", "FARFETCH_D", "VESPIQUEN"]
 
@@ -322,14 +322,36 @@ function main() {
     if (e instanceof OutputGuardError) fail(e.message)
     throw e
   }
+  // Checkpoint roles are enforced whether or not the target exists (given path and symlink-resolved path alike):
+  // the catalog checkpoint takes catalog output only, and no other checkpoint may receive catalog output.
+  const CATALOG_OUT = dataPath(PROFILES["production-reference"].checkpointDir, "catalog-units.json")
+  const isCatalogTarget = [outPath, realTarget(outPath)].some((p) => p === CATALOG_OUT || p === realTarget(CATALOG_OUT))
+  if (isCatalogTarget && !catalog) {
+    fail(`refusing to write ${outPath}: it is the catalog checkpoint and only --profile production-reference --catalog may write it. Nothing was written.`)
+  }
+  if (catalog && !isCatalogTarget && [...OWN_CHECKPOINTS, ...OTHER_CHECKPOINTS].some((c) => c === outPath || realTarget(c) === realTarget(outPath))) {
+    fail(`refusing to write catalog output to checkpoint ${outPath}: only ${CATALOG_OUT} (or a scratch .json) may receive it. Nothing was written.`)
+  }
   if (existsSync(outPath) && OWN_CHECKPOINTS.includes(outPath)) {
-    // rerunning an existing checkpoint must keep its unit set (alternate sets go to a scratch --out)
-    let existing: string[] | undefined
+    // rerunning an existing checkpoint must keep its unit set (alternate sets go to a scratch --out).
+    // Catalog mode is exclusion-aware: records exist for every requested identifier except the declared exclusions,
+    // and the stored inventory must list exactly the requested identifiers.
+    let doc: any
     try {
-      existing = Object.keys(JSON.parse(readFileSync(outPath, "utf8")).pokemon ?? {})
+      doc = JSON.parse(readFileSync(outPath, "utf8"))
     } catch {}
-    if (existing && (existing.length !== keys.length || !existing.every((k) => keys.includes(k)))) {
-      fail(`refusing to overwrite checkpoint ${outPath}: it holds ${existing.length} unit(s) but ${keys.length} different unit(s) were requested; use a scratch --out. Nothing was written.`)
+    if (doc) {
+      const have = Object.keys(doc.pokemon ?? {})
+      const want = catalog ? keys.filter((k) => !Object.hasOwn(CATALOG_EXCLUSIONS, k)) : keys
+      if (have.length !== want.length || !have.every((k) => want.includes(k))) {
+        fail(`refusing to overwrite checkpoint ${outPath}: it holds ${have.length} unit record(s) but ${want.length} different one(s) would be written; use a scratch --out. Nothing was written.`)
+      }
+      if (catalog) {
+        const inv: string[] | undefined = doc.inventory?.identifiers
+        if (!Array.isArray(inv) || inv.length !== keys.length || !inv.every((k) => keys.includes(k))) {
+          fail(`refusing to overwrite catalog checkpoint ${outPath}: its inventory section does not match the requested identifier inventory. Nothing was written.`)
+        }
+      }
     }
   }
 

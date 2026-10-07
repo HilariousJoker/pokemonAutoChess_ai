@@ -1,10 +1,12 @@
 # Baseline extraction checkpoint — status (hardened)
 
 Scope (cumulative): (1) the three-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN; `data/baseline.json`),
-(2) a 20-unit bare-instance pilot (`data/01a3e845/pilot-units.json`, `knowledge/pilot-units.md`), and
-(3) evolution declarations for the same 20 units (`data/01a3e845/pilot-evolution.json`, `knowledge/pilot-evolution.md`).
-(4) packaging for lookup (and, later, a guard correction + version-alignment report): `lookup-unit.mjs`, `README.md`, output-path guards and stricter evolution probes (section "Packaging step" below).
-No catalog, upstream parity, schemas, items/synergies, server, combat, live-game interaction or Obsidian work.
+(2) a 20-unit bare-instance pilot (`data/01a3e845/pilot-units.json`, `knowledge/pilot-units.md`), (3) evolution declarations for the same 20 units
+(`data/01a3e845/pilot-evolution.json`, `knowledge/pilot-evolution.md`), (4) lookup packaging, output-path guards and a version-alignment report
+(`lookup-unit.mjs`, `analysis/version-alignment.md`), (5) a separate 20-unit baseline of the production-branch reference (`data/07367c34/pilot-units.json`,
+`analysis/pilot-baseline-comparison.md`), and (6) a bare-baseline identifier catalog of that reference (`data/07367c34/catalog-units.json`,
+`analysis/catalog-coverage.md`; 1184 identifiers). Development and production-reference data are kept separate.
+Not done: items/synergies, abilities, combat, server, live-game interaction, Obsidian, production lookup, upstream/live-game parity. Bare factory values only.
 
 ## Two different commits — do not conflate
 | | SHA | Meaning |
@@ -192,6 +194,9 @@ Separate 20-unit bare baseline of the upstream `prod` head `07367c341fe928763da2
 
 ## Production-reference catalog (latest step)
 `data/07367c34/catalog-units.json`: all 1184 `Pkm` identifiers of `07367c34…` (production-branch reference; deployment unverified) — 1183 extracted, 1 excluded (`DEFAULT`), 0 failed; two runs identical; the 20 pilot records are identical to `data/07367c34/pilot-units.json`. Report, commands, guard tests: `analysis/catalog-coverage.md`. `extract-baseline.ts` gained `--catalog` and enum validation (Rarity/Ability/Passive/Synergy/Pkm); `compare-payloads.mjs` gained `--subset`; `lookup-unit.mjs` now refuses any audited SHA other than the development SHA (default behaviour unchanged). Availability/playability and behavior unverified; production lookup not built.
+
+### Catalog checkpoint rerun/mode checks (fix)
+`extract-baseline.ts`: the overwrite check is now exclusion-aware (catalog reruns expect records for every identifier except the declared exclusions, and the stored `inventory.identifiers` must equal the requested inventory), and checkpoint roles are enforced even when the target file does not exist: `catalog-units.json` accepts only `--profile production-reference --catalog`; catalog output is refused for every other checkpoint (pilot, baseline, other-profile). Verified in a disposable production worktree: in-place catalog rerun succeeded (`pokemon`, `inventory`, `registry` identical); non-catalog runs to the catalog path refused (exact extracted key set, one key, absent target); catalog to the pilot path refused (existing and absent); refusals changed nothing; committed datasets unchanged (hashes equal).
 
 ## Remaining limitations
 - Verified on one toolchain only (Node 24.21.0 / npm 11.19.0, linux-x64); the minimum Node 24.19.0 and other platforms were not tried.
