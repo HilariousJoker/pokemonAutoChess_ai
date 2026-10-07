@@ -17,6 +17,7 @@ A small, source-backed lookup for **20 units**, extracted from the game's own co
 | [`data/07367c34/catalog-units.json`](data/07367c34/catalog-units.json) | Production-reference bare baseline for **all 1184 `Pkm` identifiers**: 1183 extracted, 1 excluded (`DEFAULT`, the factory's MissingNo fallback), 0 failed. Availability/playability unverified. Report: [`analysis/catalog-coverage.md`](analysis/catalog-coverage.md). Not used by the lookup. |
 | [`data/07367c34/pilot-evolution.json`](data/07367c34/pilot-evolution.json) · [`knowledge/07367c34/pilot-evolution.md`](knowledge/07367c34/pilot-evolution.md) | Declared evolution data and source-backed notes for the 20 pilot units at the production-branch reference (`07367c34…`; deployment unverified). Separate from the development evolution files; not used by the lookup. `compare-evolution.mjs` compares the two evolution files. |
 | [`knowledge/07367c34/evolution-context.md`](knowledge/07367c34/evolution-context.md) · [`probes/`](probes/) | Acquisition context for PIKACHU (regional list) and COSMOG/COSMOEM (light cell, evolution loop) at the production-branch reference, with two small isolated probes and their results (probes require `--out`, verify the pinned source and reuse the output guard). |
+| [`lookup-production.mjs`](lookup-production.mjs) · `test-lookup-production.mjs` | **Production-reference** lookup (separate from `lookup-unit.mjs`, which stays development-only): baseline for any of the 1183 catalog identifiers, plus evolution records for the 20 pilot units and reviewed ability information only for units a record explicitly covers. Reads committed `data/07367c34` and `knowledge/07367c34` files only; no game code, no install, no writes. |
 | [`data/07367c34/pilot-abilities.json`](data/07367c34/pilot-abilities.json) · [`knowledge/07367c34/pilot-abilities.md`](knowledge/07367c34/pilot-abilities.md) · `validate-abilities.mjs` | Source-read ability pilot (BLAST_BURN, CRUNCH, VESPIQUEN_ORDERS) at the production-branch reference: structured records with evidence references, player-facing notes, and a validator for both. Raw declared amounts only; not used by the lookup. |
 | [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md) | Field-by-field comparison of the two baselines (bare factory values only). |
 | [`data/baseline.json`](data/baseline.json) | The earlier 3-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN), kept unchanged. |
@@ -27,7 +28,17 @@ A small, source-backed lookup for **20 units**, extracted from the game's own co
 | `compare-payloads.mjs`, `compare-snapshots.mjs`, `knowledge/make-pilot-table.mjs` | Payload comparison and table generation helpers. |
 | `repro/`, `lockfile-drift.patch` | Install evidence and a historical record of an old-toolchain install failure. |
 
-## Look a unit up
+## Look a unit up — production-branch reference (`lookup-production.mjs`)
+```bash
+node assistant/lookup-production.mjs CHARIZARD   # baseline + evolution declarations + reviewed BLAST_BURN (raw amounts)
+node assistant/lookup-production.mjs VESPIQUEN   # placeholder skill + position-dependent modes + unresolved acquisition paths
+node assistant/lookup-production.mjs ABRA        # catalog baseline only; evolution/ability coverage explicitly "not covered"
+node assistant/lookup-production.mjs --list      # counts, coverage and all catalog identifiers
+node assistant/test-lookup-production.mjs        # representative checks, incl. rejection fixtures in the OS temp dir
+```
+Every card is labelled **Production-branch reference; deployment unverified** with the pinned SHA `07367c34…`. A catalog identifier is **not** evidence of shop availability or playability. Evolution coverage (20 units) and ability coverage (3 records) are subsets of the catalog; an ability explanation is shown only for units listed in that record's `appliesTo` (CRUNCH covers TOTODILE only, not CROCONAW). Unknown, prototype-property (`toString`, `__proto__`) and excluded (`DEFAULT`) identifiers exit 1 with an error; data with another revision, failed source-match provenance or inconsistent identities is refused (exit 3). It never reads development data or notes.
+
+## Look a unit up — development snapshot (`lookup-unit.mjs`)
 ```bash
 node assistant/lookup-unit.mjs PIKACHU      # one unit (exact, case-sensitive Pkm key)
 node assistant/lookup-unit.mjs --list       # the 20 covered keys
