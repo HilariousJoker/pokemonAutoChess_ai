@@ -12,7 +12,7 @@
 //            - paths that reach one of the above through a symlink (the real path is checked as well as the given one).
 import { execFileSync } from "node:child_process"
 import { existsSync, realpathSync, statSync } from "node:fs"
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path"
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 export class OutputGuardError extends Error {}
 
@@ -36,9 +36,13 @@ function realTarget(p: string): string {
   return join(realpathSync(cur), ...rest)
 }
 
+// Returns the "/"-separated path of `p` relative to `root`, or null when `p` is the root itself or lies outside it.
+// "Outside" means the relative path IS ".." or STARTS WITH the parent-directory segment ".." + separator; a name that merely
+// begins with two dots (e.g. "..odd.json") is an ordinary file inside the root.
 function isInside(root: string, p: string): string | null {
   const rel = relative(root, p)
-  return rel === "" || rel.startsWith("..") || isAbsolute(rel) ? null : rel.split("\\").join("/")
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return null
+  return rel.split(sep).join("/")
 }
 
 export function checkOutputPath(o: OutputGuardOptions): void {

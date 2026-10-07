@@ -3,7 +3,7 @@
 Scope (cumulative): (1) the three-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN; `data/baseline.json`),
 (2) a 20-unit bare-instance pilot (`data/01a3e845/pilot-units.json`, `knowledge/pilot-units.md`), and
 (3) evolution declarations for the same 20 units (`data/01a3e845/pilot-evolution.json`, `knowledge/pilot-evolution.md`).
-(4) packaging for lookup: `lookup-unit.mjs`, `README.md`, output-path guards and stricter evolution probes (section "Packaging step" below).
+(4) packaging for lookup (and, later, a guard correction + version-alignment report): `lookup-unit.mjs`, `README.md`, output-path guards and stricter evolution probes (section "Packaging step" below).
 No catalog, upstream parity, schemas, items/synergies, server, combat, live-game interaction or Obsidian work.
 
 ## Two different commits — do not conflate
@@ -151,7 +151,7 @@ Limitations of this step:
 
 **Suggested next step:** pick one unresolved path that gates a pilot unit (PIKACHU's `regionalPokemons` computation or COSMOEM's `equipItem`/HP path) and settle it by a short, targeted read; then do a live-game spot-check of 2–3 units before widening beyond the pilot. Defer the full catalog until then.
 
-## Packaging step: lookup tool, README, output guards, stricter probes (this step)
+## Packaging step: lookup tool, README, output guards, stricter probes (previous step)
 Files: `lookup-unit.mjs`, `README.md` (overview; links to data/notes/this file, no duplicated stat tables), `output-guard.ts` (shared by both extractors), edits to `extract-baseline.ts` / `extract-evolution.ts`.
 (The guard lives in `assistant/output-guard.ts`, not `assistant/lib/`, because the root `.gitignore` ignores any `lib` directory and `.gitignore` was not to be changed.)
 Local housekeeping done as authorised: the exact line `assistant/data/npm-install.log` was added to `.git/info/exclude` (local only; the log is not committed, `.gitignore` unchanged).
@@ -177,6 +177,11 @@ Checks actually run (disposable worktree `/home/user/pac_repro` at `443335f` + t
 Limitations of this step: the guard only knows this repository; it cannot recognise game data in another checkout or protect arbitrary `.json` files outside the repo (those count as scratch). `.json` is required, so a rejected extension never reaches the other checks. The lookup links are built from headings that exist in the notes, so renaming a note heading silently drops that link (no link is invented). Everything about evidence strength and gaps is in `README.md`.
 
 **Suggested next step:** settle one unresolved path that gates a pilot unit (PIKACHU's `regionalPokemons` computation or COSMOEM's `equipItem`/HP path) with a short targeted read, then spot-check 2–3 units in the live game; defer the catalog until then.
+
+## Output-guard correction and version-alignment check (this step)
+- **Guard fix** (`output-guard.ts`): `isInside` used `rel.startsWith("..")`, so a repo-root file such as `..odd.json` was treated as *outside* the repository and was **written** (reproduced in the disposable worktree, file then deleted). It now treats only `rel === ".."` or `rel` starting with `".." + path.sep` as outside. Verified in the disposable repo: `--out ..odd.json` / `./..odd.json` rejected by both extractors (exit 1, nothing created); an external scratch path and a `..`-named directory outside the repo still pass; `assistant/..scratch.json` (new, under `assistant/`) still allowed; `assistant/../package.json` still rejected. The full protection matrix was not repeated.
+- **Version alignment** (details: `analysis/version-alignment.md`): production deploy ref is `origin/prod` (`ecosystem.config.js:8`); the audited commit is upstream `master`'s head (a development snapshot, 269 commits ahead of `prod` head `07367c341…` and not containing it); `prod` is a curated lineage (`package.json` 6.11.1 vs audited 6.11). The deployed SHA is **not publicly identifiable** from the sources checked (client shows only the version; deploys are manual `pm2 deploy`; GitHub releases/deployments API and the production site were inaccessible here). Of the 20 pilot units, 17 class definitions match `prod` head textually; **UNOWN_D (maxPP 50 vs 100), TOTODILE (BITE vs CRUNCH) and COSMOEM (hp 200/stacks 10 vs 220/8; COSMOG also differs) differ**, and a few mechanics blocks behind the notes differ (Cosmog hook location, `equipItem` vs `addItem`, Arceus synergy ordering, shop code). No extraction was run against `prod`; no knowledge files were regenerated.
+- **Recommendation:** keep using this snapshot, explicitly labelled as the development (`master`) snapshot; do not extract a "release" snapshot until the deployed commit hash is obtained from the operator.
 
 ## Remaining limitations
 - Verified on one toolchain only (Node 24.21.0 / npm 11.19.0, linux-x64); the minimum Node 24.19.0 and other platforms were not tried.
