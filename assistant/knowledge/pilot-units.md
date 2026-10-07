@@ -75,7 +75,7 @@ Uncertainties: (a) this confirms the extractor matches the class definitions, no
   picks SOLGALEO if the unit stands on the player's light cell and a Light synergy tier is active, otherwise LUNALA. Its `onAcquired(player)` does `stacks = -1`, `hp -= 10`, `hp -= 100`, `maxHP = hp`
   ("revert hp buffs of cosmog"). `onAcquired` has callers in `app/rooms/game-room.ts` (e.g. 1357, 1363, 1654) and `app/services/gift-shop.ts`. An on-evolution hook (`passives.ts:1929–1942`)
   gives COSMOG/COSMOEM on the board `+10 max HP` and `+1 stack` when another unit evolves. The audited commit's own subject is "revert cosmog and cosmoem passive buffs" (not diffed here).
-- **Untested:** whether `onAcquired` runs on the Cosmog→Cosmoem evolution path (callers of the evolution path not read), and the net HP of a player-owned Cosmoem. Treat 200 as the bare-class value only.
+- **Update:** [`pilot-evolution.md`](pilot-evolution.md) traces this: by code inspection `onAcquired` **is** called on the Cosmog→Cosmoem path (`app/models/colyseus-models/player.ts:356`, via `transformPokemon`). **Still unestablished:** a universal HP for a player-owned Cosmoem (it depends on the Cosmog's `maxHP` at evolution time and untraced item effects); treat 200 as the bare-class value only.
 
 ### TYPE_NULL — stars 2, item-triggered, many evolution targets
 - **Code establishes:** LEGENDARY, **stars = 2**, HP 260, atk 20, def/speDef 12, passive `TYPE_NULL` (`pokemon.ts:10088–10155`). `evolution = SILVALLY`, but `evolutionRule` is `EvolutionRuleType.ITEM`
@@ -93,7 +93,7 @@ Uncertainties: (a) this confirms the extractor matches the class definitions, no
 ## Other observations from the JSON (not investigated)
 - PIKACHU has `evolution = DEFAULT` yet `evolutions = [RAICHU, ALOLAN_RAICHU]`; COSMOEM likewise; most other units use `evolution` only. So the two fields are class-specific and neither is complete on its own.
 - ALOLAN_RAICHU has passive `SURGE_SURFER` and an extra PSYCHIC type vs RAICHU with otherwise identical stats; TEPIG, PRIMEAPE, DITTO, UNOWN_D, SUBSTITUTE carry their own passives.
-  SUBSTITUTE has `maxPP` 0 and skill `DEFAULT` (no ability); UNOWN_D has range 9. Not verified beyond the extracted values.
+  SUBSTITUTE has `maxPP` 0 and its skill identifier is `DEFAULT` (the `Ability.DEFAULT` value; what that means in play was not investigated); UNOWN_D has range 9. Not verified beyond the extracted values.
 
 ## Not covered
 Items, synergy effects, ability behaviour, combat, shop odds, live-game values. No team-composition or strategy advice is given.

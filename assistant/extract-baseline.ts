@@ -171,8 +171,10 @@ function extractUnit(key: string) {
     identity: { key, name: p.name as string, index: p.index as string },
     // root of the unit's evolution family (getPokemonBaseline). NOT the unit's identity.
     evolutionFamilyRoot: evolutionFamilyRoot as string,
-    // raw fields of a bare factory instance. NOT a complete evolution map: `evolution` is only the
-    // next stage set by the class, and `evolutions` is populated elsewhere (empty on a bare instance).
+    // raw fields of a bare factory instance. NOT a complete evolution map: `evolution` is only the single default
+    // next stage declared by the class, and `evolutions` is non-empty only for classes that declare branching targets
+    // (e.g. PIKACHU, COSMOEM); neither includes evolutionRule (counts, items, divergentEvolution callbacks).
+    // See extract-evolution.ts for the rule shape.
     bareInstanceEvolution: { evolution: p.evolution as string, evolutions: [...p.evolutions] as string[] },
     types,
     stats

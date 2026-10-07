@@ -1,6 +1,7 @@
-// Compares the Pokémon payloads of two baseline JSON files (provenance is ignored).
+// Compares the payloads of two extraction JSON files (provenance is ignored).
 // Usage: node assistant/compare-payloads.mjs <a.json> <b.json>
-// Accepts both the v1 flat layout (checkpoint 1f9ee28) and the current nested layout.
+// Baseline files (`pokemon`): accepts both the v1 flat layout (checkpoint 1f9ee28) and the current nested layout.
+// Evolution files (`units` + `probes`, from extract-evolution.ts): compares units, probes and baseDefaultRule.
 // Exit code 0 = identical payloads, 1 = differences (all printed), 2 = usage/read error.
 import { readFileSync } from "node:fs"
 import { isDeepStrictEqual } from "node:util"
@@ -22,10 +23,22 @@ function flat(rec) {
 
 const [fa, fb] = process.argv.slice(2)
 if (!fa || !fb) { console.error("usage: compare-payloads.mjs <a.json> <b.json>"); process.exit(2) }
-let a, b
-try { a = JSON.parse(readFileSync(fa, "utf8")).pokemon; b = JSON.parse(readFileSync(fb, "utf8")).pokemon } catch (e) {
+let docA, docB
+try { docA = JSON.parse(readFileSync(fa, "utf8")); docB = JSON.parse(readFileSync(fb, "utf8")) } catch (e) {
   console.error(`cannot read inputs: ${e.message}`); process.exit(2)
 }
+if (docA.units && docB.units) {
+  const d = []
+  for (const k of new Set([...Object.keys(docA.units), ...Object.keys(docB.units)])) {
+    if (!(k in docA.units) || !(k in docB.units)) d.push(`${k}: only in ${k in docA.units ? fa : fb}`)
+    else if (!isDeepStrictEqual(docA.units[k], docB.units[k])) d.push(`${k}: unit record differs`)
+  }
+  if (!isDeepStrictEqual(docA.probes, docB.probes)) d.push("probes differ")
+  if (!isDeepStrictEqual(docA.baseDefaultRule, docB.baseDefaultRule)) d.push("baseDefaultRule differs")
+  console.log(d.length ? `DIFFERENCES (${d.length}):\n${d.join("\n")}` : `IDENTICAL evolution payloads (${Object.keys(docA.units).length} units + probes)`)
+  process.exit(d.length ? 1 : 0)
+}
+const a = docA.pokemon, b = docB.pokemon
 const diffs = []
 for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
   if (!(k in a)) { diffs.push(`${k}: only in ${fb}`); continue }
