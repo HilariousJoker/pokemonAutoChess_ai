@@ -190,6 +190,9 @@ Separate 20-unit bare baseline of the upstream `prod` head `07367c341fe928763da2
 - Result: two runs identical; exactly the 20 pilot keys; 594/600 shared values equal, 6 changed (UNOWN_D maxPP 50→100, TOTODILE skill BITE→CRUNCH, COSMOEM hp 200→220, plus mirrored `base*`/`maxHP`); `baseAtk` unavailable on production for all 20.
 - Not done: production evolution data/notes, any other unit, behavior, live-game verification. Values are bare factory values only.
 
+## Production-reference catalog (latest step)
+`data/07367c34/catalog-units.json`: all 1184 `Pkm` identifiers of `07367c34…` (production-branch reference; deployment unverified) — 1183 extracted, 1 excluded (`DEFAULT`), 0 failed; two runs identical; the 20 pilot records are identical to `data/07367c34/pilot-units.json`. Report, commands, guard tests: `analysis/catalog-coverage.md`. `extract-baseline.ts` gained `--catalog` and enum validation (Rarity/Ability/Passive/Synergy/Pkm); `compare-payloads.mjs` gained `--subset`; `lookup-unit.mjs` now refuses any audited SHA other than the development SHA (default behaviour unchanged). Availability/playability and behavior unverified; production lookup not built.
+
 ## Remaining limitations
 - Verified on one toolchain only (Node 24.21.0 / npm 11.19.0, linux-x64); the minimum Node 24.19.0 and other platforms were not tried.
 - Extraction covers only the three-unit checkpoint and the 20-unit pilot (baseline + evolution declarations); no typecheck, test suite, server start, or comparison against upstream/another data source.
