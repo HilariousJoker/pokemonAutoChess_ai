@@ -14,6 +14,7 @@ A small, source-backed lookup for **20 units**, extracted from the game's own co
 | [`data/01a3e845/pilot-units.json`](data/01a3e845/pilot-units.json) | Bare-instance baseline for the 20 units (identity, family root, types, stats, skill/passive identifiers). |
 | [`data/01a3e845/pilot-evolution.json`](data/01a3e845/pilot-evolution.json) | Declared evolution data for the same 20 units: rule shape, callback presence + source references, evidence flags, callback probes. |
 | [`data/07367c34/pilot-units.json`](data/07367c34/pilot-units.json) | Bare-instance baseline of the same 20 keys at the production-branch reference (`baseAtk` is absent on that revision and recorded as such). Separate from the development data; no evolution data. |
+| [`data/07367c34/catalog-units.json`](data/07367c34/catalog-units.json) | Production-reference bare baseline for **all 1184 `Pkm` identifiers**: 1183 extracted, 1 excluded (`DEFAULT`, the factory's MissingNo fallback), 0 failed. Availability/playability unverified. Report: [`analysis/catalog-coverage.md`](analysis/catalog-coverage.md). Not used by the lookup. |
 | [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md) | Field-by-field comparison of the two baselines (bare factory values only). |
 | [`data/baseline.json`](data/baseline.json) | The earlier 3-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN), kept unchanged. |
 | [`knowledge/pilot-units.md`](knowledge/pilot-units.md) | Notes on the baseline: what the numbers mean, a source cross-check of five units, context notes for five units. |
@@ -29,7 +30,7 @@ node assistant/lookup-unit.mjs PIKACHU      # one unit (exact, case-sensitive Pk
 node assistant/lookup-unit.mjs --list       # the 20 covered keys
 ```
 The card shows bare-instance stats, types, ability/passive **identifiers**, declared evolution fields, callback probe results if any, the audited SHA, the parity warning, and links into the notes.
-It **refuses** (exit 3) to combine snapshots with different audited commits, a failed game-source match, or inconsistent unit sets. A key outside the pilot is reported as not covered (exit 1); it is never guessed.
+It **refuses** (exit 3) any snapshot whose audited commit is not the development SHA `01a3e845…` (no production lookup yet), and to combine snapshots with different audited commits, a failed game-source match, or inconsistent unit sets. A key outside the pilot is reported as not covered (exit 1); it is never guessed.
 It prints no ability descriptions, acquisition stats or strategy advice because the data holds none.
 
 Evolution cards keep two things apart: the **rule shape** the class carries (many units simply inherit the base `count`/3 rule, including terminal units) and the **evidence a unit can evolve** (declared `evolution` / `evolutions`). An inherited rule alone is not evidence.
@@ -51,6 +52,7 @@ Production-reference extraction (run in a disposable worktree of that SHA, never
 ```bash
 node_modules/.bin/tsx assistant/extract-baseline.ts --profile production-reference --out assistant/data/07367c34/pilot-units.json <20 keys>
 ```
+`--catalog` (with that profile, no keys) extracts the full identifier inventory to `data/07367c34/catalog-units.json`.
 The `production-reference` profile pins the SHA, requires `--out` and explicit keys, protects the development checkpoints (and vice versa), and fails if a field declared absent (`baseAtk`) exists.
 
 ## Coverage

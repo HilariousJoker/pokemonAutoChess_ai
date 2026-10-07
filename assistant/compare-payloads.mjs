@@ -22,7 +22,9 @@ function flat(rec) {
   return { ...rest, evolutionFamilyRoot: baseline }
 }
 
-const [fa, fb] = process.argv.slice(2)
+// --subset: <b> may cover fewer units than <a>; only b's units are compared (a must contain all of them).
+const subset = process.argv.includes("--subset")
+const [fa, fb] = process.argv.slice(2).filter((x) => x !== "--subset")
 if (!fa || !fb) { console.error("usage: compare-payloads.mjs <a.json> <b.json>"); process.exit(2) }
 let docA, docB
 try { docA = JSON.parse(readFileSync(fa, "utf8")); docB = JSON.parse(readFileSync(fb, "utf8")) } catch (e) {
@@ -43,7 +45,7 @@ const a = docA.pokemon, b = docB.pokemon
 const diffs = []
 for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
   if (!(k in a)) { diffs.push(`${k}: only in ${fb}`); continue }
-  if (!(k in b)) { diffs.push(`${k}: only in ${fa}`); continue }
+  if (!(k in b)) { if (!subset) diffs.push(`${k}: only in ${fa}`); continue }
   const x = flat(a[k]), y = flat(b[k])
   for (const f of new Set([...Object.keys(x), ...Object.keys(y)])) {
     if (!isDeepStrictEqual(x[f], y[f])) diffs.push(`${k}.${f}: ${JSON.stringify(x[f])} -> ${JSON.stringify(y[f])}`)

@@ -19,6 +19,8 @@ const NOTES = {
   evolution: { file: "pilot-evolution.md", label: "pilot-evolution.md" }
 }
 
+const SUPPORTED_SHA = "01a3e845e91ebe3144b3c43fa9cd261a5dadafd2" // development snapshot
+
 class Refusal extends Error {
   constructor(code, msg) {
     super(msg)
@@ -64,6 +66,10 @@ function loadSnapshots(o) {
   if (!pb || !pe) fail(3, "a snapshot has no provenance block; cannot verify the audited source")
   const sha = (p) => (typeof p.auditedSourceCommit === "string" && /^[0-9a-f]{40}$/.test(p.auditedSourceCommit) ? p.auditedSourceCommit : null)
   if (!sha(pb) || !sha(pe)) fail(3, "a snapshot lacks a full 40-hex auditedSourceCommit")
+  // Labels and knowledge links are development-specific: only the development SHA is supported (no production lookup yet).
+  if (pb.auditedSourceCommit !== SUPPORTED_SHA || pe.auditedSourceCommit !== SUPPORTED_SHA) {
+    fail(3, `unsupported audited source commit (baseline ${pb.auditedSourceCommit}, evolution ${pe.auditedSourceCommit}); this tool supports only the development snapshot ${SUPPORTED_SHA}`)
+  }
   if (pb.auditedSourceCommit !== pe.auditedSourceCommit) {
     fail(3, `snapshots describe different audited source commits (baseline ${pb.auditedSourceCommit} vs evolution ${pe.auditedSourceCommit}); refusing to combine them`)
   }

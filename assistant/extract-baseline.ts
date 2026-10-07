@@ -8,6 +8,9 @@
 //          --profile production-reference   use the pinned production-branch reference (07367c34) instead of the
 //                                       development snapshot (01a3e845); requires --out and explicit keys, and
 //                                       declares which legacy fields are absent on that revision (see PROFILES)
+//          --catalog                    (production-reference only, no explicit keys) every Pkm identifier is accounted for as
+//                                       extracted / excluded (source-supported reason) / failed; writes the catalog checkpoint,
+//                                       or - if any identifier fails - only a diagnostic file and exit 1
 //
 // Alternate unit sets MUST pass --out; they never write to the default checkpoint path.
 // Output paths are checked before anything is written (output-guard.ts): game files, root config and the other
@@ -16,8 +19,13 @@
 import { execFileSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
+import { PokemonClasses } from "../app/models/colyseus-models/pokemon"
 import PokemonFactory, { getPokemonBaseline } from "../app/models/pokemon-factory"
+import { Ability } from "../app/types/enum/Ability"
+import { Rarity } from "../app/types/enum/Game"
+import { Passive } from "../app/types/enum/Passive"
 import { Pkm, PkmIndex } from "../app/types/enum/Pokemon"
+import { Synergy } from "../app/types/enum/Synergy"
 import { checkOutputPath, OutputGuardError } from "./output-guard"
 
 const DEFAULT_KEYS = ["CHARMANDER", "FARFETCH_D", "VESPIQUEN"]
@@ -51,9 +59,13 @@ function checkpointsFor(profile: ProfileName) {
   const mine = PROFILES[profile].checkpointDir
   const theirs = (Object.keys(PROFILES) as ProfileName[]).filter((n) => n !== profile).map((n) => PROFILES[n].checkpointDir)
   return {
-    own: profile === "development" ? [DEFAULT_OUT, dataPath(mine, "pilot-units.json")] : [dataPath(mine, "pilot-units.json")],
+    own:
+      profile === "development"
+        ? [DEFAULT_OUT, dataPath(mine, "pilot-units.json")]
+        : [dataPath(mine, "pilot-units.json"), dataPath(mine, "catalog-units.json")],
     other: [
       dataPath(mine, "pilot-evolution.json"),
+      ...(profile === "development" ? [dataPath("07367c34", "catalog-units.json")] : []),
       ...theirs.flatMap((d) => [dataPath(d, "pilot-units.json"), dataPath(d, "pilot-evolution.json")]),
       ...(profile === "development" ? [] : [DEFAULT_OUT])
     ]
@@ -147,6 +159,7 @@ function parseArgs(argv: string[]) {
   let out: string | undefined
   let allowMismatch = false
   let profile: ProfileName = "development"
+  let catalog = false
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--out") {
@@ -160,6 +173,8 @@ function parseArgs(argv: string[]) {
       const v = a === "--profile" ? argv[++i] : a.slice("--profile=".length)
       if (!v || !Object.hasOwn(PROFILES, v)) fail(`--profile must be one of: ${Object.keys(PROFILES).join(", ")}`)
       profile = v as ProfileName
+    } else if (a === "--catalog") {
+      catalog = true
     } else if (a === "--allow-source-mismatch") {
       allowMismatch = true
     } else if (a.startsWith("--")) {
@@ -168,13 +183,28 @@ function parseArgs(argv: string[]) {
       keys.push(a)
     }
   }
-  return { keys, out, allowMismatch, profile }
+  return { keys, out, allowMismatch, profile, catalog }
 }
 
 function checkFinite(key: string, field: string, v: unknown) {
   if (typeof v !== "number" || !Number.isFinite(v)) {
     fail(`${key}.${field} must be a finite number, got ${String(v)}`)
   }
+}
+
+function checkEnum(key: string, field: string, v: unknown, allowed: readonly string[], enumName: string) {
+  if (typeof v !== "string" || !allowed.includes(v)) fail(`${key}.${field} = ${JSON.stringify(v)} is not a member of ${enumName}`)
+}
+const ENUMS = {
+  Pkm: Object.values(Pkm) as string[],
+  Rarity: Object.values(Rarity) as string[],
+  Ability: Object.values(Ability) as string[],
+  Passive: Object.values(Passive) as string[],
+  Synergy: Object.values(Synergy) as string[]
+}
+const ENUM_FIELDS: Record<string, [string[], string]> = {
+  rarity: [ENUMS.Rarity, "Rarity"], skill: [ENUMS.Ability, "Ability"], tm: [ENUMS.Ability, "Ability"],
+  baseSkill: [ENUMS.Ability, "Ability"], passive: [ENUMS.Passive, "Passive"]
 }
 
 function extractUnit(key: string, profile: ProfileName) {
@@ -211,11 +241,15 @@ function extractUnit(key: string, profile: ProfileName) {
     if (typeof p[f] !== "boolean") fail(`${key}.${f} must be a boolean, got ${String(p[f])}`)
     stats[f] = p[f]
   }
+  for (const [f, [allowed, enumName]] of Object.entries(ENUM_FIELDS)) checkEnum(key, f, stats[f], allowed, enumName)
   if (!p.types || typeof p.types[Symbol.iterator] !== "function") fail(`${key}.types missing`)
   const types = [...p.types]
   if (types.some((t) => typeof t !== "string")) fail(`${key}.types contains a non-string`)
+  for (const t of types) checkEnum(key, "types[]", t, ENUMS.Synergy, "Synergy")
   if (typeof p.evolution !== "string") fail(`${key}.evolution must be a string`)
+  checkEnum(key, "evolution", p.evolution, ENUMS.Pkm, "Pkm")
   if (!Array.isArray(p.evolutions)) fail(`${key}.evolutions must be an array`)
+  for (const t of p.evolutions) checkEnum(key, "evolutions[]", t, ENUMS.Pkm, "Pkm")
 
   const evolutionFamilyRoot = getPokemonBaseline(name)
   if (typeof evolutionFamilyRoot !== "string" || !Object.hasOwn(Pkm, evolutionFamilyRoot)) {
@@ -238,11 +272,41 @@ function extractUnit(key: string, profile: ProfileName) {
   }
 }
 
+// Identifiers excluded from the catalog, each with the inspected source that supports the reason. Nothing else is excluded.
+const CATALOG_EXCLUSIONS: Record<string, { reason: string; source: string }> = {
+  DEFAULT: {
+    reason:
+      "explicit placeholder: the factory's fallback for unregistered names is `new Pokemon(Pkm.DEFAULT)` logged as \"return MissingNo\", " +
+      "so a DEFAULT result cannot distinguish a real unit from a fallback; PokemonClasses maps DEFAULT to the bare base Pokemon class",
+    source: "app/models/pokemon-factory.ts:65-66; app/models/colyseus-models/pokemon.ts PokemonClasses[Pkm.DEFAULT]"
+  }
+}
+
+// Registry facts for one key: constructor name and the other keys mapped to the same class (from PokemonClasses itself).
+function registryFacts(keys: string[]) {
+  const reg = PokemonClasses as Record<string, unknown>
+  const byClass = new Map<unknown, string[]>()
+  for (const k of keys) {
+    if (!Object.hasOwn(reg, k)) continue
+    if (!byClass.has(reg[k])) byClass.set(reg[k], [])
+    byClass.get(reg[k])!.push(k)
+  }
+  return (k: string) => {
+    const cls = reg[k] as { name: string }
+    const group = byClass.get(reg[k]) ?? []
+    return { registeredClass: cls.name, sharedClassWith: group.filter((x) => x !== k) }
+  }
+}
+
 function main() {
-  const { keys: argKeys, out, allowMismatch, profile } = parseArgs(process.argv.slice(2))
-  if (profile !== "development" && (!out || !argKeys.length)) fail(`profile ${profile} requires --out and explicit unit keys`)
+  const { keys: argKeys, out, allowMismatch, profile, catalog } = parseArgs(process.argv.slice(2))
+  if (catalog && (profile !== "production-reference" || argKeys.length || !out)) {
+    fail("--catalog requires --profile production-reference, --out, and no explicit keys")
+  }
+  if (profile !== "development" && (!out || (!argKeys.length && !catalog))) fail(`profile ${profile} requires --out and explicit unit keys`)
   const { own: OWN_CHECKPOINTS, other: OTHER_CHECKPOINTS } = checkpointsFor(profile)
-  const keys = argKeys.length ? argKeys : DEFAULT_KEYS
+  const allKeys = Object.values(Pkm) as string[] // inventory = the Pkm enum values (all key === value, checked below)
+  const keys = catalog ? allKeys : argKeys.length ? argKeys : DEFAULT_KEYS
   if (new Set(keys).size !== keys.length) fail(`duplicate keys requested: ${keys.join(", ")}`)
 
   const isDefaultSet = keys.length === DEFAULT_KEYS.length && DEFAULT_KEYS.every((k) => keys.includes(k))
@@ -271,6 +335,7 @@ function main() {
 
   const provenance = collectProvenance(profile, allowMismatch)
   const pokemon: Record<string, ReturnType<typeof extractUnit>> = {}
+  if (catalog) return runCatalog({ keys, outPath, provenance, profile })
   for (const key of keys) pokemon[key] = extractUnit(key, profile) // throws before anything is written
 
   const result = {
@@ -288,6 +353,61 @@ function main() {
   writeFileSync(tmp, JSON.stringify(result, null, 2) + "\n")
   renameSync(tmp, outPath)
   console.log(`wrote ${outPath} (${keys.join(", ")}); node ${provenance.node}, npm ${provenance.npm}; gameSourceMatchesAudited=${provenance.gameSourceMatchesAudited}`)
+}
+
+function runCatalog(o: { keys: string[]; outPath: string; provenance: ReturnType<typeof collectProvenance>; profile: ProfileName }) {
+  const { keys, outPath, provenance, profile } = o
+  const enumKeys = Object.keys(Pkm)
+  if (enumKeys.length !== keys.length || new Set(keys).size !== keys.length || !enumKeys.every((k) => (Pkm as any)[k] === k)) {
+    fail("Pkm enum keys and values are not one-to-one identical; cannot use it as the identifier inventory")
+  }
+  const facts = registryFacts(keys)
+  const pokemon: Record<string, ReturnType<typeof extractUnit>> = {}
+  const registry: Record<string, ReturnType<ReturnType<typeof registryFacts>>> = {}
+  const excluded: Record<string, { reason: string; source: string }> = {}
+  const failed: Record<string, string> = {}
+  for (const key of keys) {
+    if (Object.hasOwn(CATALOG_EXCLUSIONS, key)) {
+      excluded[key] = CATALOG_EXCLUSIONS[key]
+      continue
+    }
+    try {
+      if (!Object.hasOwn(PokemonClasses, key)) fail(`${key} is not registered in PokemonClasses (the factory would return the DEFAULT fallback)`)
+      pokemon[key] = extractUnit(key, profile)
+      registry[key] = facts(key)
+    } catch (e: any) {
+      failed[key] = String(e?.message ?? e)
+    }
+  }
+  // every identifier must land in exactly one bucket
+  const buckets = [Object.keys(pokemon), Object.keys(excluded), Object.keys(failed)]
+  const seen = new Set(buckets.flat())
+  if (buckets.flat().length !== keys.length || seen.size !== keys.length || !keys.every((k) => seen.has(k))) {
+    fail("internal accounting error: extracted + excluded + failed does not partition the identifier inventory")
+  }
+  const counts = { inventory: keys.length, extracted: buckets[0].length, excluded: buckets[1].length, failed: buckets[2].length }
+  if (counts.failed) {
+    const diag = resolve(SCRIPT_DIR, "analysis", "catalog-failures.json")
+    mkdirSync(dirname(diag), { recursive: true })
+    writeFileSync(diag, JSON.stringify({ provenance, counts, failed }, null, 2) + "\n")
+    fail(`${counts.failed} identifier(s) failed; catalog NOT written and NOT complete. Diagnostic: ${diag}`)
+  }
+  const result = {
+    note:
+      "Production-branch reference; deployment unverified. Complete identifier catalog of bare factory instances. " +
+      "Identifiers are NOT proof of shop availability or playability (unverified). pokemon[*] records have the same shape as pilot-units.json; " +
+      "registry[*] holds PokemonClasses facts (class name, other keys mapped to the same class). Fields under fieldAvailability are ABSENT on this revision. `provenance` varies by environment; compare `pokemon`/`inventory` only.",
+    provenance,
+    availabilityAndPlayability: "unverified",
+    inventory: { source: "Object.values(Pkm) in app/types/enum/Pokemon.ts; registry: PokemonClasses in app/models/colyseus-models/pokemon.ts", counts, identifiers: keys, excluded },
+    registry,
+    pokemon
+  }
+  mkdirSync(dirname(outPath), { recursive: true })
+  const tmp = `${outPath}.tmp-${process.pid}`
+  writeFileSync(tmp, JSON.stringify(result, null, 2) + "\n")
+  renameSync(tmp, outPath)
+  console.log(`wrote ${outPath}: ${JSON.stringify(counts)}; node ${provenance.node}, npm ${provenance.npm}; gameSourceMatchesAudited=${provenance.gameSourceMatchesAudited}`)
 }
 
 try {

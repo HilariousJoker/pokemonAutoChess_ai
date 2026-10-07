@@ -43,6 +43,7 @@ const OWN_CHECKPOINTS = [DEFAULT_OUT]
 const OTHER_CHECKPOINTS = [
   resolve(SCRIPT_DIR, "data", "baseline.json"),
   PILOT_UNITS_JSON,
+  resolve(SCRIPT_DIR, "data", "07367c34", "catalog-units.json"),
   resolve(SCRIPT_DIR, "data", "07367c34", "pilot-units.json") // production-reference snapshot (extract-baseline.ts --profile production-reference)
 ]
 const POKEMON_SOURCE = "app/models/colyseus-models/pokemon.ts"
