@@ -1,11 +1,19 @@
-# assistant/ — Pokémon Auto Chess knowledge pilot
+# assistant/ — Pokémon Auto Chess source-backed knowledge
 
-A small, source-backed lookup for **20 units**, extracted from the game's own code at one audited revision:
+Everything here is read from the game's own source at a pinned revision and kept in two **separate** snapshots. **Live-game parity is unverified** for both: nothing was compared with the running game, upstream data, a wiki or patch notes. Values are **bare-instance** values (class definition + inherited defaults) unless a note says otherwise.
 
-- **Audited game-source commit:** `01a3e845e91ebe3144b3c43fa9cd261a5dadafd2` — the **development snapshot** (upstream `master`). `lookup-unit.mjs` and everything under `data/01a3e845/` and `knowledge/` describe this snapshot only.
-- A separate bare-baseline snapshot of the **production-branch reference** (`07367c341fe928763da2b565c2eee010433e4fc1`; *deployment unverified*) is in `data/07367c34/pilot-units.json`. It is not used by the lookup tool, and the notes in `knowledge/` do not apply to it. Comparison: [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md).
-- **Live-game parity is unverified.** Everything here is read from source at that commit. Nothing was compared with the running game, upstream data, a wiki or patch notes.
-- Values are **bare-instance** values (class definition + inherited defaults), *before* any player, item, board, synergy, hook or combat effect.
+| | Development snapshot | Production-branch reference (*deployment unverified*) |
+|---|---|---|
+| Source | `01a3e845e91ebe3144b3c43fa9cd261a5dadafd2` (upstream `master`) | `07367c341fe928763da2b565c2eee010433e4fc1` (upstream `prod` head; what the live game runs is not established) |
+| Lookup | `node assistant/lookup-unit.mjs` — 20 pilot units | `node assistant/lookup-production.mjs` — any of 1183 catalog identifiers |
+| Bare baseline | 20 units (`data/01a3e845/pilot-units.json`, plus the 3-unit `data/baseline.json`) | **1183 identifiers** (`data/07367c34/catalog-units.json`; `DEFAULT` excluded, 0 failed) and the 20-unit `pilot-units.json` |
+| Evolution declarations | 20 units + notes (`knowledge/pilot-evolution.md`) | the same 20 units + notes + acquisition context (`pilot-evolution.json`, `knowledge/07367c34/pilot-evolution.md`, `evolution-context.md`) |
+| Reviewed abilities | none | 3 records: BLAST_BURN, CRUNCH (Totodile), VESPIQUEN_ORDERS (`pilot-abilities.json`, `knowledge/07367c34/pilot-abilities.md`) |
+| Other mechanics | — | base economy and leveling (`economy-leveling.json`, `knowledge/07367c34/economy-leveling.md`) |
+| Reads the other's data? | never | never (each lookup refuses the other's SHA) |
+
+- A catalog identifier is **not** evidence of shop availability or playability. Evolution (20 units) and ability (3 records) coverage are deliberate subsets of the catalog; the production lookup says "not covered" instead of guessing, and applies an ability record only to the units it lists.
+- Passives have no structured records yet; the production lookup shows source-backed context from linked notes where a note discusses the passive, and says so when none does.
 
 ## What exists
 | Path | What it is |
@@ -14,11 +22,12 @@ A small, source-backed lookup for **20 units**, extracted from the game's own co
 | [`data/01a3e845/pilot-units.json`](data/01a3e845/pilot-units.json) | Bare-instance baseline for the 20 units (identity, family root, types, stats, skill/passive identifiers). |
 | [`data/01a3e845/pilot-evolution.json`](data/01a3e845/pilot-evolution.json) | Declared evolution data for the same 20 units: rule shape, callback presence + source references, evidence flags, callback probes. |
 | [`data/07367c34/pilot-units.json`](data/07367c34/pilot-units.json) | Bare-instance baseline of the same 20 keys at the production-branch reference (`baseAtk` is absent on that revision and recorded as such). Separate from the development data; no evolution data. |
-| [`data/07367c34/catalog-units.json`](data/07367c34/catalog-units.json) | Production-reference bare baseline for **all 1184 `Pkm` identifiers**: 1183 extracted, 1 excluded (`DEFAULT`, the factory's MissingNo fallback), 0 failed. Availability/playability unverified. Report: [`analysis/catalog-coverage.md`](analysis/catalog-coverage.md). Not used by the lookup. |
-| [`data/07367c34/pilot-evolution.json`](data/07367c34/pilot-evolution.json) · [`knowledge/07367c34/pilot-evolution.md`](knowledge/07367c34/pilot-evolution.md) | Declared evolution data and source-backed notes for the 20 pilot units at the production-branch reference (`07367c34…`; deployment unverified). Separate from the development evolution files; not used by the lookup. `compare-evolution.mjs` compares the two evolution files. |
+| [`data/07367c34/catalog-units.json`](data/07367c34/catalog-units.json) | Production-reference bare baseline for **all 1184 `Pkm` identifiers**: 1183 extracted, 1 excluded (`DEFAULT`, the factory's MissingNo fallback), 0 failed. Availability/playability unverified. Report: [`analysis/catalog-coverage.md`](analysis/catalog-coverage.md). Read by `lookup-production.mjs`. |
+| [`data/07367c34/pilot-evolution.json`](data/07367c34/pilot-evolution.json) · [`knowledge/07367c34/pilot-evolution.md`](knowledge/07367c34/pilot-evolution.md) | Declared evolution data and source-backed notes for the 20 pilot units at the production-branch reference (`07367c34…`; deployment unverified). Separate from the development evolution files; read by `lookup-production.mjs`. `compare-evolution.mjs` compares the two evolution files. |
 | [`knowledge/07367c34/evolution-context.md`](knowledge/07367c34/evolution-context.md) · [`probes/`](probes/) | Acquisition context for PIKACHU (regional list) and COSMOG/COSMOEM (light cell, evolution loop) at the production-branch reference, with two small isolated probes and their results (probes require `--out`, verify the pinned source and reuse the output guard). |
+| [`data/07367c34/economy-leveling.json`](data/07367c34/economy-leveling.json) · [`knowledge/07367c34/economy-leveling.md`](knowledge/07367c34/economy-leveling.md) · `validate-economy.mjs` · `probes/economy-probe.ts` | Base economy and leveling at the production-branch reference (starting gold, income, interest, streaks, XP, level thresholds, rerolls) for the normal path; modifiers recorded as unresolved. The real functions were executed with stub players (probe results in `probes/results/`). Not used by either lookup. |
 | [`lookup-production.mjs`](lookup-production.mjs) · `test-lookup-production.mjs` | **Production-reference** lookup (separate from `lookup-unit.mjs`, which stays development-only): baseline for any of the 1183 catalog identifiers, plus evolution records for the 20 pilot units and reviewed ability information only for units a record explicitly covers. Reads committed `data/07367c34` and `knowledge/07367c34` files only; no game code, no install, no writes. |
-| [`data/07367c34/pilot-abilities.json`](data/07367c34/pilot-abilities.json) · [`knowledge/07367c34/pilot-abilities.md`](knowledge/07367c34/pilot-abilities.md) · `validate-abilities.mjs` | Source-read ability pilot (BLAST_BURN, CRUNCH, VESPIQUEN_ORDERS) at the production-branch reference: structured records with evidence references, player-facing notes, and a validator for both. Raw declared amounts only; not used by the lookup. |
+| [`data/07367c34/pilot-abilities.json`](data/07367c34/pilot-abilities.json) · [`knowledge/07367c34/pilot-abilities.md`](knowledge/07367c34/pilot-abilities.md) · `validate-abilities.mjs` | Source-read ability pilot (BLAST_BURN, CRUNCH, VESPIQUEN_ORDERS) at the production-branch reference: structured records with evidence references, player-facing notes, and a validator for both. Raw declared amounts only; read by `lookup-production.mjs` (only for the units each record covers). |
 | [`analysis/pilot-baseline-comparison.md`](analysis/pilot-baseline-comparison.md) | Field-by-field comparison of the two baselines (bare factory values only). |
 | [`data/baseline.json`](data/baseline.json) | The earlier 3-unit checkpoint (CHARMANDER, FARFETCH_D, VESPIQUEN), kept unchanged. |
 | [`knowledge/pilot-units.md`](knowledge/pilot-units.md) | Notes on the baseline: what the numbers mean, a source cross-check of five units, context notes for five units. |
@@ -44,7 +53,7 @@ node assistant/lookup-unit.mjs PIKACHU      # one unit (exact, case-sensitive Pk
 node assistant/lookup-unit.mjs --list       # the 20 covered keys
 ```
 The card shows bare-instance stats, types, ability/passive **identifiers**, declared evolution fields, callback probe results if any, the audited SHA, the parity warning, and links into the notes.
-It **refuses** (exit 3) any snapshot whose audited commit is not the development SHA `01a3e845…` (no production lookup yet), and to combine snapshots with different audited commits, a failed game-source match, or inconsistent unit sets. A key outside the pilot is reported as not covered (exit 1); it is never guessed.
+It **refuses** (exit 3) any snapshot whose audited commit is not the development SHA `01a3e845…` (the production snapshot has its own lookup, `lookup-production.mjs`), and to combine snapshots with different audited commits, a failed game-source match, or inconsistent unit sets. A key outside the pilot is reported as not covered (exit 1); it is never guessed.
 It prints no ability descriptions, acquisition stats or strategy advice because the data holds none.
 
 Evolution cards keep two things apart: the **rule shape** the class carries (many units simply inherit the base `count`/3 rule, including terminal units) and the **evidence a unit can evolve** (declared `evolution` / `evolutions`). An inherited rule alone is not evidence.
@@ -70,7 +79,8 @@ node_modules/.bin/tsx assistant/extract-baseline.ts --profile production-referen
 The `production-reference` profile pins the SHA, requires `--out` and explicit keys, protects the development checkpoints (and vice versa), and fails if a field declared absent (`baseAtk`) exists.
 
 ## Coverage
-Exactly these 20 keys: CHARMANDER, CHARMELEON, CHARIZARD, PIKACHU, RAICHU, ALOLAN_RAICHU, GALAR_MEOWTH, VESPIQUEN, ARCEUS, MAGIKARP, GYARADOS, TYPE_NULL, PRIMEAPE, TEPIG, DITTO, UNOWN_D, FARFETCH_D, TOTODILE, COSMOEM, SUBSTITUTE. Stats are in the JSON and in `lookup-unit.mjs` output (not duplicated here).
+- **Development snapshot (20 keys):** CHARMANDER, CHARMELEON, CHARIZARD, PIKACHU, RAICHU, ALOLAN_RAICHU, GALAR_MEOWTH, VESPIQUEN, ARCEUS, MAGIKARP, GYARADOS, TYPE_NULL, PRIMEAPE, TEPIG, DITTO, UNOWN_D, FARFETCH_D, TOTODILE, COSMOEM, SUBSTITUTE — baseline and evolution; stats are in the JSON and in `lookup-unit.mjs` output.
+- **Production-branch reference:** baseline for all 1183 extracted catalog identifiers; evolution records for the same 20 keys; ability records for CHARMANDER/CHARMELEON/CHARIZARD (BLAST_BURN), TOTODILE (CRUNCH) and VESPIQUEN (VESPIQUEN_ORDERS); economy and leveling rules for the normal path.
 
 ## How strong is each kind of information?
 | Kind | What it is | What it can and cannot tell you |
@@ -81,7 +91,7 @@ Exactly these 20 keys: CHARMANDER, CHARMELEON, CHARIZARD, PIKACHU, RAICHU, ALOLA
 | **Live gameplay evidence** | None exists. | Parity with the running game is **unverified**. |
 
 ## Known gaps
-- Units outside the 20; the full catalog, items, synergies, ability implementations/descriptions, passives' effects, shop odds, combat and any acquisition-time stats (e.g. the in-play HP of a player-owned COSMOEM).
-- Paths deliberately not traced: how `Player.regionalPokemons` is computed (PIKACHU), what sets the light cell (COSMOEM), when PRIMEAPE's death/resurrect effects fire and stack overshoot, `equipItem` HP effects, a forced-transform item path — see [the unresolved list](knowledge/pilot-evolution.md#unresolved-list-explicitly-not-traced-further).
-- One toolchain only (Node 24.21.0, linux-x64); no comparison with upstream or the live game.
+- **Development snapshot:** only the 20 pilot units; no ability or passive explanations, no catalog.
+- **Production-branch reference:** abilities beyond the 3 reviewed records, structured passive records, items, synergies, shop odds/pools and unit prices, combat, special game rules and modes other than the normal path (SCRIBBLE, DOUBLE_UP), and every item/rule modifier of the economy (recorded as unresolved, not traced). Acquisition paths still untraced are listed in the notes' unresolved sections (for example how a Vespiquen made by evolution gets its mode, Primeape's in-fight timing, and Cosmoem HP with items).
+- **Both:** the generic combat pipeline (final damage, healing, shields) is unverified, so ability amounts are *raw declared* values; one toolchain only (Node 24.21.0, linux-x64); no comparison with the live game.
 - Details, exact commands and every check run: [STATUS.md](STATUS.md).

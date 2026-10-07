@@ -171,15 +171,14 @@ function renderEvolution(L, key, cat, evo) {
   }
 }
 
-function renderAbility(L, key, cat, abi) {
+function renderAbility(L, key, cat, abi, covering) {
   const s = cat.pokemon[key].stats
   L.push("## Skill and passive")
-  L.push(`Skill identifier ${code(s.skill)}${s.tm !== "DEFAULT" ? `, TM ${code(s.tm)}` : ""}; passive identifier ${code(s.passive)}. Identifiers alone say nothing about behavior.`)
-  const covering = Object.values(abi.abilities).filter((r) => r.appliesTo.some((u) => u.key === key))
+  L.push(`Skill identifier ${code(s.skill)}${s.tm !== "DEFAULT" ? `, TM ${code(s.tm)}` : ""}; passive identifier ${code(s.passive)}. Identifiers alone say nothing about behavior (passives are covered in the next section).`)
   const sameId = Object.values(abi.abilities).filter((r) => r.ability === s.skill && !r.appliesTo.some((u) => u.key === key))
   if (!covering.length) {
-    L.push(`**No reviewed ability information for this unit.** ${sameId.length ? `A reviewed record for ${code(s.skill)} exists but covers only ${sameId[0].appliesTo.map((u) => u.key).join(", ")}; it is **not** applied to ${key}.` : `The ability ${code(s.skill)} has not been reviewed.`}${s.passive !== "NONE" ? ` The passive ${code(s.passive)} has no reviewed explanation either.` : ""} No description is invented.`)
-    return []
+    L.push(`**No reviewed ability information for this unit.** ${sameId.length ? `A reviewed record for ${code(s.skill)} exists but covers only ${sameId[0].appliesTo.map((u) => u.key).join(", ")}; it is **not** applied to ${key}.` : `The ability ${code(s.skill)} has not been reviewed.`} No description is invented.`)
+    return
   }
   for (const rec of covering) {
     const a = rec.appliesTo.find((u) => u.key === key)
@@ -214,8 +213,28 @@ function renderAbility(L, key, cat, abi) {
     for (const d of rec.unresolved) L.push(`  - ${d}`)
     if (rec.identifierOnlyBehavior) L.push("- **Acquisition caveat:** the mode is written when the player moves the unit to rows 1–3; acquisition paths that do not go through that handler (for example evolution) were not traced, so such a Vespiquen may still hold the placeholder skill.")
   }
-  if (s.passive !== "NONE" && !covering.some((r) => r.modeSelection && s.passive === "VESPIQUEN")) L.push(`Passive ${code(s.passive)}: identifier only — no reviewed explanation of its effect.`)
-  return covering
+}
+
+
+// Passive information comes in two different strengths, kept apart:
+//  (a) a STRUCTURED passive record — none exists in the data files (data/07367c34 has records for abilities only; the VESPIQUEN
+//      passive's position-change effect is described inside the VESPIQUEN_ORDERS ability record);
+//  (b) SOURCE-BACKED CONTEXT in the linked production notes that mention this passive (quoted, never paraphrased or extended).
+function renderPassive(L, key, cat, covering, secs) {
+  const p = cat.pokemon[key].stats.passive
+  L.push("## Passive")
+  if (p === "NONE") { L.push("Passive identifier `NONE`: the unit declares no passive."); return }
+  L.push(`Passive identifier ${code(p)}.`)
+  const viaAbility = covering.find((r) => r.modeSelection && r.modeSelection.mechanism.includes(`Passive.${p}`))
+  L.push(`- **Structured passive record:** none. Passive records do not exist in \`data/07367c34\`; ${viaAbility ? `the position-change effect of this passive is described inside the reviewed ability record \`abilities.${viaAbility.ability}\` (see above), not as a passive record` : "no field of the data files explains this passive"}.`)
+  const mention = new RegExp(`passive[^\\n]*\\b${p}\\b|\\bPassive\\.${p}\\b|\\b${p}\\b[^\\n]*passive`, "i")
+  const hits = []
+  for (const sec of secs) for (const l of sec.body) if (mention.test(l)) hits.push({ sec, line: l.trim().replace(/^- /, "") })
+  const seen = new Set()
+  const uniq = hits.filter((h) => !seen.has(h.line) && seen.add(h.line))
+  if (!uniq.length) { L.push("- **Source-backed context in linked notes:** none found. The passive's effect has not been investigated; no description is invented."); return }
+  L.push("- **Source-backed context in linked production notes that mention this passive** (quoted from the notes; this is source reading, not a structured record, and what it leaves unresolved stays unresolved there):")
+  for (const h of uniq.slice(0, 4)) L.push(`  - ${cap(h.line, 520)} — [${h.sec.title}](${h.sec.link})`)
 }
 
 function renderUnit(key, { cat, evo, abi }) {
@@ -237,14 +256,17 @@ function renderUnit(key, { cat, evo, abi }) {
   L.push("")
   renderEvolution(L, key, cat, evo)
   L.push("")
-  const covering = renderAbility(L, key, cat, abi)
-  L.push("")
-  // notes: only production notes; unresolved lines are quoted from them
-  L.push("## Production-reference notes and unresolved conditions")
+  const covering = Object.values(abi.abilities).filter((r) => r.appliesTo.some((u) => u.key === key))
   const secs = []
   for (const [id, h] of NOTE_MAP[key] ?? []) secs.push(section(id, h))
   for (const rec of covering) secs.push(section("pilot-abilities", ABILITY_HEADING[rec.ability]))
   if (own(evo.units, key)) secs.push({ ...section("pilot-evolution", "Shared mechanics"), shared: true })
+  renderAbility(L, key, cat, abi, covering)
+  L.push("")
+  renderPassive(L, key, cat, covering, secs)
+  L.push("")
+  // notes: only production notes; unresolved lines are quoted from them
+  L.push("## Production-reference notes and unresolved conditions")
   if (!secs.length) L.push("No production-reference note is linked for this unit (it is covered only by the catalog baseline).")
   const seen = new Set()
   for (const sec of secs) {

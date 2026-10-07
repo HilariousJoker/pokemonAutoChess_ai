@@ -1,0 +1,1104 @@
+{
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": {
+    "covers": "base economy and leveling for a normal human-player match: game modes CUSTOM_LOBBY / CLASSIC / RANKED / TOURNAMENT as far as the inspected code has no mode branch, specialGameRule = null, no income/XP/reroll items held, alive non-bot player, PvP and PvE rounds as distinguished by the code.",
+    "excludes": [
+      "SCRIBBLE mode (sets gold directly: scribbles.ts)",
+      "DOUBLE_UP mode specifics",
+      "special game rules (e.g. BLOOD_MONEY removes interest)",
+      "item/dish/synergy modifiers (AMULET_COIN, GIMMIGHOUL_COIN, RED_SCALE, LEADERS_CREST, REPEAT_BALL, mission orders, ...)",
+      "bots",
+      "shop odds, pools, unit prices, selling",
+      "team-size effects of levels",
+      "MODE=dev (starting gold 999)"
+    ],
+    "note": "Modifier paths are recorded as dependencies only; none was traced."
+  },
+  "rules": {
+    "startingGold": {
+      "declared": {
+        "value": 5,
+        "devModeValue": 999
+      },
+      "evidence": [
+        "start-money"
+      ],
+      "tracedBehavior": "Player.money initial value; stage 0 (town) is skipped to stage 1 without a fight, so no income is awarded before the first fight.",
+      "evidenceExtra": [
+        "stage0"
+      ],
+      "unresolvedModifiers": [
+        "special game rules or modes that set gold at start (SCRIBBLE excluded) were not traced"
+      ]
+    },
+    "roundIncome": {
+      "declared": {
+        "baseIncomePerRound": 5,
+        "interestDivisor": 10,
+        "maxInterestDefault": 5,
+        "streakBonusCap": 5,
+        "autoXpPerRound": 2
+      },
+      "formula": "income = interest + streakBonus + 5 [+ 5 per RED_SCALE]; interest = min(maxInterest, floor(money / 10)) with maxInterest = 5 + GIMMIGHOUL_COIN - AMULET_COIN; streakBonus = min(5, player.streak) only when the round that just ended was NOT a PvE stage; money is the balance at the moment computeIncome runs",
+      "timing": "Once per round in stopFightingPhase, after every simulation has finished (so after the +1 PvP win gold), after checkDeath/checkEndGame, only if the game continues; stageLevel has already been incremented but isPVE was read from the ended stage. Alive non-bot players only. The same call grants +2 XP.",
+      "evidence": [
+        "phase-flow",
+        "stop-fight",
+        "is-pve",
+        "income",
+        "income-gate",
+        "max-interest",
+        "interest",
+        "streak-income",
+        "base-income",
+        "util-max",
+        "pve-stages"
+      ],
+      "tracedBehavior": "Interest is sampled once, at income time, from the current gold (not an average, not the previous round's balance); it is floored per 10 gold and capped. A PvE round gives interest + 5 (no streak bonus). No income is awarded before the first fight and none after the final fight of a finished game.",
+      "executedChecks": "probes/results/economy-probe.json computeIncome (real method, stub players)",
+      "boundaryExamples": [
+        {
+          "moneyBefore": 0,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 0,
+          "maxInterest": 5,
+          "incomeAwarded": 5
+        },
+        {
+          "moneyBefore": 5,
+          "streak": 0,
+          "isPVE": true,
+          "interest": 0,
+          "maxInterest": 5,
+          "incomeAwarded": 5
+        },
+        {
+          "moneyBefore": 5,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 0,
+          "maxInterest": 5,
+          "incomeAwarded": 5
+        },
+        {
+          "moneyBefore": 9,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 0,
+          "maxInterest": 5,
+          "incomeAwarded": 5
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 6
+        },
+        {
+          "moneyBefore": 19,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 6
+        },
+        {
+          "moneyBefore": 20,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 2,
+          "maxInterest": 5,
+          "incomeAwarded": 7
+        },
+        {
+          "moneyBefore": 49,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 4,
+          "maxInterest": 5,
+          "incomeAwarded": 9
+        },
+        {
+          "moneyBefore": 50,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 5,
+          "maxInterest": 5,
+          "incomeAwarded": 10
+        },
+        {
+          "moneyBefore": 51,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 5,
+          "maxInterest": 5,
+          "incomeAwarded": 10
+        },
+        {
+          "moneyBefore": 99,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 5,
+          "maxInterest": 5,
+          "incomeAwarded": 10
+        },
+        {
+          "moneyBefore": 100,
+          "streak": 0,
+          "isPVE": false,
+          "interest": 5,
+          "maxInterest": 5,
+          "incomeAwarded": 10
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 1,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 7
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 4,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 10
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 5,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 11
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 6,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 11
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 99,
+          "isPVE": false,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 11
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 3,
+          "isPVE": true,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 6
+        },
+        {
+          "moneyBefore": 10,
+          "streak": 5,
+          "isPVE": true,
+          "interest": 1,
+          "maxInterest": 5,
+          "incomeAwarded": 6
+        }
+      ],
+      "unresolvedModifiers": [
+        "GIMMIGHOUL_COIN raises and AMULET_COIN lowers the interest cap; RED_SCALE adds 5 each (counts read, effects of other holders not traced)",
+        "BLOOD_MONEY special rule removes interest",
+        "SCRIBBLE and DOUBLE_UP not covered",
+        "whether other code adds gold between onFinish and computeIncome was not exhaustively searched (only the +1 win gold was found in this window)"
+      ]
+    },
+    "winLossStreak": {
+      "declared": {
+        "streakBonusCap": 5,
+        "winGoldPvP": 1,
+        "winGoldWithLeadersCrest": 5
+      },
+      "formula": "After each PvP fight: draw -> streak unchanged; result equal to the previous non-draw PvP result -> streak += 1; otherwise streak = 0 (also for the first PvP result). Income bonus = min(5, streak) after PvP rounds. So the bonus is 0 for the first result of a run, 1 for the second consecutive identical result, ..., 5 for the sixth or later.",
+      "tracedBehavior": "Wins AND losses both build the streak (a loss streak pays the same bonus as a win streak). Draws neither reset nor extend it and are skipped when looking for the 'previous' result. PvE fights neither update nor reset it, and a PvE round's income omits the streak bonus. Separately, a PvP win pays +1 gold (5 with the opponent's LEADERS_CREST) at the end of the fight; losses and draws pay none.",
+      "evidence": [
+        "streak-update",
+        "streak-prev",
+        "result",
+        "win-gold",
+        "streak-income",
+        "is-pve"
+      ],
+      "executedChecks": "the income side (min(5, streak)) is covered by the computeIncome probe; the streak update itself in Simulation.onFinish was NOT executed (rules above are from reading)",
+      "unresolvedModifiers": [
+        "ghost opponents/players (isGhostPlayer) skip the update - not traced",
+        "the PvE test in the update (opponentPlayerId === 'pve') and the income test (stage in PVEStages) are different checks assumed to coincide on the normal path; not verified",
+        "DOUBLE_UP, LEADERS_CREST transfer details"
+      ]
+    },
+    "automaticXp": {
+      "declared": {
+        "amount": 2
+      },
+      "timing": "same call as round income: +2 XP per round for every alive non-bot player, PvE and PvP rounds alike; none before the first fight; nothing is gained at max level",
+      "evidence": [
+        "auto-xp",
+        "income-gate",
+        "xp-add"
+      ],
+      "executedChecks": "computeIncome probe: level 2 -> 3 after the first income",
+      "unresolvedModifiers": [
+        "gift shop XP (services/gift-shop.ts:242) and mission orders also call addExperience; not traced"
+      ]
+    },
+    "buyXp": {
+      "declared": {
+        "goldCost": 4,
+        "xpGained": 4
+      },
+      "tracedBehavior": "Allowed when the player is alive, gold >= 4 and level < 9. Adds 4 XP and deducts 4 gold. No phase restriction was found in the handler or command (read). At the final level-up (reaching level 9) the XP beyond the threshold is discarded but the full 4 gold is still charged; at level 9 the purchase is refused and nothing is charged.",
+      "evidence": [
+        "buy-xp",
+        "buy-xp-handler",
+        "xp-cost",
+        "xp-canlevel",
+        "player-xp"
+      ],
+      "executedChecks": "probes/results/economy-probe.json buyXp (real OnLevelUpCommand, stub player)",
+      "boundaryExamples": [
+        {
+          "before": {
+            "money": 3,
+            "level": 2,
+            "experience": 0,
+            "alive": true
+          },
+          "after": {
+            "money": 3,
+            "level": 2,
+            "experience": 0
+          }
+        },
+        {
+          "before": {
+            "money": 4,
+            "level": 2,
+            "experience": 0,
+            "alive": true
+          },
+          "after": {
+            "money": 0,
+            "level": 3,
+            "experience": 2
+          }
+        },
+        {
+          "before": {
+            "money": 5,
+            "level": 2,
+            "experience": 0,
+            "alive": true
+          },
+          "after": {
+            "money": 1,
+            "level": 3,
+            "experience": 2
+          }
+        },
+        {
+          "before": {
+            "money": 4,
+            "level": 8,
+            "experience": 70,
+            "alive": true
+          },
+          "after": {
+            "money": 0,
+            "level": 9,
+            "experience": 70
+          }
+        },
+        {
+          "before": {
+            "money": 4,
+            "level": 8,
+            "experience": 0,
+            "alive": true
+          },
+          "after": {
+            "money": 0,
+            "level": 8,
+            "experience": 4
+          }
+        },
+        {
+          "before": {
+            "money": 10,
+            "level": 9,
+            "experience": 0,
+            "alive": true
+          },
+          "after": {
+            "money": 10,
+            "level": 9,
+            "experience": 0
+          }
+        },
+        {
+          "before": {
+            "money": 4,
+            "level": 2,
+            "experience": 0,
+            "alive": false
+          },
+          "after": {
+            "money": 4,
+            "level": 2,
+            "experience": 0
+          }
+        }
+      ],
+      "unresolvedModifiers": [
+        "getLevelUpCost ignores its specialGameRule argument at this revision (read); other cost modifiers were not searched",
+        "client-side phase gating not traced"
+      ]
+    },
+    "levels": {
+      "declared": {
+        "startLevel": 2,
+        "startExperience": 0,
+        "maxLevel": 9,
+        "xpToNextLevel": {
+          "2": 2,
+          "3": 6,
+          "4": 10,
+          "5": 22,
+          "6": 34,
+          "7": 52,
+          "8": 72
+        },
+        "cumulativeXpToReach": {
+          "3": 2,
+          "4": 8,
+          "5": 18,
+          "6": 40,
+          "7": 74,
+          "8": 126,
+          "9": 198
+        }
+      },
+      "tracedBehavior": "ExpTable[n] is the XP needed to move from level n to n+1 (key 9 = 72 and key 10 = 255 are never used as thresholds since the level cap is 9). Surplus XP carries over to the next level; several levels can be gained in one addition; at level 9 further XP is ignored. Quirk (executed): when the final level-up happens the stored `experience` field is left at its previous value (e.g. 70) and addExperience's return value is the threshold (72) rather than the XP applied; only the gift-shop caller uses that return value (not traced).",
+      "evidence": [
+        "xp-manager",
+        "xp-add",
+        "xp-can",
+        "exp-table",
+        "xp-canlevel"
+      ],
+      "executedChecks": "probes/results/economy-probe.json experienceManager (real ExperienceManager)",
+      "boundaryExamples": [
+        {
+          "from": {
+            "level": 2,
+            "experience": 0
+          },
+          "added": 4,
+          "xpActuallyGained": 4,
+          "to": {
+            "level": 3,
+            "experience": 2,
+            "expNeeded": 6
+          }
+        },
+        {
+          "from": {
+            "level": 2,
+            "experience": 1
+          },
+          "added": 1,
+          "xpActuallyGained": 1,
+          "to": {
+            "level": 3,
+            "experience": 0,
+            "expNeeded": 6
+          }
+        },
+        {
+          "from": {
+            "level": 2,
+            "experience": 0
+          },
+          "added": 2,
+          "xpActuallyGained": 2,
+          "to": {
+            "level": 3,
+            "experience": 0,
+            "expNeeded": 6
+          }
+        },
+        {
+          "from": {
+            "level": 3,
+            "experience": 5
+          },
+          "added": 1,
+          "xpActuallyGained": 1,
+          "to": {
+            "level": 4,
+            "experience": 0,
+            "expNeeded": 10
+          }
+        },
+        {
+          "from": {
+            "level": 3,
+            "experience": 5
+          },
+          "added": 4,
+          "xpActuallyGained": 4,
+          "to": {
+            "level": 4,
+            "experience": 3,
+            "expNeeded": 10
+          }
+        },
+        {
+          "from": {
+            "level": 2,
+            "experience": 0
+          },
+          "added": 20,
+          "xpActuallyGained": 20,
+          "to": {
+            "level": 5,
+            "experience": 2,
+            "expNeeded": 22
+          }
+        },
+        {
+          "from": {
+            "level": 8,
+            "experience": 70
+          },
+          "added": 2,
+          "xpActuallyGained": 72,
+          "to": {
+            "level": 9,
+            "experience": 70,
+            "expNeeded": 72
+          }
+        },
+        {
+          "from": {
+            "level": 8,
+            "experience": 70
+          },
+          "added": 4,
+          "xpActuallyGained": 72,
+          "to": {
+            "level": 9,
+            "experience": 70,
+            "expNeeded": 72
+          }
+        },
+        {
+          "from": {
+            "level": 8,
+            "experience": 0
+          },
+          "added": 4,
+          "xpActuallyGained": 4,
+          "to": {
+            "level": 8,
+            "experience": 4,
+            "expNeeded": 72
+          }
+        },
+        {
+          "from": {
+            "level": 9,
+            "experience": 0
+          },
+          "added": 4,
+          "xpActuallyGained": 0,
+          "to": {
+            "level": 9,
+            "experience": 0,
+            "expNeeded": 72
+          }
+        },
+        {
+          "from": {
+            "level": 9,
+            "experience": 0
+          },
+          "added": 2,
+          "xpActuallyGained": 0,
+          "to": {
+            "level": 9,
+            "experience": 0,
+            "expNeeded": 72
+          }
+        }
+      ],
+      "cumulativeProbe": [
+        {
+          "reachedLevel": 3,
+          "totalXpAdded": 2,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 4,
+          "totalXpAdded": 8,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 5,
+          "totalXpAdded": 18,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 6,
+          "totalXpAdded": 40,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 7,
+          "totalXpAdded": 74,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 8,
+          "totalXpAdded": 126,
+          "experience": 0
+        },
+        {
+          "reachedLevel": 9,
+          "totalXpAdded": 198,
+          "experience": 71
+        }
+      ],
+      "unresolvedModifiers": [
+        "what the UI shows for `experience` at level 9",
+        "effects of level on team size and shop odds are out of scope"
+      ]
+    },
+    "reroll": {
+      "declared": {
+        "paidCost": 1,
+        "freeCost": 0
+      },
+      "tracedBehavior": "A reroll needs gold >= cost; the cost is 1 unless player.shopFreeRolls > 0, in which case it is 0 and the counter drops by 1. A paid reroll by a player whose board holds REPEAT_BALL holders adds one free roll per holder. Rerolling draws a new shop via assignShop(manualRefresh = true). No phase restriction was found in the handler or command.",
+      "freeRollPaths": [
+        "shopFreeRolls counter (consumed first)",
+        "Unown shop (Psychic transcendence): +1 free roll when such a shop is generated (shop.ts:354-357); one is consumed when buying from it (game-commands.ts:194-204) and an untouched one is removed at the next automatic refresh (:1979-1985)",
+        "REPEAT_BALL holders on the board add free rolls on paid rerolls (game-commands.ts:1058-1063)"
+      ],
+      "evidence": [
+        "reroll",
+        "reroll-handler",
+        "assign-shop",
+        "free-roll-unown",
+        "free-roll-auto"
+      ],
+      "executedChecks": "probes/results/economy-probe.json reroll (real OnShopRerollCommand, stub shop)",
+      "boundaryExamples": [
+        {
+          "before": {
+            "money": 0,
+            "shopFreeRolls": 0
+          },
+          "after": {
+            "money": 0,
+            "shopFreeRolls": 0,
+            "rerollCount": 0
+          },
+          "shopAssigned": false,
+          "assignShopCalls": []
+        },
+        {
+          "before": {
+            "money": 1,
+            "shopFreeRolls": 0
+          },
+          "after": {
+            "money": 0,
+            "shopFreeRolls": 0,
+            "rerollCount": 1
+          },
+          "shopAssigned": true,
+          "assignShopCalls": [
+            {
+              "manualRefresh": true
+            }
+          ]
+        },
+        {
+          "before": {
+            "money": 5,
+            "shopFreeRolls": 0
+          },
+          "after": {
+            "money": 4,
+            "shopFreeRolls": 0,
+            "rerollCount": 1
+          },
+          "shopAssigned": true,
+          "assignShopCalls": [
+            {
+              "manualRefresh": true
+            }
+          ]
+        },
+        {
+          "before": {
+            "money": 0,
+            "shopFreeRolls": 1
+          },
+          "after": {
+            "money": 0,
+            "shopFreeRolls": 0,
+            "rerollCount": 1
+          },
+          "shopAssigned": true,
+          "assignShopCalls": [
+            {
+              "manualRefresh": true
+            }
+          ]
+        },
+        {
+          "before": {
+            "money": 3,
+            "shopFreeRolls": 2
+          },
+          "after": {
+            "money": 3,
+            "shopFreeRolls": 1,
+            "rerollCount": 1
+          },
+          "shopAssigned": true,
+          "assignShopCalls": [
+            {
+              "manualRefresh": true
+            }
+          ]
+        }
+      ],
+      "unresolvedModifiers": [
+        "what the new shop contains (odds, pools) is out of scope",
+        "other items that change reroll cost or add free rolls were not searched"
+      ]
+    }
+  },
+  "evidence": [
+    {
+      "id": "start-money",
+      "file": "app/models/colyseus-models/player.ts",
+      "lines": [
+        110,
+        110
+      ],
+      "symbol": "Player.money",
+      "expect": "process.env.MODE == \"dev\" ? 999 : 5",
+      "note": "starting gold 5 (999 only when env MODE=dev)"
+    },
+    {
+      "id": "add-money",
+      "file": "app/models/colyseus-models/player.ts",
+      "lines": [
+        285,
+        299
+      ],
+      "symbol": "Player.addMoney",
+      "expect": "this.money += value",
+      "note": "adds gold, counts totalMoneyEarned, retries MONEY-rule evolutions"
+    },
+    {
+      "id": "phase-flow",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1335,
+        1361
+      ],
+      "symbol": "OnUpdatePhaseCommand.execute",
+      "expect": "this.stopFightingPhase()",
+      "note": "TOWN -> PICK -> FIGHT cycle; income is applied inside stopFightingPhase"
+    },
+    {
+      "id": "stage0",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1340,
+        1343
+      ],
+      "symbol": "OnUpdatePhaseCommand.execute",
+      "expect": "this.state.stageLevel = 1",
+      "note": "stage 0 (town) is bumped to 1 without a fight, so there is no income before the first fight"
+    },
+    {
+      "id": "stop-fight",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1897,
+        1931
+      ],
+      "symbol": "stopFightingPhase",
+      "expect": "this.computeIncome(isPVE, this.state.specialGameRule)",
+      "note": "isPVE is read from the stage that just ended, BEFORE stageLevel += 1; onFinish of unfinished simulations runs first; income runs after checkDeath/checkEndGame and only if the game is not finished"
+    },
+    {
+      "id": "is-pve",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1898,
+        1898
+      ],
+      "symbol": "stopFightingPhase",
+      "expect": "const isPVE = this.state.stageLevel in PVEStages",
+      "note": ""
+    },
+    {
+      "id": "income",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1425,
+        1462
+      ],
+      "symbol": "OnUpdatePhaseCommand.computeIncome",
+      "expect": "player.addMoney(income, true, null)",
+      "note": "per alive human player: interest + streak (non-PvE) + 5 + red scales; then +2 XP"
+    },
+    {
+      "id": "income-gate",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1428,
+        1428
+      ],
+      "symbol": "computeIncome",
+      "expect": "if (player.alive && !player.isBot)",
+      "note": ""
+    },
+    {
+      "id": "max-interest",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1440,
+        1440
+      ],
+      "symbol": "computeIncome",
+      "expect": "player.maxInterest = 5 + nbGimmighoulCoins - nbAmuletCoins",
+      "note": "cap 5, modified by items"
+    },
+    {
+      "id": "interest",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1441,
+        1446
+      ],
+      "symbol": "computeIncome",
+      "expect": "Math.floor(player.money / 10)",
+      "note": "interest = min(maxInterest, floor(money / 10)) sampled from player.money at this call; skipped under BLOOD_MONEY"
+    },
+    {
+      "id": "streak-income",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1447,
+        1449
+      ],
+      "symbol": "computeIncome",
+      "expect": "income += max(5)(player.streak)",
+      "note": "max(5)(x) = Math.min(5, x) (app/utils/number.ts:5-8); not added after PvE rounds"
+    },
+    {
+      "id": "base-income",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1450,
+        1451
+      ],
+      "symbol": "computeIncome",
+      "expect": "income += 5",
+      "note": "flat +5 each call (also after PvE rounds); +5 per RED_SCALE item"
+    },
+    {
+      "id": "auto-xp",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1459,
+        1459
+      ],
+      "symbol": "computeIncome",
+      "expect": "player.addExperience(2)",
+      "note": "+2 XP each call, same loop and gate as income"
+    },
+    {
+      "id": "util-max",
+      "file": "app/utils/number.ts",
+      "lines": [
+        5,
+        8
+      ],
+      "symbol": "max",
+      "expect": "Math.min(maximum, value)",
+      "note": ""
+    },
+    {
+      "id": "streak-update",
+      "file": "app/core/simulation.ts",
+      "lines": [
+        1561,
+        1578
+      ],
+      "symbol": "Simulation.onFinish",
+      "expect": "player.streak += 1",
+      "note": "streak counts repeats of the same non-draw PvP result: reset to 0 when the result differs from the previous non-draw PvP result (or none), +1 when equal, unchanged on a draw; PvE rounds do not touch it"
+    },
+    {
+      "id": "streak-prev",
+      "file": "app/core/simulation.ts",
+      "lines": [
+        1563,
+        1569
+      ],
+      "symbol": "Simulation.onFinish",
+      "expect": "stage.id !== \"pve\" && stage.result !== BattleResult.DRAW",
+      "note": "previous result = second to last of the history filtered to non-PvE, non-draw entries (the current result is already appended)"
+    },
+    {
+      "id": "result",
+      "file": "app/core/simulation.ts",
+      "lines": [
+        1544,
+        1549
+      ],
+      "symbol": "Simulation.onFinish",
+      "expect": "BattleResult.DRAW",
+      "note": "WIN if winnerId is the player, DEFEAT if the opponent, otherwise DRAW"
+    },
+    {
+      "id": "win-gold",
+      "file": "app/core/simulation.ts",
+      "lines": [
+        1584,
+        1597
+      ],
+      "symbol": "Simulation.onFinish",
+      "expect": "const moneyGain = hasLeadersCrest ? 5 : 1",
+      "note": "+1 gold for a PvP win (5 with the opponent's LEADERS_CREST); none for PvE wins, ghost players, losses or draws; awarded in onFinish, i.e. before computeIncome samples the balance"
+    },
+    {
+      "id": "on-finish",
+      "file": "app/core/simulation.ts",
+      "lines": [
+        1470,
+        1478
+      ],
+      "symbol": "Simulation.onFinish",
+      "expect": "this.finished = true",
+      "note": ""
+    },
+    {
+      "id": "xp-manager",
+      "file": "app/models/colyseus-models/experience-manager.ts",
+      "lines": [
+        15,
+        21
+      ],
+      "symbol": "ExperienceManager constructor",
+      "expect": "this.maxLevel = 9",
+      "note": "starts at level 2, 0 XP, expNeeded ExpTable[2]; maxLevel 9"
+    },
+    {
+      "id": "xp-add",
+      "file": "app/models/colyseus-models/experience-manager.ts",
+      "lines": [
+        27,
+        40
+      ],
+      "symbol": "ExperienceManager.addExperience",
+      "expect": "expToAdd -= ExpTable[this.level]",
+      "note": "level-ups consume ExpTable[level]; leftover carries; at max level the leftover is discarded"
+    },
+    {
+      "id": "xp-can",
+      "file": "app/models/colyseus-models/experience-manager.ts",
+      "lines": [
+        42,
+        47
+      ],
+      "symbol": "ExperienceManager.canLevelUpWithXP",
+      "expect": "this.experience + quantity >= ExpTable[this.level]",
+      "note": ""
+    },
+    {
+      "id": "xp-canlevel",
+      "file": "app/models/colyseus-models/experience-manager.ts",
+      "lines": [
+        23,
+        25
+      ],
+      "symbol": "ExperienceManager.canLevelUp",
+      "expect": "return this.level < this.maxLevel",
+      "note": ""
+    },
+    {
+      "id": "xp-cost",
+      "file": "app/models/colyseus-models/experience-manager.ts",
+      "lines": [
+        50,
+        53
+      ],
+      "symbol": "getLevelUpCost",
+      "expect": "const cost = 4",
+      "note": "constant 4; the specialGameRule parameter is unused"
+    },
+    {
+      "id": "exp-table",
+      "file": "app/config/game/experience.ts",
+      "lines": [
+        8,
+        20
+      ],
+      "symbol": "ExpTable",
+      "expect": "9: 72,",
+      "note": "XP needed to move from level n to n+1 (key 10 = 255 sentinel, never used as a threshold at max level 9)"
+    },
+    {
+      "id": "buy-xp",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1091,
+        1107
+      ],
+      "symbol": "OnLevelUpCommand.execute",
+      "expect": "player.addExperience(4)",
+      "note": "if money >= cost and level < max: +4 XP for 4 gold (gold is deducted even if part of the XP overflows at the final level-up)"
+    },
+    {
+      "id": "buy-xp-handler",
+      "file": "app/rooms/game-room.ts",
+      "lines": [
+        551,
+        559
+      ],
+      "symbol": "GameRoom Transfer.LEVEL_UP handler",
+      "expect": "new OnLevelUpCommand()",
+      "note": "only checks !gameFinished and an authenticated client; no phase check was found"
+    },
+    {
+      "id": "player-xp",
+      "file": "app/models/colyseus-models/player.ts",
+      "lines": [
+        275,
+        283
+      ],
+      "symbol": "Player.addExperience",
+      "expect": "this.experienceManager.addExperience(value)",
+      "note": ""
+    },
+    {
+      "id": "reroll",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1045,
+        1067
+      ],
+      "symbol": "OnShopRerollCommand.execute",
+      "expect": "const rollCost = player.shopFreeRolls > 0 ? 0 : 1",
+      "note": "paid reroll costs 1 gold; with shopFreeRolls > 0 it costs 0 and decrements the counter; REPEAT_BALL holders add free rolls on paid rerolls"
+    },
+    {
+      "id": "reroll-handler",
+      "file": "app/rooms/game-room.ts",
+      "lines": [
+        500,
+        508
+      ],
+      "symbol": "GameRoom Transfer.REFRESH handler",
+      "expect": "new OnShopRerollCommand()",
+      "note": "only checks !gameFinished; no phase check was found"
+    },
+    {
+      "id": "assign-shop",
+      "file": "app/models/shop.ts",
+      "lines": [
+        332,
+        372
+      ],
+      "symbol": "Shop.assignShop",
+      "expect": "player.shopFreeRolls += 1",
+      "note": "manual refresh draws a new shop; an Unown shop (Psychic transcendence) grants +1 free roll"
+    },
+    {
+      "id": "free-roll-unown",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        194,
+        204
+      ],
+      "symbol": "OnBuyPokemonCommand",
+      "expect": "player.shopFreeRolls -= 1",
+      "note": "another free-roll path: picking in an Unown shop"
+    },
+    {
+      "id": "free-roll-auto",
+      "file": "app/rooms/commands/game-commands.ts",
+      "lines": [
+        1979,
+        1985
+      ],
+      "symbol": "stopFightingPhase",
+      "expect": "player.shopFreeRolls -= 1",
+      "note": "an untouched Unown shop loses its free roll at the next automatic refresh"
+    },
+    {
+      "id": "pve-stages",
+      "file": "app/models/pve-stages.ts",
+      "lines": [
+        42,
+        43
+      ],
+      "symbol": "PVEStages",
+      "expect": "export const PVEStages",
+      "note": "PvE stage numbers are the keys of this table (1, 2, 3, 9, 14, 19, 24, 28, 32, 36, 40)"
+    },
+    {
+      "id": "scribble-money",
+      "file": "app/core/scribbles.ts",
+      "lines": [
+        84,
+        94
+      ],
+      "symbol": "scribbles",
+      "expect": "player.money = 1",
+      "note": "SCRIBBLE mode sets/adjusts gold directly (excluded)"
+    },
+    {
+      "id": "game-mode",
+      "file": "app/types/enum/Game.ts",
+      "lines": [
+        13,
+        20
+      ],
+      "symbol": "GameMode",
+      "expect": "SCRIBBLE = \"SCRIBBLE\"",
+      "note": "modes: CUSTOM_LOBBY, CLASSIC, RANKED, SCRIBBLE, TOURNAMENT, DOUBLE_UP"
+    }
+  ],
+  "unresolved": [
+    "Exact interaction of AMULET_COIN / GIMMIGHOUL_COIN / RED_SCALE / LEADERS_CREST / REPEAT_BALL beyond the lines cited",
+    "SCRIBBLE and DOUBLE_UP economies",
+    "Streak handling for ghost opponents and Double Up",
+    "Whether any other gold or XP source runs in the same window as computeIncome (only the +1 win gold was found)",
+    "Client-side restrictions on buying XP or rerolling during particular phases"
+  ]
+}
