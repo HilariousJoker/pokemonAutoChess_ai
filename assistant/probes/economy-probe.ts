@@ -44,7 +44,15 @@ const lv = new ExperienceManager()
 const start = { level: lv.level, experience: lv.experience, expNeeded: lv.expNeeded, maxLevel: lv.maxLevel }
 const cumulative: any[] = []
 let total = 0
-while (lv.level < lv.maxLevel) { lv.addExperience(1); total += 1; if (!cumulative.length || cumulative.at(-1).level !== lv.level) cumulative.push({ reachedLevel: lv.level, totalXpAdded: total, experience: lv.experience }) }
+let prevLevel = lv.level
+while (lv.level < lv.maxLevel) {
+  lv.addExperience(1)
+  total += 1
+  if (lv.level !== prevLevel) { // record only actual level transitions (levels 3-9), not every XP increment
+    cumulative.push({ reachedLevel: lv.level, totalXpAdded: total, experience: lv.experience })
+    prevLevel = lv.level
+  }
+}
 const em = (level: number, experience: number) => { const m = new ExperienceManager(); m.level = level; m.experience = experience; m.expNeeded = ExpTable[level] ?? 255; return m }
 const add = (level: number, experience: number, q: number) => { const m = em(level, experience); const gained = m.addExperience(q); return { from: { level, experience }, added: q, xpActuallyGained: gained, to: { level: m.level, experience: m.experience, expNeeded: m.expNeeded } } }
 const examples = [add(2, 0, 4), add(2, 1, 1), add(2, 0, 2), add(3, 5, 1), add(3, 5, 4), add(2, 0, 20), add(8, 70, 2), add(8, 70, 4), add(8, 0, 4), add(9, 0, 4), add(9, 0, 2)]

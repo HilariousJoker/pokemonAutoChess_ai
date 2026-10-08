@@ -70,7 +70,16 @@ for (const [i, r] of probe.computeIncome.entries()) {
   if (expect !== r.incomeAwarded) bad(`probe income ${i}: formula gives ${expect}, probe ${r.incomeAwarded}`)
 }
 if (!eq(R.buyXp.boundaryExamples, probe.buyXp) || !eq(R.reroll.boundaryExamples, probe.reroll) || !eq(R.levels.boundaryExamples, probe.experienceManager.examples)) bad("buy/reroll/level examples differ from the probe")
-for (const c of probe.experienceManager.cumulativeXpToReachEachLevelFromLevel2) if (c.experience === 0 && c.reachedLevel <= 8 && c.reachedLevel >= 3 && c.totalXpAdded !== decl.cumulativeXpToReach[c.reachedLevel]) bad(`probe cumulative XP to level ${c.reachedLevel}`)
+// level milestones: exactly one transition per level 3..9, in order, no duplicates, totals equal to the declared cumulative XP
+const ms = probe.experienceManager.cumulativeXpToReachEachLevelFromLevel2
+if (!Array.isArray(ms) || ms.length !== 7) bad(`probe has ${ms?.length} level milestones, expected exactly 7 (levels 3-9)`)
+else {
+  const levels = ms.map((c) => c.reachedLevel)
+  if (!eq(levels, [3, 4, 5, 6, 7, 8, 9])) bad(`probe milestone levels ${JSON.stringify(levels)} are not exactly 3..9 in order (duplicate or missing)`)
+  for (const c of ms) if (c.totalXpAdded !== decl.cumulativeXpToReach[c.reachedLevel]) bad(`probe cumulative XP to level ${c.reachedLevel}: ${c.totalXpAdded} vs declared ${decl.cumulativeXpToReach[c.reachedLevel]}`)
+  if (!eq(ms.map((c) => c.totalXpAdded), [2, 8, 18, 40, 74, 126, 198])) bad("milestone totals are not 2, 8, 18, 40, 74, 126, 198")
+}
+if (!eq(R.levels.cumulativeProbe, ms)) bad("economy-leveling.json cumulativeProbe differs from the probe milestones")
 
 // 4. Markdown agrees with the record
 const need = [
