@@ -13,6 +13,15 @@
 Read assistant/ASK.md and assistant/knowledge/07367c34/index.md in this repository (branch claude/great-volta-v6znve) and follow ASK.md for every question I ask from now on. Answer read-only: no edits, installs, extraction or game actions unless I ask. Use only the production-branch reference 07367c34 (deployment unverified), never mix in the development snapshot, and tell me plainly when something is not covered. Confirm in one line that you loaded both files, then wait for my first question.
 ```
 
+## Match session (fresh, question-only) — load before play
+Use a **new** Claude Code session on the same fork and branch (do not continue an audit/build conversation: carrying it over wastes context and mixes review work into answers). Paste this as the first message, then wait for its one-line confirmation before the match:
+```text
+Read assistant/ASK.md and assistant/knowledge/07367c34/match-reference.md in this repository (branch claude/great-volta-v6znve). Follow ASK.md. Read-only; production-branch reference 07367c34 only (deployment unverified). Default to QUICK mode: answer from these two files without searching the repository or inspecting source; answer first, essential uncertainty only. When I ask "research:" or ask a direct mechanics question after the match, use RESEARCH mode. Confirm in one line that both files are loaded, then wait.
+```
+- **QUICK** answers come only from `match-reference.md` (economy, shop odds, damage/PP/speed, rows, the ten Silk Scarf items, …). If something is not in it, the answer says so and offers to investigate after the match.
+- **RESEARCH** (a direct mechanics question, or "research: …") allows bounded read-only source inspection at the pinned revision without asking permission to read files; what it newly reads is labelled unreviewed. See ASK.md → Answering modes.
+- No response-time guarantee is made for either mode. If you want full detail from the first session type (index first), use the longer instruction above instead.
+
 ## Questions you can ask now
 - "What are Charizard's base stats, and what does its ability do?" *(covered: baseline + reviewed Blast Burn, raw amounts)*
 - "How does Pikachu decide between Raichu and Alolan Raichu?"
@@ -27,7 +36,7 @@ Read assistant/ASK.md and assistant/knowledge/07367c34/index.md in this reposito
 Worked examples with sources: [analysis/first-version-question-checks.md](analysis/first-version-question-checks.md) (a curated check by the same author as the notes — not independent proof of accuracy).
 
 ## What is covered / not covered
-See the index: [knowledge/07367c34/index.md](knowledge/07367c34/index.md). In short: 1183 unit baselines; evolution for 20 units; 3 reviewed ability records; normal-path economy, leveling and shop; a primer on damage, PP, attack speed, rows, synergies and items. Not covered: most abilities and all passives, special rules/modes, item-by-item rules, live-game behavior, meta or win rates.
+See the index: [knowledge/07367c34/index.md](knowledge/07367c34/index.md). In short: 1183 unit baselines; evolution for 20 units; 3 reviewed ability records; normal-path economy, leveling and shop; a primer on damage, PP, attack speed, rows, synergies and items; all item recipes and declared item stats, and the ten Silk Scarf items with effects ([guide](knowledge/07367c34/silk-scarf-items.md)); a condensed [match-reference](knowledge/07367c34/match-reference.md). Not covered: most abilities and all passives, special rules/modes, effects of items other than Eviolite, Shiny Stone and the scarf items, live-game behavior, meta or win rates.
 
 ## Updating later (do not do this as part of asking questions)
 Syncing your fork with upstream **does not regenerate** any of this knowledge — the data and notes are frozen at the pinned revision.

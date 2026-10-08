@@ -16,6 +16,9 @@ How to answer from this index: [ASK.md](../../ASK.md). How to start a session: [
 | **Positioning**, rows, Vespiquen modes | [core-mechanics.md](core-mechanics.md) §D | [pilot-abilities.md](pilot-abilities.md) |
 | **Synergy** counting and thresholds | [core-mechanics.md](core-mechanics.md) §E | — |
 | **Items**: slots, combining, Eviolite, Shiny Stone | [core-mechanics.md](core-mechanics.md) §F–G | [evolution-context.md](evolution-context.md) |
+| **Silk Scarf** recipes and the ten scarf items (bonuses, effects, allowance) | [silk-scarf-items.md](silk-scarf-items.md) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) |
+| **Any item's recipe / declared stats** (55 recipes, 90 stat entries) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) | effects: only the notes above — otherwise not covered |
+| Facts to have loaded **before play** (QUICK mode) | [match-reference.md](match-reference.md) | linked notes for evidence |
 | "Is this the **live** version?" / differences between revisions | [version-alignment](../../analysis/version-alignment.md) · [pilot-baseline-comparison](../../analysis/pilot-baseline-comparison.md) | — |
 | Current **meta**, win rates, best comps | *not in this knowledge* — say so | mechanics notes only for explaining individual effects |
 
@@ -30,10 +33,11 @@ Evidence each answer can cite: the note section, its source `file:lines` at the 
 | Economy and leveling | normal path | SCRIBBLE/DOUBLE_UP, special rules, income/XP items |
 | Shop | normal path, levels 2–9 | shop-modifying items/synergies/rules, regional-variant pool accounting |
 | Core mechanics | damage defense step, PP/cast, attack interval, rows, synergy counting, item slots/combining, two item examples | the full damage pipeline, status effects, movement/targeting detail, per-item rules, synergy exceptions beyond Dragon/FAMILY_OUTING/dynamic types |
+| Items | all 55 recipes and 90 declared stat entries (data); behavior of Eviolite, Shiny Stone and the ten Silk Scarf items (traced, no probe) | behavior of every other item, item interactions with abilities, dev-snapshot item differences |
 
 ## Boundaries to state when relevant
 - **Bare-instance ≠ acquired ≠ combat.** Catalog stats are a freshly created unit; in-match values include evolution carry-over, items, synergies, buffs and combat effects (e.g. Cosmoem HP: [evolution-context.md](evolution-context.md) §Cosmog → Cosmoem).
 - **Identifiers do not explain abilities or passives, and do not prove shop availability.**
 - **Probes are isolated executions, not gameplay.** No live-game testing of any kind exists.
-- **Unresolved items** live at the end of each note (and in the JSON `unresolved` fields): e.g. Vespiquen made by evolution keeps its placeholder skill until moved (untraced), Primeape fight timing, regional-variant pool accounting, item/rule modifiers of income and shop, most per-item behavior.
+- **Unresolved items** live at the end of each note (and in the JSON `unresolved` fields): e.g. Vespiquen made by evolution keeps its placeholder skill until moved (untraced), Primeape fight timing, regional-variant pool accounting, item/rule modifiers of income and shop, most per-item behavior (other than the ten scarf items).
 - **Nothing here establishes the current meta.** See [first-version-question-checks](../../analysis/first-version-question-checks.md) for worked examples of answering within these limits.
