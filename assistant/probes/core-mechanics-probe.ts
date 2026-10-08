@@ -1,8 +1,9 @@
 // Probe for knowledge/07367c34/core-mechanics.md (production-branch reference; deployment unverified, pinned 07367c34).
 // REAL code executed: PokemonState.handleDamage (damage reduction), PokemonEntity.resetCooldown / getAttackTimings / getMoveSpeed (speed conversion),
 // computeSynergies + Effects.update (deployed vs bench, family dedup, Dragon doubling, item-granted type), Cosmoem's divergentEvolution callback.
-// STUBS: the damage target is a plain object (no statuses/items/effects/shield; hp 100) with a Proxy-free minimal surface and attacker = null; speed checks call
-// the real methods on {speed, status} objects; synergy/callback checks use real Pokemon instances from PokemonFactory and plain-object players.
+// STUBS: the damage target is a plain object (hp 1000; statuses and counters are Proxy objects that read as false/0; no items, effects or shield unless
+// a case sets one) and the attacker is null; speed checks call the real methods on {speed, status} objects; synergy/callback checks use real Pokemon
+// instances from PokemonFactory and plain-object players.
 // NOT executed: full fights, item/status modifiers on damage, movement, anything needing a Simulation.
 // Usage (inside a checkout of the pinned SHA with node_modules): node_modules/.bin/tsx assistant/probes/core-mechanics-probe.ts --out <file.json>
 import { writeFileSync } from "node:fs"
@@ -42,7 +43,7 @@ let damageChecks: any
 try {
   damageChecks = {
     ok: true,
-    cases: [hit(AttackType.PHYSICAL, 30), hit(AttackType.SPECIAL, 30), hit(AttackType.TRUE, 30), hit(AttackType.PHYSICAL, 1, { def: 100 }), hit(AttackType.PHYSICAL, 30, { def: 0 }), hit(AttackType.PHYSICAL, 30, { shield: 10 })],
+    cases: [hit(AttackType.PHYSICAL, 30), hit(AttackType.SPECIAL, 30), hit(AttackType.TRUE, 30), hit(AttackType.TRUE, 30.2), hit(AttackType.TRUE, 0.2), hit(AttackType.PHYSICAL, 1, { def: 100 }), hit(AttackType.PHYSICAL, 30, { def: 0 }), hit(AttackType.PHYSICAL, 30, { shield: 10 })],
     shieldCase: (() => { const t = mkTarget({ shield: 10 }); const r = new IdleState().handleDamage({ target: t, damage: 30, board: {} as any, attackType: AttackType.PHYSICAL, attacker: null, shouldTargetGainMana: false }); return { shieldBefore: 10, shieldAfter: t.shield, hpLost: 1000 - t.hp, takenDamage: r.takenDamage } })()
   }
 } catch (e: any) { damageChecks = { ok: false, error: String(e?.message ?? e) } }
@@ -86,6 +87,11 @@ const spotlightCases = {
   note: "light cell = (3,2). The callback result depends on exact coordinates plus an active Light tier; SHINY_STONE on the Cosmoem itself does not satisfy the coordinate test, while a SHINY_STONE holder can add a Light count (type granted by SynergyGivenByItem)."
 }
 
+if (!damageChecks.ok) {
+  // a failed damage probe must not leave a successful-looking checkpoint behind
+  console.error(`core-mechanics-probe: damage probe failed: ${damageChecks.error}`)
+  process.exit(1)
+}
 const result = {
   label: "production-branch reference; deployment unverified", sourceSha: "07367c341fe928763da2b565c2eee010433e4fc1",
   stubs: "see the file header", damageChecks, speedChecks, paralysed, synergyCases, spotlightCases
