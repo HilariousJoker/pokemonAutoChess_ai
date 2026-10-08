@@ -156,7 +156,7 @@
         "floatingPointExactlyOne": true
       }
     },
-    "rowSumNote": "Every row sums to 1; in 64-bit floating point the level-9 row sums to 0.9999999999999999. A seed in [0.9999999999999999, 1) would make the rarity loop run past the row (threshold becomes NaN) and the slot would fall back to MAGIKARP (rarity undefined -> error path, shop.ts:721-726); probability about 1e-16, noted for completeness only.",
+    "rowSumNote": "Every row sums to 1. In 64-bit floating point the level-9 row sums to 0.9999999999999999, which equals 1 - 2^-53, the largest value Math.random() can return; a seed therefore never exceeds a row sum and the rarity loop cannot run past the row (this corrects an earlier claim to the contrary). Edge seeds (inspection of shop.ts:695-709, then executed, see edgeSeeds): seed 0.9999999999999999 stops at the last band; seed exactly 0 never enters the while loop, i stays 0, the rarity lookup [..][i-1] is undefined, the code logs an error and the slot is MAGIKARP; probability about 2^-53 per slot.",
     "mechanism": "For each slot one seed s = Math.random() is compared with the cumulative row: rarity = the first band whose cumulative total >= s (while (s > threshold)); a seed exactly on a boundary belongs to the lower rarity. The player's level at the moment of the draw is used.",
     "whatLevelingChanges": "Only the row used for the rarity roll (COMMON-only at level 2; UNCOMMON from 3, RARE from 4, EPIC from 5, ULTRA from 7). Shop size, pools and the unit-selection rule do not depend on level.",
     "executedChecks": "probes/results/shop-probe.json: real pickPokemon with scripted Math.random at the middle of every non-zero band for levels 2-9 (all returned the expected rarity) and at the level-3 boundary (0.69 and 0.7 -> COMMON, 0.700001 and 0.9999 -> UNCOMMON)",
@@ -164,8 +164,47 @@
       "odds-table",
       "rarity-roll",
       "rarity-level",
-      "pick-call"
-    ]
+      "pick-call",
+      "rarity-missing"
+    ],
+    "edgeSeeds": {
+      "inspection": "while (rarity_seed > threshold): the loop runs only while the seed is strictly greater than the cumulative total; a seed equal to the row sum stops at the last band; seed 0 does not enter the loop (shop.ts:695-709), then if (!rarity) logs an error and returns MAGIKARP (shop.ts:721-726)",
+      "executed": [
+        {
+          "level": 2,
+          "seed": 0,
+          "largestPossibleSeed": false,
+          "pkm": "MAGIKARP",
+          "rarity": "SPECIAL",
+          "randomCalls": 2
+        },
+        {
+          "level": 9,
+          "seed": 0,
+          "largestPossibleSeed": false,
+          "pkm": "MAGIKARP",
+          "rarity": "SPECIAL",
+          "randomCalls": 2
+        },
+        {
+          "level": 9,
+          "seed": 0.9999999999999999,
+          "largestPossibleSeed": true,
+          "pkm": "GASTLY",
+          "rarity": "ULTRA",
+          "randomCalls": 3
+        },
+        {
+          "level": 3,
+          "seed": 0.9999999999999999,
+          "largestPossibleSeed": true,
+          "pkm": "NIDORANM",
+          "rarity": "UNCOMMON",
+          "randomCalls": 3
+        }
+      ],
+      "executedNote": "Executed with the real pickPokemon and a scripted Math.random (stub player); unit names in other probe sections are random draws that change per run, totals do not."
+    }
   },
   "slotSelection": {
     "order": [
@@ -301,7 +340,7 @@
       "shared-shop",
       "add-regional"
     ],
-    "displayedButUnboughtOffer": "A drawn offer is already removed from the pool while it is displayed. It returns only when the offers are released: at the next refresh (assignShop releases all current offers first), when the player removes it from the shop, or when the player dies. During an automatic refresh of a LOCKED shop (refillShop) the untouched offers stay displayed and stay out of the pool.",
+    "displayedButUnboughtOffer": "[Ordinary non-regional shared-pool path] A drawn offer is already removed from the pool while it is displayed. It returns only when the offers are released: at the next refresh (assignShop releases all current offers first), when the player removes it from the shop, or when the player dies. During an automatic refresh of a LOCKED shop (refillShop) the untouched offers stay displayed and stay out of the pool.",
     "bought": "Buying writes DEFAULT into the slot; that copy is not returned. Executed accounting (real assignShop/releasePokemon, buy step reproduced): total 1802 -> 1796 after the first shop; a manual refresh keeps 1796 (offers returned, new ones drawn); buying one offer then refreshing leaves 1795.",
     "sold": "Selling returns baseline copies by the unit's stars: 1 copy for a 1-star, 3 for a 2-star, 9 for a 3-star (executed: CHARMANDER 27 -> 28 -> 31 -> 40 using CHARMANDER / CHARMELEON / CHARIZARD). Regional units sold outside their region are not returned. Merged copies (evolution) are not returned until the evolved unit is sold.",
     "death": "A dying human player's current offers and board/bench units are released to the shared pool (read, not executed).",
@@ -330,7 +369,7 @@
       "afterFirstAssign": 1796,
       "afterManualRefresh": 1796,
       "boughtThenRefreshed": {
-        "boughtUnit": "SMOLIV",
+        "boughtUnit": "SPRIGATITO",
         "totalAfter": 1795
       },
       "byRarityNow": {
@@ -352,20 +391,20 @@
       },
       "lockedRefill": {
         "before": [
-          "CHARMANDER",
-          "LILLIPUP",
-          "PICHU",
-          "POLIWAG",
-          "CATERPIE",
-          "MAREEP"
+          "MAREEP",
+          "SMOLIV",
+          "AZURILL",
+          "MAREEP",
+          "GEODUDE",
+          "FENNEKIN"
         ],
         "after": [
-          "CHARMANDER",
-          "LILLIPUP",
+          "MAREEP",
           "SMOLIV",
-          "POLIWAG",
-          "CATERPIE",
-          "MAREEP"
+          "MAREEP",
+          "MAREEP",
+          "GEODUDE",
+          "FENNEKIN"
         ],
         "sameExceptSlot2": true,
         "poolTotalBefore": 1796,
@@ -375,8 +414,16 @@
     "unresolved": [
       "Evolution/transform paths that may add or remove copies were not searched exhaustively",
       "Variant copy accounting in regional pools",
-      "Double Up trading and gift-shop paths"
-    ]
+      "Double Up trading and gift-shop paths",
+      "Whether a displayed regional variant removes any pool entry at all (removal depends on finding its family-root entry in the chosen pool) - not audited"
+    ],
+    "reservationMechanism": {
+      "rule": "After a unit is chosen, getRandomPokemonFromPool selects the destination pool (the player's regional pool if the chosen unit is flagged regional, otherwise the shared pool of its rarity) and tries to remove ONE entry equal to getPokemonBaseline(unit) (the family root) with indexOf/splice; if no such entry exists nothing is removed and the unit is still returned.",
+      "evidence": [
+        "pool-removal"
+      ],
+      "scopeOfConclusions": "The offer-reservation and copy-accounting conclusions in this record are demonstrated only for the tested ordinary, non-regional shared-pool path (executed accounting with a stub player). Regional-variant accounting is unresolved and was not audited."
+    }
   },
   "emptyPoolBehavior": {
     "rule": "If no candidate remains for the drawn rarity (pool empty, or every remaining unit is filtered out) the slot becomes MAGIKARP. There is no re-roll of the rarity and no fall-back to another rarity. For a requested type: water -> MAGIKARP; other types retry once for the same rarity without the type.",
@@ -1133,6 +1180,17 @@
       "symbol": "getBuyPrice",
       "expect": "price = RarityCost[getPokemonData(name).rarity]",
       "note": "buy price falls back to RarityCost of the unit's rarity (MAGIKARP is SPECIAL -> cost 0 in RarityCost, app/config/game/shop.ts:21)"
+    },
+    {
+      "id": "rarity-missing",
+      "file": "app/models/shop.ts",
+      "lines": [
+        721,
+        726
+      ],
+      "symbol": "Shop.pickPokemon",
+      "expect": "return Pkm.MAGIKARP",
+      "note": "an undefined rarity (seed 0) is logged and returns MAGIKARP"
     }
   ],
   "unresolved": [
@@ -1140,6 +1198,6 @@
     "Regional variant copy accounting",
     "Evolution/transform pool effects, Double Up and gift-shop paths",
     "Exact set of WILD-type units and how the wild branch interacts with an almost empty pool",
-    "The effect of the level-9 floating-point row sum beyond the noted 1e-16 case"
+    "Regional-variant offer reservation and copy accounting (removal depends on finding the family-root entry in the destination pool)"
   ]
 }

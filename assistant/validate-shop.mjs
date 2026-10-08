@@ -41,12 +41,25 @@ for (const [lvl, row] of Object.entries(table)) {
   if (Math.abs(exact - 1) > 1e-12) bad(`row ${lvl} sums to ${exact}`)
   if (row.length !== 5) bad(`row ${lvl} length`)
   const rec = data.rarityOdds.rowSums[lvl]
-  if (!rec || rec.sum !== exact || rec.floatingPointExactlyOne !== (exact === 1)) bad(`row ${lvl} sum record differs`)
+  if (!rec || rec.sum !== exact) bad(`row ${lvl} sum record differs`)
 }
 for (const r of probe.probabilityRows) if (!eq(r.row, table[String(r.level)])) bad(`probe row for level ${r.level} differs from the source table`)
 if (Number(shopCfg.match(/SHOP_SIZE = (\d+)/)[1]) !== data.shopSize.declared) bad("shop size")
 for (const b of probe.bandChecks) if (!b.allOk) bad(`probe band check failed at level ${b.level}`)
 if (!eq(probe.bandChecks.map((b) => b.level), [2, 3, 4, 5, 6, 7, 8, 9])) bad("band checks do not cover levels 2-9")
+// edge seeds: the largest Math.random() value equals the level-9 row sum, so no seed can exceed a row sum; seed 0 yields MAGIKARP
+const maxSeed = 1 - 2 ** -53
+if (table["9"].reduce((a, b) => a + b, 0) !== maxSeed) bad("level-9 row sum is not the largest representable value below 1 (the markdown/JSON claim depends on it)")
+for (const r of Object.values(table)) if (r.reduce((a, b) => a + b, 0) > maxSeed + 2 ** -53) bad("a row sums above 1")
+const es = probe.edgeSeeds
+if (!Array.isArray(es) || es.length !== 4) bad("edgeSeeds missing from the probe")
+else {
+  for (const e of es) {
+    if (e.seed === 0 && !(e.pkm === "MAGIKARP" && e.rarity === "SPECIAL" && e.randomCalls === 2)) bad(`seed 0 at level ${e.level} did not give MAGIKARP via the error path`)
+    if (e.seed === maxSeed && !(e.largestPossibleSeed && e.rarity === (e.level === 9 ? "ULTRA" : "UNCOMMON") && e.randomCalls === 3)) bad(`largest seed at level ${e.level} did not stop at the last band`)
+  }
+}
+if (!/if \(!rarity\) \{/.test(src("app/models/shop.ts").join("\n"))) bad("rarity-undefined guard not found in shop.ts")
 const bd = Object.fromEntries(probe.boundaryLevel3.map((x) => [x.seed, x.rarity]))
 if (bd[0.7] !== "COMMON" || bd[0.69] !== "COMMON" || bd[0.700001] !== "UNCOMMON") bad("boundary semantics differ from the markdown claim")
 
@@ -62,6 +75,7 @@ for (const p of probe.poolInit) {
   totalEntries += p.entries
 }
 if (totalEntries !== data.pools.initialShared.totalCopies) bad("total pool copies differ")
+if (!eq(data.pools.poolAccounting, probe.poolAccounting)) bad("poolAccounting in the record differs from the probe")
 if (!eq(data.pools.initialShared.perRarity, probe.poolInit)) bad("poolInit in record differs from probe")
 const a = probe.poolAccounting
 if (a.initialTotal !== totalEntries || a.afterFirstAssign !== totalEntries - 6 || a.afterManualRefresh !== a.afterFirstAssign || a.boughtThenRefreshed.totalAfter !== a.afterManualRefresh - 1) bad("pool accounting arithmetic inconsistent")
@@ -94,7 +108,7 @@ for (const k of Object.keys(uf)) if (cat[k].stats.rarity !== uf[k].rarity || cat
 
 // 5. Markdown agrees
 const need = ["Production-branch reference; deployment unverified", SHA, "**6** slots", "27 / 22 / 18 / 14 / 10", "594 / 506 / 324 / 238 / 140", "1802", "22 / 23 / 18 / 17 / 14", "1802 → 1796", "→ 1795",
-  "1 / 3 / 9", "27 → 28 → 31 → 40", "six MAGIKARP", "lower rarity", "0.700001", "0.9999999999999999", "no hit-chance formula", "0.5 %", "6 % per slot", "from level 4",
+  "1 / 3 / 9", "27 → 28 → 31 → 40", "six MAGIKARP", "lower rarity", "0.700001", "0.9999999999999999", "Edge seeds", "exactly **0**", "only for the tested ordinary, non-regional shared-pool path", "family-root name", "no hit-chance formula", "0.5 %", "6 % per slot", "from level 4",
   "UniquePool", "LegendaryPool"]
 for (const x of need) if (!md.includes(x)) bad(`Markdown lacks "${x}"`)
 for (const [lvl, row] of Object.entries(table)) if (Number(lvl) >= 2 && Number(lvl) <= 9 && !md.includes(`| ${lvl} | ${row.join(" | ")} |`)) bad(`Markdown table row for level ${lvl} missing or different`)

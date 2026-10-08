@@ -77,6 +77,8 @@ const bandChecks = rows.filter((r) => r.level >= 2 && r.level <= 9).map((r) => {
   })
   return { level: r.level, bands, allOk: bands.every((b) => !b.tested || (b as any).ok) }
 })
+// edge seeds: Math.random() returns values in [0, 1), so the largest possible seed is 1 - 2^-53 = 0.9999999999999999 (also the level-9 row sum)
+const edgeSeeds = [[2, 0], [9, 0], [9, 0.9999999999999999], [3, 0.9999999999999999]].map(([level, seed]) => ({ level, seed, largestPossibleSeed: seed === 1 - 2 ** -53, ...pickWith(level, seed) }))
 const boundary = [0.69, 0.7, 0.700001, 0.9999].map((seed) => ({ level: 3, seed, ...pickWith(3, seed) }))
 
 // ---- 5. pool accounting: display / refresh / buy / sell (real Shop methods) ---------------------------------------------------
@@ -126,7 +128,7 @@ const specialBranches = {
 const result = {
   label: "production-branch reference; deployment unverified", sourceSha: "07367c341fe928763da2b565c2eee010433e4fc1",
   stubs: "plain-object player (no items/effects/synergies/regional pools), state {stageLevel, specialGameRule:null}; scripted Math.random for band/branch checks; buy step reproduced by writing DEFAULT into the slot",
-  shopSize: SHOP_SIZE, poolInit, unitFacts, probabilityRows: rows, bandChecks, boundaryLevel3: boundary,
+  shopSize: SHOP_SIZE, poolInit, unitFacts, probabilityRows: rows, bandChecks, boundaryLevel3: boundary, edgeSeeds,
   poolAccounting: { initialTotal: T0, afterFirstAssign: afterFirst, afterManualRefresh: afterRefresh, boughtThenRefreshed: { boughtUnit: bought, totalAfter: afterBuyThenRefresh }, byRarityNow: byRarity(shop),
     sellReturns: { unit: "CHARMANDER line, COMMON pool", copiesBefore, after1Star: afterSell1, after2Star: afterSell2, after3Star: afterSell3, returnedBy1Star: afterSell1 - copiesBefore, returnedBy2Star: afterSell2 - afterSell1, returnedBy3Star: afterSell3 - afterSell2 }, lockedRefill: refill },
   emptyPool: { commonPoolEmptiedLevel2Shop: pl3.shop, allCommonLinesFinalizedLevel2Shop: pl4.shop, uncommonPoolEmptiedLevel3SeedInUncommonBand: emptyUncommon, commonRaritySetSize: allCommons.size },
