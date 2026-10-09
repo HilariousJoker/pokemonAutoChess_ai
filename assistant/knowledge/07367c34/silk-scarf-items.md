@@ -13,7 +13,7 @@ Recipe = `SILK_SCARF` + second component (`Item.ts:552–561`). Silk Scarf alone
 | EXPLOSIVE_BAND | Charcoal | SHIELD 50, ATK 3 (`:103`) | First time the holder's shield is depleted: removes itself and deals `round(0.5 × shield-counter)` special damage to adjacent enemies (`effects/items.ts:1500–1534`). |
 | TWIST_BAND | Never-Melt Ice | SPE_DEF 20, SHIELD 50 (`:104`) | Turns **negative** stat changes from enemies/environment into positive ones, for 11 specific stat methods (see below). |
 | LUCKY_RIBBON | Twisted Spoon | SHIELD 15, AP 50, LUCK 20 (`:102`) | At simulation start, +15 % dodge chance (`effects/items.ts:1550–1554`). |
-| BIG_EATER_BELT | Miracle Seed | HP 50, SHIELD 15 (`:105`) | Multiplies positive stat gains by 1.25 (rounded down) for 11 specific methods (see below); lets the unit eat a second dish (`pokemon.ts:164–168`). |
+| BIG_EATER_BELT | Miracle Seed | HP 50, SHIELD 15 (`:105`) | Multiplies positive stat gains, and negative changes from same-team sources (a buff being lost), by 1.25 (rounded down) for 11 specific methods (see below); lets the unit eat a second dish (`pokemon.ts:164–168`). |
 | COVER_BAND | Heart Scale | DEF 12, SHIELD 50 (`:107`) | When an adjacent ally (not holding it) would be killed, the hit is redirected to the holder. |
 | EFFICIENT_BANDANNA | Mystic Water | SHIELD 15, PP 15 (`:108`) | At simulation start, max PP ×0.85 (rounded) for the units on the holder's cell and the cells to its left and right. |
 | NULLIFY_BANDANNA | Silk Scarf | SHIELD 30 (`:101`) | Holder **cannot cast**; each basic attack converts its current PP into extra special damage and resets PP to 0; AP gains become Attack. |

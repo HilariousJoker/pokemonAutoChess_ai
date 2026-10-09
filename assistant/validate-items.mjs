@@ -307,6 +307,32 @@ else bad("match-reference.md missing")
     if (!/Board unit \(Pokemon\.removeItems\)/.test(t) || !/Fight entity \(PokemonEntity\.removeItemEffect\)/.test(t) || !/without checking other held type-granting items/.test(t)) bad(`${k}: separate removal paths missing in effects`)
   }
   if (!/MovingState/.test(JSON.stringify(fx.items.DUSK_STONE.effects)) || /so it acts first/.test(JSON.stringify(fx.items.DUSK_STONE.effects))) bad("DUSK_STONE record has the retired initial-cooldown wording")
+  // card corrections (Smoke Ball survives-a-hit, Shell Bell abilities, Big Eater same-team negatives): card, record and note agree
+  need("SMOKE_BALL", /survives a damaging hit/, /does not save a lethal hit/, /fight entity/)
+  need("SHELL_BELL", /basic attacks or abilities/)
+  need("BIG_EATER_BELT", /same-team sources/, /enemies or the environment are not scaled/)
+  const rj = (k) => JSON.stringify(fx.items[k].effects)
+  if (!/SURVIVES a damaging hit/.test(rj("SMOKE_BALL")) || !/does not save a lethal hit/.test(rj("SMOKE_BALL")) || !/fight entity/.test(rj("SMOKE_BALL"))) bad("SMOKE_BALL record lost the survive-the-hit condition")
+  if (!/basic attack parts or ability/.test(rj("SHELL_BELL"))) bad("SHELL_BELL record lost the ability-damage condition")
+  if (!/negative values from same-team casters/.test(rj("BIG_EATER_BELT"))) bad("BIG_EATER_BELT record lost the same-team negative scaling")
+  if (!/does not save a lethal hit/.test(md) || !/same-team/.test(md.slice(md.indexOf("### BIG_EATER_BELT"), md.indexOf("### COVER_BAND")))) bad("item-effects.md lacks the Smoke Ball / Big Eater corrections")
+  // representative-builds / match-reference guidance
+  const rb = readFileSync(resolve(HERE, "knowledge/07367c34/representative-builds.md"), "utf8")
+  const mr = readFileSync(resolve(HERE, "knowledge/07367c34/match-reference.md"), "utf8")
+  const gs = mr.indexOf("## Item choice guidance"), ge = mr.indexOf("\n## ", gs + 5)
+  if (gs < 0) bad("match-reference.md lacks the Item choice guidance section")
+  else if (mr.slice(gs, ge).split(/\s+/).filter(Boolean).length > 450) bad("Item choice guidance exceeds 450 words")
+  for (const t of ["Charmander", "Totodile", "Vespiquen"]) if (gs >= 0 && !mr.slice(gs, ge).includes(t)) bad(`guidance lacks ${t}`)
+  for (const t of ["not simulated battles", "newly inspected", "abilities/heal-order.ts:47", "defend-order.ts:42", "Default", "Anti-synergies"]) if (!rb.includes(t)) bad(`representative-builds.md lacks "${t}"`)
+  // items named in the builds doc as recommendations must be in the catalog
+  for (const k of ["Soul Dew", "Deep Sea Tooth", "King's Rock", "Rocky Helmet", "Choice Specs", "Aqua Egg", "Red Orb", "Pokemonomicon", "Shell Bell", "Water Stone", "Efficient Bandanna", "Punching Glove", "Nullify Bandanna", "Wide Lens"]) {
+    const key = Object.keys(fx.items).find((x) => fx.items[x].displayName === k || fx.items[x].displayName === k.replace("Pokemonomicon", "Pokemonomicon"))
+    if (!key) bad(`representative-builds.md names ${k}, which is not a catalog item`)
+  }
+  // newly inspected claims (bounded read of the pinned source)
+  const ho = src("app/core/abilities/heal-order.ts"), dor = src("app/core/abilities/defend-order.ts")
+  if (!ho[46].includes("cell.value.handleHeal(heal, pokemon, 1, crit)")) bad("heal-order.ts:47 changed")
+  if (!dor[41].includes("p.addShield(shield, pokemon, 1, crit)")) bad("defend-order.ts:42 changed")
   // stones: type grant vs tier activation, equip refusal and evolution declarations are recorded
   for (const k of STONES) {
     const t = JSON.stringify(fx.items[k].effects)

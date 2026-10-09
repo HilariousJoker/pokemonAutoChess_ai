@@ -39,7 +39,7 @@
 | PUNCHING_GLOVE | Magnet + Charcoal | SPEED 10, ATK 3 | +8 % target max HP physical damage per basic attack |
 | MUSCLE_BAND | Magnet + Heart Scale | SPEED 10, DEF 3 | Per 2 hits taken: +1 ATK, +2 DEF, +5 speed (max 10 stacks) |
 | WONDER_BOX | Black Glasses + Black Glasses | none (no entry) | Opens at fight setup into two random recipe-output items |
-| SMOKE_BALL | Black Glasses + Miracle Seed | CRIT_CHANCE 10 | Below 40 % HP after a hit: paralyze+blind neighbors, +50 shield, fly away (once) |
+| SMOKE_BALL | Black Glasses + Miracle Seed | CRIT_CHANCE 10 | Surviving a hit that leaves it below 40 % HP: paralyze+blind neighbors, +50 shield, fly away (once; no save from a lethal hit) |
 | WIDE_LENS | Black Glasses + Never Melt Ice | RANGE 2, CRIT_CHANCE 15, SPE_DEF 3 | +2 range (kept after Locked ends); does not enlarge caster-centered areas |
 | RAZOR_CLAW | Black Glasses + Charcoal | CRIT_CHANCE 50, ATK 3 | No behavior beyond +50 crit chance and +3 ATK |
 | SAFETY_GOGGLES | Black Glasses + Heart Scale | CRIT_CHANCE 10, DEF 3 | 60 s Rune Protect; no sandstorm or bench-lava damage |
@@ -59,7 +59,7 @@
 | EXPLOSIVE_BAND | Silk Scarf + Charcoal | SHIELD 50, ATK 3 | Once, when its shield first depletes: 50 % of shield granted so far as special damage to adjacent enemies |
 | TWIST_BAND | Silk Scarf + Never Melt Ice | SPE_DEF 20, SHIELD 50 | Enemy/environment stat reductions to 11 stats become gains |
 | LUCKY_RIBBON | Silk Scarf + Twisted Spoon | SHIELD 15, AP 50, LUCK 20 | +15 % dodge at fight start |
-| BIG_EATER_BELT | Silk Scarf + Miracle Seed | HP 50, SHIELD 15 | Gains to 11 stats x1.25 (not PP); can eat a second dish |
+| BIG_EATER_BELT | Silk Scarf + Miracle Seed | HP 50, SHIELD 15 | Gains (and same-team reductions) to 11 stats x1.25 (not PP); can eat a second dish |
 | COVER_BAND | Silk Scarf + Heart Scale | DEF 12, SHIELD 50 | Lethal hit on an adjacent ally is redirected to the holder |
 | EFFICIENT_BANDANNA | Silk Scarf + Mystic Water | SHIELD 15, PP 15 | Max PP x0.85 for units on its cell and left/right (no team check) |
 | NULLIFY_BANDANNA | Silk Scarf + Silk Scarf | SHIELD 30 | Cannot cast; basic attacks spend all PP as extra special damage; AP gains become 0.2x ATK |
@@ -548,13 +548,13 @@
 
 **Recipe** (declared): Black Glasses + Miracle Seed. **Declared bonuses:** CRIT_CHANCE 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `sb2-escape` (traced)** — *Trigger:* When the holder receives damage (OnDamageReceived callback: takenDamage > 0, holder still alive) and its HP is below 40 % of max HP. *Targets:* adjacent enemies (8 cells) and the holder. *Effect:* In order: each adjacent enemy gets paralysis 4000 ms and blind 4000 ms; the item is removed from the fight entity; the holder gains a 50 shield; the holder flies away (flyAway without skydive or protect): it is moved to a fly-away cell and enemies that were targeting it lose their target. *Duration:* Paralysis and blind 4000 ms (subject to status immunities and duration reductions); the move is instant. *Scaling:* Shield 50 flat, no AP/crit; the status triggers are refused by their own conditions (Rune Protect, immunities, CC cooldown). *Limits:* Once per fight (the item is removed); needs HP below 40 % at the moment of a damaging hit. *Consumption/reset:* Consumed for the fight entity only; the board unit keeps the item.
+- **Effect `sb2-escape` (traced)** — *Trigger:* When the holder SURVIVES a damaging hit (OnDamageReceived callback: takenDamage > 0 and the holder's HP still above 0) and its HP is then below 40 % of max HP; a hit that kills the holder never reaches the callback, so the item does not save a lethal hit. *Targets:* adjacent enemies (8 cells) and the holder. *Effect:* In order: each adjacent enemy gets paralysis 4000 ms and blind 4000 ms; the item is removed from the fight entity; the holder gains a 50 shield; the holder flies away (flyAway without skydive or protect): it is moved to a fly-away cell and enemies that were targeting it lose their target. *Duration:* Paralysis and blind 4000 ms (subject to status immunities and duration reductions); the move is instant. *Scaling:* Shield 50 flat, no AP/crit; the status triggers are refused by their own conditions (Rune Protect, immunities, CC cooldown). *Limits:* Once per fight (the item is removed from the fight entity); needs the holder to survive a damaging hit that leaves HP below 40 %. *Consumption/reset:* Consumed for the fight entity only; the board unit keeps the item.
 
 *Arithmetic:* Max HP 300: triggers when HP < 120 after a damaging hit. Formula only.
 
 *Unresolved / untested:* Which individual status immunities refuse the paralysis/blind; The fly-away destination rules (board.getFlyAwayCell and its fallback) were only skimmed.
 
-*Conditional deduction (inference, not a ranking):* A one-time escape for a holder that gets low: it disables adjacent enemies for 4 s, shields and relocates it. It only triggers on a damaging hit that leaves HP below 40 %.
+*Conditional deduction (inference, not a ranking):* A one-time escape for a holder that gets low: it disables adjacent enemies for 4 s, shields and relocates it. It only triggers if the holder survives a damaging hit that leaves HP below 40 %; it does not save a lethal hit.
 
 *Sources:* `core/effects/items.ts:296–311`; `core/effects/items.ts:834`; `core/pokemon-entity.ts:1185–1232`; `core/pokemon-state.ts:734–742`; `core/pokemon-entity.ts:1323–1330`; `core/pokemon-entity.ts:1384–1386`
 
@@ -843,7 +843,7 @@
 
 **Recipe** (declared): Silk Scarf + Miracle Seed. **Declared bonuses:** HP 50, SHIELD 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `be-buff` (traced)** — *Trigger:* Whenever a stat helper receives a positive value (or a negative value from a same-team caster, i.e. a buff being lost). *Targets:* holder. *Effect:* Multiplies it by 1.25 rounded down (applyBigEaterBeltStatBuff) in 11 methods: addShield, addCritChance, addCritPower (2 digits), addMaxHP, addDodgeChance (3 digits), addAbilityPower, addLuck, addDefense, addSpecialDefense, addAttack, addSpeed (not addPP); also lets the unit eat a second dish. *Duration:* Whole fight. *Scaling:* The belt's own HP 50 and SHIELD 15 are scaled too (items are copied before effects are applied): 62 and 18 (inference, not executed). *Limits:* Not applied to PP, damage, healing, statuses. *Consumption/reset:* Not consumed.
+- **Effect `be-buff` (traced)** — *Trigger:* Whenever a stat helper receives a positive value (or a negative value from a same-team caster, i.e. a buff being lost). *Targets:* holder. *Effect:* Multiplies it by 1.25 rounded down (applyBigEaterBeltStatBuff): positive values, and also negative values from same-team casters (a buff being lost, so a same-team debuff is scaled too); negative values from enemies or the environment are not scaled. Applied in 11 methods: addShield, addCritChance, addCritPower (2 digits), addMaxHP, addDodgeChance (3 digits), addAbilityPower, addLuck, addDefense, addSpecialDefense, addAttack, addSpeed (not addPP); also lets the unit eat a second dish. *Duration:* Whole fight. *Scaling:* The belt's own HP 50 and SHIELD 15 are scaled too (items are copied before effects are applied): 62 and 18 (inference, not executed). *Limits:* Not applied to PP, damage, healing, statuses. *Consumption/reset:* Not consumed.
 
 *Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
 
@@ -851,7 +851,7 @@
 
 *Unresolved / untested:* With Upgrade/Muscle Band/Soul Dew the per-tick gain is scaled but their removal subtracts unscaled amounts (inference).
 
-*Conditional deduction (inference, not a ranking):* Amplifies buffs the holder receives for the listed stats; with no buffs its content is the declared HP and shield.
+*Conditional deduction (inference, not a ranking):* Amplifies buffs the holder receives for the listed stats, and also scales negative changes from same-team sources; with no such changes its content is the declared HP and shield.
 
 *Sources:* `core/pokemon-entity.ts:1839–1868`; `models/colyseus-models/pokemon.ts:164–168`
 
