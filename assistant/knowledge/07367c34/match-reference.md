@@ -28,10 +28,21 @@
 - Not in the normal shop: UNIQUE (e.g. Vespiquen) and LEGENDARY (Arceus, Type Null). Charmander: yes (COMMON). Totodile: yes, RARE, so only from level 4. Empty rarity pool → Magikarp.
 - Not covered: shop-modifying items/synergies/rules; regional-variant pool accounting.
 
-## Damage, PP, speed — [core-mechanics.md](core-mechanics.md) §A–C
-- Defense step: `damage ÷ (1 + 0.05 × defense)`, then `max(1, ceil())` — also for true damage. Physical uses DEF, special uses SPE_DEF, true ignores both. Shield absorbs before HP. Example: physical 20 vs DEF 10 → 14. Many other multipliers (crit, fields, weather, enrage…) are **not** traced.
-- PP: +5 per basic attack; +⌈residual damage ÷ 10⌉ when hit. Casts when `pp ≥ maxPP` (and `canCast`), then `pp −= maxPP`. `canCast` is false while silenced or holding Nullify Bandanna.
+## Damage, PP, speed, casting — [core-mechanics.md](core-mechanics.md) §A–C, §H–I
+- **Defense step:** `damage ÷ (1 + 0.05 × defense)` — physical uses DEF, special SPE_DEF; **true damage skips the division** — then every type gets `max(1, ceil())`, then shield before HP. Example (arithmetic): physical 20 vs DEF 10 → 14.
+- **Basic attack:** ATK, physical; **AP does not scale it** (unless it is converted to special, then `ceil(ATK × (1 + AP/100))`). Crit rolls on every basic attack (10 % chance, ×2 default). The parts are rounded **before** the defense step.
+- **Ability damage:** raw × `(1 + AP/100)` (unless the ability opts out of AP) → crit factor if the cast crit → defense step. **No rounding before the defense step.** Each +10 AP = +10 % of the raw amount.
+- **Ability crit:** only if the caster has `ABILITY_CRIT` (e.g. Reaper Cloth, Leek dishes) or the ability crits by default; then one roll per cast at the caster's crit chance. Rocky Helmet on the target removes the crit bonus.
+- **PP:** +5 per basic attack; +⌈residual damage ÷ 10⌉ when hit; units start a fight at 0 PP plus item PP bonuses. Cast when `pp ≥ maxPP` and the unit can cast, **using that attack slot** (no basic attack that slot); then `pp −= maxPP` (extra carries over). Casting normally needs a target in range (some abilities do not require one).
+- **Declared item bonuses → combat:** AP is added flat to current AP; **PP bonuses add to current PP, never to maxPP**; no item bonus raises maxPP. Efficient Bandanna's ×0.85 maxPP is a separate fight-start effect.
 - Attack wait = `round(1000 / (0.4 + 0.007 × speed))`: speed 0/50/100/200/300 → 2500/1333/909/556/400 (nominal; time unit assumed ms).
+- Exceptions not covered: statuses, shields/heals scaling, reflection, per-ability call patterns.
+
+## Charmander family (Charmander → Charmeleon → Charizard) — [pilot-abilities.md](pilot-abilities.md)
+- Blast Burn: range **1**, maxPP **100** (all three), raw special damage **30 / 60 / 120** (1★/2★/3★) to every enemy in the 8 cells around the caster; no status, heal or shield. **AP scales it** (`× (1 + AP/100)`), it **cannot crit** unless the caster has `ABILITY_CRIT`, then the defense step above. Example (arithmetic, SPE_DEF 3, nothing else): 30 raw → 27; with 50 AP → 40.
+- Casting needs a target in range 1, so it is a melee caster; the cast uses the attack slot.
+- **Efficient Bandanna for casting:** maxPP 100 → 85 for units on its cell and the cells left/right (holder included), and the holder starts with +15 PP: a holding Charmander needs 70 more PP (14 basic attacks at +5, vs 20), a neighbor of the holder needs 85. Two bandannas stack multiplicatively.
+- **Best Charmander items: not determined.** Only mechanics are known (AP, crit-enabling, PP/maxPP effects, bonuses in the item data); no comparison across items, comps or opponents has been done, so any item can only be called a "reasonable option", not best.
 
 ## Board and synergies — [core-mechanics.md](core-mechanics.md) §D–E
 - Row 0 bench; **row 1 back, row 3 front** for both teams. Placement is only the start position.
@@ -68,7 +79,7 @@ Declared bonuses are applied as stat calls when the holder enters a fight (shiel
 - Evolution declarations exist for only 20 units (Charmander line, Pikachu, Raichu, Alolan Raichu, Galar Meowth, Vespiquen, Arceus, Magikarp, Gyarados, Type Null, Primeape, Tepig, Ditto, Unown D, Farfetch'd, Totodile, Cosmoem, Substitute): `node assistant/lookup-production.mjs KEY`.
 - Pikachu → Alolan Raichu iff the player's current map has the Psychic synergy; otherwise Raichu.
 - Cosmoem → Solgaleo iff on the game's light cell **and** a Light tier is active (Light ≥ 2); otherwise Lunala. In the plain no-item case a Cosmog that evolves after 8 triggers ends with 220 HP (other cases untraced).
-- Reviewed abilities: Blast Burn (Charmander line: 30/60/120 raw special damage to the 8 cells around the caster), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Every other ability and every passive: not covered beyond the bare identifier in the unit baseline.
+- Reviewed abilities: Blast Burn (see Charmander family above), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Every other ability and every passive: not covered beyond the bare identifier in the unit baseline.
 
 ## Units — `node assistant/lookup-production.mjs KEY`
 1183 identifiers with bare stats/types/skill identifier. Bare ≠ acquired ≠ combat values. Identifier ≠ availability.

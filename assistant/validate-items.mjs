@@ -106,6 +106,57 @@ for (const [file, cite, expects] of CITES) {
   for (const x of expects) if (!text.includes(norm(x))) bad(`${file}:${cite}: "${x}" not found`)
   if (cite !== "dps.ts" && !guide.includes(cite)) bad(`guide does not cite ${file}:${cite}`)
 }
+// 2b. Foundation citations used by core-mechanics.md §H–I (basic attack vs ability, ability crit, cast slot, item stats -> combat stats)
+const FOUND = [
+  ["app/core/pokemon-state.ts", "36", ["let damage = pokemon.atk"]],
+  ["app/core/pokemon-state.ts", "41–43", ["EffectEnum.SPECIAL_ATTACKS", "AttackType.SPECIAL"]],
+  ["app/core/pokemon-state.ts", "59", ["const crit = chance(critChance, pokemon)"]],
+  ["app/core/pokemon-state.ts", "85–91", ["WONDER_ROOM", "damage = Math.ceil(damage * (1 + pokemon.ap / 100))"]],
+  ["app/core/pokemon-state.ts", "208–212", ["trueDamagePart > 0", "trueDamage = damage * trueDamagePart"]],
+  ["app/core/pokemon-state.ts", "214–217", ["damage *= 1 + (pokemon.critPower - 1) * critReductionFactor"]],
+  ["app/core/pokemon-state.ts", "234–238", ["physicalDamage = Math.round(physicalDamage)", "const totalDamage"]],
+  ["app/core/pokemon-state.ts", "257–268", ["target.handleSpecialDamage(", "specialDamage,", "false,"]],
+  ["app/core/pokemon-state.ts", "455–507", ["attacker.status.enraged", "electricField", "psychicField"]],
+  ["app/core/pokemon-state.ts", "559–566", ["damage / (1 + ARMOR_FACTOR * def)", "damage / (1 + ARMOR_FACTOR * speDef)"]],
+  ["app/core/pokemon-state.ts", "597", ["reducedDamage = min(1)(Math.ceil(reducedDamage))"]],
+  ["app/core/pokemon-entity.ts", "346–353", ["handleSpecialDamage(", "apBoost = true"]],
+  ["app/core/pokemon-entity.ts", "354–358", ["this.status.protect", "this.status.skydiving", "this.status.magicBounce"]],
+  ["app/core/pokemon-entity.ts", "399–400", ["let specialDamage =", "attacker && apBoost ? attacker.ap : 0"]],
+  ["app/core/pokemon-entity.ts", "401–404", ["EffectEnum.DOUBLE_DAMAGE", "specialDamage *= 2"]],
+  ["app/core/pokemon-entity.ts", "405–411", ["STRANGE_STEAM_BOARD_EFFECT", "specialDamage *= 1.2"]],
+  ["app/core/pokemon-entity.ts", "412–433", ["if (crit && attacker)", "Item.ROCKY_HELMET", "BLACK_AUGURITE", "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor"]],
+  ["app/core/pokemon-entity.ts", "435–442", ["this.state.handleDamage", "damage: specialDamage"]],
+  ["app/core/pokemon-entity.ts", "97", ["pp = 0"]],
+  ["app/core/pokemon-entity.ts", "530", ["this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)"]],
+  ["app/core/pokemon-entity.ts", "183–198", ["this.maxPP = pokemon.maxPP", "this.ap = pokemon.ap"]],
+  ["app/core/pokemon-entity.ts", "782–846", ["addItem(", "this.items.add(item)", "applyItemEffect(item: Item)", "this.applyStat("]],
+  ["app/core/pokemon-entity.ts", "1399–1437", ["case Stat.AP:", "this.addAbilityPower(value", "case Stat.PP:", "this.addPP(value", "case Stat.HP:"]],
+  ["app/core/abilities/cast.ts", "16–26", ["pokemon.canCast === false", "EffectEnum.ABILITY_CRIT", "abilityStrategy.canCritByDefault", "chance(pokemon.critChance / 100", "abilityStrategy.process"]],
+  ["app/core/abilities/ability-strategy.ts", "8", ["canCritByDefault = false"]],
+  ["app/core/abilities/ability-strategy.ts", "15–17", ["pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)", "pokemon.count.ult += 1"]],
+  ["app/core/abilities/blast-burn.ts", "6–28", ["class BlastBurnStrategy extends AbilityStrategy", "[30, 60, 120, 240][pokemon.stars - 1]", "handleSpecialDamage(", "crit"]],
+  ["app/core/abilities/blast-burn.ts", "14", ["[30, 60, 120, 240]"]],
+  ["app/core/effects/items.ts", "946–957", ["[Item.REAPER_CLOTH]", "EffectEnum.ABILITY_CRIT"]],
+  ["app/core/effects/dishes.ts", "128–145", ["Item.LARGE_LEEK", "Item.LEEK", "EffectEnum.ABILITY_CRIT"]],
+  ["app/core/attacking-state.ts", "22", ["pokemon.cooldown <= 0"]],
+  ["app/core/attacking-state.ts", "24", ["pokemon.resetCooldown(1000, speed)"]],
+  ["app/core/attacking-state.ts", "92–94", ["pokemon.pp >= pokemon.maxPP && pokemon.canCast", "castAbility("]],
+  ["app/core/moving-state.ts", "40–45", ["AbilityStrategies[pokemon.skill]?.requiresTarget === false", "castAbility("]],
+  ["app/core/simulation.ts", "350–351", ["this.applySynergyEffects(pokemonEntity)", "this.applyItemsEffects(pokemonEntity)"]],
+  ["app/config/game/battle.ts", "8–9", ["DEFAULT_CRIT_CHANCE = 10", "DEFAULT_CRIT_POWER = 2"]],
+]
+const cm = readFileSync(resolve(HERE, "knowledge/07367c34/core-mechanics.md"), "utf8")
+for (const [file, cite, expects] of FOUND) {
+  const L = src(file), [a, b] = rangeOf(cite)
+  if (!(a >= 1 && b <= L.length)) { bad(`${file}:${cite} out of range`); continue }
+  const text = norm(L.slice(a - 1, b).join(" "))
+  for (const x of expects) if (!text.includes(norm(x))) bad(`${file}:${cite}: "${x}" not found`)
+  if (!cm.includes("`:" + cite + "`") && !cm.includes(":" + cite)) bad(`core-mechanics.md does not cite ${file}:${cite}`)
+}
+// no ItemStats entry uses MAX_PP, and applyStat has no MAX_PP case
+if (data.itemStats.some((e) => "MAX_PP" in e.values)) bad("an ItemStats entry uses MAX_PP; core-mechanics §I is wrong")
+if (src("app/core/pokemon-entity.ts").slice(1398, 1437).join("\n").includes("MAX_PP")) bad("applyStat mentions MAX_PP; core-mechanics §I is wrong")
+
 // Twist Band / Big Eater call sites: exact method list at the cited lines
 const PE = src("app/core/pokemon-entity.ts")
 const methodAt = (line) => { for (let i = line - 1; i >= 0; i--) { const m = PE[i].match(/^  (add[A-Za-z]+)\(/); if (m) return m[1] } }
@@ -144,4 +195,4 @@ if (existsSync(resolve(HERE, "knowledge/07367c34/match-reference.md"))) check("k
 else bad("match-reference.md missing")
 
 if (problems.length) { console.error(`validate-items: ${problems.length} problem(s)`); problems.forEach((p) => console.error(" - " + p)); process.exit(1) }
-console.log(`validate-items: OK (${data.recipes.length} recipes, ${data.itemStats.length} ItemStats entries, ${CITES.length} cited ranges, ${allBig.length + allTwist.length} Big Eater/Twist call sites)`)
+console.log(`validate-items: OK (${FOUND.length} foundation ranges, ${data.recipes.length} recipes, ${data.itemStats.length} ItemStats entries, ${CITES.length} cited ranges, ${allBig.length + allTwist.length} Big Eater/Twist call sites)`)

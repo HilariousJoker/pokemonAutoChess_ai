@@ -12,7 +12,7 @@ How to answer from this index: [ASK.md](../../ASK.md). How to start a session: [
 | What an **ability** does | lookup (reviewed only) · [pilot-abilities.md](pilot-abilities.md) · [`pilot-abilities.json`](../../data/07367c34/pilot-abilities.json) | [core-mechanics.md](core-mechanics.md) for PP/cast rules |
 | **Gold, interest, streaks, XP, levels, reroll cost** | [economy-leveling.md](economy-leveling.md) · [`economy-leveling.json`](../../data/07367c34/economy-leveling.json) | [shop-rules.md](shop-rules.md) |
 | **Shop**: rarity odds per level, can unit X appear, pools, refresh/lock | [shop-rules.md](shop-rules.md) · [`shop-rules.json`](../../data/07367c34/shop-rules.json) | lookup (rarity/stars) |
-| **Damage**, defenses, PP/mana, attack speed | [core-mechanics.md](core-mechanics.md) §A–C | [probes/results/core-mechanics-probe.json](../../probes/results/core-mechanics-probe.json) |
+| **Damage**, defenses, PP/mana, attack speed, **AP/crit scaling, casting, item bonuses → combat stats** | [core-mechanics.md](core-mechanics.md) §A–C, §H–I | [probes/results/core-mechanics-probe.json](../../probes/results/core-mechanics-probe.json) |
 | **Positioning**, rows, Vespiquen modes | [core-mechanics.md](core-mechanics.md) §D | [pilot-abilities.md](pilot-abilities.md) |
 | **Synergy** counting and thresholds | [core-mechanics.md](core-mechanics.md) §E | — |
 | **Items**: slots, combining, Eviolite, Shiny Stone | [core-mechanics.md](core-mechanics.md) §F–G | [evolution-context.md](evolution-context.md) |

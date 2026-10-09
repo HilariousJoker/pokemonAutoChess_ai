@@ -10,6 +10,7 @@ Default is **RESEARCH** unless the user asks for **QUICK** ("quick", a mid-match
 - Sources: this file and [`knowledge/07367c34/match-reference.md`](knowledge/07367c34/match-reference.md) as loaded before play. **No repository searches, no `git show`, no lookups, no source investigation.** (Do not open other notes even if you know they exist.)
 - Give the answer or mechanic **first**; then only the **essential uncertainty** (one short clause). Do **not** repeat evidence paragraphs, file:line lists, or the version/deployment disclaimer unless the user asks about "live/current". Match the user's brevity; if the user said "quick", at most three sentences.
 - Situational advice: ask only the one fact that changes the answer; you may give a conditional answer now. Label inferences as inference.
+- QUICK answers stay brief and **never start research**, even when a gap is obvious; the offer to investigate is the only follow-up.
 - If `match-reference.md` does not cover it, say so in one line ("not in the loaded reference") and **offer to investigate after the match** — do not guess and do not start digging.
 
 ### RESEARCH — direct mechanics question, bounded source inspection allowed
@@ -37,7 +38,10 @@ Distinguish **bare-instance stats** (catalog/lookup: a freshly created unit) fro
 ## Coverage honesty
 - Identifiers alone are **not** ability explanations and **not** proof a unit is in the shop or playable.
 - If the question falls outside the covered set (see the index: 20 evolution units, 3 reviewed ability records, no passive records, normal-path economy/shop only, base mechanics primer), say so plainly, give what *is* known (e.g. the bare skill identifier), and do not fill the gap from memory or guesswork. Use the note's **Unresolved** sections to state what is uncertain.
-- Never invent the current meta, win rates, tier lists, patch notes or team rankings. Source mechanics cannot establish "best".
+- Never invent the current meta, win rates, tier lists, patch notes or team rankings, and never present a recommendation as measured or ranked when it is not.
+- **Missing structured records ≠ missing knowledge.** "No structured passive/ability/item record" only means the data file lacks one; if a reviewed note already explains it, use the note. Say "not covered" only when neither a record nor a note covers it.
+- **Strategic deductions are allowed** when they follow from verified mechanics in the notes (e.g. "AP raises Blast Burn but not basic attacks, so AP helps a caster who casts often"). A missing tier list or community data does **not** by itself forbid a recommendation. Always mark it as inference and give the mechanic it rests on.
+- **Words matter:** "a reasonable option" = supported by verified mechanics, with stated assumptions and no comparison across alternatives; "best" / "better than" / a ranking = needs an actual comparison (mechanics for each alternative, relevant context such as comp, opponent, items on hand) or tested/community evidence. Without that, say "I can't call it best — here is what the mechanics support and what is missing".
 
 ## How to answer
 - **Concise answer first** (one to three sentences or a small table), then details/derivation if useful.
