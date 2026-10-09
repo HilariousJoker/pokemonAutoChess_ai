@@ -1,6 +1,6 @@
-# Item effects — batches 1–3 (36 items)
+# Item effects — all 55 craftable recipe outputs
 
-**Production-branch reference `07367c341fe928763da2b565c2eee010433e4fc1`; deployment unverified.** Generated from [`item-effects.json`](../../data/07367c34/item-effects.json) (records and evidence ranges checked by `node assistant/validate-items.mjs`); recipes and declared bonuses come from [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json). **Source inspection only: no probe, no gameplay evidence.** Not the development snapshot.
+**Production-branch reference `07367c341fe928763da2b565c2eee010433e4fc1`; deployment unverified.** The record for every ItemRecipe output (55 keys) is generated from [`item-effects.json`](../../data/07367c34/item-effects.json) (records and evidence ranges checked by `node assistant/validate-items.mjs`); recipes and declared bonuses come from [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json). **Source inspection only: no probe, no gameplay evidence.** Not the development snapshot.
 
 **How to read.** *Declared* = values in `ItemRecipe`/`ItemStats`. *Traced* = handler and caller read. *Arithmetic* = a formula applied by hand, **not a combat simulation**. *Conditional deduction* = inference from the traced rules, not a ranking and not tested. *Unresolved* = not traced (this is different from *absent*). Shared rules (damage order, ability crit, PP, item path): [core-mechanics.md](core-mechanics.md) §H–I. Scarf items: [silk-scarf-items.md](silk-scarf-items.md).
 
@@ -8,42 +8,224 @@
 
 | Item | Recipe | Declared bonuses | Effect in one line |
 |---|---|---|---|
+| OLD_AMBER | Fossil Stone + Fossil Stone | none (empty entry) | Grants the Fossil type (no stat bonus) |
+| DAWN_STONE | Fossil Stone + Twisted Spoon | AP 20 | Grants the Psychic type; +20 AP |
+| WATER_STONE | Fossil Stone + Mystic Water | PP 30 | Grants the Water type; +30 current PP |
+| THUNDER_STONE | Fossil Stone + Magnet | SPEED 20 | Grants the Electric type; +20 speed |
+| FIRE_STONE | Fossil Stone + Charcoal | ATK 6 | Grants the Fire type; +6 ATK |
+| MOON_STONE | Fossil Stone + Heart Scale | DEF 6 | Grants the Fairy type; +6 DEF |
+| DUSK_STONE | Fossil Stone + Black Glasses | CRIT_CHANCE 20 | Grants the Dark type; +20 crit chance |
+| LEAF_STONE | Fossil Stone + Miracle Seed | HP 30 | Grants the Grass type; +30 HP |
+| ICE_STONE | Fossil Stone + Never Melt Ice | SPE_DEF 6 | Grants the Ice type; +6 SPE_DEF |
 | CHOICE_SPECS | Twisted Spoon + Twisted Spoon | AP 100 | No behavior beyond +100 AP |
 | SOUL_DEW | Twisted Spoon + Mystic Water | none (empty entry) | +5 AP and +5 PP every 1000 ms |
 | UPGRADE | Twisted Spoon + Magnet | AP 10, SPEED 10 | +5 speed per basic attack |
 | REAPER_CLOTH | Twisted Spoon + Black Glasses | AP 10, CRIT_CHANCE 20 | Lets casts crit (+50 crit power if the ability crits by default) |
+| ABILITY_SHIELD | Twisted Spoon + Miracle Seed | AP 10 | Setup: shield 20 % max HP and 5 s Rune Protect to allies on its cell and left/right |
+| POWER_LENS | Twisted Spoon + Never Melt Ice | SPE_DEF 10, AP 10 | Reflects the SPE_DEF-mitigated part of special damage taken |
+| POKEMONOMICON | Twisted Spoon + Charcoal | AP 30, ATK 3 | Special damage burns (3 s) and -1 SPE_DEF |
+| HEAVY_DUTY_BOOTS | Twisted Spoon + Heart Scale | AP 50, DEF 12 | Immune to Locked, forced moves and listed board effects |
 | AQUA_EGG | Mystic Water + Mystic Water | PP 30 | PP back after each cast; Manaphy spawns Phione |
 | BLUE_ORB | Mystic Water + Magnet | PP 15, SPEED 10 | Every 3rd attack: 10 dmg and -15 PP to 2 nearest enemies |
 | SCOPE_LENS | Mystic Water + Black Glasses | PP 15, CRIT_CHANCE 25 | Crit attack steals up to 10 PP |
-| POKEMONOMICON | Twisted Spoon + Charcoal | AP 30, ATK 3 | Special damage burns (3 s) and -1 SPE_DEF |
-| SHINY_CHARM | Mystic Water + Heart Scale | DEF 3 | Cancels the first hit leaving HP < 30 % (+50 PP, 1.5 s protect) |
-| MAX_REVIVE | Miracle Seed + Never Melt Ice | none (no entry) | One revival at full HP after 2 s |
-| SHELL_BELL | Never Melt Ice + Charcoal | ATK 5, SPE_DEF 5 | Heals ceil(33 %) of damage dealt |
-| HEAVY_DUTY_BOOTS | Twisted Spoon + Heart Scale | AP 50, DEF 12 | Immune to Locked, forced moves and listed board effects |
-| ABILITY_SHIELD | Twisted Spoon + Miracle Seed | AP 10 | Setup: shield 20 % max HP and 5 s Rune Protect to allies on its cell and left/right |
-| POWER_LENS | Twisted Spoon + Never Melt Ice | SPE_DEF 10, AP 10 | Reflects the SPE_DEF-mitigated part of special damage taken |
 | STAR_DUST | Mystic Water + Never Melt Ice | SPE_DEF 10, PP 15 | Shield of 50 % maxPP after each cast |
+| GREEN_ORB | Mystic Water + Miracle Seed | HP 15 | Every 2 s heals 5 % max HP to allies in its 3x3; overheal becomes PP |
 | DEEP_SEA_TOOTH | Mystic Water + Charcoal | ATK 7, PP 15 | +5 PP per basic attack, +15 more on a kill |
+| SHINY_CHARM | Mystic Water + Heart Scale | DEF 3 | Cancels the first hit leaving HP < 30 % (+50 PP, 1.5 s protect) |
 | XRAY_VISION | Magnet + Magnet | SPEED 50 | Sleep immunity; its basic attacks ignore dodge |
 | RAZOR_FANG | Magnet + Black Glasses | SPEED 10, CRIT_CHANCE 10, CRIT_POWER 50 | Successful basic attacks halve target DEF/SPE_DEF for 2 s |
+| GRACIDEA_FLOWER | Magnet + Miracle Seed | none (no entry) | Setup: +20 speed to units on its cell and left/right (no team check seen) |
 | LOADED_DICE | Magnet + Never Melt Ice | SPEED 10, SPE_DEF 3, LUCK 20 | ~50 % (luck-adjusted) second hit at 75 % on a neighbor of the target |
 | PUNCHING_GLOVE | Magnet + Charcoal | SPEED 10, ATK 3 | +8 % target max HP physical damage per basic attack |
 | MUSCLE_BAND | Magnet + Heart Scale | SPEED 10, DEF 3 | Per 2 hits taken: +1 ATK, +2 DEF, +5 speed (max 10 stacks) |
-| ASSAULT_VEST | Never Melt Ice + Never Melt Ice | SPE_DEF 40 | Burn and poison damage x0.5 (and bench lava burn) |
-| POKE_DOLL | Never Melt Ice + Heart Scale | DEF 3, SPE_DEF 3 | Non-true damage x0.7; preferred among nearest targets |
-| ROCKY_HELMET | Heart Scale + Heart Scale | DEF 25 | Cancels the crit damage bonus against the holder |
-| GREEN_ORB | Mystic Water + Miracle Seed | HP 15 | Every 2 s heals 5 % max HP to allies in its 3x3; overheal becomes PP |
-| GRACIDEA_FLOWER | Magnet + Miracle Seed | none (no entry) | Setup: +20 speed to units on its cell and left/right (no team check seen) |
 | WONDER_BOX | Black Glasses + Black Glasses | none (no entry) | Opens at fight setup into two random recipe-output items |
 | SMOKE_BALL | Black Glasses + Miracle Seed | CRIT_CHANCE 10 | Below 40 % HP after a hit: paralyze+blind neighbors, +50 shield, fly away (once) |
-| WIDE_LENS | Black Glasses + Never Melt Ice | RANGE 2, CRIT_CHANCE 15, SPE_DEF 3 | +2 range (kept after Locked ends) |
+| WIDE_LENS | Black Glasses + Never Melt Ice | RANGE 2, CRIT_CHANCE 15, SPE_DEF 3 | +2 range (kept after Locked ends); does not enlarge caster-centered areas |
 | RAZOR_CLAW | Black Glasses + Charcoal | CRIT_CHANCE 50, ATK 3 | No behavior beyond +50 crit chance and +3 ATK |
 | SAFETY_GOGGLES | Black Glasses + Heart Scale | CRIT_CHANCE 10, DEF 3 | 60 s Rune Protect; no sandstorm or bench-lava damage |
 | KINGS_ROCK | Miracle Seed + Miracle Seed | HP 100 | Start-of-fight shield of 20 % max HP |
 | STICKY_BARB | Miracle Seed + Heart Scale | DEF 6, HP 15 | Melee attackers take true damage 3 + 0.15 DEF and Wound |
-| PROTECTIVE_PADS | Miracle Seed + Charcoal | SHIELD 60, ATK 6 | Skips retaliation/recoil at the sites found; doubles damage to shields |
+| PROTECTIVE_PADS | Miracle Seed + Charcoal | SHIELD 60, ATK 6 | Skips retaliation/recoil at the sites found; doubles damage assigned to shields (excess passes to HP when the shield breaks) |
+| MAX_REVIVE | Miracle Seed + Never Melt Ice | none (no entry) | One revival at full HP after 2 s |
+| ASSAULT_VEST | Never Melt Ice + Never Melt Ice | SPE_DEF 40 | Burn and poison damage x0.5 (and bench lava burn) |
+| SHELL_BELL | Never Melt Ice + Charcoal | ATK 5, SPE_DEF 5 | Heals ceil(33 %) of damage dealt |
+| POKE_DOLL | Never Melt Ice + Heart Scale | DEF 3, SPE_DEF 3 | Non-true damage x0.7; preferred among nearest targets |
 | RED_ORB | Charcoal + Charcoal | ATK 10 | 25 % of basic-attack damage becomes true damage |
-| FLAME_ORB | Charcoal + Heart Scale | ATK 5, DEF 3 | Doubles base ATK but permanently burns the holder (5 % max HP/s) |
+| FLAME_ORB | Charcoal + Heart Scale | ATK 5, DEF 3 | Adds base ATK again and attempts a lasting self-burn (5 % max HP/s) that Rune Protect, burn immunity or Water Bubble can block |
+| ROCKY_HELMET | Heart Scale + Heart Scale | DEF 25 | Cancels the crit damage bonus against the holder |
+| FRIEND_BOW | Silk Scarf + Fossil Stone | SHIELD 30 | Grants the Normal type (refused/popped if already Normal); shield 30 |
+| BLACK_BELT | Silk Scarf + Black Glasses | SHIELD 15, CRIT_CHANCE 30 | Crit basic attack: shield of 33 % of pre-defense attack damage |
+| MACH_RIBBON | Silk Scarf + Magnet | SHIELD 15, SPEED 10 | +20 speed every 3000 ms |
+| EXPLOSIVE_BAND | Silk Scarf + Charcoal | SHIELD 50, ATK 3 | Once, when its shield first depletes: 50 % of shield granted so far as special damage to adjacent enemies |
+| TWIST_BAND | Silk Scarf + Never Melt Ice | SPE_DEF 20, SHIELD 50 | Enemy/environment stat reductions to 11 stats become gains |
+| LUCKY_RIBBON | Silk Scarf + Twisted Spoon | SHIELD 15, AP 50, LUCK 20 | +15 % dodge at fight start |
+| BIG_EATER_BELT | Silk Scarf + Miracle Seed | HP 50, SHIELD 15 | Gains to 11 stats x1.25 (not PP); can eat a second dish |
+| COVER_BAND | Silk Scarf + Heart Scale | DEF 12, SHIELD 50 | Lethal hit on an adjacent ally is redirected to the holder |
+| EFFICIENT_BANDANNA | Silk Scarf + Mystic Water | SHIELD 15, PP 15 | Max PP x0.85 for units on its cell and left/right (no team check) |
+| NULLIFY_BANDANNA | Silk Scarf + Silk Scarf | SHIELD 30 | Cannot cast; basic attacks spend all PP as extra special damage; AP gains become 0.2x ATK |
+
+### OLD_AMBER
+
+**Recipe** (declared): Fossil Stone + Fossil Stone. **Declared bonuses:** none — ItemStats entry exists but is empty: no stat bonus. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `old_amber-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Fossil type (SynergyGivenByItem). It adds at most 1 to the Fossil count per evolution family; the tier effect switches on only when the team count reaches the first threshold [2, 4, 6]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `old_amber-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: none (empty ItemStats entry). *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `old_amber-evo` (declared)** — *Trigger:* Item evolution rule on Type Null. *Targets:* Type Null. *Effect:* Type Null's ITEM rule accepts every synergy item; the granted Fossil type maps to SILVALLY_DRAGON (the Fossil type maps to the Dragon Silvally in Type Null's switch). Eevee's rule does not list Old Amber. Handler paths not traced. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Fossil count for its unit's family; with thresholds [2, 4, 6] a single stone cannot reach the first threshold unless the team already has enough other Fossil units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Granting Fossil adds one to the Fossil count (once per family) but a tier needs 2/4/6 Fossil units, so by itself it does not activate Fossil effects.
+
+*Sources:* `types/enum/Item.ts:815`; `config/game/synergies.ts:203`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:13`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10148`
+
+### DAWN_STONE
+
+**Recipe** (declared): Fossil Stone + Twisted Spoon. **Declared bonuses:** AP 20. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `dawn_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Psychic type (SynergyGivenByItem). It adds at most 1 to the Psychic count per evolution family; the tier effect switches on only when the team count reaches the first threshold [3, 5, 7]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `dawn_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: AP 20. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `dawn_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Espeon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_PSYCHIC. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Psychic count for its unit's family; with thresholds [3, 5, 7] a single stone cannot reach the first threshold unless the team already has enough other Psychic units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Psychic count; Psychic's first tier needs 3 (3/5/7). The +20 AP only helps AP-scaled effects.
+
+*Sources:* `types/enum/Item.ts:816`; `config/game/synergies.ts:186`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:14`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10175`
+
+### WATER_STONE
+
+**Recipe** (declared): Fossil Stone + Mystic Water. **Declared bonuses:** PP 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `water_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Water type (SynergyGivenByItem). It adds at most 1 to the Water count per evolution family; the tier effect switches on only when the team count reaches the first threshold [3, 6, 9]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `water_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: PP 30 (added to current PP, never maxPP). *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `water_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Vaporeon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_WATER. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Water count for its unit's family; with thresholds [3, 6, 9] a single stone cannot reach the first threshold unless the team already has enough other Water units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Water count (3/6/9). Its PP goes to current PP, so a caster starts closer to its threshold.
+
+*Sources:* `types/enum/Item.ts:817`; `config/game/synergies.ts:183`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:15`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10183`
+
+### THUNDER_STONE
+
+**Recipe** (declared): Fossil Stone + Magnet. **Declared bonuses:** SPEED 20. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `thunder_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Electric type (SynergyGivenByItem). It adds at most 1 to the Electric count per evolution family; the tier effect switches on only when the team count reaches the first threshold [3, 5, 7]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `thunder_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: SPEED 20. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `thunder_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Jolteon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_ELECTRIC. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Electric count for its unit's family; with thresholds [3, 5, 7] a single stone cannot reach the first threshold unless the team already has enough other Electric units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Electric count (3/5/7); +20 speed shortens attack waits.
+
+*Sources:* `types/enum/Item.ts:818`; `config/game/synergies.ts:184`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:16`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10150`
+
+### FIRE_STONE
+
+**Recipe** (declared): Fossil Stone + Charcoal. **Declared bonuses:** ATK 6. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `fire_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Fire type (SynergyGivenByItem). It adds at most 1 to the Fire count per evolution family; the tier effect switches on only when the team count reaches the first threshold [2, 4, 6, 8]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `fire_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: ATK 6. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `fire_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Flareon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_FIRE. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Fire count for its unit's family; with thresholds [2, 4, 6, 8] a single stone cannot reach the first threshold unless the team already has enough other Fire units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Fire count (2/4/6/8); the +6 ATK helps basic attacks.
+
+*Sources:* `types/enum/Item.ts:819`; `config/game/synergies.ts:182`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:17`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10159`
+
+### MOON_STONE
+
+**Recipe** (declared): Fossil Stone + Heart Scale. **Declared bonuses:** DEF 6. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `moon_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Fairy type (SynergyGivenByItem). It adds at most 1 to the Fairy count per evolution family; the tier effect switches on only when the team count reaches the first threshold [2, 4, 6, 8]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `moon_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: DEF 6. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `moon_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Sylveon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_FAIRY. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Fairy count for its unit's family; with thresholds [2, 4, 6, 8] a single stone cannot reach the first threshold unless the team already has enough other Fairy units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Fairy count (2/4/6/8); +6 DEF.
+
+*Sources:* `types/enum/Item.ts:820`; `config/game/synergies.ts:201`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:18`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10153`
+
+### DUSK_STONE
+
+**Recipe** (declared): Fossil Stone + Black Glasses. **Declared bonuses:** CRIT_CHANCE 20. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `dusk_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Dark type (SynergyGivenByItem). It adds at most 1 to the Dark count per evolution family; the tier effect switches on only when the team count reaches the first threshold [3, 5, 7]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `dusk_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: CRIT_CHANCE 20 (percentage points). *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `dusk_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Umbreon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_DARK. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+- **Effect `dusk-stone-cd` (traced)** — *Trigger:* Fight entity construction. *Targets:* holder (Dark-type with range 1). *Effect:* A Dark-type unit with range 1 starts with a fixed initial attack cooldown of 300 instead of resetCooldown(500) (about 667 at speed 50, nominal), so it acts first; this follows from the Dark TYPE, which Dusk Stone grants, not from the item itself. *Duration:* Start of fight. *Scaling:* None. *Limits:* Only for range 1 Dark units. *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Dark count for its unit's family; with thresholds [3, 5, 7] a single stone cannot reach the first threshold unless the team already has enough other Dark units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Dark count (3/5/7); as a Dark type a melee holder also starts its first action sooner (fixed initial cooldown 300).
+
+*Sources:* `types/enum/Item.ts:821`; `config/game/synergies.ts:187`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:19`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10145`; `core/pokemon-entity.ts:216–220`
+
+### LEAF_STONE
+
+**Recipe** (declared): Fossil Stone + Miracle Seed. **Declared bonuses:** HP 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `leaf_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Grass type (SynergyGivenByItem). It adds at most 1 to the Grass count per evolution family; the tier effect switches on only when the team count reaches the first threshold [3, 5, 7, 9]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `leaf_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: HP 30. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `leaf_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Leafeon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_GRASS. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Grass count for its unit's family; with thresholds [3, 5, 7, 9] a single stone cannot reach the first threshold unless the team already has enough other Grass units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Grass count (3/5/7/9); +30 HP.
+
+*Sources:* `types/enum/Item.ts:822`; `config/game/synergies.ts:181`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:20`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10166`
+
+### ICE_STONE
+
+**Recipe** (declared): Fossil Stone + Never Melt Ice. **Declared bonuses:** SPE_DEF 6. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `ice_stone-type` (traced)** — *Trigger:* When the stone is held by a board unit (computeSynergies adds item-granted types to every board unit; only units not on the bench count) and, in the fight, when the fight entity is built from that unit. *Targets:* holder. *Effect:* Grants the Ice type (SynergyGivenByItem). It adds at most 1 to the Ice count per evolution family; the tier effect switches on only when the team count reaches the first threshold [2, 4, 6, 8]. Granting the type is not the same as activating a tier. *Duration:* While held. *Scaling:* No AP/crit. *Limits:* Equip is refused if the holder already has the type: the OnItemDropped effect (stones), the drop command and PokemonEntity.addItem all check it; in the combine path the finished stone pops back to the inventory instead. On removal the type is removed unless it is native to the unit or another held item grants it; during a fight removal also clears that type's tier effects for the entity. *Consumption/reset:* Not consumed.
+- **Effect `ice_stone-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared bonus: SPE_DEF 6. *Duration:* Whole fight. *Scaling:* Generic stat helpers (see core-mechanics section I). *Limits:* -. *Consumption/reset:* Not consumed.
+- **Effect `ice_stone-evo` (declared)** — *Trigger:* Item evolution rules that list this item. *Targets:* Eevee, Type Null. *Effect:* Eevee: holding this stone makes it evolve to Glaceon (Eevee's ITEM rule lists eight stones; divergentEvolution maps each). Type Null: its ITEM rule accepts every synergy item and divergentEvolution picks Silvally form by the synergy the item grants: SILVALLY_ICE. Handler paths not traced; only these declarations. *Duration:* -. *Scaling:* -. *Limits:* Silvally's RKS_SYSTEM passive removes synergy items when the unit is moved to the bench (passives.ts, read at the guard only). *Consumption/reset:* -.
+
+*Note:* Exchange tickets can swap a stone for another random stone (game-commands.ts:627-628); stones can also come from other sources not traced here.
+
+*Arithmetic:* One stone adds 1 to the Ice count for its unit's family; with thresholds [2, 4, 6, 8] a single stone cannot reach the first threshold unless the team already has enough other Ice units. Formula only.
+
+*Unresolved / untested:* Handler paths of the evolution rules (Eevee, Type Null) were not traced; How the team reaches the tier (other units of the type, bonus synergies) is outside this record; Interaction of the granted type with that synergy's own tier effects is not audited.
+
+*Conditional deduction (inference, not a ranking):* Adds one to the Ice count (2/4/6/8); +6 SPE_DEF.
+
+*Sources:* `types/enum/Item.ts:823`; `config/game/synergies.ts:202`; `types/enum/Item.ts:699–709`; `core/effects/items.ts:524–536`; `rooms/commands/game-commands.ts:935–945`; `rooms/commands/game-commands.ts:799–822`; `rooms/commands/game-commands.ts:923–931`; `core/pokemon-entity.ts:782–792`; `core/pokemon-entity.ts:807–814`; `core/pokemon-entity.ts:853–864`; `models/colyseus-models/pokemon.ts:268–285`; `core/pokemon-entity.ts:212–214`; `models/colyseus-models/synergies.ts:110–125`; `models/colyseus-models/synergies.ts:287–297`; `models/effects.ts:14–25`; `config/game/items.ts:21`; `core/pokemon-entity.ts:1399–1437`; `models/colyseus-models/pokemon.ts:6130–6141`; `models/colyseus-models/pokemon.ts:6142–6163`; `models/colyseus-models/pokemon.ts:10139`; `core/effects/passives.ts:1700–1713`; `models/colyseus-models/pokemon.ts:10170`
 
 ### CHOICE_SPECS
 
@@ -103,6 +285,61 @@
 
 *Sources:* `core/effects/items.ts:946–959`; `core/abilities/cast.ts:18–25`; `core/abilities/cast.ts:16–31`; `core/pokemon-entity.ts:559–575`
 
+### ABILITY_SHIELD
+
+**Recipe** (declared): Twisted Spoon + Miracle Seed. **Declared bonuses:** AP 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `as-shield` (traced)** — *Trigger:* At simulation setup (Simulation.applyPostEffects, called from the constructor), once per holder. *Targets:* every same-team unit standing on the holder's cell or the cell directly left or right on the same row (holder included). *Effect:* Each such unit gets a shield of ceil(0.2 x its own max HP) (addShield with the unit as its own caster, apBoost 0) and a Rune Protect status (triggerRuneProtect(5000 ms)), which first clears negative statuses. *Duration:* Rune Protect lasts 5000 ms (a longer existing timer is kept); the shield lasts until depleted. *Scaling:* No AP/crit scaling. The shield is subject to addShield rules (enraged halves it, rounded; Big Eater Belt scales it). While Rune Protect is active, status triggers that check runeProtect are refused. *Limits:* Only the three cells on the holder's row; same team only; units must be present at setup. *Consumption/reset:* Applied once at setup; the item is not consumed. Several holders covering the same unit apply their shields separately (they add).
+
+*Arithmetic:* Ally with max HP 200: shield ceil(0.2 x 200) = 40. Formula only.
+
+*Unresolved / untested:* Which individual statuses Rune Protect blocks: many triggers check runeProtect (about a dozen sites in status.ts) and were not each listed; Because the shield is added with the ally as its own caster, it counts in that ally's shieldDone (the counter Explosive Band reads); the consequence for an Explosive Band holder is an inference from the shared path, untested; Units added after setup (summons) are not covered by this setup code.
+
+*Conditional deduction (inference, not a ranking):* A one-time setup shield and 5-second status protection for up to three units in a row (itself included); it matters most when those units sit on that row and the opponent applies statuses early. It does not recur during the fight.
+
+*Sources:* `core/simulation.ts:692–709`; `core/simulation.ts:223`; `models/colyseus-models/status.ts:956–966`; `models/colyseus-models/status.ts:968–974`; `core/pokemon-state.ts:382–418`
+
+### POWER_LENS
+
+**Recipe** (declared): Twisted Spoon + Never Melt Ice. **Declared bonuses:** SPE_DEF 10, AP 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `pl-reflect` (traced)** — *Trigger:* Ordinary path: when the holder is hit through handleSpecialDamage (ability damage and the special parts of basic attacks), after state.handleDamage returns, if the pre-defense special amount is >= 1, the attack type is SPECIAL and the attacker does not hold Protective Pads. *Targets:* the attacker. *Effect:* Reflects the amount the holder's SPE_DEF mitigated: round(S - S / (1 + 0.05 x speDef)), where S is the special damage after AP, crit and the other pre-defense multipliers and speDef is halved (rounded) while the holder has armor reduction. The reflection is special damage dealt by the holder with handleDamage, flagged as retaliation. *Duration:* Instant, per qualifying hit. *Scaling:* Uses the incoming amount S, not the damage actually taken (shield absorption does not reduce it). The reflected damage is not scaled by the holder's AP or crit and goes through the attacker's own SPE_DEF and shield. *Limits:* In this path hits that handleSpecialDamage refuses before reaching the reflection code (protect, skydiving, magic bounce) do not reflect; physical and true damage do not reflect. *Consumption/reset:* Not consumed.
+- **Effect `pl-dice` (traced)** — *Trigger:* Loaded Dice path (a separate, manual branch in the Loaded Dice handler, items.ts:152-181): after the second-hit special damage has been dealt with handleDamage, if the second target holds Power Lens and the dice holder does not hold Protective Pads. *Targets:* the Loaded Dice holder. *Effect:* The same mitigated-amount formula is computed from the second hit's special damage (secondHitSpecialDamage, speDef halved under armor reduction) and dealt back with handleDamage as retaliation. *Duration:* Instant. *Scaling:* This branch is entered whenever secondHitSpecialDamage > 0; it does not check that the second hit actually dealt damage, so the usual protect/skydiving/magic-bounce exclusions of handleSpecialDamage do not gate it (handleDamage itself still refuses damage to a protected target, so a protected second target is a case where the reflection is dealt without damage having been taken - source-traced, not gameplay-tested). *Limits:* Only special second hits. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Incoming special damage 100 on SPE_DEF 10: 100 / 1.5 = 66.67, mitigated 33.33, reflected round(33.33) = 33 (before the attacker's own defenses). Formula only.
+
+*Unresolved / untested:* Self-inflicted special damage (attacker == holder) is not excluded in the ordinary path; Declared AP 10 only matters through the generic AP uses; The Loaded Dice branch was read, not run: whether a protected second target really reflects is a source reading, untested.
+
+*Conditional deduction (inference, not a ranking):* The reflection scales with how much special damage the holder's SPE_DEF mitigates, so it grows with incoming special damage and with SPE_DEF; physical and true damage are unaffected.
+
+*Sources:* `core/pokemon-entity.ts:444–463`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:152–181`
+
+### POKEMONOMICON
+
+**Recipe** (declared): Twisted Spoon + Charcoal. **Declared bonuses:** AP 30, ATK 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `pk-burn` (traced)** — *Trigger:* Whenever the holder deals special-type damage and the target actually takes damage (callback runs when takenDamage > 0, shield absorption included; basic-attack special parts and ability damage). *Targets:* the damaged enemy. *Effect:* Burn for 3000 ms (triggerBurn) and -1 SPE_DEF (addSpecialDefense(-1, holder, 0, false)). *Duration:* Burn 3000 ms (reduced by duration reductions, refreshed if longer); SPE_DEF loss lasts the fight. *Scaling:* No AP/crit scaling. Burn is blocked by IMMUNITY_BURN, rune protect and the Water Bubble passive; Twist Band on the target flips the debuff; the callback also runs for retaliation damage (isRetaliation is not checked). *Limits:* -1 SPE_DEF per qualifying hit, but addSpecialDefense clamps SPE_DEF at 0 (speDef = max(0, speDef + value)), so the reduction cannot go below 0 and has no further effect there. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Each qualifying hit lowers the target's SPE_DEF by 1: at SPE_DEF 3 to 2, the special damage multiplier goes from 1/1.15 = 0.870 to 1/1.10 = 0.909 (about +4.5 % damage from that point on). Formula only.
+
+*Unresolved / untested:* Burn's per-tick damage and other burn effects (not traced in this batch); Physical basic attacks do not trigger it; true damage does not trigger it (attackType must be SPECIAL); Self-damage case (target == holder) not checked.
+
+*Conditional deduction (inference, not a ranking):* Only special-type damage triggers it, so a purely physical attacker gets nothing; a caster with several hits or an area ability triggers burn and the SPE_DEF reduction per hit target.
+
+*Sources:* `core/effects/items.ts:218–225`; `core/effects/items.ts:963`; `core/pokemon-entity.ts:1151–1171`; `core/pokemon-state.ts:734–750`; `models/colyseus-models/status.ts:397–411`; `core/pokemon-entity.ts:700–724`; `utils/number.ts:1–4`
+
+### HEAVY_DUTY_BOOTS
+
+**Recipe** (declared): Twisted Spoon + Heart Scale. **Declared bonuses:** AP 50, DEF 12. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `hb-immune` (traced)** — *Trigger:* Item applied at fight start; checked wherever the listed effects occur. *Targets:* holder. *Effect:* Adds IMMUNITY_LOCKED (the Locked status cannot be applied); canBeMoved is false (forced displacement is refused); board effects are not added to its effect set; ignores the poison-gas, smoke, sticky-web and cotton-ball statuses and the stealth-rocks, spikes, toxic-spikes, hail and ember tick effects. *Duration:* Whole fight. *Scaling:* None. *Limits:* Only the effect checks listed; other displacement or control effects not routed through these checks are untraced. *Consumption/reset:* Not consumed.
+
+*Unresolved / untested:* Other crowd-control or displacement effects that bypass canBeMoved or the listed checks; Interaction with abilities that move the holder voluntarily (the holder's own movement is not blocked by canBeMoved; only forced displacement).
+
+*Conditional deduction (inference, not a ranking):* Only relevant against the listed board effects and Locked/forced displacement; it does nothing about other statuses or damage. Against opponents or maps without those effects the declared AP 50 and DEF 12 are its measurable content.
+
+*Sources:* `core/effects/items.ts:652–656`; `core/pokemon-entity.ts:258–264`; `models/colyseus-models/status.ts:1142–1150`; `models/colyseus-models/status.ts:193–221`; `models/colyseus-models/status.ts:660–664`; `core/board.ts:640`; `core/pokemon-state.ts:1031–1095`; `core/pokemon-entity.ts:890–895`
+
 ### AQUA_EGG
 
 **Recipe** (declared): Mystic Water + Mystic Water. **Declared bonuses:** PP 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
@@ -148,19 +385,48 @@
 
 *Sources:* `core/effects/items.ts:1001–1010`; `core/pokemon-entity.ts:911–950`; `core/pokemon-state.ts:284–296`; `core/pokemon-entity.ts:508–532`; `core/pokemon-entity.ts:508–532`
 
-### POKEMONOMICON
+### STAR_DUST
 
-**Recipe** (declared): Twisted Spoon + Charcoal. **Declared bonuses:** AP 30, ATK 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+**Recipe** (declared): Mystic Water + Never Melt Ice. **Declared bonuses:** SPE_DEF 10, PP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `pk-burn` (traced)** — *Trigger:* Whenever the holder deals special-type damage and the target actually takes damage (callback runs when takenDamage > 0, shield absorption included; basic-attack special parts and ability damage). *Targets:* the damaged enemy. *Effect:* Burn for 3000 ms (triggerBurn) and -1 SPE_DEF (addSpecialDefense(-1, holder, 0, false)). *Duration:* Burn 3000 ms (reduced by duration reductions, refreshed if longer); SPE_DEF loss lasts the fight. *Scaling:* No AP/crit scaling. Burn is blocked by IMMUNITY_BURN, rune protect and the Water Bubble passive; Twist Band on the target flips the debuff; the callback also runs for retaliation damage (isRetaliation is not checked). *Limits:* -1 SPE_DEF per qualifying hit, but addSpecialDefense clamps SPE_DEF at 0 (speDef = max(0, speDef + value)), so the reduction cannot go below 0 and has no further effect there. *Consumption/reset:* Not consumed.
+- **Effect `sd2-shield` (traced)** — *Trigger:* After each ability cast by the holder (OnAbilityCastEffect). *Targets:* holder. *Effect:* Gains a shield of round(0.5 x maxPP) (addShield, apBoost 0); starDustCount++. *Duration:* Shield lasts until depleted. *Scaling:* No AP/crit scaling. addShield rules: enraged halves the amount, Big Eater Belt scales it. *Limits:* No cap; stacks with existing shield. *Consumption/reset:* Not consumed.
 
-*Arithmetic:* Each qualifying hit lowers the target's SPE_DEF by 1: at SPE_DEF 3 to 2, the special damage multiplier goes from 1/1.15 = 0.870 to 1/1.10 = 0.909 (about +4.5 % damage from that point on). Formula only.
+*Arithmetic:* maxPP 100: a 50 shield per cast; with Efficient Bandanna's maxPP 85: round(42.5) = 43 (JavaScript Math.round, .5 rounds up). Formula only.
 
-*Unresolved / untested:* Burn's per-tick damage and other burn effects (not traced in this batch); Physical basic attacks do not trigger it; true damage does not trigger it (attackType must be SPECIAL); Self-damage case (target == holder) not checked.
+*Unresolved / untested:* Declared PP 15 adds to current PP only; Casts that bypass castAbility were not enumerated.
 
-*Conditional deduction (inference, not a ranking):* Only special-type damage triggers it, so a purely physical attacker gets nothing; a caster with several hits or an area ability triggers burn and the SPE_DEF reduction per hit target.
+*Conditional deduction (inference, not a ranking):* Each cast adds a shield proportional to maxPP, so it favors holders that cast repeatedly and have a high maxPP (Efficient Bandanna lowers maxPP and therefore the shield).
 
-*Sources:* `core/effects/items.ts:218–225`; `core/effects/items.ts:963`; `core/pokemon-entity.ts:1151–1171`; `core/pokemon-state.ts:734–750`; `models/colyseus-models/status.ts:397–411`; `core/pokemon-entity.ts:700–724`; `utils/number.ts:1–4`
+*Sources:* `core/effects/items.ts:1012–1017`; `core/abilities/cast.ts:16–31`; `core/pokemon-state.ts:382–418`
+
+### GREEN_ORB
+
+**Recipe** (declared): Mystic Water + Miracle Seed. **Declared bonuses:** HP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `go-heal` (traced)** — *Trigger:* Every 2000 ms of fight time (periodic effect on the holder; first tick after 2000 ms). *Targets:* every same-team unit on the holder's cell and the 8 cells around it (holder included). *Effect:* Each is healed 5 % of its own max HP through handleHeal (apBoost 0, no crit); any overheal is converted into PP for that unit: addPP(0.3 x overheal). *Duration:* Whole fight; the periodic effect is deleted when the item is removed. *Scaling:* No AP/crit scaling. handleHeal then applies its own conditions: 0 if the unit is wounded or protected (and then no overheal PP), x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 Zenith weather, rounded and capped at missing HP. The PP conversion goes through addPP rules. *Limits:* Only living same-team units in the 3x3 block; no cap on ticks. *Consumption/reset:* Not consumed.
+- **Effect `go-evo` (declared)** — *Trigger:* Item evolution rule declared on Rayquaza. *Targets:* Rayquaza. *Effect:* Evolves to Mega Rayquaza when the Green Orb is held (declared rule); the evolution handler path was not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Ally max HP 200: 10 HP per tick before modifiers. If that ally is missing 4 HP: healReceived 4, overheal 6, PP request 0.3 x 6 = 1.8 (addPP rounds it). Formula only.
+
+*Unresolved / untested:* Evolution handler path for the Rayquaza rule; Unit time units assumed ms (see core-mechanics section C).
+
+*Conditional deduction (inference, not a ranking):* It heals allies in the 3x3 block by a percentage of their own max HP, so it scales with how many allies are adjacent and how large their HP is; a unit at full HP converts the heal into PP at 30 %, which helps casters that stay healthy. Wound, protect, burn and enrage change the heal.
+
+*Sources:* `core/effects/items.ts:261–284`; `core/effects/items.ts:800–812`; `core/effects/effect.ts:261–285`; `core/pokemon-state.ts:893–899`; `core/pokemon-state.ts:308–360`; `core/pokemon-state.ts:308–382`; `core/pokemon-entity.ts:508–532`; `models/colyseus-models/pokemon.ts:6094`
+
+### DEEP_SEA_TOOTH
+
+**Recipe** (declared): Mystic Water + Charcoal. **Declared bonuses:** ATK 7, PP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `dst-pp` (traced)** — *Trigger:* After each basic attack by the holder (OnAttack hook), successful or not. *Targets:* holder. *Effect:* +5 PP, and +15 more if the attack killed its target (hasAttackKilled), i.e. +20 in total on a kill. This is in addition to the ordinary +5 PP per basic attack (ON_ATTACK_MANA). *Duration:* Instant, per basic attack. *Scaling:* No AP/crit scaling. Both gains go through addPP (blocked while silenced/protected/resurrecting/NO_PP_GAIN, halved by fatigue). *Limits:* hasAttackKilled is set by kills from the physical, special or true part of the attack (and fairy wand effects); casts do not trigger it. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Without kill: 5 (ordinary) + 5 (item) = 10 PP per basic attack, i.e. 10 attacks for 100 PP versus 20 without the item; formula only, ignoring PP from damage taken.
+
+*Unresolved / untested:* Whether kills by abilities count (they do not call this hook).
+
+*Conditional deduction (inference, not a ranking):* It doubles the PP from basic attacks and adds more on kills, so it speeds casting for holders that spend time basic-attacking; holders that already cast constantly gain less.
+
+*Sources:* `core/effects/items.ts:814–821`; `core/pokemon-entity.ts:911–950`; `core/pokemon-state.ts:284–296`; `core/pokemon-state.ts:119–123`; `config/game/battle.ts:3`; `core/pokemon-entity.ts:508–532`; `core/pokemon-entity.ts:508–532`
 
 ### SHINY_CHARM
 
@@ -176,101 +442,6 @@
 *Conditional deduction (inference, not a ranking):* A one-time protection against the first hit that would drop the holder under 30 % HP (plus 50 PP); it does not heal. The shield is spent first, so a shielded holder reaches the check later.
 
 *Sources:* `core/pokemon-state.ts:649–661`; `core/pokemon-state.ts:620–649`; `models/colyseus-models/status.ts:744–750`; `core/pokemon-entity.ts:508–532`; `rooms/commands/game-commands.ts:947–949`; `models/colyseus-models/player.ts:344–346`
-
-### MAX_REVIVE
-
-**Recipe** (declared): Miracle Seed + Never Melt Ice. **Declared bonuses:** none — No ItemStats entry exists for MAX_REVIVE: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `mr-revive` (traced)** — *Trigger:* Fight start (item applied), then when the holder's HP reaches 0 or below in handleDamage. *Targets:* holder. *Effect:* Grants the resurrection flag at fight start; on HP <= 0 it consumes the flag: holder becomes untargettable and resurrecting for 2000 ms and clears negative statuses; after that resurrect() recomputes stats from a fresh clone (max HP, ATK, DEF, SPE_DEF, AP, speed, crit, dodge, range, luck), sets HP = max HP, PP = 0, shield = 0, resets stack counters (Mach Ribbon, Muscle Band, Soul Dew, Upgrade, Sound Cry), removes MAX_REVIVE from the fight entity, and returns to the moving state with cooldown 0. *Duration:* 2000 ms downtime, then full HP. *Scaling:* No AP/crit scaling. *Limits:* Not applied to INANIMATE passive units; one revive per item. *Consumption/reset:* Consumed for the fight (removed from the entity, board unit keeps it).
-
-*Unresolved / untested:* Death paths that do not go through handleDamage's HP<=0 check (not enumerated); Exactly which stats the clone restores beyond the ones listed, and which in-fight buffs are therefore lost; Behavior of ally targeting while the holder is untargettable (only noted: enemies targeting it switch to moving).
-
-*Conditional deduction (inference, not a ranking):* A second life with full HP and a 2-second downtime, but buffs gained during the fight are lost on revival and PP restarts at 0. Whether the downtime is acceptable depends on the fight; nothing here measures it.
-
-*Sources:* `core/effects/items.ts:616–623`; `models/colyseus-models/status.ts:1041–1052`; `core/pokemon-state.ts:783–797`; `models/colyseus-models/status.ts:1054–1063`; `models/colyseus-models/status.ts:311–313`; `core/pokemon-entity.ts:1439–1448`; `core/pokemon-entity.ts:1563–1565`; `core/pokemon-entity.ts:1533–1539`
-
-### SHELL_BELL
-
-**Recipe** (declared): Never Melt Ice + Charcoal. **Declared bonuses:** ATK 5, SPE_DEF 5. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `sb-heal` (traced)** — *Trigger:* Whenever the holder deals damage (basic attack parts or ability, any damage type; callback runs when the target took damage). *Targets:* holder. *Effect:* Heals ceil(0.33 x damage actually taken by the target) (shield damage plus HP lost, overkill excluded); skipped when the target is the holder itself. *Duration:* Instant, every qualifying hit. *Scaling:* handleHeal with apBoost 0 and no crit: no AP or crit scaling. handleHeal then gives 0 under wound or protect, x1.3 with BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 Zenith weather, rounds, and caps at missing HP. *Limits:* Capped by missing HP; isRetaliation is not checked. *Consumption/reset:* Not consumed.
-
-*Arithmetic:* Target takes 100: ceil(0.33 x 100) = 33 heal before the handleHeal modifiers. Formula only.
-
-*Unresolved / untested:* Whether every multi-hit/area ability hit calls the callback exactly once per target (shared path; not enumerated).
-
-*Conditional deduction (inference, not a ranking):* Healing follows damage dealt (not AP), so units that deal more damage (more hits, area abilities) heal more; wound/burn/enrage on the holder reduce or cancel the heal.
-
-*Sources:* `core/effects/items.ts:601–605`; `core/pokemon-state.ts:308–360`; `core/pokemon-state.ts:308–318`; `core/pokemon-entity.ts:1151–1171`; `core/pokemon-state.ts:734–750`; `core/pokemon-state.ts:620–649`
-
-### HEAVY_DUTY_BOOTS
-
-**Recipe** (declared): Twisted Spoon + Heart Scale. **Declared bonuses:** AP 50, DEF 12. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `hb-immune` (traced)** — *Trigger:* Item applied at fight start; checked wherever the listed effects occur. *Targets:* holder. *Effect:* Adds IMMUNITY_LOCKED (the Locked status cannot be applied); canBeMoved is false (forced displacement is refused); board effects are not added to its effect set; ignores the poison-gas, smoke, sticky-web and cotton-ball statuses and the stealth-rocks, spikes, toxic-spikes, hail and ember tick effects. *Duration:* Whole fight. *Scaling:* None. *Limits:* Only the effect checks listed; other displacement or control effects not routed through these checks are untraced. *Consumption/reset:* Not consumed.
-
-*Unresolved / untested:* Other crowd-control or displacement effects that bypass canBeMoved or the listed checks; Interaction with abilities that move the holder voluntarily (the holder's own movement is not blocked by canBeMoved; only forced displacement).
-
-*Conditional deduction (inference, not a ranking):* Only relevant against the listed board effects and Locked/forced displacement; it does nothing about other statuses or damage. Against opponents or maps without those effects the declared AP 50 and DEF 12 are its measurable content.
-
-*Sources:* `core/effects/items.ts:652–656`; `core/pokemon-entity.ts:258–264`; `models/colyseus-models/status.ts:1142–1150`; `models/colyseus-models/status.ts:193–221`; `models/colyseus-models/status.ts:660–664`; `core/board.ts:640`; `core/pokemon-state.ts:1031–1095`; `core/pokemon-entity.ts:890–895`
-
-### ABILITY_SHIELD
-
-**Recipe** (declared): Twisted Spoon + Miracle Seed. **Declared bonuses:** AP 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `as-shield` (traced)** — *Trigger:* At simulation setup (Simulation.applyPostEffects, called from the constructor), once per holder. *Targets:* every same-team unit standing on the holder's cell or the cell directly left or right on the same row (holder included). *Effect:* Each such unit gets a shield of ceil(0.2 x its own max HP) (addShield with the unit as its own caster, apBoost 0) and a Rune Protect status (triggerRuneProtect(5000 ms)), which first clears negative statuses. *Duration:* Rune Protect lasts 5000 ms (a longer existing timer is kept); the shield lasts until depleted. *Scaling:* No AP/crit scaling. The shield is subject to addShield rules (enraged halves it, rounded; Big Eater Belt scales it). While Rune Protect is active, status triggers that check runeProtect are refused. *Limits:* Only the three cells on the holder's row; same team only; units must be present at setup. *Consumption/reset:* Applied once at setup; the item is not consumed. Several holders covering the same unit apply their shields separately (they add).
-
-*Arithmetic:* Ally with max HP 200: shield ceil(0.2 x 200) = 40. Formula only.
-
-*Unresolved / untested:* Which individual statuses Rune Protect blocks: many triggers check runeProtect (about a dozen sites in status.ts) and were not each listed; Because the shield is added with the ally as its own caster, it counts in that ally's shieldDone (the counter Explosive Band reads); the consequence for an Explosive Band holder is an inference from the shared path, untested; Units added after setup (summons) are not covered by this setup code.
-
-*Conditional deduction (inference, not a ranking):* A one-time setup shield and 5-second status protection for up to three units in a row (itself included); it matters most when those units sit on that row and the opponent applies statuses early. It does not recur during the fight.
-
-*Sources:* `core/simulation.ts:692–709`; `core/simulation.ts:223`; `models/colyseus-models/status.ts:956–966`; `models/colyseus-models/status.ts:968–974`; `core/pokemon-state.ts:382–418`
-
-### POWER_LENS
-
-**Recipe** (declared): Twisted Spoon + Never Melt Ice. **Declared bonuses:** SPE_DEF 10, AP 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `pl-reflect` (traced)** — *Trigger:* Ordinary path: when the holder is hit through handleSpecialDamage (ability damage and the special parts of basic attacks), after state.handleDamage returns, if the pre-defense special amount is >= 1, the attack type is SPECIAL and the attacker does not hold Protective Pads. *Targets:* the attacker. *Effect:* Reflects the amount the holder's SPE_DEF mitigated: round(S - S / (1 + 0.05 x speDef)), where S is the special damage after AP, crit and the other pre-defense multipliers and speDef is halved (rounded) while the holder has armor reduction. The reflection is special damage dealt by the holder with handleDamage, flagged as retaliation. *Duration:* Instant, per qualifying hit. *Scaling:* Uses the incoming amount S, not the damage actually taken (shield absorption does not reduce it). The reflected damage is not scaled by the holder's AP or crit and goes through the attacker's own SPE_DEF and shield. *Limits:* In this path hits that handleSpecialDamage refuses before reaching the reflection code (protect, skydiving, magic bounce) do not reflect; physical and true damage do not reflect. *Consumption/reset:* Not consumed.
-- **Effect `pl-dice` (traced)** — *Trigger:* Loaded Dice path (a separate, manual branch in the Loaded Dice handler, items.ts:152-181): after the second-hit special damage has been dealt with handleDamage, if the second target holds Power Lens and the dice holder does not hold Protective Pads. *Targets:* the Loaded Dice holder. *Effect:* The same mitigated-amount formula is computed from the second hit's special damage (secondHitSpecialDamage, speDef halved under armor reduction) and dealt back with handleDamage as retaliation. *Duration:* Instant. *Scaling:* This branch is entered whenever secondHitSpecialDamage > 0; it does not check that the second hit actually dealt damage, so the usual protect/skydiving/magic-bounce exclusions of handleSpecialDamage do not gate it (handleDamage itself still refuses damage to a protected target, so a protected second target is a case where the reflection is dealt without damage having been taken - source-traced, not gameplay-tested). *Limits:* Only special second hits. *Consumption/reset:* Not consumed.
-
-*Arithmetic:* Incoming special damage 100 on SPE_DEF 10: 100 / 1.5 = 66.67, mitigated 33.33, reflected round(33.33) = 33 (before the attacker's own defenses). Formula only.
-
-*Unresolved / untested:* Self-inflicted special damage (attacker == holder) is not excluded in the ordinary path; Declared AP 10 only matters through the generic AP uses; The Loaded Dice branch was read, not run: whether a protected second target really reflects is a source reading, untested.
-
-*Conditional deduction (inference, not a ranking):* The reflection scales with how much special damage the holder's SPE_DEF mitigates, so it grows with incoming special damage and with SPE_DEF; physical and true damage are unaffected.
-
-*Sources:* `core/pokemon-entity.ts:444–463`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:152–181`
-
-### STAR_DUST
-
-**Recipe** (declared): Mystic Water + Never Melt Ice. **Declared bonuses:** SPE_DEF 10, PP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `sd2-shield` (traced)** — *Trigger:* After each ability cast by the holder (OnAbilityCastEffect). *Targets:* holder. *Effect:* Gains a shield of round(0.5 x maxPP) (addShield, apBoost 0); starDustCount++. *Duration:* Shield lasts until depleted. *Scaling:* No AP/crit scaling. addShield rules: enraged halves the amount, Big Eater Belt scales it. *Limits:* No cap; stacks with existing shield. *Consumption/reset:* Not consumed.
-
-*Arithmetic:* maxPP 100: a 50 shield per cast; with Efficient Bandanna's maxPP 85: round(42.5) = 43 (JavaScript Math.round, .5 rounds up). Formula only.
-
-*Unresolved / untested:* Declared PP 15 adds to current PP only; Casts that bypass castAbility were not enumerated.
-
-*Conditional deduction (inference, not a ranking):* Each cast adds a shield proportional to maxPP, so it favors holders that cast repeatedly and have a high maxPP (Efficient Bandanna lowers maxPP and therefore the shield).
-
-*Sources:* `core/effects/items.ts:1012–1017`; `core/abilities/cast.ts:16–31`; `core/pokemon-state.ts:382–418`
-
-### DEEP_SEA_TOOTH
-
-**Recipe** (declared): Mystic Water + Charcoal. **Declared bonuses:** ATK 7, PP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `dst-pp` (traced)** — *Trigger:* After each basic attack by the holder (OnAttack hook), successful or not. *Targets:* holder. *Effect:* +5 PP, and +15 more if the attack killed its target (hasAttackKilled), i.e. +20 in total on a kill. This is in addition to the ordinary +5 PP per basic attack (ON_ATTACK_MANA). *Duration:* Instant, per basic attack. *Scaling:* No AP/crit scaling. Both gains go through addPP (blocked while silenced/protected/resurrecting/NO_PP_GAIN, halved by fatigue). *Limits:* hasAttackKilled is set by kills from the physical, special or true part of the attack (and fairy wand effects); casts do not trigger it. *Consumption/reset:* Not consumed.
-
-*Arithmetic:* Without kill: 5 (ordinary) + 5 (item) = 10 PP per basic attack, i.e. 10 attacks for 100 PP versus 20 without the item; formula only, ignoring PP from damage taken.
-
-*Unresolved / untested:* Whether kills by abilities count (they do not call this hook).
-
-*Conditional deduction (inference, not a ranking):* It doubles the PP from basic attacks and adds more on kills, so it speeds casting for holders that spend time basic-attacking; holders that already cast constantly gain less.
-
-*Sources:* `core/effects/items.ts:814–821`; `core/pokemon-entity.ts:911–950`; `core/pokemon-state.ts:284–296`; `core/pokemon-state.ts:119–123`; `config/game/battle.ts:3`; `core/pokemon-entity.ts:508–532`; `core/pokemon-entity.ts:508–532`
 
 ### XRAY_VISION
 
@@ -302,6 +473,21 @@
 *Conditional deduction (inference, not a ranking):* The armor reduction lifts damage from every source against the target for 2 s, and its first application lands on the same hit that applies it; it needs successful basic attacks.
 
 *Sources:* `core/pokemon-state.ts:240–242`; `models/colyseus-models/status.ts:342–352`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:210–212`; `core/pokemon-entity.ts:559–575`
+
+### GRACIDEA_FLOWER
+
+**Recipe** (declared): Magnet + Miracle Seed. **Declared bonuses:** none — No ItemStats entry exists for GRACIDEA_FLOWER: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `gf-speed` (traced)** — *Trigger:* At simulation setup (Simulation.applyPostEffects, same loop as Ability Shield). *Targets:* every unit found on the holder's cell and the cells directly left and right on the same row; the code checks only that a unit exists, with no team test. *Effect:* +20 speed to each (addSpeed(20, holder, 0, false)); the holder is included. *Duration:* Whole fight (no removal in this code). *Scaling:* No AP/crit scaling; addSpeed clamps speed to 0..300 and is subject to Big Eater Belt / Twist Band on the receiver. *Limits:* Three cells on one row; units placed after setup are not covered. *Consumption/reset:* Applied once; item not consumed.
+- **Effect `gf-evo` (declared)** — *Trigger:* Item evolution rule declared on Shaymin. *Targets:* Shaymin. *Effect:* Evolves to Shaymin (Sky form) when Gracidea Flower is held (declared rule); handler path not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Three allies in the row segment: +20 speed each; from default speed 50, 70 gives an attack wait of round(1000/(0.4+0.49)) = 1124 versus 1333 (nominal; core-mechanics section C). Formula only.
+
+*Unresolved / untested:* Whether an enemy can stand on those cells at setup was not examined (no team check in the code read); Evolution handler path for the Shaymin rule.
+
+*Conditional deduction (inference, not a ranking):* A flat speed bonus for the units in the row segment around the holder; its value depends on where units are placed. The code read has no team check, so the surroundings at setup matter.
+
+*Sources:* `core/simulation.ts:711–721`; `core/simulation.ts:223`; `core/pokemon-entity.ts:752–775`; `config/game/game.ts:5`; `models/colyseus-models/pokemon.ts:7396`
 
 ### LOADED_DICE
 
@@ -345,77 +531,6 @@
 
 *Sources:* `core/effects/items.ts:764–779`; `core/pokemon-state.ts:734–742`; `core/pokemon-entity.ts:1185–1232`; `core/pokemon-entity.ts:1466–1471`; `core/pokemon-entity.ts:674–699`; `core/pokemon-entity.ts:726–750`; `core/pokemon-entity.ts:752–775`; `config/game/game.ts:5`
 
-### ASSAULT_VEST
-
-**Recipe** (declared): Never Melt Ice + Never Melt Ice. **Declared bonuses:** SPE_DEF 40. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `av-status` (traced)** — *Trigger:* Whenever burn or poison damage is computed for the holder, and during lava weather for the holder on the bench. *Targets:* holder. *Effect:* Burn damage x0.5 and poison damage x0.5 (each multiplier sits among the other modifiers of the same computation); in lava weather the bench burn is floor(x0.5) of round(5 % max HP). *Duration:* Whole fight / while on the bench. *Scaling:* Multiplicative with the other modifiers in those computations. *Limits:* Only burn, poison and the lava bench burn were found; other status damage is not covered. *Consumption/reset:* Not consumed.
-
-*Unresolved / untested:* Declared SPE_DEF 40 is the main measurable effect: special damage is divided by 1 + 0.05 x SPE_DEF (e.g. 40 more SPE_DEF -> divisor +2.0); Whether other damage-over-time sources use the same multiplier was not enumerated.
-
-*Conditional deduction (inference, not a ranking):* Beyond its large declared SPE_DEF, it only reduces burn and poison damage, so its extra value depends on the opponent applying those statuses.
-
-*Sources:* `models/colyseus-models/status.ts:455–457`; `models/colyseus-models/status.ts:629–631`; `core/simulation.ts:274–296`
-
-### POKE_DOLL
-
-**Recipe** (declared): Never Melt Ice + Heart Scale. **Declared bonuses:** DEF 3, SPE_DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `pd-reduce` (traced)** — *Trigger:* When the holder takes non-true damage in handleDamage. *Targets:* holder. *Effect:* Damage after the defense division is multiplied by 0.7 (before flat reductions such as Guts and before the ceil/min-1 step). *Duration:* Whole fight. *Scaling:* Not applied to true damage. *Limits:* Rounding afterwards is ceil with a minimum of 1. *Consumption/reset:* Not consumed.
-- **Effect `pd-taunt` (traced)** — *Trigger:* When an enemy picks its basic-attack target among units in range (getNearestTargetAtRange). *Targets:* enemy targeting. *Effect:* Among the enemies at the minimum distance, units holding Poke Doll are chosen before others (random among holders). *Duration:* Whole fight. *Scaling:* Only breaks ties at the nearest distance. *Limits:* Other targeting routines (sight-based movement targeting, abilities with their own targeting) were not checked. *Consumption/reset:* Not consumed.
-
-*Arithmetic:* Physical 20 vs DEF 10: 20/1.5 = 13.33, x0.7 = 9.33, ceil 10 (versus 14 without the doll). Formula only.
-
-*Unresolved / untested:* Targeting outside getNearestTargetAtRange; Declared DEF 3 and SPE_DEF 3 follow the generic paths.
-
-*Conditional deduction (inference, not a ranking):* It reduces non-true damage by 30 % after the defense step and draws basic attacks among equally near enemies, which is relevant when the holder stands among nearest targets.
-
-*Sources:* `core/pokemon-state.ts:566–572`; `core/pokemon-state.ts:1131–1160`
-
-### ROCKY_HELMET
-
-**Recipe** (declared): Heart Scale + Heart Scale. **Declared bonuses:** DEF 25. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `rh-crit` (traced)** — *Trigger:* When an enemy's attack against the holder crits. *Targets:* holder as target. *Effect:* Cancels the crit damage bonus: in basic attacks the crit reduction factor becomes 0 (and target.count.crit is not incremented); in handleSpecialDamage the factor is 0 only for non-true damage. The attacker's crit roll still counts as a crit for its own on-crit effects (Black Belt, Scope Lens). *Duration:* Whole fight. *Scaling:* Reduces the crit multiplier 1 + (critPower - 1) x factor to 1 for the cases above. *Limits:* The true-damage part of a basic attack multiplies by the attacker's full critPower and is not reduced by the factor (pokemon-state.ts:208-212). *Consumption/reset:* Not consumed.
-
-*Arithmetic:* Attacker crit power 2, no helmet: x2 on the physical/special part; with the helmet: x1. Formula only.
-
-*Unresolved / untested:* Other crit paths (reflection, abilities that compute crit themselves) were not enumerated; Declared DEF 25 is the main numeric effect: physical damage divisor +1.25 (1 + 0.05 x 25).
-
-*Conditional deduction (inference, not a ranking):* It removes the crit bonus on hits against the holder (with 25 DEF), so it matters against crit-heavy attackers; true-damage parts of basic attacks keep their crit multiplier.
-
-*Sources:* `core/pokemon-state.ts:64–72`; `core/pokemon-entity.ts:412–433`; `core/pokemon-state.ts:208–212`
-
-### GREEN_ORB
-
-**Recipe** (declared): Mystic Water + Miracle Seed. **Declared bonuses:** HP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `go-heal` (traced)** — *Trigger:* Every 2000 ms of fight time (periodic effect on the holder; first tick after 2000 ms). *Targets:* every same-team unit on the holder's cell and the 8 cells around it (holder included). *Effect:* Each is healed 5 % of its own max HP through handleHeal (apBoost 0, no crit); any overheal is converted into PP for that unit: addPP(0.3 x overheal). *Duration:* Whole fight; the periodic effect is deleted when the item is removed. *Scaling:* No AP/crit scaling. handleHeal then applies its own conditions: 0 if the unit is wounded or protected (and then no overheal PP), x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 Zenith weather, rounded and capped at missing HP. The PP conversion goes through addPP rules. *Limits:* Only living same-team units in the 3x3 block; no cap on ticks. *Consumption/reset:* Not consumed.
-- **Effect `go-evo` (declared)** — *Trigger:* Item evolution rule declared on Rayquaza. *Targets:* Rayquaza. *Effect:* Evolves to Mega Rayquaza when the Green Orb is held (declared rule); the evolution handler path was not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
-
-*Arithmetic:* Ally max HP 200: 10 HP per tick before modifiers. If that ally is missing 4 HP: healReceived 4, overheal 6, PP request 0.3 x 6 = 1.8 (addPP rounds it). Formula only.
-
-*Unresolved / untested:* Evolution handler path for the Rayquaza rule; Unit time units assumed ms (see core-mechanics section C).
-
-*Conditional deduction (inference, not a ranking):* It heals allies in the 3x3 block by a percentage of their own max HP, so it scales with how many allies are adjacent and how large their HP is; a unit at full HP converts the heal into PP at 30 %, which helps casters that stay healthy. Wound, protect, burn and enrage change the heal.
-
-*Sources:* `core/effects/items.ts:261–284`; `core/effects/items.ts:800–812`; `core/effects/effect.ts:261–285`; `core/pokemon-state.ts:893–899`; `core/pokemon-state.ts:308–360`; `core/pokemon-state.ts:308–382`; `core/pokemon-entity.ts:508–532`; `models/colyseus-models/pokemon.ts:6094`
-
-### GRACIDEA_FLOWER
-
-**Recipe** (declared): Magnet + Miracle Seed. **Declared bonuses:** none — No ItemStats entry exists for GRACIDEA_FLOWER: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
-
-- **Effect `gf-speed` (traced)** — *Trigger:* At simulation setup (Simulation.applyPostEffects, same loop as Ability Shield). *Targets:* every unit found on the holder's cell and the cells directly left and right on the same row; the code checks only that a unit exists, with no team test. *Effect:* +20 speed to each (addSpeed(20, holder, 0, false)); the holder is included. *Duration:* Whole fight (no removal in this code). *Scaling:* No AP/crit scaling; addSpeed clamps speed to 0..300 and is subject to Big Eater Belt / Twist Band on the receiver. *Limits:* Three cells on one row; units placed after setup are not covered. *Consumption/reset:* Applied once; item not consumed.
-- **Effect `gf-evo` (declared)** — *Trigger:* Item evolution rule declared on Shaymin. *Targets:* Shaymin. *Effect:* Evolves to Shaymin (Sky form) when Gracidea Flower is held (declared rule); handler path not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
-
-*Arithmetic:* Three allies in the row segment: +20 speed each; from default speed 50, 70 gives an attack wait of round(1000/(0.4+0.49)) = 1124 versus 1333 (nominal; core-mechanics section C). Formula only.
-
-*Unresolved / untested:* Whether an enemy can stand on those cells at setup was not examined (no team check in the code read); Evolution handler path for the Shaymin rule.
-
-*Conditional deduction (inference, not a ranking):* A flat speed bonus for the units in the row segment around the holder; its value depends on where units are placed. The code read has no team check, so the surroundings at setup matter.
-
-*Sources:* `core/simulation.ts:711–721`; `core/simulation.ts:223`; `core/pokemon-entity.ts:752–775`; `config/game/game.ts:5`; `models/colyseus-models/pokemon.ts:7396`
-
 ### WONDER_BOX
 
 **Recipe** (declared): Black Glasses + Black Glasses. **Declared bonuses:** none — No ItemStats entry exists for WONDER_BOX: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
@@ -449,19 +564,19 @@
 
 - **Effect `wl-range` (traced)** — *Trigger:* Item applied at fight start; re-applied when the Locked status ends. *Targets:* holder. *Effect:* Declared RANGE 2 is added to the entity's range (range = max(1, range + 2)); declared CRIT_CHANCE 15 (percentage points) and SPE_DEF 3 follow the generic stat paths. The Locked status forces range to 1, and when Locked ends the range is rebuilt as base range + 2 (+1 for a Fairy holder with Long Wand). *Duration:* Whole fight. *Scaling:* None. *Limits:* No ItemEffects entry: the range bonus is the only special handling found; effects of range on targeting and casting are the shared ones (a cast needs a target in range). *Consumption/reset:* Not consumed.
 
-*Arithmetic:* Charmander range 1 + 2 = 3: it can cast with the target up to 3 cells away instead of adjacent. Formula only; position and targeting dynamics were not simulated.
+*Arithmetic:* Charmander range 1 + 2 = 3: it can start casting with the target up to 3 cells away instead of adjacent. Blast Burn, however, hits only enemies in the 8 cells around the CASTER (blast-burn.ts: getAdjacentCells of the caster), so range does not enlarge that area. Inference: casting at a distant target can hit nothing if no enemy is adjacent to the caster at that moment. Formula and code reading only; positions and targeting dynamics were not simulated.
 
-*Unresolved / untested:* How range changes interact with movement and target choice in fights (targeting paths not audited); Other effects that reset or overwrite range.
+*Unresolved / untested:* How range changes interact with movement and target choice in fights (targeting paths not audited); Other effects that reset or overwrite range; Area abilities centered on the caster (e.g. Blast Burn) are not enlarged by range; other ability shapes were not checked.
 
-*Conditional deduction (inference, not a ranking):* More range lets a holder cast and attack from farther away, which matters when positioning or when targets are not adjacent; it adds crit chance and a little SPE_DEF.
+*Conditional deduction (inference, not a ranking):* More range lets a holder attack and start casting from farther away, but it does not enlarge caster-centered areas such as Blast Burn's adjacent cells, so for such abilities a distant cast may hit nothing (inference); it also adds crit chance and a little SPE_DEF.
 
-*Sources:* `core/pokemon-entity.ts:1433–1436`; `models/colyseus-models/status.ts:1164–1176`; `models/colyseus-models/status.ts:1156–1163`; `core/pokemon-entity.ts:1399–1437`
+*Sources:* `core/pokemon-entity.ts:1433–1436`; `models/colyseus-models/status.ts:1164–1176`; `models/colyseus-models/status.ts:1156–1163`; `core/pokemon-entity.ts:1399–1437`; `core/abilities/blast-burn.ts:14–16`
 
 ### RAZOR_CLAW
 
 **Recipe** (declared): Black Glasses + Charcoal. **Declared bonuses:** CRIT_CHANCE 50, ATK 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-**Stat effect (traced):** Declared CRIT_CHANCE 50 raises the crit chance by 50 percentage points (default 10 becomes 60 %) and ATK 3 adds flat attack through the generic stat helpers; crit chance applies to every basic attack roll and to ability casts only when the caster has ABILITY_CRIT.
+**Stat effect (traced):** Declared CRIT_CHANCE 50 raises the crit chance by 50 percentage points (default 10 becomes 60 %) and ATK 3 adds flat attack through the generic stat helpers; crit chance applies to every basic attack roll; for ability casts the crit roll happens only when the cast is eligible: the caster has ABILITY_CRIT or the ability crits by default (canCritByDefault), and the cast is made through castAbility with its canCrit flag true.
 
 **Absent (traced):** No ItemEffects entry and no other behavioral reference: the only references in app/**/*.ts(x) are the enum/recipe (Item.ts), the declared stats (config/game/items.ts) and Hidden Power code that gives a Sharpedo a Razor Claw (abilities/hidden-power.ts:181). Its gameplay content is the declared CRIT_CHANCE 50 (percentage points) and ATK 3.
 
@@ -471,7 +586,7 @@
 
 *Conditional deduction (inference, not a ranking):* The item is only stats: a high crit chance helps units whose damage comes from crit-scalable attacks; nothing else is implemented for it.
 
-*Sources:* `core/abilities/hidden-power.ts:181`; `core/pokemon-entity.ts:1399–1437`; `core/pokemon-entity.ts:621–648`
+*Sources:* `core/abilities/hidden-power.ts:181`; `core/pokemon-entity.ts:1399–1437`; `core/pokemon-entity.ts:621–648`; `core/abilities/cast.ts:18–25`
 
 ### SAFETY_GOGGLES
 
@@ -521,16 +636,69 @@
 
 - **Effect `pp-noretaliation` (traced)** — *Trigger:* When an effect would deal retaliation, reflection or recoil damage to a unit holding Protective Pads. *Targets:* the holder, as the unit that would be hit by a retaliation. *Effect:* The retaliation is skipped for the sites found by searching for the item name: reflect status (physical reflection), magic bounce, Power Lens (including the Loaded Dice branch), Sticky Barb, spike armor, two synergy effects (a contact-displacement/damage effect and an adjacent-enemy shock effect) and the Qwilfish passive. *Duration:* Whole fight. *Scaling:* None. *Limits:* Only the listed sites were read; other retaliation effects may exist or may ignore the item. *Consumption/reset:* Not consumed.
 - **Effect `pp-norecoil` (traced)** — *Trigger:* When one of the holder's own abilities would deal recoil or self-damage. *Targets:* the holder. *Effect:* The self-damage is skipped in Wood Hammer, Explosion, Double-Edge, Chloroblast, Grudge Dive and Head Smash (only these six ability files mention the item) and in the Two-Edged Wand's self-inflicted damage (synergies.ts, wand effect). *Duration:* Whole fight. *Scaling:* None. *Limits:* Other recoil abilities not listed here may not check the item. *Consumption/reset:* Not consumed.
-- **Effect `pp-shield` (traced)** — *Trigger:* When the holder damages another unit's shield. *Targets:* the damaged unit's shield. *Effect:* Damage dealt to the target's shield is doubled (damageOnShield x2) when the attacker holds Protective Pads and is not the target. *Duration:* Whole fight. *Scaling:* Applies inside handleDamage after the defense step. *Limits:* Only the damage assigned to the shield; HP damage is not doubled. *Consumption/reset:* Not consumed.
+- **Effect `pp-shield` (traced)** — *Trigger:* When the holder's attack reaches a target that has a shield (shield > 0) in handleDamage, and the holder is not the target. *Targets:* the shielded target. *Effect:* The damage assigned to the shield (damageOnShield) is doubled. If the doubled amount reaches or exceeds the current shield, the shield is depleted and the excess (doubled amount minus shield) becomes residual damage that goes to HP; so when the shield breaks, the doubling can cost the target more HP than without the pads. Against a target with no shield the branch is not entered and nothing is doubled. *Duration:* Per hit, whole fight. *Scaling:* Applies inside handleDamage after the defense step and after the flinch split. *Limits:* Only hits against a shielded target; flinch (which splits the hit between shield and HP) was not combined with this. *Consumption/reset:* Not consumed.
 - **Effect `pp-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared SHIELD 60 as a starting shield (addShield) and ATK 6. *Duration:* Shield until depleted. *Scaling:* Generic stat paths. *Limits:* -. *Consumption/reset:* -.
 
-*Arithmetic:* Target shield 100, reduced hit 30: with the pads, 60 is taken from the shield (damageOnShield x2). Formula only.
+*Arithmetic:* Ordinary path, no flinch or other hooks: reduced hit 30 against shield 20. Without pads: damageOnShield 30 >= 20, the shield loses 20 and residual 10 goes to HP (HP -10). With pads: damageOnShield 60 >= 20, the shield loses 20 and residual 60 - 20 = 40 goes to HP (HP -40). Hand arithmetic from the source, not an execution.
 
 *Unresolved / untested:* The list of ignored retaliation effects is the list of sites that mention the item, not an audit of every retaliation in the game; Interaction with Explosive Band-style counters is inference only.
 
-*Conditional deduction (inference, not a ranking):* Mostly relevant when the holder's own abilities have recoil or when the opponent has reflection-type effects; it also strengthens attacks against shields.
+*Conditional deduction (inference, not a ranking):* Mostly relevant when the holder's own abilities have recoil or when the opponent has reflection-type effects; against shielded targets the doubled shield damage can push the excess into HP when the shield breaks, but it does nothing against unshielded targets.
 
-*Sources:* `core/pokemon-state.ts:522–527`; `core/pokemon-entity.ts:360–366`; `core/pokemon-entity.ts:444–463`; `core/effects/items.ts:152–181`; `core/effects/items.ts:967–987`; `core/pokemon-entity.ts:1098–1106`; `core/effects/synergies.ts:360–364`; `core/effects/synergies.ts:811–815`; `core/effects/passives.ts:305–309`; `core/abilities/wood-hammer.ts:30`; `core/abilities/explosion.ts:29`; `core/abilities/double-edge.ts:25`; `core/abilities/chloroblast.ts:30`; `core/abilities/grudge-dive.ts:43`; `core/abilities/head-smash.ts:30`; `core/effects/synergies.ts:660–664`; `core/pokemon-state.ts:628–634`; `core/pokemon-entity.ts:1399–1437`
+*Sources:* `core/pokemon-state.ts:522–527`; `core/pokemon-entity.ts:360–366`; `core/pokemon-entity.ts:444–463`; `core/effects/items.ts:152–181`; `core/effects/items.ts:967–987`; `core/pokemon-entity.ts:1098–1106`; `core/effects/synergies.ts:360–364`; `core/effects/synergies.ts:811–815`; `core/effects/passives.ts:305–309`; `core/abilities/wood-hammer.ts:30`; `core/abilities/explosion.ts:29`; `core/abilities/double-edge.ts:25`; `core/abilities/chloroblast.ts:30`; `core/abilities/grudge-dive.ts:43`; `core/abilities/head-smash.ts:30`; `core/effects/synergies.ts:660–664`; `core/pokemon-state.ts:628–634`; `core/pokemon-state.ts:618–649`; `core/pokemon-entity.ts:1399–1437`
+
+### MAX_REVIVE
+
+**Recipe** (declared): Miracle Seed + Never Melt Ice. **Declared bonuses:** none — No ItemStats entry exists for MAX_REVIVE: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `mr-revive` (traced)** — *Trigger:* Fight start (item applied), then when the holder's HP reaches 0 or below in handleDamage. *Targets:* holder. *Effect:* Grants the resurrection flag at fight start; on HP <= 0 it consumes the flag: holder becomes untargettable and resurrecting for 2000 ms and clears negative statuses; after that resurrect() recomputes stats from a fresh clone (max HP, ATK, DEF, SPE_DEF, AP, speed, crit, dodge, range, luck), sets HP = max HP, PP = 0, shield = 0, resets stack counters (Mach Ribbon, Muscle Band, Soul Dew, Upgrade, Sound Cry), removes MAX_REVIVE from the fight entity, and returns to the moving state with cooldown 0. *Duration:* 2000 ms downtime, then full HP. *Scaling:* No AP/crit scaling. *Limits:* Not applied to INANIMATE passive units; one revive per item. *Consumption/reset:* Consumed for the fight (removed from the entity, board unit keeps it).
+
+*Unresolved / untested:* Death paths that do not go through handleDamage's HP<=0 check (not enumerated); Exactly which stats the clone restores beyond the ones listed, and which in-fight buffs are therefore lost; Behavior of ally targeting while the holder is untargettable (only noted: enemies targeting it switch to moving).
+
+*Conditional deduction (inference, not a ranking):* A second life with full HP and a 2-second downtime, but buffs gained during the fight are lost on revival and PP restarts at 0. Whether the downtime is acceptable depends on the fight; nothing here measures it.
+
+*Sources:* `core/effects/items.ts:616–623`; `models/colyseus-models/status.ts:1041–1052`; `core/pokemon-state.ts:783–797`; `models/colyseus-models/status.ts:1054–1063`; `models/colyseus-models/status.ts:311–313`; `core/pokemon-entity.ts:1439–1448`; `core/pokemon-entity.ts:1563–1565`; `core/pokemon-entity.ts:1533–1539`
+
+### ASSAULT_VEST
+
+**Recipe** (declared): Never Melt Ice + Never Melt Ice. **Declared bonuses:** SPE_DEF 40. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `av-status` (traced)** — *Trigger:* Whenever burn or poison damage is computed for the holder, and during lava weather for the holder on the bench. *Targets:* holder. *Effect:* Burn damage x0.5 and poison damage x0.5 (each multiplier sits among the other modifiers of the same computation); in lava weather the bench burn is floor(x0.5) of round(5 % max HP). *Duration:* Whole fight / while on the bench. *Scaling:* Multiplicative with the other modifiers in those computations. *Limits:* Only burn, poison and the lava bench burn were found; other status damage is not covered. *Consumption/reset:* Not consumed.
+
+*Unresolved / untested:* Declared SPE_DEF 40 is the main measurable effect: special damage is divided by 1 + 0.05 x SPE_DEF (e.g. 40 more SPE_DEF -> divisor +2.0); Whether other damage-over-time sources use the same multiplier was not enumerated.
+
+*Conditional deduction (inference, not a ranking):* Beyond its large declared SPE_DEF, it only reduces burn and poison damage, so its extra value depends on the opponent applying those statuses.
+
+*Sources:* `models/colyseus-models/status.ts:455–457`; `models/colyseus-models/status.ts:629–631`; `core/simulation.ts:274–296`
+
+### SHELL_BELL
+
+**Recipe** (declared): Never Melt Ice + Charcoal. **Declared bonuses:** ATK 5, SPE_DEF 5. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `sb-heal` (traced)** — *Trigger:* Whenever the holder deals damage (basic attack parts or ability, any damage type; callback runs when the target took damage). *Targets:* holder. *Effect:* Heals ceil(0.33 x damage actually taken by the target) (shield damage plus HP lost, overkill excluded); skipped when the target is the holder itself. *Duration:* Instant, every qualifying hit. *Scaling:* handleHeal with apBoost 0 and no crit: no AP or crit scaling. handleHeal then gives 0 under wound or protect, x1.3 with BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 Zenith weather, rounds, and caps at missing HP. *Limits:* Capped by missing HP; isRetaliation is not checked. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Target takes 100: ceil(0.33 x 100) = 33 heal before the handleHeal modifiers. Formula only.
+
+*Unresolved / untested:* Whether every multi-hit/area ability hit calls the callback exactly once per target (shared path; not enumerated).
+
+*Conditional deduction (inference, not a ranking):* Healing follows damage dealt (not AP), so units that deal more damage (more hits, area abilities) heal more; wound/burn/enrage on the holder reduce or cancel the heal.
+
+*Sources:* `core/effects/items.ts:601–605`; `core/pokemon-state.ts:308–360`; `core/pokemon-state.ts:308–318`; `core/pokemon-entity.ts:1151–1171`; `core/pokemon-state.ts:734–750`; `core/pokemon-state.ts:620–649`
+
+### POKE_DOLL
+
+**Recipe** (declared): Never Melt Ice + Heart Scale. **Declared bonuses:** DEF 3, SPE_DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `pd-reduce` (traced)** — *Trigger:* When the holder takes non-true damage in handleDamage. *Targets:* holder. *Effect:* Damage after the defense division is multiplied by 0.7 (before flat reductions such as Guts and before the ceil/min-1 step). *Duration:* Whole fight. *Scaling:* Not applied to true damage. *Limits:* Rounding afterwards is ceil with a minimum of 1. *Consumption/reset:* Not consumed.
+- **Effect `pd-taunt` (traced)** — *Trigger:* When an enemy picks its basic-attack target among units in range (getNearestTargetAtRange). *Targets:* enemy targeting. *Effect:* Among the enemies at the minimum distance, units holding Poke Doll are chosen before others (random among holders). *Duration:* Whole fight. *Scaling:* Only breaks ties at the nearest distance. *Limits:* Other targeting routines (sight-based movement targeting, abilities with their own targeting) were not checked. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Physical 20 vs DEF 10: 20/1.5 = 13.33, x0.7 = 9.33, ceil 10 (versus 14 without the doll). Formula only.
+
+*Unresolved / untested:* Targeting outside getNearestTargetAtRange; Declared DEF 3 and SPE_DEF 3 follow the generic paths.
+
+*Conditional deduction (inference, not a ranking):* It reduces non-true damage by 30 % after the defense step and draws basic attacks among equally near enemies, which is relevant when the holder stands among nearest targets.
+
+*Sources:* `core/pokemon-state.ts:566–572`; `core/pokemon-state.ts:1131–1160`
 
 ### RED_ORB
 
@@ -551,15 +719,189 @@
 
 **Recipe** (declared): Charcoal + Heart Scale. **Declared bonuses:** ATK 5, DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `fo-burn` (traced)** — *Trigger:* When the item is applied at fight start. *Targets:* holder. *Effect:* Adds freeze immunity, adds the unit's base ATK again (+baseAtk), and sets the holder on fire for 300000 ms with itself as the origin; while the item is held and the holder is not burning, the burn is re-applied (60000 ms) each status update until the fight ends. Burn deals 5 % of the holder's max HP as true damage every 1000 ms (modified by weather, Assault Vest x0.5, some passives; 0 for Magmarizer / Well Baked), and burning halves healing the holder receives. *Duration:* Whole fight; on removal ATK is reduced by baseAtk and the burn cooldown is set to 0. *Scaling:* No AP/crit scaling. The burn damage is handleDamage true damage with the holder as its own attacker (Shell Bell skips self-inflicted damage). *Limits:* The self-burn damage per tick scales with max HP; healing received is halved while burning (Shell Bell, Green Orb and similar heals). *Consumption/reset:* Not consumed.
+- **Effect `fo-burn` (traced)** — *Trigger:* When the item is applied at fight start. *Targets:* holder. *Effect:* Adds freeze immunity, adds the unit's base ATK again (+baseAtk), and ATTEMPTS to set the holder on fire for 300000 ms with itself as the origin (triggerBurn); the attempt is refused if the holder has burn immunity (IMMUNITY_BURN), Rune Protect or the Water Bubble passive. While the item is held and the holder is not burning, the attempt is repeated (60000 ms) on later status updates until the fight ends. Burn deals 5 % of the holder's max HP as true damage every 1000 ms (modified by weather, Assault Vest x0.5, some passives; 0 for Magmarizer / Well Baked), and burning halves healing the holder receives. *Duration:* Whole fight; on removal ATK is reduced by baseAtk and the burn cooldown is set to 0. *Scaling:* No AP/crit scaling. The burn damage is handleDamage true damage with the holder as its own attacker (Shell Bell skips self-inflicted damage). *Limits:* The self-burn damage per tick scales with max HP; healing received is halved while burning (Shell Bell, Green Orb and similar heals). *Consumption/reset:* Not consumed.
 
 *Arithmetic:* Max HP 400: 20 true damage per second-tick before modifiers; base ATK 8 becomes 16 plus the declared 5. Formula only.
 
-*Unresolved / untested:* Burn damage modifiers beyond the ones shown (weather and passives were read, not all tested); Interaction with healing sources other than the ones named is by the shared handleHeal path.
+*Unresolved / untested:* Self-burn is not guaranteed in every setup: Rune Protect (e.g. Ability Shield, Safety Goggles on the same unit), burn immunity and Water Bubble can block it; the +baseAtk still applies (inference for the specific item combinations, untested); Burn damage modifiers beyond the ones shown (weather and passives were read, not all tested); Interaction with healing sources other than the ones named is by the shared handleHeal path.
 
-*Conditional deduction (inference, not a ranking):* It trades a permanent self-burn (and halved healing) for a large ATK increase; whether that is acceptable depends on the holder's max HP, healing and fight length, which this note does not evaluate.
+*Conditional deduction (inference, not a ranking):* It trades an attempted lasting self-burn (and halved healing while burning; the burn can be blocked by Rune Protect, burn immunity or Water Bubble) for a large ATK increase; whether that is acceptable depends on the holder's max HP, healing and fight length, which this note does not evaluate.
 
-*Sources:* `core/effects/items.ts:636–649`; `core/pokemon-state.ts:963–969`; `models/colyseus-models/status.ts:440–500`; `core/pokemon-state.ts:336–350`; `core/pokemon-state.ts:308–360`
+*Sources:* `core/effects/items.ts:636–649`; `core/pokemon-state.ts:963–969`; `models/colyseus-models/status.ts:397–411`; `models/colyseus-models/status.ts:440–500`; `core/pokemon-state.ts:336–350`; `core/pokemon-state.ts:308–360`
+
+### ROCKY_HELMET
+
+**Recipe** (declared): Heart Scale + Heart Scale. **Declared bonuses:** DEF 25. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `rh-crit` (traced)** — *Trigger:* When an enemy's attack against the holder crits. *Targets:* holder as target. *Effect:* Cancels the crit damage bonus: in basic attacks the crit reduction factor becomes 0 (and target.count.crit is not incremented); in handleSpecialDamage the factor is 0 only for non-true damage. The attacker's crit roll still counts as a crit for its own on-crit effects (Black Belt, Scope Lens). *Duration:* Whole fight. *Scaling:* Reduces the crit multiplier 1 + (critPower - 1) x factor to 1 for the cases above. *Limits:* The true-damage part of a basic attack multiplies by the attacker's full critPower and is not reduced by the factor (pokemon-state.ts:208-212). *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Attacker crit power 2, no helmet: x2 on the physical/special part; with the helmet: x1. Formula only.
+
+*Unresolved / untested:* Other crit paths (reflection, abilities that compute crit themselves) were not enumerated; Declared DEF 25 is the main numeric effect: physical damage divisor +1.25 (1 + 0.05 x 25).
+
+*Conditional deduction (inference, not a ranking):* It removes the crit bonus on hits against the holder (with 25 DEF), so it matters against crit-heavy attackers; true-damage parts of basic attacks keep their crit multiplier.
+
+*Sources:* `core/pokemon-state.ts:64–72`; `core/pokemon-entity.ts:412–433`; `core/pokemon-state.ts:208–212`
+
+### FRIEND_BOW
+
+**Recipe** (declared): Silk Scarf + Fossil Stone. **Declared bonuses:** SHIELD 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `fb-type` (traced)** — *Trigger:* When equipped on a unit (the board unit's types gain Normal through computeSynergies) and when combined onto a unit. *Targets:* holder. *Effect:* Grants the Normal type (SynergyGivenByItem), counted once per evolution family on the board like other item-granted types; when the combine result would be a Friend Bow on a holder that already has Normal, the item pops back to the inventory instead of being equipped. *Duration:* Whole time held. *Scaling:* No AP/crit; declared SHIELD 30 is a starting shield. *Limits:* Granting the type does not by itself activate a Normal tier (thresholds 3/5/7/9). *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Equip-by-drag refusal for Friend Bow outside the combine path was not separately traced (the stone refusal list covers only SynergyStones); Dev-snapshot differences not checked.
+
+*Conditional deduction (inference, not a ranking):* Useful as a Normal-type source (counts once per evolution family) and for the Normal tier thresholds, and its shield is a starting shield; the Normal type is only worth something if the team can reach a Normal tier.
+
+*Sources:* `types/enum/Item.ts:552–561`; `types/enum/Item.ts:837`; `rooms/commands/game-commands.ts:925–931`
+
+### BLACK_BELT
+
+**Recipe** (declared): Silk Scarf + Black Glasses. **Declared bonuses:** SHIELD 15, CRIT_CHANCE 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `bb-shield` (traced)** — *Trigger:* On each basic attack by the holder whose crit roll succeeded (onAttack runs for every basic attack, successful or not). *Targets:* holder. *Effect:* Gains a shield of ceil(0.33 x totalDamage); totalDamage is physical+special+true after rounding and the crit factor but BEFORE the target's defense and shields (and includes e.g. Nullify PP damage). *Duration:* Shield until depleted. *Scaling:* No AP; the shield passes through addShield (Big Eater Belt scales it; enraged halves it). *Limits:* A dodged or protected attack has damage 0, so the shield is usually 0; Rocky Helmet on the target removes the crit bonus but the crit roll still counts. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Declared CRIT_CHANCE 30 and SHIELD 15 follow the generic stat paths.
+
+*Conditional deduction (inference, not a ranking):* Most relevant for holders with high crit chance and large basic attacks; it does nothing for casts.
+
+*Sources:* `core/effects/items.ts:608–614`; `core/pokemon-state.ts:236–238`; `core/pokemon-entity.ts:938–950`; `core/pokemon-state.ts:64–72`
+
+### MACH_RIBBON
+
+**Recipe** (declared): Silk Scarf + Magnet. **Declared bonuses:** SHIELD 15, SPEED 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `mr2-speed` (traced)** — *Trigger:* Every 3000 ms of fight time (periodic effect). *Targets:* holder. *Effect:* +20 speed per tick (addSpeed); machRibbonCount++ (10 ticks gives a title). *Duration:* Whole fight; on removal speed is reduced by 15 x tick count (code observation: gain +20 vs removal -15). *Scaling:* No AP/crit; speed is clamped to 0..300. *Limits:* None beyond the speed clamp. *Consumption/reset:* Counter reset on removal and resurrection.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* The gain/removal mismatch (+20 vs -15 per tick) is a code observation, not fixed and not tested.
+
+*Conditional deduction (inference, not a ranking):* A steady speed ramp for long fights; short fights get fewer ticks. Removal arithmetic differs from the gain (code observation).
+
+*Sources:* `core/effects/items.ts:241–253`; `core/effects/items.ts:784–798`; `core/pokemon-entity.ts:752–775`
+
+### EXPLOSIVE_BAND
+
+**Recipe** (declared): Silk Scarf + Charcoal. **Declared bonuses:** SHIELD 50, ATK 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `eb-boom` (traced)** — *Trigger:* The first time the holder's shield is depleted (fired from damage that reaches the shield, and from a negative addShield taking it to <= 0). *Targets:* adjacent enemies (8 cells). *Effect:* Removes the item (once), then deals round(0.5 x dps.shield) special damage to each adjacent enemy; dps.shield is the holder's entry in the team DPS meter, copied each tick from shieldDone = shield the holder has GRANTED (to itself or others), not shield received. *Duration:* Instant. *Scaling:* No AP/crit; special damage goes through the targets' SPE_DEF and shields; the counter lags up to one tick; a missing meter entry gives 0. *Limits:* In the damage path the shield must be > 0 before the hit. *Consumption/reset:* Consumed for the fight (removed from the entity).
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Shield granted by Ability Shield counts for the ally as its own caster (inference); Dev-snapshot differences not checked.
+
+*Conditional deduction (inference, not a ranking):* Its damage depends on shield the holder has granted (not received) and happens once; a holder that shields others (or itself) builds the counter.
+
+*Sources:* `core/effects/items.ts:1500–1534`; `core/pokemon-state.ts:620–643`; `core/pokemon-state.ts:408–417`; `core/simulation.ts:1345–1384`; `core/dps.ts:1–40`; `core/pokemon-state.ts:407`
+
+### TWIST_BAND
+
+**Recipe** (declared): Silk Scarf + Never Melt Ice. **Declared bonuses:** SPE_DEF 20, SHIELD 50. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `tb-flip` (traced)** — *Trigger:* Whenever a stat helper receives a negative value from the environment or an enemy caster (applyTwistBandBuff). *Targets:* holder. *Effect:* Flips the value to positive in 11 PokemonEntity methods: addPP, addCritChance, addCritPower, addMaxHP, addDodgeChance, addAbilityPower, addLuck, addDefense, addSpecialDefense, addAttack, addSpeed; several stat-stealing abilities also skip stealing from a Twist Band holder (guard checks read, bodies not fully read). *Duration:* Whole fight. *Scaling:* Not applied in addShield; not applied to damage, healing, statuses or range. *Limits:* Where Big Eater Belt also applies, the Belt runs first. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Line-level list of the 11 methods is in silk-scarf-items.md and validated by validate-items.mjs; Ability guards: spectral-thief, bared-fangs, high-jump-kick, heart-swap, steel-wing, electro-web were checked at the guard lines only.
+
+*Conditional deduction (inference, not a ranking):* Only matters against opponents that reduce the listed stats; it does not protect against damage, statuses or shield reduction.
+
+*Sources:* `core/pokemon-entity.ts:1839–1868`; `core/abilities/spectral-thief.ts:38`
+
+### LUCKY_RIBBON
+
+**Recipe** (declared): Silk Scarf + Twisted Spoon. **Declared bonuses:** SHIELD 15, AP 50, LUCK 20. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `lr-dodge` (traced)** — *Trigger:* At simulation start (OnSimulationStart). *Targets:* holder. *Effect:* +15 % dodge chance (addDodgeChance 0.15; dodge capped at 0.9). *Duration:* Whole fight. *Scaling:* None. *Limits:* Dodge applies to the basic-attack dodge roll (X-Ray Vision, lock-on and CC states bypass it). *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Declared AP 50, LUCK 20 and SHIELD 15 follow the generic stat paths.
+
+*Conditional deduction (inference, not a ranking):* A small fixed dodge chance plus declared AP 50 and luck 20, so its measurable content is mostly those stats.
+
+*Sources:* `core/effects/items.ts:1550–1554`
+
+### BIG_EATER_BELT
+
+**Recipe** (declared): Silk Scarf + Miracle Seed. **Declared bonuses:** HP 50, SHIELD 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `be-buff` (traced)** — *Trigger:* Whenever a stat helper receives a positive value (or a negative value from a same-team caster, i.e. a buff being lost). *Targets:* holder. *Effect:* Multiplies it by 1.25 rounded down (applyBigEaterBeltStatBuff) in 11 methods: addShield, addCritChance, addCritPower (2 digits), addMaxHP, addDodgeChance (3 digits), addAbilityPower, addLuck, addDefense, addSpecialDefense, addAttack, addSpeed (not addPP); also lets the unit eat a second dish. *Duration:* Whole fight. *Scaling:* The belt's own HP 50 and SHIELD 15 are scaled too (items are copied before effects are applied): 62 and 18 (inference, not executed). *Limits:* Not applied to PP, damage, healing, statuses. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* With Upgrade/Muscle Band/Soul Dew the per-tick gain is scaled but their removal subtracts unscaled amounts (inference).
+
+*Conditional deduction (inference, not a ranking):* Amplifies buffs the holder receives for the listed stats; with no buffs its content is the declared HP and shield.
+
+*Sources:* `core/pokemon-entity.ts:1839–1868`; `models/colyseus-models/pokemon.ts:164–168`
+
+### COVER_BAND
+
+**Recipe** (declared): Silk Scarf + Heart Scale. **Declared bonuses:** DEF 12, SHIELD 50. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `cb-redirect` (traced)** — *Trigger:* In handleDamage, after reduction and shield absorption, when the target would reach HP <= 0 and does not itself hold Cover Band. *Targets:* an adjacent same-team Cover Band holder with HP > 0 (first match). *Effect:* Returns holder.handleDamage with the ORIGINAL incoming damage (full pipeline with the holder's defenses and shield); the original target keeps the shield loss already applied but loses no HP and gains no damage PP. *Duration:* Instant. *Scaling:* Only lethal hits; adjacency is checked at the moment of the hit. *Limits:* The cover ally can die from the redirected hit. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Explosive Band can fire on the original target before the redirect (shield step precedes it).
+
+*Conditional deduction (inference, not a ranking):* It protects adjacent allies only from lethal hits and puts the full original damage on the holder, so the holder's defenses and shield decide whether that is sustainable.
+
+*Sources:* `core/pokemon-state.ts:698–725`
+
+### EFFICIENT_BANDANNA
+
+**Recipe** (declared): Silk Scarf + Mystic Water. **Declared bonuses:** SHIELD 15, PP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `ebn-maxpp` (traced)** — *Trigger:* At simulation start (OnSimulationStart). *Targets:* any unit found on the holder's cell or the cells directly left/right on the same row (no team check; off-board cells ignored; holder included). *Effect:* maxPP = round(0.85 x maxPP) for each; the holder's declared PP 15 adds to current PP only. *Duration:* Whole fight. *Scaling:* Two holders covering one unit multiply (each rounds). *Limits:* Whether an enemy can stand on those cells at start was not examined. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Enemy-cell question above; Dev-snapshot differences not checked.
+
+*Conditional deduction (inference, not a ranking):* It lowers max PP for a row segment, which speeds casting for casters there; units that do not cast gain nothing.
+
+*Sources:* `core/effects/items.ts:1536–1548`; `core/simulation.ts:239–262`; `core/board.ts:33–37`
+
+### NULLIFY_BANDANNA
+
+**Recipe** (declared): Silk Scarf + Silk Scarf. **Declared bonuses:** SHIELD 30. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `nb-null` (traced)** — *Trigger:* Held by the unit. *Targets:* holder. *Effect:* (1) canCast is false, so the unit never casts; (2) on each basic attack specialDamage += current PP and PP is set to 0 (then the attack's own +5 PP is added afterwards); (3) addAbilityPower is replaced by addAttack(round(0.2 x value)) ignoring AP boost and crit factors. *Duration:* Whole fight. *Scaling:* The PP damage is special: reduced by the target's SPE_DEF and shield; it adds to totalDamage. *Limits:* Applies to any addAbilityPower call, positive or negative; uses 2 scarf slots of the allowance. *Consumption/reset:* Not consumed.
+
+*Note:* Crafting and allowance (see silk-scarf-items.md): the Normal synergy tier (thresholds 3/5/7/9) sets how many scarf items the player's allowance supports (Nullify Bandanna counts 2). Crafting a scarf item does not depend on a free slot: the craft always proceeds, and the result is only added to scarvesItems (tracked) while scarvesItems.length is below the Normal tier. Tracking matters when the Normal tier later drops: tracked scarves are then removed (from a holder first, otherwise the inventory); untracked ones are not.
+
+*Note:* Detailed specialist guide: silk-scarf-items.md; scarf allowance evidence: sc-allow-tier, sc-allow-player, sc-allow-craft-a, sc-allow-craft-b, sc-allow-lost
+
+*Unresolved / untested:* Declared SHIELD 30 only.
+
+*Conditional deduction (inference, not a ranking):* It turns a caster into a basic-attacker that converts PP into damage; casting-dependent plans do not combine with it.
+
+*Sources:* `core/pokemon-entity.ts:250–256`; `core/attacking-state.ts:92`; `core/pokemon-state.ts:132–135`; `core/pokemon-entity.ts:621–631`
 
 ## Not covered
-The other craftable items (next batches, see [ROADMAP.md](../../ROADMAP.md)); consumables, tools and special items; interactions between these items and specific abilities; burn damage details; Phione; gameplay validation of any item.
+Eviolite and Shiny Stone (not recipe outputs; documented in [core-mechanics.md](core-mechanics.md) §G, outside the 55); consumables, tools, memory discs, special and held-by-code items; interactions between these items and specific abilities; Phione and Kyogre/Rayquaza/Groudon/Shaymin/Sableye/Eevee/Type Null evolution handler paths; burn damage details; dev-snapshot differences; gameplay validation of any item. The Silk Scarf items keep their detailed specialist guide in [silk-scarf-items.md](silk-scarf-items.md).

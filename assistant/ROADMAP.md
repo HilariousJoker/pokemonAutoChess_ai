@@ -13,24 +13,17 @@
 6. **Obsidian integration and updates** — notes in the user's vault, procedure for new revisions. *Not started; no Obsidian connection.*
 
 ## Honest current coverage and gaps
-- **Covered:** 1183 unit baselines; evolution for 20 units; 3 reviewed abilities (Blast Burn, Crunch, Vespiquen Orders); normal-path economy, leveling and shop; the shared damage/PP/cast foundation ([core-mechanics.md](knowledge/07367c34/core-mechanics.md) §A–C, §H–I); all 55 recipes and 90 declared item stat entries; effects of Eviolite, Shiny Stone and the ten Silk Scarf items.
-- **Gaps:** nearly all other abilities; no structured passive records (a few passives are explained in notes, e.g. Vespiquen's row passive, Manaphy's Aqua Egg spawn); effects of the 9 remaining craftable recipe outputs (below); status effects, targeting and movement; special rules/modes; no probe or gameplay evidence for items; no community data (tier lists, win rates); no build comparison; dev-snapshot differences mostly unchecked.
+- **Covered:** 1183 unit baselines; evolution for 20 units; 3 reviewed abilities (Blast Burn, Crunch, Vespiquen Orders); normal-path economy, leveling and shop; the shared damage/PP/cast foundation ([core-mechanics.md](knowledge/07367c34/core-mechanics.md) §A–C, §H–I); all 55 recipes and 90 declared item stat entries; source-traced effect records for all 55 craftable recipe outputs (`item-effects.json`, unified with the Silk Scarf items), plus Eviolite and Shiny Stone separately.
+- **Gaps:** nearly all other abilities; no structured passive records (a few passives are explained in notes, e.g. Vespiquen's row passive, Manaphy's Aqua Egg spawn); effects of consumables, tools, memory discs and other special items; status effects, targeting and movement; special rules/modes; no probe or gameplay evidence for items; no community data (tier lists, win rates); no build comparison; dev-snapshot differences mostly unchecked.
 
-## Current milestone — broader item-effect coverage (in progress)
-Shared combat foundation: **complete** (core-mechanics §H–I; checks in [analysis/quick-reference-checks.md](analysis/quick-reference-checks.md)).
-Item coverage: Eviolite, Shiny Stone, the 10 Silk Scarf items, and the structured/explained records for **batches 1–3 (36 items)** in [item-effects.md](knowledge/07367c34/item-effects.md) / [item-effects.json](data/07367c34/item-effects.json):
-- batch 1: Choice Specs, Soul Dew, Upgrade, Reaper Cloth, Aqua Egg, Blue Orb, Scope Lens, Pokemonomicon, Shiny Charm, Max Revive, Shell Bell, Heavy-Duty Boots;
-- batch 2: Ability Shield, Power Lens, Star Dust, Deep Sea Tooth, X-Ray Vision, Razor Fang, Loaded Dice, Punching Glove, Muscle Band, Assault Vest, Poké Doll, Rocky Helmet;
-- batch 3: Green Orb, Gracidea Flower, Wonder Box, Smoke Ball, Wide Lens, Razor Claw, Safety Goggles, King's Rock, Sticky Barb, Protective Pads, Red Orb, Flame Orb.
-All source-traced and checked by `validate-items.mjs`; no probes or gameplay evidence.
-**Remaining unreviewed recipe outputs (9):** Old Amber, Dawn Stone, Water Stone, Thunder Stone, Fire Stone, Moon Stone, Dusk Stone, Leaf Stone, Ice Stone. (Consumables, tools and special items are outside the craftable list and not yet scheduled.)
-**Final recipe-coverage task:** after the nine stones, build the unified structured catalog of all 55 recipe outputs, incorporating the ten already-reviewed Silk Scarf items by reusing their existing evidence (`silk-scarf-items.md` and the `validate-items.mjs` citation list) rather than re-auditing them.
-Milestone completes when all craftable items have records and notes; no best build is declared before that.
+## Completed milestone — craftable recipe-output catalog (all 55 `ItemRecipe` outputs)
+Shared combat foundation: complete (core-mechanics §H–I). **Recipe-output coverage: complete** — [item-effects.json](data/07367c34/item-effects.json) has exactly the 55 `ItemRecipe` output keys (checked by `validate-items.mjs` against the pinned source), each with recipe, declared-stat availability, traced effects or verified absence, evidence ranges and unresolved details; [item-effects.md](knowledge/07367c34/item-effects.md) explains all 55 and is generated from the records. The ten Silk Scarf outputs were unified into the catalog reusing their evidence; [silk-scarf-items.md](knowledge/07367c34/silk-scarf-items.md) remains the detailed specialist guide. Eviolite and Shiny Stone are not recipe outputs (core-mechanics §G) and are not counted. All of it is source-traced: no probes, no gameplay evidence, no build comparison.
+Outside this milestone (not scheduled): consumables, tools, memory discs and other special items; evolution-handler paths named in the records; dev-snapshot item differences.
 
 ## Next three tasks
 1. **Shared combat foundation** — *done*.
-2. **Broader item-effect coverage** — *in progress*: batches 1–3 done (36 items); trace the 9 remaining recipe outputs (the synergy stones), then unify all 55 recipe outputs including the reviewed scarf items into one structured catalog into `item-effects.json` / `item-effects.md` with checked line ranges; reuse `item-recipes-stats.json`; no new framework.
-3. **Representative build recommendations + fast retrieval tests** — compare item options for a few representative units from the covered mechanics (labelled "reasonable option", not "best"), and add a small set of QUICK-mode retrieval tests.
+2. **Broader item-effect coverage** — *done for the 55 craftable recipe outputs*.
+3. **Next milestone — targeted item retrieval and representative build comparisons** (not started) — compare item options for a few representative units from the covered mechanics (labelled "reasonable option", not "best"), and add a small set of QUICK-mode retrieval tests.
 
 ## Rules for future updates
 - Keep revisions separate: new revision → new `data/<sha8>/` and `knowledge/<sha8>/`; never overwrite or silently mix the pinned production-reference files with another revision.

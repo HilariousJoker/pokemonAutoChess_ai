@@ -216,8 +216,14 @@ else bad("match-reference.md missing")
   const BATCH1 = ["CHOICE_SPECS", "SOUL_DEW", "UPGRADE", "REAPER_CLOTH", "AQUA_EGG", "BLUE_ORB", "SCOPE_LENS", "POKEMONOMICON", "SHINY_CHARM", "MAX_REVIVE", "SHELL_BELL", "HEAVY_DUTY_BOOTS"]
   const BATCH2 = ["ABILITY_SHIELD", "POWER_LENS", "STAR_DUST", "DEEP_SEA_TOOTH", "XRAY_VISION", "RAZOR_FANG", "LOADED_DICE", "PUNCHING_GLOVE", "MUSCLE_BAND", "ASSAULT_VEST", "POKE_DOLL", "ROCKY_HELMET"]
   const BATCH3 = ["GREEN_ORB", "GRACIDEA_FLOWER", "WONDER_BOX", "SMOKE_BALL", "WIDE_LENS", "RAZOR_CLAW", "SAFETY_GOGGLES", "KINGS_ROCK", "STICKY_BARB", "PROTECTIVE_PADS", "RED_ORB", "FLAME_ORB"]
-  const WANT = [...BATCH1, ...BATCH2, ...BATCH3]
-  if (!eq(Object.keys(fx.items), WANT)) bad("item-effects: item list differs from the batch scope")
+  const SCARVES = ["FRIEND_BOW", "BLACK_BELT", "MACH_RIBBON", "EXPLOSIVE_BAND", "TWIST_BAND", "LUCKY_RIBBON", "BIG_EATER_BELT", "COVER_BAND", "EFFICIENT_BANDANNA", "NULLIFY_BANDANNA"]
+  const STONES = ["OLD_AMBER", "DAWN_STONE", "WATER_STONE", "THUNDER_STONE", "FIRE_STONE", "MOON_STONE", "DUSK_STONE", "LEAF_STONE", "ICE_STONE"]
+  const WANT = [...BATCH1, ...BATCH2, ...BATCH3, ...SCARVES, ...STONES]
+  // exact key-set equality with the ItemRecipe output keys of the pinned source; Eviolite / Shiny Stone are not recipe outputs
+  if (!eq([...WANT].sort(), Object.keys(recipe).sort())) bad("batch lists do not equal the ItemRecipe key set")
+  if (WANT.length !== 55 || new Set(WANT).size !== 55) bad("expected 55 distinct recipe outputs")
+  if (!eq(Object.keys(fx.items).sort(), [...WANT].sort())) bad("item-effects: key set differs from the ItemRecipe output keys")
+  if ("EVIOLITE" in fx.items || "SHINY_STONE" in fx.items) bad("Eviolite / Shiny Stone must not be counted in item-effects.json")
   const md = readFileSync(resolve(HERE, "knowledge/07367c34/item-effects.md"), "utf8")
   const cite = (id) => { const e = fx.evidence.find((x) => x.id === id); return e && `${e.file.replace(/^app\//, "")}:${e.lines[0] === e.lines[1] ? e.lines[0] : e.lines[0] + "–" + e.lines[1]}` }
   for (const [name, rec] of Object.entries(fx.items)) {
@@ -228,6 +234,8 @@ else bad("match-reference.md missing")
     if (name === "MAX_REVIVE" && rec.declaredStats !== null) bad("MAX_REVIVE must record declaredStats null (no entry)")
     const pre = rec.effects.length ? "" : "(no behavioral effect)"
     if (!rec.effects.length && !(rec.absentEffects && rec.absentEffects.length)) bad(`item-effects ${name}: no effects and no absentEffects`)
+    if (!(rec.unresolved && rec.unresolved.length)) bad(`item-effects ${name}: no unresolved details recorded`)
+    if (!("declaredStats" in rec)) bad(`item-effects ${name}: declaredStats availability missing`)
     const used = new Set([...(rec.evidence ?? [])])
     for (const ef of rec.effects) {
       if (!ef.evidence?.length) bad(`item-effects ${name}/${ef.id}: no evidence`)
@@ -249,14 +257,29 @@ else bad("match-reference.md missing")
   for (const [k, rec] of Object.entries(fx.items)) {
     const inTable = ie.includes(`[Item.${k}]:`)
     if (rec.handlerIn === "ItemEffects" && !inTable) bad(`ItemEffects has no [Item.${k}] entry`)
-    if (rec.handlerIn !== "ItemEffects" && inTable) bad(`ItemEffects has a ${k} entry but the record says handlerIn=${rec.handlerIn}`)
-    if (!["ItemEffects", "elsewhere", "none"].includes(rec.handlerIn)) bad(`${k}: handlerIn missing/invalid`)
+    if (rec.handlerIn === "ItemEffects-generated") {
+      // stones: the OnItemDropped refusal is generated for every SynergyStones member (items.ts), not written as a literal key
+      if (inTable || !ie.includes("SynergyStones.map((stone) => [") || !STONES.includes(k)) bad(`${k}: generated ItemEffects claim is wrong`)
+    } else if (rec.handlerIn !== "ItemEffects" && inTable) bad(`ItemEffects has a ${k} entry but the record says handlerIn=${rec.handlerIn}`)
+    if (!["ItemEffects", "ItemEffects-generated", "elsewhere", "none"].includes(rec.handlerIn)) bad(`${k}: handlerIn missing/invalid`)
   }
   // corrections made after batch 1 stay in place
   const lim = (k) => JSON.stringify(fx.items[k].effects)
   if (!/clamps SPE_DEF at 0/.test(lim("POKEMONOMICON"))) bad("POKEMONOMICON record lost the SPE_DEF clamp")
   if (!/0\.5 to the crit-power multiplier/.test(lim("REAPER_CLOTH"))) bad("REAPER_CLOTH record lost the crit-power units")
   if (!/not guaranteed/.test(lim("SCOPE_LENS")) || !/not unconditional/.test(lim("BLUE_ORB"))) bad("Scope Lens / Blue Orb records lost the addPP qualification")
+  // milestone corrections stay in place
+  if (!/residual damage that goes to HP/.test(lim("PROTECTIVE_PADS")) || /HP damage is not doubled/.test(lim("PROTECTIVE_PADS"))) bad("PROTECTIVE_PADS record lost the shield-overflow correction")
+  if (!/HP -40/.test(JSON.stringify(fx.items.PROTECTIVE_PADS.arithmetic)) || !/not an execution/.test(JSON.stringify(fx.items.PROTECTIVE_PADS.arithmetic))) bad("PROTECTIVE_PADS arithmetic example missing or not labelled")
+  if (/only when the caster has ABILITY_CRIT/.test(JSON.stringify(fx.items.RAZOR_CLAW)) || !/canCritByDefault/.test(JSON.stringify(fx.items.RAZOR_CLAW))) bad("RAZOR_CLAW record has the retired ability-crit wording")
+  if (!/does not enlarge|not enlarge|does not enlarge that area/.test(JSON.stringify(fx.items.WIDE_LENS)) || !/Inference/.test(JSON.stringify(fx.items.WIDE_LENS))) bad("WIDE_LENS record lost the Blast Burn area qualification")
+  if (!/ATTEMPTS to set the holder on fire/.test(lim("FLAME_ORB")) || !/Rune Protect/.test(lim("FLAME_ORB"))) bad("FLAME_ORB record lost the blockable-burn wording")
+  if (/permanently burns/.test(md)) bad("item-effects.md still says Flame Orb permanently burns")
+  // stones: type grant vs tier activation, equip refusal and evolution declarations are recorded
+  for (const k of STONES) {
+    const t = JSON.stringify(fx.items[k].effects)
+    if (!/not the same as activating a tier/.test(t) || !/Equip is refused/.test(t) || !/Type Null/.test(t)) bad(`${k}: stone record missing type-vs-tier, refusal or evolution declarations`)
+  }
   // batch-3 ordering corrections stay in place
   if (!/AFTER the bounce damage and after the holder's onHit/.test(lim("RAZOR_FANG"))) bad("RAZOR_FANG record lost the Loaded Dice ordering")
   if (!/does not check that the second hit actually dealt damage/.test(lim("POWER_LENS")) || !/source-traced, not gameplay-tested/.test(lim("POWER_LENS"))) bad("POWER_LENS record lost the separate Loaded Dice reflection branch")
@@ -264,7 +287,7 @@ else bad("match-reference.md missing")
   if (/does nothing for basic attacks|only matters for a holder whose damage comes from AP-scaled casts/.test(md)) bad("item-effects.md has the retired Choice Specs wording")
   const sumRows = md.split("\n").filter((l) => /^\| [A-Z_]+ \|/.test(l) && !l.startsWith("| Item")).length
   if (sumRows !== WANT.length) bad(`item-effects.md summary has ${sumRows} rows, expected ${WANT.length}`)
-  console.log(`validate-items: item-effects OK (${fx.evidence.length} evidence ranges, ${WANT.length} items)`)
+  console.log(`validate-items: item-effects OK (${fx.evidence.length} evidence ranges, ${WANT.length} recipe outputs)`)
 }
 
 if (problems.length) { console.error(`validate-items: ${problems.length} problem(s)`); problems.forEach((p) => console.error(" - " + p)); process.exit(1) }
