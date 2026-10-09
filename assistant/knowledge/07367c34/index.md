@@ -17,7 +17,7 @@ How to answer from this index: [ASK.md](../../ASK.md). How to start a session: [
 | **Synergy** counting and thresholds | [core-mechanics.md](core-mechanics.md) §E | — |
 | **Items**: slots, combining, Eviolite, Shiny Stone | [core-mechanics.md](core-mechanics.md) §F–G | [evolution-context.md](evolution-context.md) |
 | **Silk Scarf** recipes and the ten scarf items (bonuses, effects, allowance) | [silk-scarf-items.md](silk-scarf-items.md) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) |
-| **Item effects, batch 1** (Choice Specs, Soul Dew, Upgrade, Reaper Cloth, Aqua Egg, Blue Orb, Scope Lens, Pokemonomicon, Shiny Charm, Max Revive, Shell Bell, Heavy-Duty Boots) | [item-effects.md](item-effects.md) | [`item-effects.json`](../../data/07367c34/item-effects.json) |
+| **Item effects, batches 1–2** (Choice Specs, Soul Dew, Upgrade, Reaper Cloth, Aqua Egg, Blue Orb, Scope Lens, Pokemonomicon, Shiny Charm, Max Revive, Shell Bell, Heavy-Duty Boots; Ability Shield, Power Lens, Star Dust, Deep Sea Tooth, X-Ray Vision, Razor Fang, Loaded Dice, Punching Glove, Muscle Band, Assault Vest, Poké Doll, Rocky Helmet) | [item-effects.md](item-effects.md) | [`item-effects.json`](../../data/07367c34/item-effects.json) |
 | **Any item's recipe / declared stats** (55 recipes, 90 stat entries) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) | effects: only the notes above — otherwise not covered |
 | Facts to have loaded **before play** (QUICK mode) | [match-reference.md](match-reference.md) | linked notes for evidence |
 | "Is this the **live** version?" / differences between revisions | [version-alignment](../../analysis/version-alignment.md) · [pilot-baseline-comparison](../../analysis/pilot-baseline-comparison.md) | — |
@@ -34,7 +34,7 @@ Evidence each answer can cite: the note section, its source `file:lines` at the 
 | Economy and leveling | normal path | SCRIBBLE/DOUBLE_UP, special rules, income/XP items |
 | Shop | normal path, levels 2–9 | shop-modifying items/synergies/rules, regional-variant pool accounting |
 | Core mechanics | damage defense step, PP/cast, attack interval, rows, synergy counting, item slots/combining, two item examples | the full damage pipeline, status effects, movement/targeting detail, per-item rules, synergy exceptions beyond Dragon/FAMILY_OUTING/dynamic types |
-| Items | all 55 recipes and 90 declared stat entries (data); behavior of Eviolite, Shiny Stone, the ten Silk Scarf items and 12 batch-1 items (traced, no probe) | behavior of the 33 remaining craftable items and all consumables/special items, item interactions with abilities, dev-snapshot item differences |
+| Items | all 55 recipes and 90 declared stat entries (data); behavior of Eviolite, Shiny Stone, the ten Silk Scarf items and 24 batch-1/2 items (traced, no probe) | behavior of the 21 remaining craftable recipe outputs (see ROADMAP.md) and all consumables/special items, item interactions with abilities, dev-snapshot item differences |
 
 ## Boundaries to state when relevant
 - **Bare-instance ≠ acquired ≠ combat.** Catalog stats are a freshly created unit; in-match values include evolution carry-over, items, synergies, buffs and combat effects (e.g. Cosmoem HP: [evolution-context.md](evolution-context.md) §Cosmog → Cosmoem).

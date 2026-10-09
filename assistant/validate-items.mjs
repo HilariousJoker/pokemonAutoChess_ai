@@ -213,7 +213,9 @@ else bad("match-reference.md missing")
     if (!(a >= 1 && b >= a && b <= L.length)) { bad(`item-effects ${e.id}: bad range ${a}-${b}`); continue }
     if (!norm(L.slice(a - 1, b).join(" ")).includes(norm(e.expect))) bad(`item-effects ${e.id}: "${e.expect}" not in ${e.file}:${a}-${b}`)
   }
-  const WANT = ["CHOICE_SPECS", "SOUL_DEW", "UPGRADE", "REAPER_CLOTH", "AQUA_EGG", "BLUE_ORB", "SCOPE_LENS", "POKEMONOMICON", "SHINY_CHARM", "MAX_REVIVE", "SHELL_BELL", "HEAVY_DUTY_BOOTS"]
+  const BATCH1 = ["CHOICE_SPECS", "SOUL_DEW", "UPGRADE", "REAPER_CLOTH", "AQUA_EGG", "BLUE_ORB", "SCOPE_LENS", "POKEMONOMICON", "SHINY_CHARM", "MAX_REVIVE", "SHELL_BELL", "HEAVY_DUTY_BOOTS"]
+  const BATCH2 = ["ABILITY_SHIELD", "POWER_LENS", "STAR_DUST", "DEEP_SEA_TOOTH", "XRAY_VISION", "RAZOR_FANG", "LOADED_DICE", "PUNCHING_GLOVE", "MUSCLE_BAND", "ASSAULT_VEST", "POKE_DOLL", "ROCKY_HELMET"]
+  const WANT = [...BATCH1, ...BATCH2]
   if (!eq(Object.keys(fx.items), WANT)) bad("item-effects: item list differs from the batch scope")
   const md = readFileSync(resolve(HERE, "knowledge/07367c34/item-effects.md"), "utf8")
   const cite = (id) => { const e = fx.evidence.find((x) => x.id === id); return e && `${e.file.replace(/^app\//, "")}:${e.lines[0] === e.lines[1] ? e.lines[0] : e.lines[0] + "–" + e.lines[1]}` }
@@ -238,11 +240,22 @@ else bad("match-reference.md missing")
   // absence: CHOICE_SPECS referenced only in the expected TypeScript files
   const g = execFileSync("git", ["-C", REPO, "grep", "-l", "CHOICE_SPECS", SHA, "--", ":(glob)app/**/*.ts", ":(glob)app/**/*.tsx"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(SHA + ":", "")).sort()
   if (!eq(g, fx.items.CHOICE_SPECS.absentEffectsCheck.gitGrepFiles)) bad(`CHOICE_SPECS referenced in unexpected files: ${g}`)
-  // the handlers each item relies on exist in the ItemEffects table (or are absent for CHOICE_SPECS / declared-only)
+  // each record says where its handler lives; check that against the ItemEffects table (ItemEffects entry present <=> handlerIn "ItemEffects")
   const ie = src("app/core/effects/items.ts").join("\n")
-  // SHINY_CHARM's behavior lives in handleDamage (not in ItemEffects); CHOICE_SPECS has none
-  for (const k of WANT.filter((k) => k !== "CHOICE_SPECS" && k !== "SHINY_CHARM")) if (!ie.includes(`[Item.${k}]:`)) bad(`ItemEffects has no [Item.${k}] entry`)
-  for (const k of ["CHOICE_SPECS", "SHINY_CHARM"]) if (ie.includes(`[Item.${k}]`)) bad(`ItemEffects has a ${k} entry; the record's claim is wrong`)
+  for (const [k, rec] of Object.entries(fx.items)) {
+    const inTable = ie.includes(`[Item.${k}]:`)
+    if (rec.handlerIn === "ItemEffects" && !inTable) bad(`ItemEffects has no [Item.${k}] entry`)
+    if (rec.handlerIn !== "ItemEffects" && inTable) bad(`ItemEffects has a ${k} entry but the record says handlerIn=${rec.handlerIn}`)
+    if (!["ItemEffects", "elsewhere", "none"].includes(rec.handlerIn)) bad(`${k}: handlerIn missing/invalid`)
+  }
+  // corrections made after batch 1 stay in place
+  const lim = (k) => JSON.stringify(fx.items[k].effects)
+  if (!/clamps SPE_DEF at 0/.test(lim("POKEMONOMICON"))) bad("POKEMONOMICON record lost the SPE_DEF clamp")
+  if (!/0\.5 to the crit-power multiplier/.test(lim("REAPER_CLOTH"))) bad("REAPER_CLOTH record lost the crit-power units")
+  if (!/not guaranteed/.test(lim("SCOPE_LENS")) || !/not unconditional/.test(lim("BLUE_ORB"))) bad("Scope Lens / Blue Orb records lost the addPP qualification")
+  if (/does nothing for basic attacks|only matters for a holder whose damage comes from AP-scaled casts/.test(md)) bad("item-effects.md has the retired Choice Specs wording")
+  const sumRows = md.split("\n").filter((l) => /^\| [A-Z_]+ \|/.test(l) && !l.startsWith("| Item")).length
+  if (sumRows !== WANT.length) bad(`item-effects.md summary has ${sumRows} rows, expected ${WANT.length}`)
   console.log(`validate-items: item-effects OK (${fx.evidence.length} evidence ranges, ${WANT.length} items)`)
 }
 
