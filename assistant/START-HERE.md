@@ -22,6 +22,18 @@ Read assistant/ASK.md and assistant/knowledge/07367c34/match-reference.md in thi
 - **RESEARCH** (a direct mechanics question, or "research: …") allows bounded read-only source inspection at the pinned revision without asking permission to read files; what it newly reads is labelled unreviewed. See ASK.md → Answering modes.
 - No response-time guarantee is made for either mode. If you want full detail from the first session type (index first), use the longer instruction above instead.
 
+## FAST mode — QUICK plus one batched item lookup
+Start a **new** question-only session (same fork and branch) with this exact first message:
+```text
+Read assistant/ASK.md and assistant/knowledge/07367c34/match-reference.md in this repository (branch claude/great-volta-v6znve). Follow ASK.md. Read-only; production-branch reference 07367c34 only (deployment unverified). Use FAST mode: answer from these two files, and for any question that names items run ONE batched `node assistant/lookup-item.mjs "<item>" "<item>" ...` (or `--component "<component>"`) and answer from its cards. No source searches, no git show, no other notes, no research; if a unit's ability or passive is not covered in the loaded reference, say so in one clause. Answer first, essential uncertainty only. Use RESEARCH mode only when I write "research:". Confirm in one line that both files are loaded, then wait.
+```
+Examples of what Claude then runs (one command per question):
+- "What do Soul Dew and Aqua Egg do?" → `node assistant/lookup-item.mjs "Soul Dew" "Aqua Egg"`
+- "What can I make with a Silk Scarf?" → `node assistant/lookup-item.mjs --component "Silk Scarf"`
+- "Is Wide Lens good on Charmander?" → `node assistant/lookup-item.mjs "Wide Lens"`, then an answer built from the card plus the loaded Charmander-family facts (a reasonable-option statement, not a ranking)
+- "What does the Nullify Bandanna do to a caster?" → `node assistant/lookup-item.mjs "Nullify Bandanna"`
+The tool reads only saved data and prints a compact card (recipe, declared bonuses, effect and trigger, key limits, one note link, snapshot label once). Unknown, ambiguous or out-of-catalog names fail with a message instead of a guess. **No response-time guarantee** is made: the local command takes tens of milliseconds, which says nothing about Claude's answer time. Mid-match shorthand and QUICK mode (no tools at all) remain available.
+
 ## Questions you can ask now
 - "What are Charizard's base stats, and what does its ability do?" *(covered: baseline + reviewed Blast Burn, raw amounts)*
 - "How does Pikachu decide between Raichu and Alolan Raichu?"

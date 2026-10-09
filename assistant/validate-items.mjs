@@ -275,6 +275,38 @@ else bad("match-reference.md missing")
   if (!/does not enlarge|not enlarge|does not enlarge that area/.test(JSON.stringify(fx.items.WIDE_LENS)) || !/Inference/.test(JSON.stringify(fx.items.WIDE_LENS))) bad("WIDE_LENS record lost the Blast Burn area qualification")
   if (!/ATTEMPTS to set the holder on fire/.test(lim("FLAME_ORB")) || !/Rune Protect/.test(lim("FLAME_ORB"))) bad("FLAME_ORB record lost the blockable-burn wording")
   if (/permanently burns/.test(md)) bad("item-effects.md still says Flame Orb permanently burns")
+  // lookup-item cards: every record has display name, summary, caveats and a note link whose anchor exists; numbers in the
+  // summary / caveats must also appear in the detailed record (so a compact summary cannot invent a figure)
+  for (const k of WANT) {
+    const rec = fx.items[k]
+    for (const f of ["displayName", "summary", "caveats", "noteLink"]) if (typeof rec[f] !== "string" || !rec[f].trim()) bad(`${k}: ${f} missing for the lookup card`)
+    const anchor = rec.noteLink?.match(/item-effects\.md#(.+)$/)
+    if (anchor && !md.split("\n").some((l) => l === "### " + anchor[1].toUpperCase())) bad(`${k}: noteLink anchor ${anchor[1]} has no heading in item-effects.md`)
+    if (!anchor && !(SCARVES.includes(k) && rec.noteLink === "knowledge/07367c34/silk-scarf-items.md")) bad(`${k}: unexpected noteLink ${rec.noteLink}`)
+    const detail = JSON.stringify({ ...rec, summary: undefined, caveats: undefined })
+    const has = (n) => new RegExp(`(?<![\\d.])${n.replace(".", "\\.")}(?![\\d])`).test(detail)
+    for (const m of (rec.summary + " " + rec.caveats).matchAll(/(\d+(?:\.\d+)?)( ?%)?/g)) {
+      const n = m[1]
+      const pct = m[2] ? String(+(Number(n) / 100).toFixed(4)) : null // "33 %" may appear as 0.33 in the record
+      if (!has(n) && !(pct && has(pct))) bad(`${k}: number ${m[0].trim()} in summary/caveats not found in the detailed record`)
+    }
+  }
+  // compact summaries must keep the important conditions
+  const card = (k) => (fx.items[k].summary + " " + fx.items[k].caveats)
+  const need = (k, ...res) => res.forEach((re) => { if (!re.test(card(k))) bad(`${k}: summary/caveats lost ${re}`) })
+  need("NULLIFY_BANDANNA", /cannot cast/, /PP/, /Attack/, /positive or negative/)
+  need("PROTECTIVE_PADS", /only to a target that has a shield/, /excess goes to HP/, /unshielded/, /arithmetic/)
+  need("WIDE_LENS", /does not enlarge|not enlarge/, /inference/)
+  need("FLAME_ORB", /attempts/, /Rune Protect/, /burn immunity/, /Water Bubble/)
+  need("DUSK_STONE", /MovingState/, /not a guaranteed first attack/)
+  for (const k of STONES) need(k, /ordinary base counting/, /Dragon doubling/, /Removal differs by path/)
+  // stone path qualifications (records)
+  for (const k of STONES) {
+    const t = JSON.stringify(fx.items[k].effects)
+    if (!/ordinary base counting/.test(t) || !/Dragon doubling/.test(t)) bad(`${k}: stone counting qualification missing in effects`)
+    if (!/Board unit \(Pokemon\.removeItems\)/.test(t) || !/Fight entity \(PokemonEntity\.removeItemEffect\)/.test(t) || !/without checking other held type-granting items/.test(t)) bad(`${k}: separate removal paths missing in effects`)
+  }
+  if (!/MovingState/.test(JSON.stringify(fx.items.DUSK_STONE.effects)) || /so it acts first/.test(JSON.stringify(fx.items.DUSK_STONE.effects))) bad("DUSK_STONE record has the retired initial-cooldown wording")
   // stones: type grant vs tier activation, equip refusal and evolution declarations are recorded
   for (const k of STONES) {
     const t = JSON.stringify(fx.items[k].effects)

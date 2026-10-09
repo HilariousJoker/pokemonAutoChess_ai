@@ -7,7 +7,7 @@
 ## Stages
 1. **Source/version foundation** — pinned revisions, extractors with provenance, output guards. *Done for the pilot scope.*
 2. **Structured knowledge and explanations** — data records plus reviewed notes with `file:lines`. *Partial (below).*
-3. **Fast retrieval** — `match-reference.md` for QUICK answers, `ASK.md` modes, lookup tool. *First version in place; no measured response times.*
+3. **Fast retrieval** — `match-reference.md` for QUICK answers, `ASK.md` modes, lookup tool. *In place: QUICK (no tools), FAST (one batched `lookup-item.mjs` call) and unit lookups; no measured Claude response times.*
 4. **Strategic reasoning and community evidence** — deductions from verified mechanics; later, clearly labelled community/tier data. *Mechanics-based reasoning allowed; no community evidence collected.*
 5. **Practical validation** — compare answers with real matches. *Not started; no gameplay evidence exists.*
 6. **Obsidian integration and updates** — notes in the user's vault, procedure for new revisions. *Not started; no Obsidian connection.*
@@ -20,10 +20,12 @@
 Shared combat foundation: complete (core-mechanics §H–I). **Recipe-output coverage: complete** — [item-effects.json](data/07367c34/item-effects.json) has exactly the 55 `ItemRecipe` output keys (checked by `validate-items.mjs` against the pinned source), each with recipe, declared-stat availability, traced effects or verified absence, evidence ranges and unresolved details; [item-effects.md](knowledge/07367c34/item-effects.md) explains all 55 and is generated from the records. The ten Silk Scarf outputs were unified into the catalog reusing their evidence; [silk-scarf-items.md](knowledge/07367c34/silk-scarf-items.md) remains the detailed specialist guide. Eviolite and Shiny Stone are not recipe outputs (core-mechanics §G) and are not counted. All of it is source-traced: no probes, no gameplay evidence, no build comparison.
 Outside this milestone (not scheduled): consumables, tools, memory discs and other special items; evolution-handler paths named in the records; dev-snapshot item differences.
 
-## Next three tasks
-1. **Shared combat foundation** — *done*.
-2. **Broader item-effect coverage** — *done for the 55 craftable recipe outputs*.
-3. **Next milestone — targeted item retrieval and representative build comparisons** (not started) — compare item options for a few representative units from the covered mechanics (labelled "reasonable option", not "best"), and add a small set of QUICK-mode retrieval tests.
+## Current milestone — targeted item retrieval (started)
+`lookup-item.mjs` (read-only, saved data only) answers item questions with compact cards (single, batched, `--component`, `--list`); `test-lookup-item.mjs` checks it; ASK.md has a FAST mode (QUICK plus one batched item lookup) with exact startup instructions in START-HERE.md. Cards are summaries of the detailed records, checked by `validate-items.mjs`. No measured response-time claim: local command time is reported separately and is not evidence of fast Claude answers. Remaining in this milestone: nothing scheduled beyond the build comparisons below.
+
+## Next tasks
+1. Shared combat foundation — *done*. 2. Item-effect coverage of the 55 craftable recipe outputs — *done*. 3. Item retrieval tool and FAST mode — *done (this milestone's first part)*.
+4. **Next: representative build comparisons** (not started; do not begin automatically) — compare item options for a few representative units from the covered mechanics (labelled "reasonable option", not "best"), with a small set of retrieval-answer tests.
 
 ## Rules for future updates
 - Keep revisions separate: new revision → new `data/<sha8>/` and `knowledge/<sha8>/`; never overwrite or silently mix the pinned production-reference files with another revision.

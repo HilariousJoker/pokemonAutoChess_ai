@@ -19,6 +19,7 @@ How to answer from this index: [ASK.md](../../ASK.md). How to start a session: [
 | **Silk Scarf** recipes and the ten scarf items (bonuses, effects, allowance) | [silk-scarf-items.md](silk-scarf-items.md) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) |
 | **Item effects — any of the 55 craftable recipe outputs** (all scarf items, synergy stones and the rest; Eviolite/Shiny Stone are separate, see core-mechanics §G) | [item-effects.md](item-effects.md) | [`item-effects.json`](../../data/07367c34/item-effects.json); scarf detail: [silk-scarf-items.md](silk-scarf-items.md) |
 | **Any item's recipe / declared stats** (55 recipes, 90 stat entries) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) | effects: only the notes above — otherwise not covered |
+| **Item card** for one or several items / what a component makes (FAST mode) | `node assistant/lookup-item.mjs "<item>" ...` · `--component "<component>"` · `--list` | [item-effects.md](item-effects.md) |
 | Facts to have loaded **before play** (QUICK mode) | [match-reference.md](match-reference.md) | linked notes for evidence |
 | "Is this the **live** version?" / differences between revisions | [version-alignment](../../analysis/version-alignment.md) · [pilot-baseline-comparison](../../analysis/pilot-baseline-comparison.md) | — |
 | Current **meta**, win rates, best comps | *not in this knowledge* — say so | mechanics notes only for explaining individual effects |
