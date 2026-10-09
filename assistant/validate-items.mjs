@@ -215,7 +215,8 @@ else bad("match-reference.md missing")
   }
   const BATCH1 = ["CHOICE_SPECS", "SOUL_DEW", "UPGRADE", "REAPER_CLOTH", "AQUA_EGG", "BLUE_ORB", "SCOPE_LENS", "POKEMONOMICON", "SHINY_CHARM", "MAX_REVIVE", "SHELL_BELL", "HEAVY_DUTY_BOOTS"]
   const BATCH2 = ["ABILITY_SHIELD", "POWER_LENS", "STAR_DUST", "DEEP_SEA_TOOTH", "XRAY_VISION", "RAZOR_FANG", "LOADED_DICE", "PUNCHING_GLOVE", "MUSCLE_BAND", "ASSAULT_VEST", "POKE_DOLL", "ROCKY_HELMET"]
-  const WANT = [...BATCH1, ...BATCH2]
+  const BATCH3 = ["GREEN_ORB", "GRACIDEA_FLOWER", "WONDER_BOX", "SMOKE_BALL", "WIDE_LENS", "RAZOR_CLAW", "SAFETY_GOGGLES", "KINGS_ROCK", "STICKY_BARB", "PROTECTIVE_PADS", "RED_ORB", "FLAME_ORB"]
+  const WANT = [...BATCH1, ...BATCH2, ...BATCH3]
   if (!eq(Object.keys(fx.items), WANT)) bad("item-effects: item list differs from the batch scope")
   const md = readFileSync(resolve(HERE, "knowledge/07367c34/item-effects.md"), "utf8")
   const cite = (id) => { const e = fx.evidence.find((x) => x.id === id); return e && `${e.file.replace(/^app\//, "")}:${e.lines[0] === e.lines[1] ? e.lines[0] : e.lines[0] + "–" + e.lines[1]}` }
@@ -237,9 +238,12 @@ else bad("match-reference.md missing")
     for (const x of used) { const c = cite(x); if (c && !md.includes(c)) bad(`item-effects.md lacks citation ${c} (${name}/${x})`) }
     if (!md.includes("### " + name)) bad(`item-effects.md lacks section for ${name}`)
   }
-  // absence: CHOICE_SPECS referenced only in the expected TypeScript files
-  const g = execFileSync("git", ["-C", REPO, "grep", "-l", "CHOICE_SPECS", SHA, "--", ":(glob)app/**/*.ts", ":(glob)app/**/*.tsx"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(SHA + ":", "")).sort()
-  if (!eq(g, fx.items.CHOICE_SPECS.absentEffectsCheck.gitGrepFiles)) bad(`CHOICE_SPECS referenced in unexpected files: ${g}`)
+  // confirmed absences: records with absentEffectsCheck must be referenced only in the listed TypeScript files
+  for (const [name, rec] of Object.entries(fx.items)) {
+    if (!rec.absentEffectsCheck) { if (rec.handlerIn === "none") bad(`${name}: handlerIn none needs absentEffectsCheck`); continue }
+    const g = execFileSync("git", ["-C", REPO, "grep", "-l", name, SHA, "--", ":(glob)app/**/*.ts", ":(glob)app/**/*.tsx"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(SHA + ":", "")).sort()
+    if (!eq(g, [...rec.absentEffectsCheck.gitGrepFiles].sort())) bad(`${name} referenced in unexpected files: ${g}`)
+  }
   // each record says where its handler lives; check that against the ItemEffects table (ItemEffects entry present <=> handlerIn "ItemEffects")
   const ie = src("app/core/effects/items.ts").join("\n")
   for (const [k, rec] of Object.entries(fx.items)) {
@@ -253,6 +257,10 @@ else bad("match-reference.md missing")
   if (!/clamps SPE_DEF at 0/.test(lim("POKEMONOMICON"))) bad("POKEMONOMICON record lost the SPE_DEF clamp")
   if (!/0\.5 to the crit-power multiplier/.test(lim("REAPER_CLOTH"))) bad("REAPER_CLOTH record lost the crit-power units")
   if (!/not guaranteed/.test(lim("SCOPE_LENS")) || !/not unconditional/.test(lim("BLUE_ORB"))) bad("Scope Lens / Blue Orb records lost the addPP qualification")
+  // batch-3 ordering corrections stay in place
+  if (!/AFTER the bounce damage and after the holder's onHit/.test(lim("RAZOR_FANG"))) bad("RAZOR_FANG record lost the Loaded Dice ordering")
+  if (!/does not check that the second hit actually dealt damage/.test(lim("POWER_LENS")) || !/source-traced, not gameplay-tested/.test(lim("POWER_LENS"))) bad("POWER_LENS record lost the separate Loaded Dice reflection branch")
+  if (!/not benefiting the bounce/.test(lim("LOADED_DICE"))) bad("LOADED_DICE record lost the Razor Fang ordering")
   if (/does nothing for basic attacks|only matters for a holder whose damage comes from AP-scaled casts/.test(md)) bad("item-effects.md has the retired Choice Specs wording")
   const sumRows = md.split("\n").filter((l) => /^\| [A-Z_]+ \|/.test(l) && !l.startsWith("| Item")).length
   if (sumRows !== WANT.length) bad(`item-effects.md summary has ${sumRows} rows, expected ${WANT.length}`)

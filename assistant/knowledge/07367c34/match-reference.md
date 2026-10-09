@@ -53,7 +53,7 @@
 ## Items in general — [core-mechanics.md](core-mechanics.md) §F–G
 - 3 item slots. A held basic component + another basic component combine through the recipe table; a full unit accepts a fourth item only if it combines. No phase check in the equip command (whether a mid-fight equip affects the running fight is untraced).
 - Eviolite blocks every kind of evolution on its holder. Shiny Stone gives Light type and +50 AP; on a Cosmoem it does **not** satisfy the light-cell position test.
-- Declared stats/recipes for **all** items: [item-recipes-stats.json](../../data/07367c34/item-recipes-stats.json). Traced effects exist for Eviolite, Shiny Stone, the ten scarf items below and 24 more items ([item-effects.md](item-effects.md): detail is not preloaded here — not covered in QUICK mode unless listed in this page); all other items: not covered.
+- Declared stats/recipes for **all** items: [item-recipes-stats.json](../../data/07367c34/item-recipes-stats.json). Traced effects exist for Eviolite, Shiny Stone, the ten scarf items below and 36 more items ([item-effects.md](item-effects.md): detail is not preloaded here — not covered in QUICK mode unless listed in this page); all other items: not covered.
 
 ## Silk Scarf — all ten recipes — [guide](silk-scarf-items.md)
 Declared bonuses are applied as stat calls when the holder enters a fight (shield/PP are current values). **SHIELD** is a starting shield.

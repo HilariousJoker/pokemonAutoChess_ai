@@ -1,4 +1,4 @@
-# Item effects — batches 1–2 (24 items)
+# Item effects — batches 1–3 (36 items)
 
 **Production-branch reference `07367c341fe928763da2b565c2eee010433e4fc1`; deployment unverified.** Generated from [`item-effects.json`](../../data/07367c34/item-effects.json) (records and evidence ranges checked by `node assistant/validate-items.mjs`); recipes and declared bonuses come from [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json). **Source inspection only: no probe, no gameplay evidence.** Not the development snapshot.
 
@@ -32,6 +32,18 @@
 | ASSAULT_VEST | Never Melt Ice + Never Melt Ice | SPE_DEF 40 | Burn and poison damage x0.5 (and bench lava burn) |
 | POKE_DOLL | Never Melt Ice + Heart Scale | DEF 3, SPE_DEF 3 | Non-true damage x0.7; preferred among nearest targets |
 | ROCKY_HELMET | Heart Scale + Heart Scale | DEF 25 | Cancels the crit damage bonus against the holder |
+| GREEN_ORB | Mystic Water + Miracle Seed | HP 15 | Every 2 s heals 5 % max HP to allies in its 3x3; overheal becomes PP |
+| GRACIDEA_FLOWER | Magnet + Miracle Seed | none (no entry) | Setup: +20 speed to units on its cell and left/right (no team check seen) |
+| WONDER_BOX | Black Glasses + Black Glasses | none (no entry) | Opens at fight setup into two random recipe-output items |
+| SMOKE_BALL | Black Glasses + Miracle Seed | CRIT_CHANCE 10 | Below 40 % HP after a hit: paralyze+blind neighbors, +50 shield, fly away (once) |
+| WIDE_LENS | Black Glasses + Never Melt Ice | RANGE 2, CRIT_CHANCE 15, SPE_DEF 3 | +2 range (kept after Locked ends) |
+| RAZOR_CLAW | Black Glasses + Charcoal | CRIT_CHANCE 50, ATK 3 | No behavior beyond +50 crit chance and +3 ATK |
+| SAFETY_GOGGLES | Black Glasses + Heart Scale | CRIT_CHANCE 10, DEF 3 | 60 s Rune Protect; no sandstorm or bench-lava damage |
+| KINGS_ROCK | Miracle Seed + Miracle Seed | HP 100 | Start-of-fight shield of 20 % max HP |
+| STICKY_BARB | Miracle Seed + Heart Scale | DEF 6, HP 15 | Melee attackers take true damage 3 + 0.15 DEF and Wound |
+| PROTECTIVE_PADS | Miracle Seed + Charcoal | SHIELD 60, ATK 6 | Skips retaliation/recoil at the sites found; doubles damage to shields |
+| RED_ORB | Charcoal + Charcoal | ATK 10 | 25 % of basic-attack damage becomes true damage |
+| FLAME_ORB | Charcoal + Heart Scale | ATK 5, DEF 3 | Doubles base ATK but permanently burns the holder (5 % max HP/s) |
 
 ### CHOICE_SPECS
 
@@ -221,15 +233,16 @@
 
 **Recipe** (declared): Twisted Spoon + Never Melt Ice. **Declared bonuses:** SPE_DEF 10, AP 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `pl-reflect` (traced)** — *Trigger:* When the holder takes special-type damage through handleSpecialDamage (ability damage and the special parts of basic attacks; also the second hit of Loaded Dice), after that damage is resolved, if the pre-defense amount is >= 1 and the attacker does not hold Protective Pads. *Targets:* the attacker. *Effect:* Reflects the amount the holder's SPE_DEF mitigated: round(S - S / (1 + 0.05 x speDef)), where S is the special damage after AP, crit and the other pre-defense multipliers and speDef is halved (rounded) while the holder has armor reduction. The reflection is special damage dealt by the holder with handleDamage, flagged as retaliation. *Duration:* Instant, per qualifying hit. *Scaling:* Uses the incoming amount, not the damage actually taken (shield absorption does not reduce it). The reflected damage is not scaled by the holder's AP or crit and goes through the attacker's own SPE_DEF and shield. *Limits:* Not triggered by physical or true damage, by hits blocked by protect/skydiving/magic bounce, or when the attacker holds Protective Pads. *Consumption/reset:* Not consumed.
+- **Effect `pl-reflect` (traced)** — *Trigger:* Ordinary path: when the holder is hit through handleSpecialDamage (ability damage and the special parts of basic attacks), after state.handleDamage returns, if the pre-defense special amount is >= 1, the attack type is SPECIAL and the attacker does not hold Protective Pads. *Targets:* the attacker. *Effect:* Reflects the amount the holder's SPE_DEF mitigated: round(S - S / (1 + 0.05 x speDef)), where S is the special damage after AP, crit and the other pre-defense multipliers and speDef is halved (rounded) while the holder has armor reduction. The reflection is special damage dealt by the holder with handleDamage, flagged as retaliation. *Duration:* Instant, per qualifying hit. *Scaling:* Uses the incoming amount S, not the damage actually taken (shield absorption does not reduce it). The reflected damage is not scaled by the holder's AP or crit and goes through the attacker's own SPE_DEF and shield. *Limits:* In this path hits that handleSpecialDamage refuses before reaching the reflection code (protect, skydiving, magic bounce) do not reflect; physical and true damage do not reflect. *Consumption/reset:* Not consumed.
+- **Effect `pl-dice` (traced)** — *Trigger:* Loaded Dice path (a separate, manual branch in the Loaded Dice handler, items.ts:152-181): after the second-hit special damage has been dealt with handleDamage, if the second target holds Power Lens and the dice holder does not hold Protective Pads. *Targets:* the Loaded Dice holder. *Effect:* The same mitigated-amount formula is computed from the second hit's special damage (secondHitSpecialDamage, speDef halved under armor reduction) and dealt back with handleDamage as retaliation. *Duration:* Instant. *Scaling:* This branch is entered whenever secondHitSpecialDamage > 0; it does not check that the second hit actually dealt damage, so the usual protect/skydiving/magic-bounce exclusions of handleSpecialDamage do not gate it (handleDamage itself still refuses damage to a protected target, so a protected second target is a case where the reflection is dealt without damage having been taken - source-traced, not gameplay-tested). *Limits:* Only special second hits. *Consumption/reset:* Not consumed.
 
 *Arithmetic:* Incoming special damage 100 on SPE_DEF 10: 100 / 1.5 = 66.67, mitigated 33.33, reflected round(33.33) = 33 (before the attacker's own defenses). Formula only.
 
-*Unresolved / untested:* Self-inflicted special damage (attacker == holder) is not excluded in the code read; Declared AP 10 only matters through the generic AP uses.
+*Unresolved / untested:* Self-inflicted special damage (attacker == holder) is not excluded in the ordinary path; Declared AP 10 only matters through the generic AP uses; The Loaded Dice branch was read, not run: whether a protected second target really reflects is a source reading, untested.
 
 *Conditional deduction (inference, not a ranking):* The reflection scales with how much special damage the holder's SPE_DEF mitigates, so it grows with incoming special damage and with SPE_DEF; physical and true damage are unaffected.
 
-*Sources:* `core/pokemon-entity.ts:444–463`; `core/effects/items.ts:158–175`; `core/pokemon-state.ts:509–514`
+*Sources:* `core/pokemon-entity.ts:444–463`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:152–181`
 
 ### STAR_DUST
 
@@ -278,21 +291,23 @@
 
 **Recipe** (declared): Magnet + Black Glasses. **Declared bonuses:** SPEED 10, CRIT_CHANCE 10, CRIT_POWER 50. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `rf-armor` (traced)** — *Trigger:* On each successful basic attack by the holder (not dodged or protected; checked just before the damage is applied) and on the second target of a Loaded Dice hit. *Targets:* the attacked enemy. *Effect:* Armor reduction for 2000 ms: the target's DEF and SPE_DEF are halved (rounded) in the defense step; the declared CRIT_POWER 50 is applied through addCritPower as +0.5 to the crit-power multiplier (default 2 -> 2.5). *Duration:* 2000 ms (reduced by duration reductions; a longer existing timer is kept). *Scaling:* None; blocked by Rune Protect on the target. *Limits:* Applies to the damage step of the same attack because it is set before the damage is applied; also affects every other source of damage while active. *Consumption/reset:* Not consumed.
+- **Effect `rf-armor` (traced)** — *Trigger:* Ordinary basic attack by the holder that is successful (not dodged or protected); the check runs just before the attack's damage is applied (pokemon-state.ts:240-242). *Targets:* the attacked enemy. *Effect:* Armor reduction for 2000 ms: the target's DEF and SPE_DEF are halved (rounded) in the defense step. Because it is set before handleDamage is called for that attack, it applies to the same attack's damage. *Duration:* 2000 ms (reduced by duration reductions; a longer existing timer is kept). *Scaling:* None; blocked by Rune Protect on the target. *Limits:* Also affects every other source of damage against the target while active. *Consumption/reset:* Not consumed.
+- **Effect `rf-dice` (traced)** — *Trigger:* Loaded Dice second hit, if the holder also holds Razor Fang. *Targets:* the second target. *Effect:* Armor reduction (2000 ms) is applied AFTER the bounce damage and after the holder's onHit effects (items.ts:210-212), so it does not benefit that bounce's own damage; it affects later damage. *Duration:* 2000 ms. *Scaling:* None; blocked by Rune Protect. *Limits:* Needs the Loaded Dice bounce to occur. *Consumption/reset:* Not consumed.
+- **Effect `rf-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared CRIT_CHANCE 10 (percentage points), SPEED 10, and CRIT_POWER 50 applied through addCritPower as +0.5 to the crit-power multiplier (default 2 becomes 2.5). *Duration:* Whole fight. *Scaling:* Generic stat paths. *Limits:* None found beyond the stat helpers. *Consumption/reset:* Not consumed.
 
-*Arithmetic:* Target DEF 10 halved to 5: the physical multiplier goes from 1/1.5 = 0.667 to 1/1.25 = 0.8 (about +20 % of that hit). Formula only.
+*Arithmetic:* Ordinary attack, target DEF 10 halved to 5: the physical multiplier goes from 1/1.5 = 0.667 to 1/1.25 = 0.8 (about +20 % of that hit). Formula only.
 
-*Unresolved / untested:* Declared CRIT_CHANCE 10 (percentage points) and SPEED 10 follow the generic stat paths; Abilities that bypass the basic-attack routine do not trigger the armor reduction.
+*Unresolved / untested:* Abilities that bypass the basic-attack routine do not trigger the armor reduction; Whether the same armor-reduction flag is reapplied or extended by repeated hits follows triggerArmorReduction (longer duration wins); not otherwise tested.
 
 *Conditional deduction (inference, not a ranking):* The armor reduction lifts damage from every source against the target for 2 s, and its first application lands on the same hit that applies it; it needs successful basic attacks.
 
-*Sources:* `core/pokemon-state.ts:240–242`; `models/colyseus-models/status.ts:342–352`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:117–215`; `core/pokemon-entity.ts:559–575`
+*Sources:* `core/pokemon-state.ts:240–242`; `models/colyseus-models/status.ts:342–352`; `core/pokemon-state.ts:509–514`; `core/effects/items.ts:210–212`; `core/pokemon-entity.ts:559–575`
 
 ### LOADED_DICE
 
 **Recipe** (declared): Magnet + Never Melt Ice. **Declared bonuses:** SPEED 10, SPE_DEF 3, LUCK 20. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
 
-- **Effect `ld-bounce` (traced)** — *Trigger:* On each basic attack by the holder (OnAttack hook, successful or not) whose pre-defense total damage is > 0, with probability chance(0.5, holder). *Targets:* one enemy standing in the 8 cells around the attacked target (the one with the lowest current HP). *Effect:* A second hit: each component (physical, special, true) of the original attack, rounded after x0.75, is dealt to that enemy through handleDamage (so the enemy's defenses and shields apply); the holder's on-hit effects run for it, Razor Fang's armor reduction is applied if held, and Power Lens reflection happens if that enemy holds one. *Duration:* Instant; one bounce. *Scaling:* chance(p, holder) = Math.random() < p^(1 - luck/100), so luck 0 gives 50 % and the declared luck 20 gives 0.5^0.8 = 57.4 %. The components are the original attack's pre-defense amounts (crit already included), not re-rolled. *Limits:* Needs at least one enemy adjacent to the target; the original target itself is not eligible. *Consumption/reset:* Not consumed.
+- **Effect `ld-bounce` (traced)** — *Trigger:* On each basic attack by the holder (OnAttack hook, successful or not) whose pre-defense total damage is > 0, with probability chance(0.5, holder). *Targets:* one enemy standing in the 8 cells around the attacked target (the one with the lowest current HP). *Effect:* A second hit: each component (physical, special, true) of the original attack, rounded after x0.75, is dealt to that enemy through handleDamage (so the enemy's defenses and shields apply); the holder's on-hit effects run for it; afterwards, if the holder also holds Razor Fang, armor reduction is applied to that enemy (after the bounce damage and onHit, so not benefiting the bounce); and if that enemy holds Power Lens a manual special-damage reflection to the holder is computed from the second hit (see Power Lens). *Duration:* Instant; one bounce. *Scaling:* chance(p, holder) = Math.random() < p^(1 - luck/100), so luck 0 gives 50 % and the declared luck 20 gives 0.5^0.8 = 57.4 %. The components are the original attack's pre-defense amounts (crit already included), not re-rolled. *Limits:* Needs at least one enemy adjacent to the target; the original target itself is not eligible. *Consumption/reset:* Not consumed.
 
 *Arithmetic:* Original attack 40 physical pre-defense: second hit 30 physical pre-defense. Chance at luck 20: 0.5^0.8 = 0.574. Formulas only.
 
@@ -300,7 +315,7 @@
 
 *Conditional deduction (inference, not a ranking):* It adds damage only when an enemy stands next to the target, and scales with the size of the original hit; luck raises its chance.
 
-*Sources:* `core/effects/items.ts:117–215`; `core/effects/items.ts:965`; `utils/random.ts:3–13`; `core/pokemon-entity.ts:649–672`; `core/pokemon-state.ts:284–300`; `core/pokemon-entity.ts:911–950`
+*Sources:* `core/effects/items.ts:117–215`; `core/effects/items.ts:965`; `utils/random.ts:3–13`; `core/pokemon-entity.ts:649–672`; `core/pokemon-state.ts:284–300`; `core/pokemon-entity.ts:911–950`; `core/effects/items.ts:210–212`; `core/effects/items.ts:152–181`
 
 ### PUNCHING_GLOVE
 
@@ -370,6 +385,181 @@
 *Conditional deduction (inference, not a ranking):* It removes the crit bonus on hits against the holder (with 25 DEF), so it matters against crit-heavy attackers; true-damage parts of basic attacks keep their crit multiplier.
 
 *Sources:* `core/pokemon-state.ts:64–72`; `core/pokemon-entity.ts:412–433`; `core/pokemon-state.ts:208–212`
+
+### GREEN_ORB
+
+**Recipe** (declared): Mystic Water + Miracle Seed. **Declared bonuses:** HP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `go-heal` (traced)** — *Trigger:* Every 2000 ms of fight time (periodic effect on the holder; first tick after 2000 ms). *Targets:* every same-team unit on the holder's cell and the 8 cells around it (holder included). *Effect:* Each is healed 5 % of its own max HP through handleHeal (apBoost 0, no crit); any overheal is converted into PP for that unit: addPP(0.3 x overheal). *Duration:* Whole fight; the periodic effect is deleted when the item is removed. *Scaling:* No AP/crit scaling. handleHeal then applies its own conditions: 0 if the unit is wounded or protected (and then no overheal PP), x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 Zenith weather, rounded and capped at missing HP. The PP conversion goes through addPP rules. *Limits:* Only living same-team units in the 3x3 block; no cap on ticks. *Consumption/reset:* Not consumed.
+- **Effect `go-evo` (declared)** — *Trigger:* Item evolution rule declared on Rayquaza. *Targets:* Rayquaza. *Effect:* Evolves to Mega Rayquaza when the Green Orb is held (declared rule); the evolution handler path was not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Ally max HP 200: 10 HP per tick before modifiers. If that ally is missing 4 HP: healReceived 4, overheal 6, PP request 0.3 x 6 = 1.8 (addPP rounds it). Formula only.
+
+*Unresolved / untested:* Evolution handler path for the Rayquaza rule; Unit time units assumed ms (see core-mechanics section C).
+
+*Conditional deduction (inference, not a ranking):* It heals allies in the 3x3 block by a percentage of their own max HP, so it scales with how many allies are adjacent and how large their HP is; a unit at full HP converts the heal into PP at 30 %, which helps casters that stay healthy. Wound, protect, burn and enrage change the heal.
+
+*Sources:* `core/effects/items.ts:261–284`; `core/effects/items.ts:800–812`; `core/effects/effect.ts:261–285`; `core/pokemon-state.ts:893–899`; `core/pokemon-state.ts:308–360`; `core/pokemon-state.ts:308–382`; `core/pokemon-entity.ts:508–532`; `models/colyseus-models/pokemon.ts:6094`
+
+### GRACIDEA_FLOWER
+
+**Recipe** (declared): Magnet + Miracle Seed. **Declared bonuses:** none — No ItemStats entry exists for GRACIDEA_FLOWER: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `gf-speed` (traced)** — *Trigger:* At simulation setup (Simulation.applyPostEffects, same loop as Ability Shield). *Targets:* every unit found on the holder's cell and the cells directly left and right on the same row; the code checks only that a unit exists, with no team test. *Effect:* +20 speed to each (addSpeed(20, holder, 0, false)); the holder is included. *Duration:* Whole fight (no removal in this code). *Scaling:* No AP/crit scaling; addSpeed clamps speed to 0..300 and is subject to Big Eater Belt / Twist Band on the receiver. *Limits:* Three cells on one row; units placed after setup are not covered. *Consumption/reset:* Applied once; item not consumed.
+- **Effect `gf-evo` (declared)** — *Trigger:* Item evolution rule declared on Shaymin. *Targets:* Shaymin. *Effect:* Evolves to Shaymin (Sky form) when Gracidea Flower is held (declared rule); handler path not traced here. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Three allies in the row segment: +20 speed each; from default speed 50, 70 gives an attack wait of round(1000/(0.4+0.49)) = 1124 versus 1333 (nominal; core-mechanics section C). Formula only.
+
+*Unresolved / untested:* Whether an enemy can stand on those cells at setup was not examined (no team check in the code read); Evolution handler path for the Shaymin rule.
+
+*Conditional deduction (inference, not a ranking):* A flat speed bonus for the units in the row segment around the holder; its value depends on where units are placed. The code read has no team check, so the surroundings at setup matter.
+
+*Sources:* `core/simulation.ts:711–721`; `core/simulation.ts:223`; `core/pokemon-entity.ts:752–775`; `config/game/game.ts:5`; `models/colyseus-models/pokemon.ts:7396`
+
+### WONDER_BOX
+
+**Recipe** (declared): Black Glasses + Black Glasses. **Declared bonuses:** none — No ItemStats entry exists for WONDER_BOX: it declares no stat bonus (entry absent, not zero).. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `wb-open` (traced)** — *Trigger:* When the fight entity's items are set up (Simulation.applyItemsEffects), before any item effects are applied (after the Pickup passive handling). *Targets:* the holder's fight entity (the board unit's own item list is not changed). *Effect:* The Wonder Box is removed from the fight entity and two different random items are drawn from the recipe outputs excluding Silk Scarf items, synergy stones, Wonder Box itself and anything the entity already holds; each drawn item is added if the entity then holds fewer than 3 items, and then all items' effects are applied as for ordinary held items. *Duration:* Whole fight; a fresh draw each fight. *Scaling:* The draw is random (pickRandomIn); no AP/crit. *Limits:* If the holder already had 3 items including the box, only the first drawn item fits; the pool of possible items was not enumerated. *Consumption/reset:* The box is consumed for the fight entity only; the board unit keeps it, so it opens again next fight.
+- **Effect `wb-art` (traced)** — *Trigger:* Artificial synergy item counting. *Targets:* holder. *Effect:* The Artificial-synergy effect counts the Wonder Box as one extra item (items.size + 1 when it holds one, capped at 3). *Duration:* Setup. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Unresolved / untested:* The generated items can be any of the other recipe outputs, so their effects are those documented (or not yet documented) for each; no outcome audit is attempted; Whether the Artificial counting happens before the box is opened was inferred from the ordering of the two functions (synergy effects are applied before items in addPokemon).
+
+*Conditional deduction (inference, not a ranking):* The outcome is random each fight and the pool is wide, so its value cannot be stated from one outcome; the item's own effects are those of whatever it opens into.
+
+*Sources:* `core/simulation.ts:502–531`; `core/simulation.ts:519–531`; `core/simulation.ts:526–529`; `types/enum/Item.ts:694–697`; `core/simulation.ts:1105–1108`
+
+### SMOKE_BALL
+
+**Recipe** (declared): Black Glasses + Miracle Seed. **Declared bonuses:** CRIT_CHANCE 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `sb2-escape` (traced)** — *Trigger:* When the holder receives damage (OnDamageReceived callback: takenDamage > 0, holder still alive) and its HP is below 40 % of max HP. *Targets:* adjacent enemies (8 cells) and the holder. *Effect:* In order: each adjacent enemy gets paralysis 4000 ms and blind 4000 ms; the item is removed from the fight entity; the holder gains a 50 shield; the holder flies away (flyAway without skydive or protect): it is moved to a fly-away cell and enemies that were targeting it lose their target. *Duration:* Paralysis and blind 4000 ms (subject to status immunities and duration reductions); the move is instant. *Scaling:* Shield 50 flat, no AP/crit; the status triggers are refused by their own conditions (Rune Protect, immunities, CC cooldown). *Limits:* Once per fight (the item is removed); needs HP below 40 % at the moment of a damaging hit. *Consumption/reset:* Consumed for the fight entity only; the board unit keeps the item.
+
+*Arithmetic:* Max HP 300: triggers when HP < 120 after a damaging hit. Formula only.
+
+*Unresolved / untested:* Which individual status immunities refuse the paralysis/blind; The fly-away destination rules (board.getFlyAwayCell and its fallback) were only skimmed.
+
+*Conditional deduction (inference, not a ranking):* A one-time escape for a holder that gets low: it disables adjacent enemies for 4 s, shields and relocates it. It only triggers on a damaging hit that leaves HP below 40 %.
+
+*Sources:* `core/effects/items.ts:296–311`; `core/effects/items.ts:834`; `core/pokemon-entity.ts:1185–1232`; `core/pokemon-state.ts:734–742`; `core/pokemon-entity.ts:1323–1330`; `core/pokemon-entity.ts:1384–1386`
+
+### WIDE_LENS
+
+**Recipe** (declared): Black Glasses + Never Melt Ice. **Declared bonuses:** RANGE 2, CRIT_CHANCE 15, SPE_DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `wl-range` (traced)** — *Trigger:* Item applied at fight start; re-applied when the Locked status ends. *Targets:* holder. *Effect:* Declared RANGE 2 is added to the entity's range (range = max(1, range + 2)); declared CRIT_CHANCE 15 (percentage points) and SPE_DEF 3 follow the generic stat paths. The Locked status forces range to 1, and when Locked ends the range is rebuilt as base range + 2 (+1 for a Fairy holder with Long Wand). *Duration:* Whole fight. *Scaling:* None. *Limits:* No ItemEffects entry: the range bonus is the only special handling found; effects of range on targeting and casting are the shared ones (a cast needs a target in range). *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Charmander range 1 + 2 = 3: it can cast with the target up to 3 cells away instead of adjacent. Formula only; position and targeting dynamics were not simulated.
+
+*Unresolved / untested:* How range changes interact with movement and target choice in fights (targeting paths not audited); Other effects that reset or overwrite range.
+
+*Conditional deduction (inference, not a ranking):* More range lets a holder cast and attack from farther away, which matters when positioning or when targets are not adjacent; it adds crit chance and a little SPE_DEF.
+
+*Sources:* `core/pokemon-entity.ts:1433–1436`; `models/colyseus-models/status.ts:1164–1176`; `models/colyseus-models/status.ts:1156–1163`; `core/pokemon-entity.ts:1399–1437`
+
+### RAZOR_CLAW
+
+**Recipe** (declared): Black Glasses + Charcoal. **Declared bonuses:** CRIT_CHANCE 50, ATK 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+**Stat effect (traced):** Declared CRIT_CHANCE 50 raises the crit chance by 50 percentage points (default 10 becomes 60 %) and ATK 3 adds flat attack through the generic stat helpers; crit chance applies to every basic attack roll and to ability casts only when the caster has ABILITY_CRIT.
+
+**Absent (traced):** No ItemEffects entry and no other behavioral reference: the only references in app/**/*.ts(x) are the enum/recipe (Item.ts), the declared stats (config/game/items.ts) and Hidden Power code that gives a Sharpedo a Razor Claw (abilities/hidden-power.ts:181). Its gameplay content is the declared CRIT_CHANCE 50 (percentage points) and ATK 3.
+
+*Arithmetic:* Default crit chance 10 + 50 = 60 % per basic attack. Formula only.
+
+*Unresolved / untested:* Hidden Power context for the Sharpedo grant.
+
+*Conditional deduction (inference, not a ranking):* The item is only stats: a high crit chance helps units whose damage comes from crit-scalable attacks; nothing else is implemented for it.
+
+*Sources:* `core/abilities/hidden-power.ts:181`; `core/pokemon-entity.ts:1399–1437`; `core/pokemon-entity.ts:621–648`
+
+### SAFETY_GOGGLES
+
+**Recipe** (declared): Black Glasses + Heart Scale. **Declared bonuses:** CRIT_CHANCE 10, DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `sg-rune` (traced)** — *Trigger:* When the item is applied at fight start. *Targets:* holder. *Effect:* Triggers Rune Protect for 60000 ms (clears negative statuses and makes status triggers that check runeProtect refuse); also the holder takes no sandstorm damage and, when benched, no lava-weather burn damage. *Duration:* 60000 ms of Rune Protect (timer counts down in fight time); on item removal the cooldown is set to 0 so it ends at the next status update. *Scaling:* None. *Limits:* Rune Protect blocks only the status triggers that check it (about a dozen sites, not individually listed); sandstorm and lava immunities are separate checks. Resurrection copies the Rune Protect state and cooldown from a freshly built clone. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* 60000 ms is 60 s if one time unit is a millisecond (assumed, see core-mechanics section C).
+
+*Unresolved / untested:* Which statuses Rune Protect blocks were not enumerated; Whether the 60 s timer outlasts typical fights was not measured.
+
+*Conditional deduction (inference, not a ranking):* A long Rune Protect against status effects early in the fight, plus immunity to sandstorm and lava weather damage; against opponents without statuses or those weathers its measurable content is the declared stats.
+
+*Sources:* `core/effects/items.ts:671–678`; `core/pokemon-state.ts:936–941`; `core/simulation.ts:281–286`; `core/pokemon-entity.ts:1556–1559`; `models/colyseus-models/status.ts:956–966`; `models/colyseus-models/status.ts:968–974`
+
+### KINGS_ROCK
+
+**Recipe** (declared): Miracle Seed + Miracle Seed. **Declared bonuses:** HP 100. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `kr-shield` (traced)** — *Trigger:* At simulation start, after all units are set up (OnSimulationStart hook). *Targets:* holder. *Effect:* Gains a shield of 0.2 x its max HP at that moment (addShield, apBoost 0; rounded). *Duration:* Shield lasts until depleted. *Scaling:* No AP/crit scaling; addShield rules apply (enraged halves, Big Eater Belt scales). *Limits:* Once per fight; uses max HP including the declared HP 100 and other start bonuses already applied. *Consumption/reset:* Not consumed (the item also appears on a PvE enemy: pve-stages.ts:101).
+
+*Arithmetic:* Max HP 300 (declared +100 included): shield 60. Formula only.
+
+*Unresolved / untested:* Which hooks run after it and could change max HP afterwards (not enumerated).
+
+*Conditional deduction (inference, not a ranking):* A start-of-fight shield proportional to the holder's max HP, on top of 100 declared HP.
+
+*Sources:* `core/effects/items.ts:680–684`; `models/pve-stages.ts:101`; `core/simulation.ts:239–262`; `core/pokemon-state.ts:382–418`
+
+### STICKY_BARB
+
+**Recipe** (declared): Miracle Seed + Heart Scale. **Declared bonuses:** DEF 6, HP 15. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `stb-thorns` (traced)** — *Trigger:* When the holder is the target of a basic attack (the OnAttackReceived hooks run inside the attacker's onAttack, so also for dodged or protected attacks) and the attacker is within distance 1 and does not hold Protective Pads. *Targets:* the attacker. *Effect:* True damage round(3 + 0.15 x holder DEF) dealt by the holder with handleDamage, then Wound for 3000 ms on the attacker. *Duration:* Instant damage; Wound 3000 ms (heals received become 0 while wounded). *Scaling:* True damage skips the defense division but gets the shared ceil/min-1 and goes through shields; uses the holder's current DEF; no AP/crit scaling. *Limits:* Melee distance only (Chebyshev distance 1); does not trigger on ability damage. *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Declared DEF 6: 3 + 0.15 x 6 = 3.9, round 4 true damage per melee basic attack. Formula only.
+
+*Unresolved / untested:* Whether the true damage also triggers on-damage-dealt effects for the holder (shared handleDamage path; not checked); Wound status details beyond the heal block.
+
+*Conditional deduction (inference, not a ranking):* It punishes melee attackers (and wounds them), not ranged attackers or ability damage, and scales with the holder's DEF.
+
+*Sources:* `core/effects/items.ts:967–987`; `core/pokemon-entity.ts:953–968`; `core/pokemon-entity.ts:911–950`
+
+### PROTECTIVE_PADS
+
+**Recipe** (declared): Miracle Seed + Charcoal. **Declared bonuses:** SHIELD 60, ATK 6. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `pp-noretaliation` (traced)** — *Trigger:* When an effect would deal retaliation, reflection or recoil damage to a unit holding Protective Pads. *Targets:* the holder, as the unit that would be hit by a retaliation. *Effect:* The retaliation is skipped for the sites found by searching for the item name: reflect status (physical reflection), magic bounce, Power Lens (including the Loaded Dice branch), Sticky Barb, spike armor, two synergy effects (a contact-displacement/damage effect and an adjacent-enemy shock effect) and the Qwilfish passive. *Duration:* Whole fight. *Scaling:* None. *Limits:* Only the listed sites were read; other retaliation effects may exist or may ignore the item. *Consumption/reset:* Not consumed.
+- **Effect `pp-norecoil` (traced)** — *Trigger:* When one of the holder's own abilities would deal recoil or self-damage. *Targets:* the holder. *Effect:* The self-damage is skipped in Wood Hammer, Explosion, Double-Edge, Chloroblast, Grudge Dive and Head Smash (only these six ability files mention the item) and in the Two-Edged Wand's self-inflicted damage (synergies.ts, wand effect). *Duration:* Whole fight. *Scaling:* None. *Limits:* Other recoil abilities not listed here may not check the item. *Consumption/reset:* Not consumed.
+- **Effect `pp-shield` (traced)** — *Trigger:* When the holder damages another unit's shield. *Targets:* the damaged unit's shield. *Effect:* Damage dealt to the target's shield is doubled (damageOnShield x2) when the attacker holds Protective Pads and is not the target. *Duration:* Whole fight. *Scaling:* Applies inside handleDamage after the defense step. *Limits:* Only the damage assigned to the shield; HP damage is not doubled. *Consumption/reset:* Not consumed.
+- **Effect `pp-stats` (declared)** — *Trigger:* Item applied at fight start. *Targets:* holder. *Effect:* Declared SHIELD 60 as a starting shield (addShield) and ATK 6. *Duration:* Shield until depleted. *Scaling:* Generic stat paths. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Target shield 100, reduced hit 30: with the pads, 60 is taken from the shield (damageOnShield x2). Formula only.
+
+*Unresolved / untested:* The list of ignored retaliation effects is the list of sites that mention the item, not an audit of every retaliation in the game; Interaction with Explosive Band-style counters is inference only.
+
+*Conditional deduction (inference, not a ranking):* Mostly relevant when the holder's own abilities have recoil or when the opponent has reflection-type effects; it also strengthens attacks against shields.
+
+*Sources:* `core/pokemon-state.ts:522–527`; `core/pokemon-entity.ts:360–366`; `core/pokemon-entity.ts:444–463`; `core/effects/items.ts:152–181`; `core/effects/items.ts:967–987`; `core/pokemon-entity.ts:1098–1106`; `core/effects/synergies.ts:360–364`; `core/effects/synergies.ts:811–815`; `core/effects/passives.ts:305–309`; `core/abilities/wood-hammer.ts:30`; `core/abilities/explosion.ts:29`; `core/abilities/double-edge.ts:25`; `core/abilities/chloroblast.ts:30`; `core/abilities/grudge-dive.ts:43`; `core/abilities/head-smash.ts:30`; `core/effects/synergies.ts:660–664`; `core/pokemon-state.ts:628–634`; `core/pokemon-entity.ts:1399–1437`
+
+### RED_ORB
+
+**Recipe** (declared): Charcoal + Charcoal. **Declared bonuses:** ATK 10. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `ro-true` (traced)** — *Trigger:* Each basic attack by the holder. *Targets:* the attacked enemy. *Effect:* 25 % of the attack's damage becomes true damage (trueDamagePart += 0.25, added to any other true-damage share); the true part is damage x share x (crit power if the attack crit) and the rest of the damage is multiplied by (1 - share). *Duration:* Per basic attack. *Scaling:* The true part skips the defense division but gets the shared ceil/min-1; Rocky Helmet's crit reduction does not apply to the true part of a basic attack. *Limits:* Basic attacks only; abilities are unaffected. *Consumption/reset:* Not consumed.
+- **Effect `ro-evo` (declared)** — *Trigger:* Item evolution rules declared on Groudon and Sableye. *Targets:* Groudon, Sableye. *Effect:* Groudon evolves to Primal Groudon and Sableye to Mega Sableye when Red Orb is held (declared rules); handler paths not traced here; Hidden Power code also gives a Hitmonlee a Red Orb. *Duration:* -. *Scaling:* -. *Limits:* -. *Consumption/reset:* -.
+
+*Arithmetic:* Attack 40, no crit, target DEF 10: without the orb 40/1.5 = 26.67 -> 27; with it 30 physical (30/1.5 = 20) + 10 true = 30, about +3 here (the effect favors high-DEF targets). Formula only.
+
+*Unresolved / untested:* Evolution handler paths; Hidden Power context for Hitmonlee.
+
+*Conditional deduction (inference, not a ranking):* Converting part of each basic attack to true damage helps most against high-DEF targets and does little against low-DEF ones; only basic attacks are affected.
+
+*Sources:* `core/pokemon-state.ts:151–153`; `core/pokemon-state.ts:208–212`; `core/pokemon-state.ts:64–72`; `models/colyseus-models/pokemon.ts:6074`; `models/colyseus-models/pokemon.ts:12497`
+
+### FLAME_ORB
+
+**Recipe** (declared): Charcoal + Heart Scale. **Declared bonuses:** ATK 5, DEF 3. Declared stats become fight stats as in core-mechanics §I (PP adds to current PP, never maxPP).
+
+- **Effect `fo-burn` (traced)** — *Trigger:* When the item is applied at fight start. *Targets:* holder. *Effect:* Adds freeze immunity, adds the unit's base ATK again (+baseAtk), and sets the holder on fire for 300000 ms with itself as the origin; while the item is held and the holder is not burning, the burn is re-applied (60000 ms) each status update until the fight ends. Burn deals 5 % of the holder's max HP as true damage every 1000 ms (modified by weather, Assault Vest x0.5, some passives; 0 for Magmarizer / Well Baked), and burning halves healing the holder receives. *Duration:* Whole fight; on removal ATK is reduced by baseAtk and the burn cooldown is set to 0. *Scaling:* No AP/crit scaling. The burn damage is handleDamage true damage with the holder as its own attacker (Shell Bell skips self-inflicted damage). *Limits:* The self-burn damage per tick scales with max HP; healing received is halved while burning (Shell Bell, Green Orb and similar heals). *Consumption/reset:* Not consumed.
+
+*Arithmetic:* Max HP 400: 20 true damage per second-tick before modifiers; base ATK 8 becomes 16 plus the declared 5. Formula only.
+
+*Unresolved / untested:* Burn damage modifiers beyond the ones shown (weather and passives were read, not all tested); Interaction with healing sources other than the ones named is by the shared handleHeal path.
+
+*Conditional deduction (inference, not a ranking):* It trades a permanent self-burn (and halved healing) for a large ATK increase; whether that is acceptable depends on the holder's max HP, healing and fight length, which this note does not evaluate.
+
+*Sources:* `core/effects/items.ts:636–649`; `core/pokemon-state.ts:963–969`; `models/colyseus-models/status.ts:440–500`; `core/pokemon-state.ts:336–350`; `core/pokemon-state.ts:308–360`
 
 ## Not covered
 The other craftable items (next batches, see [ROADMAP.md](../../ROADMAP.md)); consumables, tools and special items; interactions between these items and specific abilities; burn damage details; Phione; gameplay validation of any item.
