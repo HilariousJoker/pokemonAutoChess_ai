@@ -17,6 +17,7 @@ How to answer from this index: [ASK.md](../../ASK.md). How to start a session: [
 | **Synergy** counting and thresholds | [core-mechanics.md](core-mechanics.md) §E | — |
 | **Items**: slots, combining, Eviolite, Shiny Stone | [core-mechanics.md](core-mechanics.md) §F–G | [evolution-context.md](evolution-context.md) |
 | **Silk Scarf** recipes and the ten scarf items (bonuses, effects, allowance) | [silk-scarf-items.md](silk-scarf-items.md) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) |
+| **Item effects, batch 1** (Choice Specs, Soul Dew, Upgrade, Reaper Cloth, Aqua Egg, Blue Orb, Scope Lens, Pokemonomicon, Shiny Charm, Max Revive, Shell Bell, Heavy-Duty Boots) | [item-effects.md](item-effects.md) | [`item-effects.json`](../../data/07367c34/item-effects.json) |
 | **Any item's recipe / declared stats** (55 recipes, 90 stat entries) | [`item-recipes-stats.json`](../../data/07367c34/item-recipes-stats.json) | effects: only the notes above — otherwise not covered |
 | Facts to have loaded **before play** (QUICK mode) | [match-reference.md](match-reference.md) | linked notes for evidence |
 | "Is this the **live** version?" / differences between revisions | [version-alignment](../../analysis/version-alignment.md) · [pilot-baseline-comparison](../../analysis/pilot-baseline-comparison.md) | — |
@@ -29,11 +30,11 @@ Evidence each answer can cite: the note section, its source `file:lines` at the 
 |---|---|---|
 | Unit baseline | all 1183 catalog identifiers (bare factory instance) | acquired/in-match values; availability and playability of any identifier |
 | Evolution declarations | 20 units: CHARMANDER, CHARMELEON, CHARIZARD, PIKACHU, RAICHU, ALOLAN_RAICHU, GALAR_MEOWTH, VESPIQUEN, ARCEUS, MAGIKARP, GYARADOS, TYPE_NULL, PRIMEAPE, TEPIG, DITTO, UNOWN_D, FARFETCH_D, TOTODILE, COSMOEM, SUBSTITUTE | every other unit's evolution rule (only raw `evolution`/`evolutions` fields are in the catalog) |
-| Abilities | BLAST_BURN (CHARMANDER/CHARMELEON/CHARIZARD), CRUNCH (TOTODILE only), VESPIQUEN_ORDERS (VESPIQUEN) | all other abilities (NUZZLE, TELEPORT, …) and every passive (no structured passive records) |
+| Abilities | BLAST_BURN (CHARMANDER/CHARMELEON/CHARIZARD), CRUNCH (TOTODILE only), VESPIQUEN_ORDERS (VESPIQUEN) | all other abilities (NUZZLE, TELEPORT, …); no structured passive records — a few passives are explained in notes (Vespiquen's row passive in pilot-abilities.md, Manaphy in item-effects.md), the rest only have identifiers |
 | Economy and leveling | normal path | SCRIBBLE/DOUBLE_UP, special rules, income/XP items |
 | Shop | normal path, levels 2–9 | shop-modifying items/synergies/rules, regional-variant pool accounting |
 | Core mechanics | damage defense step, PP/cast, attack interval, rows, synergy counting, item slots/combining, two item examples | the full damage pipeline, status effects, movement/targeting detail, per-item rules, synergy exceptions beyond Dragon/FAMILY_OUTING/dynamic types |
-| Items | all 55 recipes and 90 declared stat entries (data); behavior of Eviolite, Shiny Stone and the ten Silk Scarf items (traced, no probe) | behavior of every other item, item interactions with abilities, dev-snapshot item differences |
+| Items | all 55 recipes and 90 declared stat entries (data); behavior of Eviolite, Shiny Stone, the ten Silk Scarf items and 12 batch-1 items (traced, no probe) | behavior of the 33 remaining craftable items and all consumables/special items, item interactions with abilities, dev-snapshot item differences |
 
 ## Boundaries to state when relevant
 - **Bare-instance ≠ acquired ≠ combat.** Catalog stats are a freshly created unit; in-match values include evolution carry-over, items, synergies, buffs and combat effects (e.g. Cosmoem HP: [evolution-context.md](evolution-context.md) §Cosmog → Cosmoem).

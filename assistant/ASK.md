@@ -37,7 +37,7 @@ Distinguish **bare-instance stats** (catalog/lookup: a freshly created unit) fro
 
 ## Coverage honesty
 - Identifiers alone are **not** ability explanations and **not** proof a unit is in the shop or playable.
-- If the question falls outside the covered set (see the index: 20 evolution units, 3 reviewed ability records, no passive records, normal-path economy/shop only, base mechanics primer), say so plainly, give what *is* known (e.g. the bare skill identifier), and do not fill the gap from memory or guesswork. Use the note's **Unresolved** sections to state what is uncertain.
+- If the question falls outside the covered set (see the index: 20 evolution units, 3 reviewed ability records, no structured passive records (a few passives are explained in notes), normal-path economy/shop only, base mechanics primer), say so plainly, give what *is* known (e.g. the bare skill identifier), and do not fill the gap from memory or guesswork. Use the note's **Unresolved** sections to state what is uncertain.
 - Never invent the current meta, win rates, tier lists, patch notes or team rankings, and never present a recommendation as measured or ranked when it is not.
 - **Missing structured records ≠ missing knowledge.** "No structured passive/ability/item record" only means the data file lacks one; if a reviewed note already explains it, use the note. Say "not covered" only when neither a record nor a note covers it.
 - **Strategic deductions are allowed** when they follow from verified mechanics in the notes (e.g. "AP raises Blast Burn but not basic attacks, so AP helps a caster who casts often"). A missing tier list or community data does **not** by itself forbid a recommendation. Always mark it as inference and give the mechanic it rests on.

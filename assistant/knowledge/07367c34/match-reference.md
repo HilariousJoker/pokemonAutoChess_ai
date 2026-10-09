@@ -32,8 +32,8 @@
 - **Defense step:** `damage ÷ (1 + 0.05 × defense)` — physical uses DEF, special SPE_DEF; **true damage skips the division** — then every type gets `max(1, ceil())`, then shield before HP. Example (arithmetic): physical 20 vs DEF 10 → 14.
 - **Basic attack:** ATK, physical; **AP does not scale it** (unless it is converted to special, then `ceil(ATK × (1 + AP/100))`). Crit rolls on every basic attack (10 % chance, ×2 default). The parts are rounded **before** the defense step.
 - **Ability damage:** raw × `(1 + AP/100)` (unless the ability opts out of AP) → crit factor if the cast crit → defense step. **No rounding before the defense step.** Each +10 AP = +10 % of the raw amount.
-- **Ability crit:** only if the caster has `ABILITY_CRIT` (e.g. Reaper Cloth, Leek dishes) or the ability crits by default; then one roll per cast at the caster's crit chance. Rocky Helmet on the target removes the crit bonus.
-- **PP:** +5 per basic attack; +⌈residual damage ÷ 10⌉ when hit; units start a fight at 0 PP plus item PP bonuses. Cast when `pp ≥ maxPP` and the unit can cast, **using that attack slot** (no basic attack that slot); then `pp −= maxPP` (extra carries over). Casting normally needs a target in range (some abilities do not require one).
+- **Ability crit:** only if the caster has `ABILITY_CRIT` (e.g. Reaper Cloth, Leek dishes) or the ability crits by default; then one roll per cast at the caster's crit chance. Rocky Helmet on the target removes the crit bonus (ability damage: not for true damage).
+- **PP:** +5 per basic attack; +⌈residual damage ÷ 10⌉ when hit; in the ordinary case a unit starts at 0 PP plus its items' PP bonuses (other start hooks, dishes, passives and synergies can also change it). Cast when `pp ≥ maxPP` and the unit can cast, **using that attack slot** (no basic attack that slot); then `pp −= maxPP` (extra carries over). Casting normally needs a target in range (some abilities do not require one).
 - **Declared item bonuses → combat:** AP is added flat to current AP; **PP bonuses add to current PP, never to maxPP**; no item bonus raises maxPP. Efficient Bandanna's ×0.85 maxPP is a separate fight-start effect.
 - Attack wait = `round(1000 / (0.4 + 0.007 × speed))`: speed 0/50/100/200/300 → 2500/1333/909/556/400 (nominal; time unit assumed ms).
 - Exceptions not covered: statuses, shields/heals scaling, reflection, per-ability call patterns.
@@ -79,10 +79,10 @@ Declared bonuses are applied as stat calls when the holder enters a fight (shiel
 - Evolution declarations exist for only 20 units (Charmander line, Pikachu, Raichu, Alolan Raichu, Galar Meowth, Vespiquen, Arceus, Magikarp, Gyarados, Type Null, Primeape, Tepig, Ditto, Unown D, Farfetch'd, Totodile, Cosmoem, Substitute): `node assistant/lookup-production.mjs KEY`.
 - Pikachu → Alolan Raichu iff the player's current map has the Psychic synergy; otherwise Raichu.
 - Cosmoem → Solgaleo iff on the game's light cell **and** a Light tier is active (Light ≥ 2); otherwise Lunala. In the plain no-item case a Cosmog that evolves after 8 triggers ends with 220 HP (other cases untraced).
-- Reviewed abilities: Blast Burn (see Charmander family above), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Every other ability and every passive: not covered beyond the bare identifier in the unit baseline.
+- Reviewed abilities: Blast Burn (see Charmander family above), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Every other ability: not covered beyond the bare identifier in the unit baseline. No structured passive records exist; passives are explained only where a note does (e.g. Vespiquen's row passive above).
 
 ## Units — `node assistant/lookup-production.mjs KEY`
 1183 identifiers with bare stats/types/skill identifier. Bare ≠ acquired ≠ combat values. Identifier ≠ availability.
 
 ## Not covered at all
-Meta, win rates, best comps; patch/live-version equivalence; special game rules and modes; most abilities, all passives, status effects, per-item effects other than those above; targeting and movement detail; the full damage pipeline.
+Meta, win rates, best comps; patch/live-version equivalence; special game rules and modes; most abilities, most passives (no structured records; a few explained in notes), status effects, per-item effects other than those above; targeting and movement detail; the full damage pipeline.

@@ -78,7 +78,8 @@ const CITES = [
   ["app/core/pokemon-state.ts", "132–135", ["Item.NULLIFY_BANDANNA", "specialDamage += pokemon.pp", "pokemon.pp = 0"]],
   ["app/core/pokemon-state.ts", "257–268", ["handleSpecialDamage", "specialDamage"]],
   ["app/core/pokemon-entity.ts", "621–631", ["addAbilityPower", "Item.NULLIFY_BANDANNA", "Math.round(0.2 * value)"]],
-  ["app/core/pokemon-entity.ts", "794–797", ["this.items.add(item)", "this.applyItemEffect(item)"]],
+  ["app/core/pokemon-entity.ts", "163–165", ["pokemon.items.forEach((it) => {", "this.items.add(it)"]],
+  ["app/core/simulation.ts", "498–534", ["applyItemsEffects(", "pokemon.applyItemEffect(item)"]],
   ["app/config/game/synergies.ts", "180", ["[Synergy.NORMAL]: [3, 5, 7, 9]"]],
   ["app/models/colyseus-models/synergies.ts", "300–307", ["getSynergyTier", ".length"]],
   ["app/models/colyseus-models/player.ts", "504–570", ["getScarvesItemsWithNbScarves", "Item.NULLIFY_BANDANNA ? 2 : 1", "updateScarves"]],
@@ -129,7 +130,13 @@ const FOUND = [
   ["app/core/pokemon-entity.ts", "97", ["pp = 0"]],
   ["app/core/pokemon-entity.ts", "530", ["this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)"]],
   ["app/core/pokemon-entity.ts", "183–198", ["this.maxPP = pokemon.maxPP", "this.ap = pokemon.ap"]],
-  ["app/core/pokemon-entity.ts", "782–846", ["addItem(", "this.items.add(item)", "applyItemEffect(item: Item)", "this.applyStat("]],
+  ["app/core/pokemon-entity.ts", "163–165", ["pokemon.items.forEach((it) => {", "this.items.add(it)"]],
+  ["app/core/pokemon-entity.ts", "782–815", ["addItem(", "this.items.add(item)", "this.applyItemEffect(item)"]],
+  ["app/core/pokemon-entity.ts", "825–846", ["applyItemEffect(item: Item)", "this.applyStat("]],
+  ["app/core/simulation.ts", "498–534", ["applyItemsEffects(", "pokemon.applyItemEffect(item)"]],
+  ["app/core/abilities/hidden-power.ts", "368", ["uxie.addItem(Item.AQUA_EGG)"]],
+  ["app/core/pokemon-entity.ts", "414–416", ["this.items.has(Item.ROCKY_HELMET)", "attackType !== AttackType.TRUE"]],
+  ["app/core/pokemon-state.ts", "67–70", ["hasCritNegation = target.items.has(Item.ROCKY_HELMET)"]],
   ["app/core/pokemon-entity.ts", "1399–1437", ["case Stat.AP:", "this.addAbilityPower(value", "case Stat.PP:", "this.addPP(value", "case Stat.HP:"]],
   ["app/core/abilities/cast.ts", "16–26", ["pokemon.canCast === false", "EffectEnum.ABILITY_CRIT", "abilityStrategy.canCritByDefault", "chance(pokemon.critChance / 100", "abilityStrategy.process"]],
   ["app/core/abilities/ability-strategy.ts", "8", ["canCritByDefault = false"]],
@@ -193,6 +200,51 @@ const check = (file, rowRe) => {
 check("knowledge/07367c34/silk-scarf-items.md")
 if (existsSync(resolve(HERE, "knowledge/07367c34/match-reference.md"))) check("knowledge/07367c34/match-reference.md")
 else bad("match-reference.md missing")
+
+// 4. item-effects.json (batch 1): evidence ranges, recipes/declared stats vs item-recipes-stats.json and source, absence checks, Markdown agreement
+{
+  const fx = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/item-effects.json"), "utf8"))
+  if (fx.sourceSha !== SHA) bad("item-effects.json sourceSha mismatch")
+  const ids = new Set()
+  for (const e of fx.evidence) {
+    if (ids.has(e.id)) bad(`item-effects: duplicate evidence id ${e.id}`)
+    ids.add(e.id)
+    const L = src(e.file), [a, b] = e.lines
+    if (!(a >= 1 && b >= a && b <= L.length)) { bad(`item-effects ${e.id}: bad range ${a}-${b}`); continue }
+    if (!norm(L.slice(a - 1, b).join(" ")).includes(norm(e.expect))) bad(`item-effects ${e.id}: "${e.expect}" not in ${e.file}:${a}-${b}`)
+  }
+  const WANT = ["CHOICE_SPECS", "SOUL_DEW", "UPGRADE", "REAPER_CLOTH", "AQUA_EGG", "BLUE_ORB", "SCOPE_LENS", "POKEMONOMICON", "SHINY_CHARM", "MAX_REVIVE", "SHELL_BELL", "HEAVY_DUTY_BOOTS"]
+  if (!eq(Object.keys(fx.items), WANT)) bad("item-effects: item list differs from the batch scope")
+  const md = readFileSync(resolve(HERE, "knowledge/07367c34/item-effects.md"), "utf8")
+  const cite = (id) => { const e = fx.evidence.find((x) => x.id === id); return e && `${e.file.replace(/^app\//, "")}:${e.lines[0] === e.lines[1] ? e.lines[0] : e.lines[0] + "–" + e.lines[1]}` }
+  for (const [name, rec] of Object.entries(fx.items)) {
+    if (!eq(rec.recipe.ingredients, recipe[name])) bad(`item-effects ${name}: recipe differs from source`)
+    if (!eq(rec.recipe.ingredients, dRecipe[name])) bad(`item-effects ${name}: recipe differs from item-recipes-stats.json`)
+    const declared = stats[name] ?? null
+    if (!eq(rec.declaredStats, declared)) bad(`item-effects ${name}: declaredStats ${JSON.stringify(rec.declaredStats)} != source ${JSON.stringify(declared)}`)
+    if (name === "MAX_REVIVE" && rec.declaredStats !== null) bad("MAX_REVIVE must record declaredStats null (no entry)")
+    const pre = rec.effects.length ? "" : "(no behavioral effect)"
+    if (!rec.effects.length && !(rec.absentEffects && rec.absentEffects.length)) bad(`item-effects ${name}: no effects and no absentEffects`)
+    const used = new Set([...(rec.evidence ?? [])])
+    for (const ef of rec.effects) {
+      if (!ef.evidence?.length) bad(`item-effects ${name}/${ef.id}: no evidence`)
+      for (const x of ef.evidence ?? []) { used.add(x); if (!ids.has(x)) bad(`item-effects ${name}/${ef.id}: unknown evidence ${x}`) }
+      if (!md.includes(ef.id)) bad(`item-effects.md lacks effect id ${ef.id}`)
+    }
+    for (const x of rec.evidence ?? []) if (!ids.has(x)) bad(`item-effects ${name}: unknown evidence ${x}`)
+    for (const x of used) { const c = cite(x); if (c && !md.includes(c)) bad(`item-effects.md lacks citation ${c} (${name}/${x})`) }
+    if (!md.includes("### " + name)) bad(`item-effects.md lacks section for ${name}`)
+  }
+  // absence: CHOICE_SPECS referenced only in the expected TypeScript files
+  const g = execFileSync("git", ["-C", REPO, "grep", "-l", "CHOICE_SPECS", SHA, "--", ":(glob)app/**/*.ts", ":(glob)app/**/*.tsx"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(SHA + ":", "")).sort()
+  if (!eq(g, fx.items.CHOICE_SPECS.absentEffectsCheck.gitGrepFiles)) bad(`CHOICE_SPECS referenced in unexpected files: ${g}`)
+  // the handlers each item relies on exist in the ItemEffects table (or are absent for CHOICE_SPECS / declared-only)
+  const ie = src("app/core/effects/items.ts").join("\n")
+  // SHINY_CHARM's behavior lives in handleDamage (not in ItemEffects); CHOICE_SPECS has none
+  for (const k of WANT.filter((k) => k !== "CHOICE_SPECS" && k !== "SHINY_CHARM")) if (!ie.includes(`[Item.${k}]:`)) bad(`ItemEffects has no [Item.${k}] entry`)
+  for (const k of ["CHOICE_SPECS", "SHINY_CHARM"]) if (ie.includes(`[Item.${k}]`)) bad(`ItemEffects has a ${k} entry; the record's claim is wrong`)
+  console.log(`validate-items: item-effects OK (${fx.evidence.length} evidence ranges, ${WANT.length} items)`)
+}
 
 if (problems.length) { console.error(`validate-items: ${problems.length} problem(s)`); problems.forEach((p) => console.error(" - " + p)); process.exit(1) }
 console.log(`validate-items: OK (${FOUND.length} foundation ranges, ${data.recipes.length} recipes, ${data.itemStats.length} ItemStats entries, ${CITES.length} cited ranges, ${allBig.length + allTwist.length} Big Eater/Twist call sites)`)
