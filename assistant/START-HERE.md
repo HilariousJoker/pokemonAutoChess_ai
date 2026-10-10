@@ -30,7 +30,7 @@ Read assistant/ASK.md and assistant/knowledge/07367c34/match-reference.md in thi
 Examples of what Claude then runs (one command per question):
 - "What do Soul Dew and Aqua Egg do?" → `node assistant/lookup-item.mjs "Soul Dew" "Aqua Egg"`
 - "What can I make with a Silk Scarf?" → `node assistant/lookup-item.mjs --component "Silk Scarf"`
-- "What items should I use on Charmander?" → no tool needed: the loaded guidance gives the default (Soul Dew + Deep Sea Tooth + King's Rock under stated assumptions) and when another option wins; optionally one `node assistant/lookup-item.mjs "Soul Dew" "Deep Sea Tooth" "King's Rock"`
+- "What items should I use on Charmander?" → no tool needed: the loaded guidance gives a reasonable default (Soul Dew + Deep Sea Tooth + King's Rock under stated assumptions) and when another option fits; optionally one `node assistant/lookup-item.mjs "Soul Dew" "Deep Sea Tooth" "King's Rock"`
 - "Is Wide Lens good on Charmander?" → `node assistant/lookup-item.mjs "Wide Lens"`, then an answer built from the card plus the loaded Charmander-family facts (a reasonable-option statement, not a ranking)
 - "What does the Nullify Bandanna do to a caster?" → `node assistant/lookup-item.mjs "Nullify Bandanna"`
 The tool reads only saved data and prints a compact card (recipe, declared bonuses, effect and trigger, key limits, one note link, snapshot label once). Unknown, ambiguous or out-of-catalog names fail with a message instead of a guess. **No response-time guarantee** is made: the local command takes tens of milliseconds, which says nothing about Claude's answer time. Mid-match shorthand and QUICK mode (no tools at all) remain available.

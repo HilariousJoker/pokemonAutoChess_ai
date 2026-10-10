@@ -323,7 +323,29 @@ else bad("match-reference.md missing")
   if (gs < 0) bad("match-reference.md lacks the Item choice guidance section")
   else if (mr.slice(gs, ge).split(/\s+/).filter(Boolean).length > 450) bad("Item choice guidance exceeds 450 words")
   for (const t of ["Charmander", "Totodile", "Vespiquen"]) if (gs >= 0 && !mr.slice(gs, ge).includes(t)) bad(`guidance lacks ${t}`)
-  for (const t of ["not simulated battles", "newly inspected", "abilities/heal-order.ts:47", "defend-order.ts:42", "Default", "Anti-synergies"]) if (!rb.includes(t)) bad(`representative-builds.md lacks "${t}"`)
+  for (const t of ["not simulated fights and not parity with the combat engine", "newly inspected", "abilities/heal-order.ts:47", "defend-order.ts:42", "Default", "Anti-synergies"]) if (!rb.includes(t)) bad(`representative-builds.md lacks "${t}"`)
+  // timing-model corrections: no derived cast times / fight-length cutoffs in the guidance, answer checks or builds note
+  const ac = readFileSync(resolve(HERE, "analysis/representative-answer-checks.md"), "utf8")
+  const guide = gs >= 0 ? mr.slice(gs, ge) : ""
+  const timeLike = /(\d+(\.\d+)? ?s\b|≈ ?\d+(\.\d+)? ?s\b|fights? (of )?(at least|≥)|fights? last|past ~?\d+|before ~?\d+)/
+  for (const [n, t] of [["match-reference guidance", guide], ["answer checks", ac.replace(/Common pass criteria[\s\S]*/, "")], ["representative-builds.md", rb.replace(/enraged 3 s|3000 ms/g, "")]]) if (timeLike.test(t)) bad(`${n} still quotes a derived time or fight-length cutoff: ${t.match(timeLike)[0]}`)
+  if (/every star level|beats Soul Dew only|Choice Specs beats/.test(rb + guide + ac)) bad("retired blanket Totodile / Choice Specs wording is back")
+  if (/no comparison across items|comparison across items, comps or opponents has been done/.test(mr)) bad("match-reference.md has the stale 'no item comparison' wording")
+  const totoAnti = rb.slice(rb.indexOf("## 2."), rb.indexOf("## 3.")).split("\n").find((l) => l.startsWith("**Anti-synergies.**")) ?? ""
+  if (!totoAnti || /Pokemonomicon/.test(totoAnti)) bad("Totodile anti-synergies missing or still list Pokemonomicon")
+  // Efficient Bandanna on Vespiquen: holder keeps the +15 PP; a neighbor does not
+  for (const t of ["round(90 × 0.85) = 77", "start 15, so 62 more PP: ceil(62 / 5) = **13** attacks", "neighbor** of the holder (77 without the +15)"]) if (!rb.includes(t)) bad(`representative-builds.md lacks "${t}"`)
+  // Vespiquen builds: at most three items per mode, DEFEND without Aqua Egg, Combee growth conditional
+  const vb = guide.slice(guide.indexOf("Complete builds:"))
+  for (const m of ["ATTACK", "HEAL", "DEFEND"]) {
+    const seg = (vb.match(new RegExp(`\\*\\*${m}\\*\\* ([^;.]+)`)) ?? [])[1] ?? ""
+    const base = seg.replace(/\(.*?\)/g, "")
+    if (!seg || base.split(" + ").length > 3) bad(`guidance Vespiquen ${m} build missing or has more than three items: ${seg}`)
+    if (m === "DEFEND" && /Aqua Egg/.test(seg)) bad("guidance DEFEND build contains Aqua Egg")
+  }
+  const rbModes = rb.slice(rb.indexOf("| ATTACK, row 1")).split("\n").filter((l) => /^\| (ATTACK|HEAL|DEFEND)/.test(l))
+  for (const l of rbModes) { const sug = l.split("|")[2].replace(/\(.*?\)/g, "").trim(); if (sug.split(" + ").length > 3) bad(`builds table has more than three items: ${sug}`); if (/^\| DEFEND/.test(l) && /Aqua Egg/.test(sug)) bad("builds DEFEND suggestion contains Aqua Egg") }
+  if (!/only if a free cell exists, and Combees can die/.test(rb) || !/a cast adds one only if a cell is free/.test(guide)) bad("conditional Combee growth wording missing")
   // items named in the builds doc as recommendations must be in the catalog
   for (const k of ["Soul Dew", "Deep Sea Tooth", "King's Rock", "Rocky Helmet", "Choice Specs", "Aqua Egg", "Red Orb", "Pokemonomicon", "Shell Bell", "Water Stone", "Efficient Bandanna", "Punching Glove", "Nullify Bandanna", "Wide Lens"]) {
     const key = Object.keys(fx.items).find((x) => fx.items[x].displayName === k || fx.items[x].displayName === k.replace("Pokemonomicon", "Pokemonomicon"))
