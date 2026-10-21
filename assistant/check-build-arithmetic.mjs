@@ -35,6 +35,10 @@ check("W2 none", attacksBetweenCasts({ maxPP: 100 }), [20, 20, 20], ["None: 20, 
 check("W2 Water Stone", attacksBetweenCasts({ maxPP: 100, startPP: 30 }), [14, 20, 20], ["14, then 20, 20"])
 check("W2 Efficient holder / neighbor", [attacksBetweenCasts({ maxPP: 85, startPP: 15 }), attacksBetweenCasts({ maxPP: 85 })], [[14, 17, 17], [17, 17, 17]], ["14, then 17, 17", "17, 17, 17"])
 check("W2 Deep Sea Tooth", attacksBetweenCasts({ maxPP: 100, startPP: 15, per: 10 }), [9, 10, 10], ["9, then 10, 10"])
+// Soul Dew + Deep Sea Tooth (100 maxPP, start 15, 10 PP per non-killing attack, 5 PP per successful tick, no other PP)
+const firstCastAttacks = (k) => Math.max(0, Math.ceil((100 - 15 - 5 * k) / 10))
+check("W2 Soul Dew + Deep Sea Tooth first-cast attacks, k = 0..4", [0, 1, 2, 3, 4].map(firstCastAttacks), [9, 8, 8, 7, 7], ["9, 8, 8, 7, 7"])
+check("W2 same via the PP rule (ticks as starting PP)", [0, 1, 2, 3, 4].map((k) => attacksBetweenCasts({ maxPP: 100, startPP: 15 + 5 * k, per: 10, n: 1 })[0]), [9, 8, 8, 7, 7], [])
 check("W2 Aqua Egg", attacksBetweenCasts({ maxPP: 100, startPP: 30, egg: true }), [14, 16, 15], ["14, 16, 15"])
 check("W2 Aqua Egg with max PP 85", Math.round(0.2 * 85 + 2), 19, ["round(17 + 2n)"])
 // W3 effective HP ratios
