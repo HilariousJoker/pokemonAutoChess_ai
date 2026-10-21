@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { checkRecord, makeContext } from "./automation/lib/records.mjs"
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, "..")
@@ -247,6 +248,15 @@ for (const [what, s] of [
   ["Gyarados total", "45 + 6 × 15 = 135"], ["Gyarados heal", "54"], ["Annihilape 36", "+36"], ["name collision", "EffectEnum.SURGE_SURFER"]
 ]) if (!reuseMd.includes(s)) bad(`reusable-abilities.md lacks ${what}: "${s}"`)
 
+// ===== 7. shared record checks (automation/lib/records.mjs) applied to every existing record: revision, required fields, evidence, unit bindings, source tables =====
+const shared = makeContext()
+let nShared = 0
+const runShared = (kind, name, rec) => { const r = checkRecord(kind, name, rec, shared, { profile: "common" }); nShared++; r.problems.forEach(bad) }
+for (const [n, r] of Object.entries(A)) runShared("ability", n, r)
+for (const [n, r] of Object.entries(RA)) runShared("ability", n, r)
+for (const [n, r] of Object.entries(RP)) runShared("passive", n, r)
+for (const [n, r] of Object.entries(RG)) runShared("gap", n, r)
+
 const nEv = Object.values(A).reduce((n, r) => n + r.evidence.length, 0)
 if (problems.length) { console.error(`FAILED (${problems.length}):\n- ${problems.join("\n- ")}`); process.exit(1) }
-console.log(`OK: 3 pilot records (${nEv} evidence refs) + ${Object.keys(RA).length} reusable ability records, ${Object.keys(RP).length} passive records and ${Object.keys(RG).length} passive gap (${nEv2} evidence refs), ${nEx} numeric examples, verified against ${SHA.slice(0, 8)}; tables/bindings/units/Markdown agree`)
+console.log(`OK: 3 pilot records (${nEv} evidence refs) + ${Object.keys(RA).length} reusable ability records, ${Object.keys(RP).length} passive records and ${Object.keys(RG).length} passive gap (${nEv2} evidence refs), ${nEx} numeric examples, ${nShared} records through the shared checks (automation/lib/records.mjs), verified against ${SHA.slice(0, 8)}; tables/bindings/units/Markdown agree`)

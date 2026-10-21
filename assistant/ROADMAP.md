@@ -29,7 +29,11 @@ Outside this milestone (not scheduled): consumables, tools, memory discs and oth
 **Usability observations (limited, not a benchmark):** the user reported about 3 seconds for a recommendation and about 6 seconds for two item explanations in their sessions. These are single-user observations; no response-time guarantee is made and none was measured here.
 **Remaining gaps:** Pachirisu's passive; the exhaustive field sources for SURGE_SURFER; the exhaustive `tryEvolve` callers and the Primeape stack reset; `moveTo` blocking for NUZZLE; real-time length of a DRAGON_RAGE timer unit and the running-effect lifecycle on death; the Big Eater Belt hook on the negative `addShield` used by DRAGON_RAGE; the generic damage pipeline after SPE_DEF; build guidance for these units (deliberately not created).
 
+## Completed milestone — resumable automation workflow
+[AUTOMATION.md](AUTOMATION.md) with `automation/` tools: coverage inventory of all 540 ability and 193 passive identifiers (grouped by implementation and base-class family, with explicit routing uncertainties), a queue of 726 remaining records with stable ids, dependencies, progress and blockers, shared record checks (`automation/lib/records.mjs`, also applied to the nine existing records), a branch/scope guard (no force-push, default branches refused, stop if the branch moved), a single-writer lock, a five-record and two-repair limit per run, and a stored scheduled-task prompt (`automation/SCHEDULED-TASK.md`; **no schedule created**). Candidates are kept in `candidates/` with work, validation and review tracked separately; nothing is promoted automatically. Limits: bounded by record count, no account-credit enforcement; mechanical checks do not verify semantic claims (listed in AUTOMATION.md). Demonstrated on temporary fixtures: [analysis/automation-demonstration.md](analysis/automation-demonstration.md).
+
 ## Next tasks (not started)
+0. Run one manual automation batch, review its candidates by hand, then decide on a schedule.
 1. Review the next ability/passive batch (Pachirisu's passive first, then further units); build guidance for the reviewed units only on request, each needing ability + positioning review first.
 2. Real-match validation of the recommendations (user-supplied results), then a revision-update procedure and the Obsidian integration stage.
 
