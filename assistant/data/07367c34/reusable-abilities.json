@@ -94,22 +94,25 @@
      "pp-gate"
     ]
    },
-   "summary": "Jumps to a free cell next to the enemy that is farthest from the caster, retargets it, then paralyses it and deals special damage. If no free cell exists anywhere near, the caster stays and hits its current target.",
+   "summary": "Moves the caster to a free cell next to an enemy chosen by Board.getFarthestTargetCoordinateAvailablePlace (usually far from the caster, but NOT guaranteed to be the farthest enemy: see targeting), retargets to that enemy, then paralyses it and deals special damage. If the helper returns null the caster stays and hits the cast target.",
    "targeting": {
-    "who": "the farthest targettable enemy that has a free adjacent cell (ties: first found in board scan order); the cast target is replaced by it",
+    "who": "the enemy attached to the helper's selected cell: scanning enemies in board order, each enemy whose distance is STRICTLY greater than the running maximum updates the maximum and, only if it has at least one free adjacent cell, replaces the selected destination (and its enemy). The cast target is replaced by that enemy.",
     "needsTarget": true,
-    "note": "if board.getFarthestTargetCoordinateAvailablePlace returns null, the original cast target is hit and the caster does not move",
+    "note": "Cases (read from the helper, not executed): (1) normal: the last maximum-setting enemy that has a free adjacent cell is chosen, with the free adjacent cell farthest from the caster (first such cell on ties). (2) RETAINED SELECTION: if an enemy that sets a new maximum distance has no free adjacent cell, the earlier selectedCell is kept (it is never cleared) and its enemy - nearer than the farthest - becomes the target. (3) because the running maximum was already raised, enemies scanned later at a distance <= that maximum are skipped, even if they are nearer than the farthest enemy but farther than the retained one, and even if they have free cells. (4) FALLBACK: only if no enemy at all produced a selected cell, the free cell closest to the last-recorded 'farthest' enemy (getClosestAvailablePlace) is used with that enemy as target. (5) if that also fails (or no targettable enemy exists) the helper returns null: the caster does not move and the original cast target is hit. Ties in distance keep the first enemy in scan order (strict >). The scan order of board.forEach and the exact distanceM metric were not read.",
     "evidence": [
      "nz-dest",
      "board-far",
      "board-far-enemy",
      "board-far-strict",
+     "board-far-update",
+     "board-far-select",
      "board-far-cells",
-     "board-far-fallback"
+     "board-far-fallback",
+     "board-far-closest"
     ]
    },
    "geometry": {
-    "shape": "single target; caster relocates to a free cell adjacent to it (selected as the free adjacent cell farthest from the caster)",
+    "shape": "single target; caster relocates to the free adjacent cell (of the selected enemy) that is farthest from the caster, first on ties; unchanged if no cell is returned",
     "evidence": [
      "board-far-cells",
      "nz-move"
@@ -220,8 +223,8 @@
      "unit-pachirisu"
     ]
    },
-   "positionalConditions": "Needs at least one targettable enemy to select a destination. The caster moves to a free cell adjacent to the farthest enemy; if that enemy has no free adjacent cell, the code keeps an earlier (nearer) candidate if one was found, otherwise falls back to the free cell closest to the farthest enemy; if nothing is free, no move and the original target is hit.",
-   "repeatedCastsAndModes": "No stored state: each cast re-selects the farthest enemy, jumps, paralyses and hits. No modes. Two casts on the same target extend paralysis only if the new duration exceeds the remaining one.",
+   "positionalConditions": "Needs at least one targettable enemy. The destination is the helper's selected cell: normally next to the last maximum-setting enemy that has a free adjacent cell; an earlier, nearer selection is retained when a farther enemy has no free adjacent cell, and later nearer enemies are then skipped; the closest-free-cell fallback is used only when no enemy produced a selected cell; if nothing is found, no move and the original target is hit (see targeting.note).",
+   "repeatedCastsAndModes": "No stored state: each cast re-runs the helper on the current board, jumps, paralyses and hits. No modes. Two casts on the same target extend paralysis only if the new duration exceeds the remaining one.",
    "rawVsResolved": "Declared raw: damage 25/50/100 (1/2/3 stars) and paralysis 3000 ms for 1-3 stars. The damage dealt is the raw value x (1 + AP/100), then SPE_DEF division (ceil, at least 1) and untraced modifiers; the paralysis length is the raw value after the listed status modifiers.",
    "numericExamples": [
     {
@@ -272,7 +275,9 @@
     "Pachirisu's separate passive PACHIRISU is not investigated: whether it changes the cast, the stats or anything else is unknown (see passiveGaps.PACHIRISU)",
     "Alolan Raichu's passive SURGE_SURFER does not alter NUZZLE in the code read, but its field-dependent speed is described in passives.SURGE_SURFER",
     "Whether canMove / canBeMoved checks inside moveTo can block the jump (moveTo not read)",
-    "Whether the NUZZLE damage or paralysis changes under any item or synergy effect not listed here"
+    "Whether the NUZZLE damage or paralysis changes under any item or synergy effect not listed here",
+    "Board scan order (board.forEach) and the distanceM metric were not read, so which enemy wins a distance tie and the exact meaning of 'farthest' are not stated more precisely than above",
+    "Whether a retained-selection case is common in real boards (needs a farther enemy fully surrounded or at an edge); no gameplay evidence"
    ],
    "evidence": [
     {
@@ -714,6 +719,39 @@
      "symbol": "getFarthestTargetCoordinateAvailablePlace",
      "expect": "fallback to closest free cell of farthest target",
      "note": ""
+    },
+    {
+     "id": "board-far-update",
+     "file": "app/core/board.ts",
+     "lines": [
+      590,
+      593
+     ],
+     "symbol": "getFarthestTargetCoordinateAvailablePlace",
+     "expect": "maxTargetDistance = targetDistance farthestTarget = entity maxCellDistance = 0",
+     "note": "maxTargetDistance and farthestTarget are updated BEFORE it is known whether this enemy has a free adjacent cell"
+    },
+    {
+     "id": "board-far-select",
+     "file": "app/core/board.ts",
+     "lines": [
+      597,
+      612
+     ],
+     "symbol": "getFarthestTargetCoordinateAvailablePlace",
+     "expect": "if (cellDistance > maxCellDistance) { maxCellDistance = cellDistance selectedCell = {",
+     "note": "selectedCell is only assigned inside the free-cell loop; it is never cleared"
+    },
+    {
+     "id": "board-far-closest",
+     "file": "app/core/board.ts",
+     "lines": [
+      618,
+      627
+     ],
+     "symbol": "getFarthestTargetCoordinateAvailablePlace",
+     "expect": "const freeCell = this.getClosestAvailablePlace( farthestTarget.positionX, farthestTarget.positionY )",
+     "note": "fallback only when selectedCell is still null at the end"
     }
    ],
    "label": "production-branch reference; deployment unverified",
@@ -771,7 +809,7 @@
      "dr-strategy"
     ]
    },
-   "summary": "Gives the caster an initial shield and starts a 6-pulse effect: each pulse (every 1000 timer units) adds more shield and hits all adjacent enemies with special damage; when the effect ends, the shield it granted is partly converted into healing (40 %).",
+   "summary": "Gives the caster an initial shield and starts a 6-pulse effect: each pulse (every 1000 timer units) adds more shield and hits all adjacent enemies with special damage; when the effect ends, C = min(current shield, tracked raw shield) is removed from the shield and 40 % of C (rounded) is requested as healing.",
    "targeting": {
     "who": "no target needed (castable anywhere); pulses hit adjacent enemies of the caster",
     "needsTarget": false,
@@ -855,16 +893,16 @@
     {
      "kind": "heal",
      "target": "the caster",
-     "condition": "when the effect ends (7th timer fire) or when the ability is cast again while active",
+     "condition": "when the effect ends (7th timer fire) or when the ability is cast again while active; C = min(current shield, shieldGiven)",
      "declaredRaw": {
-      "formula": "round(0.4 x min(current shield, shieldGiven))",
-      "note": "shieldGiven = raw initial shield + raw per-pulse shields added so far; the same amount is removed from the caster's shield"
+      "formula": "removes C shield; requests healing round(0.4 x C), where C = min(current shield, shieldGiven)",
+      "note": "removed shield (C) and requested healing (0.4 x C, rounded) are different amounts. shieldGiven = raw initial shield + raw per-pulse shields added since the effect (or since the last conversion) started"
      },
      "perUnitRaw": {
-      "GYARADOS": "round(0.4 x min(shield, 135)) at most, i.e. 54, when the cast ran its full course"
+      "GYARADOS": "C = 135 gives 135 shield removed and a base healing request of round(0.4 x 135) = 54 (before healing modifiers); other values of C give other amounts"
      },
-     "scaling": "none from AP or crit (handleHeal called with apBoost 0, crit false); wound => 0, burn and enrage halve, zenith weather x1.2, rounded, capped at missing HP",
-     "resolution": "depends on how much of the granted shield is still on the unit; a conversion removes shield, so it is an exchange, not an extra shield",
+     "scaling": "the healing request is not AP- or crit-scaled (handleHeal called with apBoost 0, crit false), but handleHeal then applies its own modifiers: wound => 0, burn x0.5, enraged x0.5, BUFF_HEAL_RECEIVED x1.3, zenith weather x1.2, rounding, cap at missing HP. The 54 is the BASE request, not a universal maximum: modifiers can raise or lower the healing received, and C itself varies (damage taken, recast, enrage)",
+     "resolution": "C depends on how much of the tracked shield is still on the unit; the removal is an exchange (shield lost) while the healing request is 40 % of it; actual healing received is whatever handleHeal returns",
      "evidence": [
       "dr-consume",
       "heal",
@@ -895,7 +933,7 @@
    },
    "positionalConditions": "None for casting. Damage depends on which enemies are on the 8 adjacent cells at each pulse.",
    "repeatedCastsAndModes": "State: a DragonRageEffect with ticksRemaining (6) and shieldGiven. FIRST cast: adds the initial shield and creates the effect. CAST WHILE ACTIVE: no new initial shield is added; the active effect converts its tracked shield into healing right away (consumeShield) and ticksRemaining is reset to 6 (the effect's 1000-unit timer is not reset). The effect ends on the pulse where ticksRemaining would go below 0, i.e. after 6 damaging pulses the 7th timer fire ends it and converts what is left. Each cast still spends maxPP of PP.",
-   "rawVsResolved": "Declared raw for 3 stars: initial shield 45, per pulse shield 15 and damage 15, 6 pulses; tracked raw shield total 45 + 6 x 15 = 135; heal at most round(0.4 x 135) = 54 when the whole tracked amount is still on the unit. Actual shield includes AP scaling and may be lower after damage; the heal is capped by missing HP and reduced by burn/enrage/wound.",
+   "rawVsResolved": "Declared raw for 3 stars: initial shield 45, per pulse shield 15 and damage 15, 6 pulses; tracked raw shield 45 + 6 x 15 = 135. With C = 135 (all tracked shield still present at the end) the conversion removes 135 shield and requests round(0.4 x 135) = 54 healing as the BASE request, before handleHeal's modifiers (burn/enrage halve, wound zeroes, BUFF_HEAL_RECEIVED x1.3, zenith x1.2) and the cap at missing HP. Actual shield received includes AP scaling and may be lower after damage, so C can be smaller; it can never exceed the tracked raw counter.",
    "numericExamples": [
     {
      "id": "dr-gyarados-totals",
@@ -906,9 +944,10 @@
       "perPulse": 15,
       "pulses": 6,
       "trackedShield": 135,
-      "maxHeal": 54
+      "shieldRemovedIfAllPresent": 135,
+      "baseHealRequest": 54
      },
-     "conditions": "Gyarados (3 stars); tracked shield counts raw values only; maxHeal needs all tracked shield still present (not damaged), AP 0 irrelevant for the heal, no burn/enrage/wound, missing HP at least 54; arithmetic on the cited tables"
+     "conditions": "Gyarados (3 stars); C = 135 requires the full tracked shield to still be on the unit at the end; 54 is the base healing request round(0.4 x C) before handleHeal's modifiers and the missing-HP cap, not a maximum; arithmetic on the cited tables"
     },
     {
      "id": "dr-pulse-speDef10",
@@ -2202,7 +2241,7 @@
    },
    "notApplied": "Mankey and Annihilape declare passive NONE in the catalog: the passive and its stacking apply only to Primeape.",
    "kind": "event-triggered counter (OnDeath and OnResurrecting effects)",
-   "summary": "Every time the Primeape entity dies or starts a resurrection, it gains +1 ATK (permanent: also written to the board unit) and +1 stack; its STACK evolution rule needs 10 stacks and evolves it into Annihilape mid-fight.",
+   "summary": "Every time the Primeape entity dies or starts a resurrection, it gains +1 ATK (permanent: also written to the board unit) and +1 stack; its STACK evolution rule needs 10 stacks, and addStack then evolves the board unit into Annihilape mid-fight.",
    "triggers": [
     {
      "event": "death",
@@ -2256,7 +2295,7 @@
     "trigger": "PokemonEntity.addStack calls EvolutionManager.tryEvolve ONLY when stacks === stacksRequired (exact equality) and the rule type is STACK",
     "gate": "StackEvolutionHandler.canEvolve: false when holding Eviolite or not on the player's board; otherwise stacks >= stacksRequired",
     "result": "player.transformPokemon builds the evolved unit, carries permanent stat deltas (atk delta versus a fresh Primeape is re-applied), re-adds items, then Annihilape.onAcquired subtracts 10 attack (30 - 20) 'to revert permanent atk buff stacked for evolution'",
-    "plainCaseArithmetic": "Primeape atk 20 + 10 permanent points = 30 at the 10th stack; Annihilape factory 30 + carried delta 10 - onAcquired 10 = 30. This assumes exactly 10 permanent points and no other permanent atk changes; it is arithmetic on the cited lines, not an observed result",
+    "plainCaseArithmetic": "Primeape atk 20 + 10 permanent points = 30 at the 10th stack; Annihilape factory 30 + carried delta 10 - onAcquired 10 = 30. This assumes exactly 10 permanent points and no other permanent atk changes; it is arithmetic on the cited lines, not an observed result. A death or resurrection of the same entity after the evolution would add +1 more permanent attack to the Annihilape board unit (see lifecycle)",
     "checkedAgainstOldNotes": "The earlier pilot-evolution note was re-checked against the source: STACK rule, stacksRequired 10, the === test, the >= handler, the Eviolite/board gates and the +1 atk/addStack pair all hold. Newly established here: death/resurrection are mutually exclusive triggers, addStack ignores entities without a player, the atk delta is carried through carryOverPermanentStats and trimmed by Annihilape.onAcquired.",
     "evidence": [
      "unit-primeape-stack",
@@ -2267,23 +2306,36 @@
      "pa-transform",
      "pa-carry",
      "unit-annihilape-acquired"
-    ]
+    ],
+    "lifecycle": {
+     "freshAnnihilape": "a newly created Annihilape (catalog instance, purchase, or the board unit produced by evolution) declares passive NONE, so a fight entity built from it has no PRIMEAPE effects and gains no stacks",
+     "existingEntityAfterMidFightEvolution": "addStack changes only the existing entity's index, name and refToBoardPokemon (pokemon-entity.ts:1817-1822); it does not call changePassive. Read from the code: that entity keeps passive PRIMEAPE and its OnDeath/OnResurrecting effects for the rest of the fight, so a further death or resurrection would call addPrimeapeStack again: +1 ATK written permanently to the (now Annihilape) board unit and +1 on its stacks. The evolution rule re-check reads refToBoardPokemon.evolutionRule (Annihilape: not STACK), so no further evolution is attempted from addStack",
+     "status": "traced by reading only: other code that might rebuild the entity's passive or effects after the evolution (client sync, simulation hooks, end-of-fight handling) was not searched exhaustively; the changePassive callers found in app/ do not include this path. The permanent-ATK arithmetic below holds only if no further stack lands after the 10th",
+     "evidence": [
+      "pa-addstack-evolve",
+      "pa-addstack-rule",
+      "pa-change-passive",
+      "pa-after-evolve"
+     ]
+    }
    },
    "conditions": [
-    "Eviolite blocks evolution at the moment the 10th stack lands; because addStack tests equality, stacks 11 and beyond never call tryEvolve again, so a Primeape that reached 10 stacks while holding Eviolite does not evolve from later deaths in this code path (inference from the === test; other tryEvolve callers not exhaustively listed).",
+    "Eviolite: StackEvolutionHandler.canEvolve returns false while it is held, and PokemonEntity.addStack calls tryEvolve only when stacks === stacksRequired, so on the addStack path an Eviolite holder that reaches 10 stacks does not evolve and stacks 11, 12, ... do not call tryEvolve again. This conclusion is limited to the inspected addStack path: other tryEvolve callers were not exhaustively listed, and canEvolve itself uses >=, so a different path that calls tryEvolve later could evolve it.",
     "canEvolve also requires the unit to be on the player's board (stack-evolution-handler.ts:9).",
     "A resurrection and the death that follows it each give a stack when they occur (two events), but a single hit that resurrects gives one (the death effect does not proc then)."
    ],
    "resetBehaviour": "The stack count lives on the board Pokemon (refToBoardPokemon.stacks) and the permanent attack on its atk, so both persist across fights in the code read. No reset of stacks to 0 for Primeape was found (pattern search over `stacks = ` assignments in app/; not an exhaustive proof). The entity copy of stacks is taken from the board unit at fight start.",
    "dependsOnUnverifiedGenericCombat": [
     "When deaths and resurrections occur in a fight (damage pipeline, resurrection sources)",
-    "Whether the evolved unit appears immediately in the fight (the code comment says stats come at the end of the fight)"
+    "Whether the evolved unit appears immediately in the fight (the code comment says stats come at the end of the fight)",
+    "Whether anything rebuilds the fight entity's passive or effects after the mid-fight evolution (only changePassive callers in app/ and addStack were read)"
    ],
    "unresolved": [
-    "Exhaustive list of tryEvolve callers for STACK rules (only addStack read as a stack-adding path for Primeape)",
+    "Exhaustive list of tryEvolve callers for STACK rules (only addStack and afterEvolve were read)",
     "Reset of PRIMEAPE stacks between rounds or on being sold/rebought was not found; not asserted",
     "What happens if stacks exceed 10 without evolving (stuck, per the === test) or when copies/clones (e.g. cloned entity stacks) are involved",
-    "Sources of resurrection for Primeape in real play (not examined)"
+    "Sources of resurrection for Primeape in real play (not examined)",
+    "Fight-entity behaviour after the mid-fight evolution beyond what addStack and the changePassive callers show: whether further deaths really add stacks/ATK to the Annihilape board unit and how the fight-end sync treats them"
    ],
    "numericExamples": [
     {
@@ -2506,6 +2558,50 @@
      "symbol": "carryOverPermanentStats",
      "expect": "p[stat] - baseData[stat]",
      "note": "permanent atk delta versus a fresh instance of the pre-evolution Pokemon is re-applied to the evolved one"
+    },
+    {
+     "id": "pa-addstack-evolve",
+     "file": "app/core/pokemon-entity.ts",
+     "lines": [
+      1817,
+      1822
+     ],
+     "symbol": "PokemonEntity.addStack",
+     "expect": "this.index = pokemonEvolved.index this.name = pokemonEvolved.name this.refToBoardPokemon = pokemonEvolved",
+     "note": "mid-fight evolution updates index, name and the board reference of the existing entity; no passive change is made in these lines"
+    },
+    {
+     "id": "pa-addstack-rule",
+     "file": "app/core/pokemon-entity.ts",
+     "lines": [
+      1808,
+      1812
+     ],
+     "symbol": "PokemonEntity.addStack",
+     "expect": "this.refToBoardPokemon.evolutionRule.type === EvolutionRuleType.STACK && this.stacksRequired > 0 && this.stacks === this.stacksRequired",
+     "note": "the rule type is read from refToBoardPokemon, which after evolution is the new Annihilape"
+    },
+    {
+     "id": "pa-change-passive",
+     "file": "app/core/pokemon-entity.ts",
+     "lines": [
+      1767,
+      1791
+     ],
+     "symbol": "PokemonEntity.changePassive",
+     "expect": "this.passive = newPassive",
+     "note": "passive effects are (re)built only here; the callers found in app/ (constructor, transform/transe abilities, form-change passives) do not include the STACK evolution path"
+    },
+    {
+     "id": "pa-after-evolve",
+     "file": "app/core/evolution-logic/evolution-manager.ts",
+     "lines": [
+      75,
+      107
+     ],
+     "symbol": "EvolutionManager.afterEvolve",
+     "expect": "this.tryEvolve(pokemonEvolved, player, ...additionalArgs)",
+     "note": "afterEvolve works on the board Pokemon objects, not on the fight entity"
     }
    ],
    "label": "production-branch reference; deployment unverified",

@@ -9,7 +9,7 @@
 // Options: --repo <dir> (default: this repository), --remote <name> (default origin), --no-fetch (tests)
 import { spawnSync } from "node:child_process"
 import { resolve } from "node:path"
-import { REPO } from "./lib/records.mjs"
+import { REPO } from "./record-checks.mjs"
 
 const argv = process.argv.slice(2)
 const cmd = argv[0]
@@ -48,16 +48,29 @@ function verify() {
   if (anc.code !== 0) stop(3, `local HEAD does not descend from ${expect}; history was rewritten locally. STOP.`)
   out(`ok: ${remote}/${branch} still ${expect.slice(0, 12)}; HEAD descends from it`)
 }
+// Paths are parsed from NUL-separated git output (no trimming, no quoting, spaces preserved). Renames are reported by git as
+// delete + add (--no-renames), so both the old and the new path are checked, in the working tree, the index and every commit since SHA.
+function insideAssistant(p) {
+  const parts = p.split("/")
+  return parts.length > 1 && parts[0] === "assistant" && !parts.includes("..") && !parts.includes("") && !parts.includes(".")
+}
+function rawGit(...a) { const r = spawnSync("git", ["-C", repo, ...a], { encoding: "utf8", maxBuffer: 1 << 28 }); return { code: r.status, out: r.stdout ?? "", err: (r.stderr ?? "").trim() } }
+function changedPaths(expectSha) {
+  const files = new Set()
+  const merges = rawGit("rev-list", "--merges", `${expectSha}..HEAD`); if (merges.code !== 0) stop(1, `git rev-list failed: ${merges.err}`)
+  if (merges.out.trim()) stop(5, "merge commits since the run started are not allowed (a run must not merge); STOP")
+  const log = rawGit("log", "--name-only", "-z", "--no-renames", "--format=", `${expectSha}..HEAD`); if (log.code !== 0) stop(1, `git log failed: ${log.err}`)
+  log.out.split("\0").filter((x) => x !== "" && x !== "\n").forEach((x) => files.add(x.replace(/^\n+/, "")))
+  const st = rawGit("status", "--porcelain=v1", "-z", "--no-renames", "--untracked-files=all"); if (st.code !== 0) stop(1, `git status failed: ${st.err}`)
+  for (const e of st.out.split("\0")) if (e.length > 3) files.add(e.slice(3)) // "XY path": two status letters, one space, then the path verbatim
+  return [...files]
+}
 function scope() {
   if (!expect || expect === true) stop(1, "--expect <sha> is required")
-  const files = new Set()
-  const d = git("diff", "--name-only", `${expect}..HEAD`); if (d.code !== 0) stop(1, `git diff failed: ${d.err}`)
-  d.out.split("\n").filter(Boolean).forEach((x) => files.add(x))
-  const s = git("status", "--porcelain"); if (s.code !== 0) stop(1, `git status failed: ${s.err}`)
-  s.out.split("\n").filter(Boolean).forEach((l) => files.add(l.slice(3).replace(/^.* -> /, "")))
-  const outside = [...files].filter((x) => !x.startsWith("assistant/"))
-  if (outside.length) stop(5, `changes outside assistant/ (not allowed): ${outside.slice(0, 10).join(", ")}`)
-  out(`ok: ${files.size} changed path(s), all under assistant/`)
+  const files = changedPaths(expect)
+  const outside = files.filter((x) => !insideAssistant(x))
+  if (outside.length) stop(5, `changes outside assistant/ (not allowed): ${outside.slice(0, 10).map((x) => JSON.stringify(x)).join(", ")}`)
+  out(`ok: ${files.length} changed path(s), all under assistant/`)
 }
 
 switch (cmd) {

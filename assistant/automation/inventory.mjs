@@ -12,7 +12,7 @@
 import { execFileSync } from "node:child_process"
 import { readFileSync, writeFileSync, renameSync } from "node:fs"
 import { dirname, resolve } from "node:path"
-import { ASSISTANT, REPO, SHA, LABEL } from "./lib/records.mjs"
+import { ASSISTANT, REPO, SHA, LABEL } from "./record-checks.mjs"
 
 const argv = process.argv.slice(2)
 const opt = (n) => { const i = argv.indexOf(n); return i === -1 ? undefined : argv[i + 1] }

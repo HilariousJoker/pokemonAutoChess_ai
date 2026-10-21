@@ -150,7 +150,7 @@ const Q3 = join(tmp, "queue3.json")
 
 // =========== 4. common record checks (generic, no per-ability code) ===========
 step("common checks against mutated copies of covered records")
-const { checkRecord, makeContext } = await import("./lib/records.mjs")
+const { checkRecord, makeContext } = await import("./record-checks.mjs")
 const ctx = makeContext()
 const clone = (o) => JSON.parse(JSON.stringify(o))
 const base = clone(realReusable.abilities.NUZZLE)
@@ -197,6 +197,49 @@ sh(B, "fetch", "-q"); writeFileSync(join(B, "assistant/z.txt"), "z"); sh(B, "add
 r = G(B, "push", "--branch", "work", "--expect", startB)
 check("guard: an unchanged branch is pushed with a plain push", r.code === 0 && sh(bare, "rev-parse", "work").stdout.trim() === sh(B, "rev-parse", "HEAD").stdout.trim(), r.err)
 check("guard source contains no force-push option", !/--force|-f\b|force-with-lease/.test(readFileSync(resolve(HERE, "branch-guard.mjs"), "utf8").replace(/never force-pushes|no force|force-push|merge or force/gi, "")))
+
+// ---- scope detection: porcelain parsing, renames (both sides), committed changes, spaces in names ----
+step("scope detection in a temporary repository")
+{
+  const S = join(tmp, "scope"); mkdirSync(S); sh(S, "init", "-q", "-b", "work"); sh(S, "config", "user.email", "t@t"); sh(S, "config", "user.name", "t")
+  mkdirSync(join(S, "assistant")); writeFileSync(join(S, "assistant/x.txt"), "1"); writeFileSync(join(S, "readme.md"), "r"); writeFileSync(join(S, "assistant/in side.txt"), "s"); writeFileSync(join(S, "my file.txt"), "m")
+  sh(S, "add", "."); sh(S, "commit", "-qm", "base")
+  const base = sh(S, "rev-parse", "HEAD").stdout.trim()
+  const reset = () => { sh(S, "reset", "-q", "--hard", base); sh(S, "clean", "-qfd") }
+  const SC = (...a) => node("branch-guard.mjs", "scope", "--repo", S, "--expect", base, ...a)
+  check("scope: clean tree passes", SC().code === 0)
+  writeFileSync(join(S, "assistant/x.txt"), "changed")
+  r = SC(); check("scope: an uncommitted modification of assistant/x.txt is allowed (no mangled 'ssistant/' path)", r.code === 0 && !/ssistant/.test(r.err.replace(/assistant/g, "")), r.err)
+  reset(); writeFileSync(join(S, "assistant/new file with spaces.txt"), "n")
+  check("scope: an untracked file with spaces inside assistant/ is allowed", SC().code === 0)
+  reset(); writeFileSync(join(S, "my file.txt"), "edited")
+  r = SC(); check("scope: an outside edit of a file whose name contains a space is rejected and printed exactly", r.code === 5 && r.err.includes('"my file.txt"'), r.err)
+  reset(); sh(S, "mv", "readme.md", "assistant/readme.md")
+  r = SC(); check("scope: a STAGED rename readme.md -> assistant/readme.md is rejected (old side is outside)", r.code === 5 && r.err.includes('"readme.md"'), r.err)
+  sh(S, "commit", "-qm", "rename")
+  r = SC(); check("scope: the same rename COMMITTED is still rejected", r.code === 5 && r.err.includes('"readme.md"'), r.err)
+  reset(); sh(S, "mv", "assistant/x.txt", "x-moved.txt")
+  r = SC(); check("scope: a rename from assistant/ to outside is rejected (new side is outside)", r.code === 5 && r.err.includes('"x-moved.txt"'), r.err)
+  reset(); sh(S, "mv", "assistant/in side.txt", "assistant/in side 2.txt"); sh(S, "commit", "-qam", "inner rename")
+  check("scope: a committed rename inside assistant/ (with spaces) is allowed", SC().code === 0)
+  reset(); writeFileSync(join(S, "assistant/ok.txt"), "o"); sh(S, "add", "."); sh(S, "commit", "-qm", "ok"); writeFileSync(join(S, "readme.md"), "again"); sh(S, "commit", "-qam", "outside later")
+  check("scope: an outside change in a later commit of the range is rejected", SC().code === 5)
+  reset(); writeFileSync(join(S, "tmp-outside.txt"), "t"); sh(S, "add", "."); sh(S, "commit", "-qm", "add outside"); sh(S, "rm", "-q", "tmp-outside.txt"); sh(S, "commit", "-qm", "remove it again")
+  check("scope: a file added and removed outside assistant/ within the range is still detected", SC().code === 5)
+  reset(); sh(S, "checkout", "-qb", "side"); writeFileSync(join(S, "assistant/s.txt"), "s"); sh(S, "add", "."); sh(S, "commit", "-qm", "s"); sh(S, "checkout", "-q", "work"); writeFileSync(join(S, "assistant/w.txt"), "w"); sh(S, "add", "."); sh(S, "commit", "-qm", "w"); sh(S, "merge", "-q", "--no-ff", "-m", "merge", "side")
+  check("scope: merge commits in the range are rejected", SC().code === 5)
+}
+// ---- ensure-source: missing pinned commit is reported (no network in --check) ----
+step("ensure-source --check in a repository without the pinned commit")
+{
+  const E = join(tmp, "nosrc"); mkdirSync(join(E, "assistant/automation"), { recursive: true }); sh(E, "init", "-q"); sh(E, "config", "user.email", "t@t"); sh(E, "config", "user.name", "t")
+  for (const f of ["ensure-source.mjs", "record-checks.mjs"]) cpSync(resolve(HERE, f), join(E, "assistant/automation", f))
+  sh(E, "add", "."); sh(E, "commit", "-qm", "x")
+  const rr = spawnSync(process.execPath, [join(E, "assistant/automation/ensure-source.mjs"), "--check"], { encoding: "utf8" })
+  check("ensure-source --check exits 3 and names the exact commit when it is missing", rr.status === 3 && rr.stderr.includes("07367c341fe928763da2b565c2eee010433e4fc1") && /missing/.test(rr.stderr), rr.stderr)
+  const src = readFileSync(resolve(HERE, "ensure-source.mjs"), "utf8")
+  check("ensure-source fetches only the exact pinned commit from the official upstream (no branch names, no other revision)", /keldaanCommunity\/pokemonAutoChess\.git/.test(src) && /"fetch", "--no-tags", "--depth=1", "--no-write-fetch-head", UPSTREAM, SHA/.test(src) && !/\b(prod|master|main)\b[^\n]*fetch/.test(src.replace(/\/\/.*/g, "")))
+}
 
 // =========== 6. nothing outside the temp dir changed ===========
 check("no writes: assistant/ tree byte-identical before and after all tests", snapshot() === before)

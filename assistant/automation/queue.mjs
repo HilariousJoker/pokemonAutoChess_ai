@@ -23,7 +23,7 @@
 // This tool never sets review to "reviewed" and never moves a candidate into data/ or knowledge/.
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname, relative, resolve, sep } from "node:path"
-import { ASSISTANT, SHA, LABEL, checkRecord, makeContext } from "./lib/records.mjs"
+import { ASSISTANT, SHA, LABEL, checkRecord, makeContext } from "./record-checks.mjs"
 
 const argv = process.argv.slice(2)
 const cmd = argv[0]

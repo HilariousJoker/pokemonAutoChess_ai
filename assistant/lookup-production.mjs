@@ -4,7 +4,7 @@
 //
 // Usage: node assistant/lookup-production.mjs <PKM_KEY>     one catalog identifier (exact, case-sensitive)
 //        node assistant/lookup-production.mjs --list        counts, coverage and the catalog identifiers
-//   optional (mainly for tests): --catalog <f> --evolution <f> --abilities <f> --reusable <f>   alternate data files (still validated)
+//   optional (mainly for tests): --catalog <f> --evolution <f> --abilities <f> --reusable <f> --review <f>   alternate data files (still validated)
 // Exit codes: 0 ok · 1 unknown / excluded identifier · 2 usage or unreadable/malformed input · 3 data refused (revision, provenance or identity mismatch).
 import { readFileSync } from "node:fs"
 import { dirname, relative, resolve, sep } from "node:path"
@@ -23,11 +23,11 @@ const fail = (code, msg) => { throw new Refusal(code, msg) }
 const own = (o, k) => Object.hasOwn(o, k)
 
 function parseArgs(argv) {
-  const o = { key: undefined, list: false, catalog: resolve(DATA_DIR, "catalog-units.json"), evolution: resolve(DATA_DIR, "pilot-evolution.json"), abilities: resolve(DATA_DIR, "pilot-abilities.json"), reusable: resolve(DATA_DIR, "reusable-abilities.json") }
+  const o = { key: undefined, list: false, catalog: resolve(DATA_DIR, "catalog-units.json"), evolution: resolve(DATA_DIR, "pilot-evolution.json"), abilities: resolve(DATA_DIR, "pilot-abilities.json"), reusable: resolve(DATA_DIR, "reusable-abilities.json"), review: resolve(HERE, "automation", "review-status.json") }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--list") o.list = true
-    else if (a === "--catalog" || a === "--evolution" || a === "--abilities" || a === "--reusable") {
+    else if (a === "--catalog" || a === "--evolution" || a === "--abilities" || a === "--reusable" || a === "--review") {
       const v = argv[++i]
       if (!v || v.startsWith("--")) fail(2, `${a} requires a file path`)
       o[a.slice(2)] = resolve(process.cwd(), v)
@@ -61,7 +61,7 @@ function checkProvenance(doc, what) {
   if (bad.length) fail(3, `${what} contains source references to another revision (${bad[0]}); refusing`)
 }
 function load(o) {
-  const cat = readJson(o.catalog, "catalog"), evo = readJson(o.evolution, "evolution data"), abi = readJson(o.abilities, "ability records"), reu = readJson(o.reusable, "reusable ability/passive records")
+  const cat = readJson(o.catalog, "catalog"), evo = readJson(o.evolution, "evolution data"), abi = readJson(o.abilities, "ability records"), reu = readJson(o.reusable, "reusable ability/passive records"), rv = readJson(o.review, "review status")
   if (!cat || typeof cat.pokemon !== "object" || !cat.inventory || !Array.isArray(cat.inventory.identifiers)) fail(2, `${o.catalog} is not a catalog (no pokemon/inventory)`)
   if (!evo || typeof evo.units !== "object" || evo.units === null) fail(2, `${o.evolution} has no "units" section`)
   if (!abi || typeof abi.abilities !== "object" || abi.abilities === null) fail(2, `${o.abilities} has no "abilities" section`)
@@ -117,8 +117,21 @@ function load(o) {
     if (rec.passive !== name) fail(3, `passive gap ${name} has inconsistent passive name`)
     checkApplies(name, rec, true)
   }
+  // independent-review status is read from the human-maintained review-status.json; anything not marked reviewed there is NOT called reviewed
+  const refs = new Map()
+  for (const n of Object.keys(abi.abilities)) refs.set(`data/07367c34/pilot-abilities.json#abilities.${n}`, ["abilities", n])
+  for (const n of Object.keys(reu.abilities)) refs.set(`data/07367c34/reusable-abilities.json#abilities.${n}`, ["abilities", n])
+  for (const n of Object.keys(reu.passives)) refs.set(`data/07367c34/reusable-abilities.json#passives.${n}`, ["passives", n])
+  if (!rv || typeof rv.records !== "object" || rv.records === null) fail(2, `${o.review} has no "records" section`)
+  const review = { abilities: {}, passives: {} }
+  for (const [ref, [k, n]] of refs) review[k][n] = "unreviewed"
+  for (const [ref, v] of Object.entries(rv.records)) {
+    if (!refs.has(ref)) fail(3, `review-status.json names ${ref}, which is not a saved record; refusing`)
+    if (!["reviewed", "unreviewed"].includes(v.status)) fail(3, `review-status.json: ${ref} has status ${v.status}; expected reviewed or unreviewed`)
+    const [k, n] = refs.get(ref); review[k][n] = v.status
+  }
   // pilot and reusable ability records are presented together (names are disjoint, checked above)
-  return { cat, evo, abi: { ...abi, abilities: { ...abi.abilities, ...reu.abilities } }, pilotNames: Object.keys(abi.abilities), reusable: reu }
+  return { cat, evo, abi: { ...abi, abilities: { ...abi.abilities, ...reu.abilities } }, pilotNames: Object.keys(abi.abilities), reusable: reu, review }
 }
 
 // ---- notes (headings and "Unresolved" lines are read from the committed production notes; nothing is paraphrased) ----
@@ -157,6 +170,7 @@ const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|R
 
 // ---- rendering ------------------------------------------------------------------------------------------
 const code = (s) => `\`${s}\``
+const REVIEW_LABEL = { reviewed: "independently reviewed", unreviewed: "source-traced, independent review pending (mechanical validation only; not independently reviewed)" }
 const arr = (a) => (a.length ? a.join(", ") : "—")
 const cap = (s, n = 700) => (s.length > n ? s.slice(0, n) + " … (see the note)" : s)
 const rawTable = (t) => Object.entries(t).map(([k, v]) => (/^\d+$/.test(k) ? `${k}★ ${v}` : `${k} ${v}`)).join(", ")
@@ -195,18 +209,20 @@ function renderEvolution(L, key, cat, evo) {
   }
 }
 
-function renderAbility(L, key, cat, abi, covering) {
+function renderAbility(L, key, cat, abi, covering, review) {
   const s = cat.pokemon[key].stats
   L.push("## Skill and passive")
   L.push(`Skill identifier ${code(s.skill)}${s.tm !== "DEFAULT" ? `, TM ${code(s.tm)}` : ""}; passive identifier ${code(s.passive)}. Identifiers alone say nothing about behavior (passives are covered in the next section).`)
   const sameId = Object.values(abi.abilities).filter((r) => r.ability === s.skill && !r.appliesTo.some((u) => u.key === key))
   if (!covering.length) {
-    L.push(`**No reviewed ability information for this unit.** ${sameId.length ? `A reviewed record for ${code(s.skill)} exists but covers only ${sameId[0].appliesTo.map((u) => u.key).join(", ")}; it is **not** applied to ${key}.` : `The ability ${code(s.skill)} has not been reviewed.`} No description is invented.`)
+    L.push(`**No ability record for this unit.** ${sameId.length ? `A record for ${code(s.skill)} exists but covers only ${sameId[0].appliesTo.map((u) => u.key).join(", ")}; it is **not** applied to ${key}.` : `The ability ${code(s.skill)} has not been reviewed.`} No description is invented.`)
     return
   }
   for (const rec of covering) {
     const a = rec.appliesTo.find((u) => u.key === key)
-    L.push(`### Reviewed: ${rec.ability} (record \`abilities.${rec.ability}\`, covers ${rec.appliesTo.map((u) => u.key).join(", ")})`)
+    const rvw = review.abilities[rec.ability]
+    L.push(`### ${rvw === "reviewed" ? "Reviewed" : "Source-traced"}: ${rec.ability} (${rvw === "reviewed" ? "independently reviewed" : "independent review pending"}; record \`abilities.${rec.ability}\`, covers ${rec.appliesTo.map((u) => u.key).join(", ")})`)
+    if (rvw !== "reviewed") L.push("> **Review status:** source-traced and mechanically validated only; independent review is pending (see automation/review-status.json). Validation checks that cited text exists and tables match; it does not mean the claims were independently reviewed.")
     L.push("> **Amounts below are RAW declared values from the ability code — not final damage, healing or shields.** Final results depend on the generic combat pipeline, which is mostly unverified.")
     if (rec.scope) L.push(`Scope: ${rec.scope}`)
     L.push(`Unit facts: ${key} is ${a.stars}★, maxPP ${a.maxPP}, range ${a.range}.`)
@@ -254,9 +270,9 @@ function renderAbility(L, key, cat, abi, covering) {
 //  (a) a STRUCTURED passive record — none exists in the data files (data/07367c34 has records for abilities only; the VESPIQUEN
 //      passive's position-change effect is described inside the VESPIQUEN_ORDERS ability record);
 //  (b) SOURCE-BACKED CONTEXT in the linked production notes that mention this passive (quoted, never paraphrased or extended).
-function renderStructuredPassive(L, key, rec) {
+function renderStructuredPassive(L, key, rec, review) {
   const a = rec.appliesTo.find((u) => u.key === key)
-  L.push(`- **Structured passive record:** yes — \`passives.${rec.passive}\` (covers ${rec.appliesTo.map((u) => u.key).join(", ")}). Unit facts: ${key} is ${a.stars}★.`)
+  L.push(`- **Structured passive record:** yes — \`passives.${rec.passive}\` (covers ${rec.appliesTo.map((u) => u.key).join(", ")}). Unit facts: ${key} is ${a.stars}★. **Review status:** ${REVIEW_LABEL[review.passives[rec.passive]]}.`)
   L.push("> Values below are RAW declared amounts read from the passive code, not final in-combat results.")
   if (rec.nameCollision) L.push(`- **Name collision:** ${rec.nameCollision}`)
   if (rec.notApplied) L.push(`- Applies to: ${rec.notApplied}`)
@@ -272,6 +288,11 @@ function renderStructuredPassive(L, key, rec) {
     L.push(`  - Result: ${rec.evolution.result}. Plain case: ${rec.evolution.plainCaseArithmetic}.`)
     L.push(`  - Check against the earlier note: ${rec.evolution.checkedAgainstOldNotes}`)
   }
+  if (rec.evolution?.lifecycle) {
+    L.push(`  - Fresh Annihilape: ${rec.evolution.lifecycle.freshAnnihilape}.`)
+    L.push(`  - Existing fight entity after the mid-fight evolution: ${rec.evolution.lifecycle.existingEntityAfterMidFightEvolution}.`)
+    L.push(`  - Status: ${rec.evolution.lifecycle.status}.`)
+  }
   L.push(`- **Reset behaviour:** ${rec.resetBehaviour}`)
   for (const x of rec.numericExamples ?? []) L.push(`- Example (arithmetic, **not gameplay validation**) ${x.id}: ${typeof x.expected === "object" ? JSON.stringify(x.expected) : x.expectedAnnihilapeAtk ?? x.expected} — ${x.conditions}`)
   L.push("- Depends on generic combat processing that is **unverified**:")
@@ -280,14 +301,14 @@ function renderStructuredPassive(L, key, rec) {
   for (const d of rec.unresolved) L.push(`  - ${d}`)
 }
 
-function renderPassive(L, key, cat, covering, secs, reusable) {
+function renderPassive(L, key, cat, covering, secs, reusable, review) {
   const p = cat.pokemon[key].stats.passive
   L.push("## Passive")
   if (p === "NONE") { L.push("Passive identifier `NONE`: the unit declares no passive."); return }
   L.push(`Passive identifier ${code(p)}.`)
   const prec = own(reusable.passives, p) && reusable.passives[p].appliesTo.some((u) => u.key === key) ? reusable.passives[p] : null
   const gap = own(reusable.passiveGaps, p) && reusable.passiveGaps[p].appliesTo.some((u) => u.key === key) ? reusable.passiveGaps[p] : null
-  if (prec) { renderStructuredPassive(L, key, prec); return }
+  if (prec) { renderStructuredPassive(L, key, prec, review); return }
   if (gap) { L.push(`- **Structured passive record:** none — **gap**. ${gap.status}`); return }
   const viaAbility = covering.find((r) => r.modeSelection && r.modeSelection.mechanism.includes(`Passive.${p}`))
   L.push(`- **Structured passive record:** none. Structured passive records exist only for SURGE_SURFER and PRIMEAPE (data/07367c34/reusable-abilities.json), and none for this passive; ${viaAbility ? `the position-change effect of this passive is described inside the reviewed ability record \`abilities.${viaAbility.ability}\` (see above), not as a passive record` : "no field of the data files explains this passive"}.`)
@@ -301,18 +322,18 @@ function renderPassive(L, key, cat, covering, secs, reusable) {
   for (const h of uniq.slice(0, 4)) L.push(`  - ${cap(h.line, 520)} — [${h.sec.title}](${h.sec.link})`)
 }
 
-function renderCoverage(L, key, cat, evo, covering, reusable) {
+function renderCoverage(L, key, cat, evo, covering, reusable, review) {
   const s = cat.pokemon[key].stats
   const prec = s.passive !== "NONE" && own(reusable.passives, s.passive) && reusable.passives[s.passive].appliesTo.some((u) => u.key === key)
   const gap = s.passive !== "NONE" && own(reusable.passiveGaps, s.passive) && reusable.passiveGaps[s.passive].appliesTo.some((u) => u.key === key)
   L.push("## Coverage at a glance")
   L.push("Three separate kinds; each is a claim about this unit only (a shared skill or passive identifier does not carry behaviour from another unit).")
-  L.push(`- **Ability** (${code(s.skill)}): ${covering.length ? `reviewed record ${covering.map((r) => `\`abilities.${r.ability}\``).join(", ")}` : "no reviewed record for this unit"}.`)
-  L.push(`- **Passive** (${code(s.passive)}): ${s.passive === "NONE" ? "none declared" : prec ? `structured record \`passives.${s.passive}\`` : gap ? "**gap** — not covered" : "no structured record"}.`)
+  L.push(`- **Ability** (${code(s.skill)}): ${covering.length ? `record ${covering.map((r) => `\`abilities.${r.ability}\` (${review.abilities[r.ability] === "reviewed" ? "independently reviewed" : "source-traced, independent review pending"})`).join(", ")}` : "no record for this unit"}.`)
+  L.push(`- **Passive** (${code(s.passive)}): ${s.passive === "NONE" ? "none declared" : prec ? `structured record \`passives.${s.passive}\` (${review.passives[s.passive] === "reviewed" ? "independently reviewed" : "source-traced, independent review pending"})` : gap ? "**gap** — not covered" : "no structured record"}.`)
   L.push(`- **Evolution**: ${own(evo.units, key) ? "covered by the 20-unit evolution pilot" : "not in the evolution pilot (missing coverage, not a statement about the unit)"}.`)
 }
 
-function renderUnit(key, { cat, evo, abi, reusable }) {
+function renderUnit(key, { cat, evo, abi, reusable, review }) {
   const r = cat.pokemon[key], s = r.stats, reg = cat.registry[key]
   const L = []
   L.push(`# ${key} — production-reference lookup`, "")
@@ -329,7 +350,7 @@ function renderUnit(key, { cat, evo, abi, reusable }) {
   L.push(`- Class flags: additional=${s.additional}, regional=${s.regional}, canHoldItems=${s.canHoldItems}, canBeBenched=${s.canBeBenched}, canBeSold=${s.canBeSold} (flags, not availability)`)
   if (r.fieldAvailability) for (const [f, v] of Object.entries(r.fieldAvailability)) L.push(`- Field \`${f}\`: **absent** on this revision (${v.note})`)
   L.push("")
-  renderCoverage(L, key, cat, evo, Object.values(abi.abilities).filter((r) => r.appliesTo.some((u) => u.key === key)), reusable)
+  renderCoverage(L, key, cat, evo, Object.values(abi.abilities).filter((r) => r.appliesTo.some((u) => u.key === key)), reusable, review)
   L.push("")
   renderEvolution(L, key, cat, evo)
   L.push("")
@@ -340,9 +361,9 @@ function renderUnit(key, { cat, evo, abi, reusable }) {
   const pn = cat.pokemon[key].stats.passive
   if (own(PASSIVE_NOTE, pn) && ((own(reusable.passives, pn) && reusable.passives[pn].appliesTo.some((u) => u.key === key)) || (own(reusable.passiveGaps, pn) && reusable.passiveGaps[pn].appliesTo.some((u) => u.key === key)))) secs.push(section(...PASSIVE_NOTE[pn]))
   if (own(evo.units, key)) secs.push({ ...section("pilot-evolution", "Shared mechanics"), shared: true })
-  renderAbility(L, key, cat, abi, covering)
+  renderAbility(L, key, cat, abi, covering, review)
   L.push("")
-  renderPassive(L, key, cat, covering, secs, reusable)
+  renderPassive(L, key, cat, covering, secs, reusable, review)
   L.push("")
   // notes: only production notes; unresolved lines are quoted from them
   L.push("## Production-reference notes and unresolved conditions")
@@ -358,13 +379,13 @@ function renderUnit(key, { cat, evo, abi, reusable }) {
   return L.join("\n")
 }
 
-function renderList({ cat, evo, abi, reusable }) {
+function renderList({ cat, evo, abi, reusable, review }) {
   const L = [`# Production-reference lookup — coverage`, "", `> **${LABEL}.** Pinned source \`${SHA}\`. Identifiers do not establish shop availability or playability.`, ""]
   const c = cat.inventory.counts
   L.push(`- Catalog identifiers: ${c.inventory} (${c.extracted} with baseline records, ${c.excluded} excluded: ${Object.keys(cat.inventory.excluded).map((k) => `${k} — ${cat.inventory.excluded[k].reason.split(":")[0]}`).join("; ")}, ${c.failed} failed)`)
   L.push(`- Evolution records (pilot subset, ${Object.keys(evo.units).length}): ${Object.keys(evo.units).join(", ")}`)
-  for (const [n, r] of Object.entries(abi.abilities)) L.push(`- Reviewed ability ${n} applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
-  for (const [n, r] of Object.entries(reusable.passives)) L.push(`- Structured passive ${n} applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
+  for (const [n, r] of Object.entries(abi.abilities)) L.push(`- Ability record ${n} (${review.abilities[n] === "reviewed" ? "reviewed" : "source-traced, review pending"}) applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
+  for (const [n, r] of Object.entries(reusable.passives)) L.push(`- Passive record ${n} (${review.passives[n] === "reviewed" ? "reviewed" : "source-traced, review pending"}) applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
   for (const [n, r] of Object.entries(reusable.passiveGaps)) L.push(`- Passive gap ${n} (not covered) for: ${r.appliesTo.map((u) => u.key).join(", ")}`)
   L.push("", `## Catalog identifiers with baseline records (${Object.keys(cat.pokemon).length})`, Object.keys(cat.pokemon).join(", "))
   return L.join("\n")
