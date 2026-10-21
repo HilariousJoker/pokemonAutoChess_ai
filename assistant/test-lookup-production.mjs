@@ -29,9 +29,28 @@ check("CROCONAW: CRUNCH record NOT applied (covers only TOTODILE)", r.code === 0
 r = run("VESPIQUEN")
 check("VESPIQUEN: placeholder + conditional modes + acquisition uncertainty", r.code === 0 && has(r, "is a placeholder", "ATTACK_ORDER", "HEAL_ORDER", "DEFEND_ORDER", "moved to row 1", "Acquisition caveat", "Which skill a Vespiquen has when it was never moved"), r.err)
 r = run("PIKACHU")
-check("PIKACHU: evolution record, callback, probe, context-note link", r.code === 0 && has(r, "Covered** (pilot)", "divergentEvolution", "pokemon.ts:3226", "evolution-context.md#pikachu--raichu-or-alolan-raichu", "Executed stub probe", "No reviewed ability information"), r.err)
+check("PIKACHU: evolution record, callback, probe, context-note link; NUZZLE now reviewed", r.code === 0 && has(r, "Covered** (pilot)", "divergentEvolution", "pokemon.ts:3226", "evolution-context.md#pikachu--raichu-or-alolan-raichu", "Executed stub probe", "Reviewed: NUZZLE", "this unit (2★): **raw 50**") && lacks(r, "No reviewed ability information"), r.err)
 r = run("COSMOEM")
 check("COSMOEM: stacksRequired 8, both context links, unresolved quoted", r.code === 0 && has(r, "`stacksRequired` = 8", "evolution-context.md#cosmoem--solgaleo-or-lunala", "evolution-context.md#cosmog--cosmoem-hp-and-stacks", "Unresolved", "pokemon.ts:14870"), r.err)
+// ---- reusable ability / passive coverage (NUZZLE, DRAGON_RAGE, THRASH, SURGE_SURFER, PRIMEAPE; PACHIRISU gap) ----
+r = run("PICHU")
+check("PICHU: NUZZLE reviewed, 1 star raw 25, paralysis 3000 ms, shared-record notice, evolution coverage missing", r.code === 0 && has(r, "Coverage at a glance", "reviewed record `abilities.NUZZLE`", "**raw 25**", "**raw 3000 ms**", "Shared record", "not in the evolution pilot", "Passive identifier `NONE`") , r.err)
+r = run("RAICHU")
+check("RAICHU: NUZZLE 3 stars raw 100, example 67 with conditions, no passive", r.code === 0 && has(r, "this unit (3★): **raw 100**", "nz-raichu-ap0: 67", "target SPE_DEF 10", "none declared"), r.err)
+r = run("ALOLAN_RAICHU")
+check("ALOLAN_RAICHU: ability + structured SURGE_SURFER passive, name collision, direct-set exception, reset", r.code === 0 && has(r, "reviewed record `abilities.NUZZLE`", "structured record `passives.SURGE_SURFER`", "Name collision", "EffectEnum.SURGE_SURFER", "+30", "Volt Surge", "NOT the +30 speed", "Reset behaviour", "ss-two-fields: 114", "Unresolved"), r.err)
+r = run("PACHIRISU")
+check("PACHIRISU: NUZZLE reviewed (90 maxPP), passive reported as a GAP, nothing invented", r.code === 0 && has(r, "maxPP 90", "reviewed record `abilities.NUZZLE`", "**gap** — not covered", "NOT COVERED in this batch", "passiveGaps.PACHIRISU") && lacks(r, "Structured passive record:** yes"), r.err)
+r = run("GYARADOS")
+check("GYARADOS: DRAGON_RAGE raw 45 shield / 15 pulse, 6 pulses, conversion 0.4, recast rule, totals 135 / 54", r.code === 0 && has(r, "Reviewed: DRAGON_RAGE", "**raw 45**", "**raw 15**", "round(0.4 x min(current shield, shieldGiven))", "ticksRemaining", "\"trackedShield\":135", "\"maxHeal\":54", "no new initial shield"), r.err)
+r = run("MANKEY")
+check("MANKEY: THRASH 100 % of baseAtk, self-confusion 3000 ms, no passive, not covered by PRIMEAPE", r.code === 0 && has(r, "100 % of baseAtk", "triggerConfusion", "Passive identifier `NONE`") && lacks(r, "passives.PRIMEAPE`"), r.err)
+r = run("PRIMEAPE")
+check("PRIMEAPE: THRASH + structured PRIMEAPE passive; STACK 10, exact equality, Eviolite, reset, old-note check; its old evolution note still linked", r.code === 0 && has(r, "reviewed record `abilities.THRASH`", "structured record `passives.PRIMEAPE`", "stacksRequired 10", "exact equality", "Eviolite", "Reset behaviour", "Check against the earlier note", "pr-plain-evolution: 30", "pilot-evolution.md#primeape--annihilape", "Covered** (pilot)"), r.err)
+r = run("ANNIHILAPE")
+check("ANNIHILAPE: THRASH 120 % of baseAtk; no PRIMEAPE passive; evolution coverage missing (not claimed terminal)", r.code === 0 && has(r, "120 % of baseAtk", "Passive identifier `NONE`", "not in the evolution pilot") && lacks(r, "structured record `passives.PRIMEAPE`", "Terminal in the declarations"), r.err)
+r = run("RAICHU")
+check("shared skill id does not extend to other skills: a unit without NUZZLE has none of its text", lacks(run("ABRA"), "Reviewed: NUZZLE", "Reviewed: THRASH", "Reviewed: DRAGON_RAGE"))
 r = run("MAGIKARP")
 check("MAGIKARP passive: no structured record, but linked-note context incl. its unresolved line (no blanket 'no reviewed explanation')", r.code === 0 && has(r, "Structured passive record:** none", "Source-backed context in linked production notes that mention this passive", "has no entry in `PassiveEffects`") && lacks(r, "has no reviewed explanation"), r.out.slice(0, 100))
 r = run("COSMOEM")
@@ -49,9 +68,9 @@ for (const k of ["toString", "__proto__", "constructor", "hasOwnProperty", "char
 r = run("DEFAULT")
 check("DEFAULT (excluded placeholder): clear error, no record", r.code === 1 && r.out === "" && /excluded/.test(r.err) && /MissingNo/.test(r.err), r.err)
 r = run("--list")
-check("--list: counts, coverage lists, no dev data", r.code === 0 && common(r) && has(r, "1184", "Reviewed ability CRUNCH applies to: TOTODILE", "Evolution records (pilot subset, 20)") && lacks(r, "01a3e845"), r.err)
+check("--list: counts, coverage lists, no dev data", r.code === 0 && common(r) && has(r, "1184", "Reviewed ability CRUNCH applies to: TOTODILE", "Reviewed ability NUZZLE applies to: PICHU, PIKACHU, RAICHU, ALOLAN_RAICHU, PACHIRISU", "Reviewed ability DRAGON_RAGE applies to: GYARADOS", "Reviewed ability THRASH applies to: MANKEY, PRIMEAPE, ANNIHILAPE", "Structured passive SURGE_SURFER applies to: ALOLAN_RAICHU", "Structured passive PRIMEAPE applies to: PRIMEAPE", "Passive gap PACHIRISU (not covered) for: PACHIRISU", "Evolution records (pilot subset, 20)") && lacks(r, "01a3e845"), r.err)
 check("usage errors", run().code === 2 && run("--bogus").code === 2 && run("A", "B").code === 2 && run("--list", "CHARIZARD").code === 2)
-for (const k of ["CHARIZARD", "VESPIQUEN", "COSMOEM", "ABRA", "TOTODILE"]) {
+for (const k of ["CHARIZARD", "VESPIQUEN", "COSMOEM", "ABRA", "TOTODILE", "PICHU", "PRIMEAPE", "GYARADOS", "ALOLAN_RAICHU"]) {
   const o = run(k).out
   check(`no development reference in ${k} output`, !/01a3e845|knowledge\/pilot-|data\/01a3e845/.test(o))
 }
@@ -85,6 +104,21 @@ check("fixture: ability records with another revision refused", r.code === 3 && 
 a = rd("pilot-abilities.json"); a.abilities.CRUNCH.appliesTo[0].declaredSkill = "BITE"
 r = run("TOTODILE", "--abilities", put("abi-skill.json", a))
 check("fixture: ability record disagreeing with catalog skill refused", r.code === 3 && /disagrees with the catalog/.test(r.err), r.err)
+let ru = rd("reusable-abilities.json"); ru.sourceSha = sha2
+r = run("PICHU", "--reusable", put("reu-rev.json", ru))
+check("fixture: reusable records with another revision refused", r.code === 3 && r.out === "" && /reusable records describe/.test(r.err), r.err)
+ru = rd("reusable-abilities.json"); ru.abilities.NUZZLE.appliesTo[0].stars = 2
+r = run("PICHU", "--reusable", put("reu-stars.json", ru))
+check("fixture: reusable record disagreeing with catalog stars refused", r.code === 3 && /disagrees with the catalog/.test(r.err), r.err)
+ru = rd("reusable-abilities.json"); ru.passives.PRIMEAPE.appliesTo[0].declaredPassive = "NONE"
+r = run("PRIMEAPE", "--reusable", put("reu-passive.json", ru))
+check("fixture: passive record disagreeing with catalog passive refused", r.code === 3 && /passive disagrees with the catalog/.test(r.err), r.err)
+ru = rd("reusable-abilities.json"); ru.abilities.CRUNCH = ru.abilities.NUZZLE
+r = run("PICHU", "--reusable", put("reu-collide.json", ru))
+check("fixture: reusable record colliding with a pilot record refused", r.code === 3 && /collides with a pilot/.test(r.err), r.err)
+ru = rd("reusable-abilities.json"); delete ru.passiveGaps
+r = run("PICHU", "--reusable", put("reu-nogap.json", ru))
+check("fixture: reusable file without passiveGaps -> exit 2", r.code === 2, r.err)
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)
 

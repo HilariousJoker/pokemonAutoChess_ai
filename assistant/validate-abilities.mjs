@@ -105,6 +105,148 @@ for (const name of Object.keys(A)) if (!md.includes(`abilities.${name}`)) bad(`M
 for (const row of ["| 1 | ATTACK_ORDER | 3 |", "| 2 | HEAL_ORDER | 2 |", "| 3 | DEFEND_ORDER | 1 |"]) if (!md.includes(row)) bad(`Markdown lacks mode row ${row}`)
 for (const [k, v] of [["Charmander (1★) 30", 1], ["Charmeleon (2★) 60", 1], ["Charizard (3★) 120", 1], ["Totodile is 1★ → 40", 1]]) if (!md.includes(k)) bad(`Markdown lacks "${k}"`)
 
+
+// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
+const reuse = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+const catalog = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/catalog-units.json"), "utf8"))
+const reuseMd = readFileSync(resolve(HERE, "knowledge/07367c34/reusable-abilities.md"), "utf8")
+if (reuse.sourceSha !== SHA) bad(`reusable-abilities.json sourceSha is ${reuse.sourceSha}`)
+if (!/production-branch reference; deployment unverified/.test(reuse.label)) bad("reusable-abilities.json label missing")
+for (const k of Object.keys(A)) if (Object.hasOwn(reuse.abilities, k)) bad(`reusable-abilities.json overrides pilot record ${k}`)
+const RA = reuse.abilities, RP = reuse.passives, RG = reuse.passiveGaps
+const allRecs = [...Object.entries(RA), ...Object.entries(RP), ...Object.entries(RG)]
+let nEv2 = 0
+const idsUsed = (o, acc = new Set()) => {
+  if (Array.isArray(o)) o.forEach((x) => idsUsed(x, acc))
+  else if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) { if (k === "evidence" && Array.isArray(v) && typeof v[0] === "string") v.forEach((i) => acc.add(i)); else idsUsed(v, acc) }
+  return acc
+}
+for (const [name, rec] of allRecs) {
+  if (rec.sourceSha !== SHA) bad(`reuse ${name}: sourceSha`)
+  const ids = new Set()
+  for (const e of rec.evidence) {
+    nEv2++
+    if (ids.has(e.id)) bad(`reuse ${name}: duplicate evidence id ${e.id}`)
+    ids.add(e.id)
+    const L = src(e.file)
+    const [a, b] = e.lines
+    if (!(a >= 1 && b >= a && b <= L.length)) { bad(`reuse ${name}/${e.id}: bad line range ${a}-${b} in ${e.file}`); continue }
+    if (!norm(L.slice(a - 1, b).join(" ")).includes(norm(e.expect))) bad(`reuse ${name}/${e.id}: "${e.expect}" not found in ${e.file}:${a}-${b}`)
+  }
+  for (const id of idsUsed({ ...rec, evidence: undefined })) if (!ids.has(id)) bad(`reuse ${name}: unknown evidence id ${id}`)
+  for (const id of ids) if (!idsUsed({ ...rec, evidence: undefined }).has(id)) bad(`reuse ${name}: evidence ${id} is never referenced`)
+  if (RA[name]) {
+    if (!rec.unresolved?.length) bad(`reuse ${name}: no unresolved list`)
+    if (!rec.dependsOnUnverifiedGenericCombat?.length) bad(`reuse ${name}: no generic-combat dependency list`)
+    if (rec.ability !== name) bad(`reuse ${name}: ability field`)
+  }
+  if (RP[name] && (!rec.unresolved?.length || !rec.dependsOnUnverifiedGenericCombat?.length)) bad(`reuse passive ${name}: missing unresolved / dependency list`)
+  // unit facts against the saved catalog (stars, PP, range, skill, passive), and the unit class block in the pinned source
+  for (const u of rec.appliesTo) {
+    const c = catalog.pokemon[u.key]
+    if (!c) { bad(`reuse ${name}: ${u.key} not in catalog`); continue }
+    const s = c.stats
+    if (s.stars !== u.stars || s.maxPP !== u.maxPP || s.range !== u.range) bad(`reuse ${name}: ${u.key} stars/maxPP/range disagree with the catalog`)
+    if (s.skill !== u.declaredSkill) bad(`reuse ${name}: ${u.key} skill ${u.declaredSkill} vs catalog ${s.skill}`)
+    if (s.passive !== u.declaredPassive) bad(`reuse ${name}: ${u.key} passive ${u.declaredPassive} vs catalog ${s.passive}`)
+    const cls = catalog.registry[u.key].registeredClass
+    const text = src("app/models/colyseus-models/pokemon.ts").join("\n")
+    const m = text.match(new RegExp(`export class ${cls} extends Pokemon \\{([\\s\\S]*?)\\n\\}`))
+    if (!m) { bad(`reuse ${name}: class ${cls} not found in pokemon.ts`); continue }
+    if (!m[1].includes(`skill = Ability.${u.declaredSkill}`)) bad(`reuse ${name}: class ${cls} does not declare skill ${u.declaredSkill}`)
+    if (u.declaredPassive === "NONE" ? /passive = Passive\./.test(m[1]) : !m[1].includes(`passive = Passive.${u.declaredPassive}`)) bad(`reuse ${name}: class ${cls} passive disagrees with ${u.declaredPassive}`)
+    if (!m[1].includes(`stars = ${u.stars}`)) bad(`reuse ${name}: class ${cls} stars disagree`)
+  }
+}
+// coverage completeness against the catalog: every catalog unit with these skills/passives is bound, no others
+const boundBy = (field, id) => Object.entries(catalog.pokemon).filter(([, v]) => v.stats[field] === id).map(([k]) => k).sort()
+for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH"]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
+eq(RP.SURGE_SURFER.appliesTo.map((u) => u.key).sort(), boundBy("passive", "SURGE_SURFER"), "SURGE_SURFER appliesTo vs catalog")
+eq(RP.PRIMEAPE.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PRIMEAPE"), "PRIMEAPE appliesTo vs catalog")
+eq(RG.PACHIRISU.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PACHIRISU"), "PACHIRISU gap appliesTo vs catalog")
+// registry bindings
+for (const [id, cls] of [["NUZZLE", "NuzzleStrategy"], ["DRAGON_RAGE", "DragonRageStrategy"], ["THRASH", "ThrashStrategy"]]) {
+  if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`))) bad(`registry entry ${id} -> ${cls} not found`)
+}
+// declared tables equal the arrays in the source text
+const tbl = (file, re) => table(file, re)
+const nzDmg = tbl("app/core/abilities/nuzzle.ts", /const damage = \[([^\]]+)\]/)
+const nzDur = tbl("app/core/abilities/nuzzle.ts", /const duration = \[([^\]]+)\]/)
+const drInit = tbl("app/core/abilities/dragon-rage.ts", /const initialShield = \[([^\]]+)\]/)
+const drShield = tbl("app/core/abilities/dragon-rage.ts", /const shield = \[([^\]]+)\]/)
+const drDamage = tbl("app/core/abilities/dragon-rage.ts", /const damage = \[([^\]]+)\]/)
+const thBuff = tbl("app/core/abilities/thrash.ts", /const atkBuff = \[([^\]]+)\]/)
+eq(byStars(RA.NUZZLE.effects[0].declaredRaw.byStars), nzDmg, "NUZZLE damage table")
+eq(byStars(RA.NUZZLE.statusEffects[0].declaredRaw.byStars), nzDur, "NUZZLE paralysis duration table")
+eq(byStars(RA.DRAGON_RAGE.effects[0].declaredRaw.byStars), drDamage, "DRAGON_RAGE pulse damage table")
+eq(byStars(RA.DRAGON_RAGE.effects[1].declaredRaw.byStars), drInit, "DRAGON_RAGE initial shield table")
+eq(byStars(RA.DRAGON_RAGE.effects[1].declaredRaw.perPulseByStars), drShield, "DRAGON_RAGE per-pulse shield table")
+eq(byStars(RA.THRASH.effects[0].declaredRaw.byStars), thBuff, "THRASH attack-percent table")
+const srcFull = (f) => src(f).join("\n")
+const dr = srcFull("app/core/abilities/dragon-rage.ts")
+if (!/ticksRemaining = 6\b/.test(dr) || !/EffectEnum\.DRAGON_RAGE,\s*1000/.test(dr) || !/Math\.round\(shieldToConvert \* 0\.4\)/.test(dr)) bad("DRAGON_RAGE ticks / interval / 0.4 conversion not confirmed")
+if (!/triggerConfusion\(3000, pokemon, pokemon\)/.test(srcFull("app/core/abilities/thrash.ts"))) bad("THRASH confusion 3000 ms not confirmed")
+// per-unit values equal the table at the unit's catalog stars
+const at = (arr, stars) => arr[stars - 1] ?? arr[arr.length - 1]
+for (const u of RA.NUZZLE.appliesTo) {
+  if (RA.NUZZLE.effects[0].perUnitRaw[u.key] !== at(nzDmg, u.stars)) bad(`NUZZLE perUnitRaw damage ${u.key}`)
+  if (RA.NUZZLE.statusEffects[0].perUnitRaw[u.key] !== at(nzDur, u.stars)) bad(`NUZZLE perUnitRaw duration ${u.key}`)
+}
+if (RA.DRAGON_RAGE.effects[0].perUnitRaw.GYARADOS !== at(drDamage, 3) || RA.DRAGON_RAGE.effects[1].perUnitRaw.GYARADOS !== at(drInit, 3)) bad("DRAGON_RAGE perUnitRaw")
+// the DRAGON_RAGE effect flag is used only in its own file (server code; git grep over the pinned tree)
+const used = execFileSync("git", ["-C", REPO, "grep", "-l", "EffectEnum.DRAGON_RAGE", SHA, "--", "app"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(`${SHA}:`, "")).sort()
+eq(used, ["app/core/abilities/dragon-rage.ts"], "EffectEnum.DRAGON_RAGE uses")
+// passive registry: PRIMEAPE has PassiveEffects entries, SURGE_SURFER has none (its logic is in status.ts)
+const passivesSrc = srcFull("app/core/effects/passives.ts")
+if (!/\[Passive\.PRIMEAPE\]:\s*\[/.test(passivesSrc)) bad("PassiveEffects[Passive.PRIMEAPE] not found")
+if (/\[Passive\.SURGE_SURFER\]\s*:/.test(passivesSrc)) bad("PassiveEffects unexpectedly has a SURGE_SURFER entry")
+const statusSrc = srcFull("app/models/colyseus-models/status.ts")
+if ((statusSrc.match(/entity\.passive === Passive\.SURGE_SURFER/g) ?? []).length !== 4) bad("expected exactly 4 SURGE_SURFER passive checks in status.ts")
+const surgeOther = execFileSync("git", ["-C", REPO, "grep", "-n", "Passive.SURGE_SURFER", SHA, "--", "app/core", "app/models"], { encoding: "utf8" }).trim().split("\n").filter((l) => !l.includes("colyseus-models/status.ts"))
+if (surgeOther.length !== 1 || !surgeOther[0].includes("colyseus-models/pokemon.ts")) bad(`unexpected Passive.SURGE_SURFER uses outside status.ts: ${surgeOther.join(" | ")}`)
+// numeric examples: recomputed from the source tables, with their stated conditions kept in the record
+const examples = allRecs.flatMap(([n, r]) => (r.numericExamples ?? []).map((x) => [n, x]))
+let nEx = 0
+for (const [n, x] of examples) {
+  nEx++
+  if (!x.conditions || x.conditions.length < 20) bad(`example ${x.id}: no conditions`)
+  let got
+  if (x.kind === "specialAfterSpeDef") got = Math.max(1, Math.ceil((x.raw * (1 + x.ap / 100)) / (1 + 0.05 * x.speDef)))
+  else if (x.kind === "thrashAtk") got = Math.round(Math.floor(((at(thBuff, x.stars)) / 100) * x.baseAtk) * (1 + x.ap / 100))
+  else if (x.kind === "dragonRageTotals") {
+    const init = at(drInit, x.stars), per = at(drShield, x.stars), tracked = init + 6 * per
+    got = { initial: init, perPulse: per, pulses: 6, trackedShield: tracked, maxHeal: Math.round(0.4 * tracked) }
+  } else if (x.kind === "surgeSpeed") got = x.baseSpeed + 30 * x.fields
+  else if (x.kind === "primeapeEvolution") {
+    const stacks = x.stacksRequired
+    if (stacks !== 10) bad("primeape stacksRequired example")
+    got = x.annihilapeFactoryAtk + (x.primeapeAtk + stacks - x.primeapeAtk) - x.onAcquiredDelta
+    if (x.primeapeAtk + stacks !== 30) bad("primeape example: atk after 10 stacks")
+  } else { bad(`example ${x.id}: unknown kind ${x.kind}`); continue }
+  const want = x.kind === "primeapeEvolution" ? x.expectedAnnihilapeAtk : x.expected
+  if (JSON.stringify(got) !== JSON.stringify(want)) bad(`example ${x.id}: recomputed ${JSON.stringify(got)} vs record ${JSON.stringify(want)}`)
+}
+// the example arithmetic's constants are themselves tied to the source
+if (!/ARMOR_FACTOR = 0\.05/.test(srcFull("app/config/game/battle.ts"))) bad("ARMOR_FACTOR 0.05 not confirmed")
+const ssTier = /Status|status/.test(statusSrc) && (statusSrc.match(/entity\.addSpeed\(30, entity, 0, false\)/g) ?? []).length === 2 && (statusSrc.match(/entity\.addSpeed\(-30, entity, 0, false\)/g) ?? []).length === 2
+if (!ssTier) bad("SURGE_SURFER +30/-30 speed calls not confirmed (expected 2 + 2)")
+// Primeape: STACK rule, 10 stacks, exact-equality evolution trigger, atk revert on acquisition
+const pk = srcFull("app/models/colyseus-models/pokemon.ts")
+const pm = pk.match(/export class Primeape extends Pokemon \{([\s\S]*?)\n\}/)?.[1] ?? ""
+if (!/EvolutionRuleType\.STACK/.test(pm) || !/stacksRequired = 10/.test(pm)) bad("Primeape STACK / stacksRequired 10 not confirmed")
+if (!/this\.stacks === this\.stacksRequired/.test(srcFull("app/core/pokemon-entity.ts"))) bad("addStack exact-equality test not confirmed")
+if (!/this\.atk -= 30 - 20/.test(pk)) bad("Annihilape.onAcquired atk revert not confirmed")
+// the Markdown note agrees with the records
+for (const n of [...Object.keys(RA)]) if (!reuseMd.includes(`abilities.${n}`)) bad(`reusable-abilities.md does not link record abilities.${n}`)
+for (const n of Object.keys(RP)) if (!reuseMd.includes(`passives.${n}`)) bad(`reusable-abilities.md does not link record passives.${n}`)
+if (!reuseMd.includes("passiveGaps.PACHIRISU")) bad("reusable-abilities.md does not mention the PACHIRISU gap")
+const sl = (a) => a.join(" / ")
+for (const [what, s] of [
+  ["NUZZLE damage", sl(nzDmg)], ["NUZZLE duration", sl(nzDur)], ["DRAGON_RAGE initial shield", sl(drInit)], ["DRAGON_RAGE per-pulse shield", sl(drShield)],
+  ["DRAGON_RAGE per-pulse damage", sl(drDamage)], ["THRASH percent", sl(thBuff)], ["SHA", SHA], ["label", "Production-branch reference; deployment unverified"],
+  ["Gyarados total", "45 + 6 × 15 = 135"], ["Gyarados heal", "54"], ["Annihilape 36", "+36"], ["name collision", "EffectEnum.SURGE_SURFER"]
+]) if (!reuseMd.includes(s)) bad(`reusable-abilities.md lacks ${what}: "${s}"`)
+
 const nEv = Object.values(A).reduce((n, r) => n + r.evidence.length, 0)
 if (problems.length) { console.error(`FAILED (${problems.length}):\n- ${problems.join("\n- ")}`); process.exit(1) }
-console.log(`OK: 3 records, ${nEv} evidence references verified against ${SHA.slice(0, 8)}, tables/mappings/units/Markdown agree`)
+console.log(`OK: 3 pilot records (${nEv} evidence refs) + ${Object.keys(RA).length} reusable ability records, ${Object.keys(RP).length} passive records and ${Object.keys(RG).length} passive gap (${nEv2} evidence refs), ${nEx} numeric examples, verified against ${SHA.slice(0, 8)}; tables/bindings/units/Markdown agree`)
