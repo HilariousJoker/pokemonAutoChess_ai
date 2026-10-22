@@ -1,0 +1,447 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ACCELEROCK",
+ "kind": "ability",
+ "identifier": "ACCELEROCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261022T233939Z"
+ },
+ "record": {
+  "ability": "ACCELEROCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Rockruff (1 star) and the three Lycanroc forms (2 stars) declare ABILITY ACCELEROCK; all have range 1 and maxPP 100. The Lycanroc forms also declare passive LYCANROC (weather form switching), which is a separate queue record and is not covered.",
+  "appliesTo": [
+   {
+    "key": "LYCANROC_DAY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LYCANROC_DUSK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LYCANROC_NIGHT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ROCKRUFF",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LYCANROC_DAY": {
+    "evidence": [
+     "unit-day"
+    ]
+   },
+   "LYCANROC_DUSK": {
+    "evidence": [
+     "unit-dusk"
+    ]
+   },
+   "LYCANROC_NIGHT": {
+    "evidence": [
+     "unit-night"
+    ]
+   },
+   "ROCKRUFF": {
+    "evidence": [
+     "unit-rockruff"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ACCELEROCK] = new AccelerockStrategy()",
+   "strategy": "AccelerockStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ac",
+    "base",
+    "cast",
+    "ac-class"
+   ]
+  },
+  "summary": "Dash and strike. The caster picks the farthest targetable enemy that has a free adjacent cell, teleports (swaps cells) to the free cell next to it that is farthest from the caster's start, retargets that enemy and deals special damage of atk x a per-star factor to it. Afterwards the caster loses defense and gains speed: nbEffects = min(floor(def/2), round(5 x (1 + AP/100) x critPower-if-crit)); defense -2 x nbEffects, speed +5 x nbEffects.",
+  "targeting": {
+   "who": "the farthest enemy (Manhattan-style distanceM) with a free adjacent cell; if no enemy has a free adjacent cell, the farthest enemy and the closest free place to it; if no destination exists the original cast target is used and the caster does not move",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true. The strategy overrides the target with destination.target when a destination exists. Whether the first-found farthest enemy wins ties was read as strictly greater distance only (targetDistance > maxTargetDistance), so the first scanned enemy of the maximum distance is kept; scan order is board.forEach.",
+   "evidence": [
+    "ac-dest",
+    "far-fn",
+    "targettable"
+   ]
+  },
+  "geometry": {
+   "shape": "single target at the farthest enemy; movement by swapping the caster into a free cell adjacent to that enemy",
+   "detail": "getAdjacentCells (8 neighbours) filtered to empty cells, the one farthest from the caster wins (strictly greater distance); fallback getClosestAvailablePlace around the farthest enemy.",
+   "evidence": [
+    "far-fn",
+    "ac-dest"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the (possibly redirected) target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 1.25,
+      "3": 2.5,
+      "4": 2.5,
+      "fallback": 2.5
+     },
+     "formula": "pokemon.atk x damageFactor"
+    },
+    "perUnitRaw": {
+     "LYCANROC_DAY": 1.25,
+     "LYCANROC_DUSK": 1.25,
+     "LYCANROC_NIGHT": 1.25,
+     "ROCKRUFF": 1
+    },
+    "scaling": "handleSpecialDamage(atk x factor, board, SPECIAL, caster, crit, apBoost true): damage + damage x AP/100, DOUBLE_DAMAGE x2, strange-steam x1.2, crit multiplies by 1 + (critPower - 1) x reduction factor (only if crit, which needs ABILITY_CRIT). The base uses the caster's current atk.",
+    "resolution": "handleSpecialDamage then state.handleDamage (defence, shields and item hooks not read). Blocked completely if the target has protect, skydiving or magicBounce (magicBounce reflects).",
+    "evidence": [
+     "ac-table",
+     "ac-damage",
+     "spdmg"
+    ]
+   },
+   {
+    "kind": "self-defense-loss-and-speed-gain",
+    "target": "the caster",
+    "declaredRaw": {
+     "nbEffects": "min(floor(def/2), round(5 x (1 + AP/100) x (critPower if crit)))",
+     "defenseChange": "-2 x nbEffects",
+     "speedChange": "+5 x nbEffects"
+    },
+    "scaling": "nbEffects uses the caster's def BEFORE the loss and its AP; addDefense and addSpeed are called with apBoost 0 so no second AP scaling; item hooks (Big Eater Belt, Twist Band) run inside both. Defense is floored at 0.",
+    "resolution": "addDefense: round, hooks, def = max(0, def + value). addSpeed: hooks, clamp 0..MAX_SPEED.",
+    "evidence": [
+     "ac-eff",
+     "adddef",
+     "max-fn"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "declaredRaw": {
+     "note": "moveTo(destination, forcedDisplacement false), then setTarget(destination.target)"
+    },
+    "scaling": "none",
+    "resolution": "moveTo swaps cells with whatever is there (the destination is a free cell), puts the caster into MovingState and sets cooldown 100.",
+    "evidence": [
+     "ac-move",
+     "moveto",
+     "settarget"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "LYCANROC_DAY": 2,
+    "LYCANROC_DUSK": 2,
+    "LYCANROC_NIGHT": 2,
+    "ROCKRUFF": 1
+   },
+   "declaredRawDamageFactor": {
+    "LYCANROC_DAY": 1.25,
+    "LYCANROC_DUSK": 1.25,
+    "LYCANROC_NIGHT": 1.25,
+    "ROCKRUFF": 1
+   },
+   "note": "Caster stars index the damage factor table (1, 1.25, 2.5; fallback 2.5). The self-buff does not depend on stars, only on AP, crit and current def. Catalog units are 1 or 2 stars.",
+   "evidence": [
+    "ac-table"
+   ]
+  },
+  "positionalConditions": "Needs at least one targetable enemy for movement; with no free cell anywhere near the farthest enemy, destination is null and the cast stays in place on the original target.",
+  "repeatedCastsAndModes": "No stored state. Each cast again lowers def (to a floor of 0, so nbEffects falls to 0 once def < 2) and raises speed.",
+  "rawVsResolved": "Declared raw damage: atk x 1 / 1.25 / 2.5 for 1 / 2 / 3 stars before AP and crit scaling. Defense/speed change counts are capped by half the caster's current defense.",
+  "sourceTables": [
+   {
+    "id": "damageFactor",
+    "file": "app/core/abilities/accelerock.ts",
+    "pattern": "const damageFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defence, shields, items, kills)",
+   "applyBigEaterBeltStatBuff and applyTwistBandBuff bodies",
+   "Meaning of distanceM and the board.forEach scan order",
+   "getClosestAvailablePlace body (fallback cell)",
+   "When the cast fires in a real fight (range 1 unit and the gate)"
+  ],
+  "unresolved": [
+   "Passive LYCANROC on the three Lycanroc forms is a separate queue record and is not investigated here (weather form switching only seen in beforeSimulationStart)",
+   "Whether ties for farthest enemy depend on scan order was not verified at runtime",
+   "Item hooks and handleDamage not read",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ac",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     730,
+     730
+    ],
+    "symbol": "AbilityStrategies[Ability.ACCELEROCK]",
+    "expect": "[Ability.ACCELEROCK]: new AccelerockStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     5,
+     24
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP; requiresTarget defaults to true"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ac-class",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     7,
+     13
+    ],
+    "symbol": "AccelerockStrategy",
+    "expect": "export class AccelerockStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ac-dest",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     14,
+     20
+    ],
+    "symbol": "AccelerockStrategy.process",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": ""
+   },
+   {
+    "id": "ac-table",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "AccelerockStrategy.process",
+    "expect": "const damageFactor = [1, 1.25, 2.5][pokemon.stars - 1] ?? 2.5",
+    "note": ""
+   },
+   {
+    "id": "ac-damage",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     22,
+     29
+    ],
+    "symbol": "AccelerockStrategy.process",
+    "expect": "AttackType.SPECIAL",
+    "note": ""
+   },
+   {
+    "id": "ac-eff",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     31,
+     35
+    ],
+    "symbol": "AccelerockStrategy.process",
+    "expect": "pokemon.addSpeed(nbEffects * 5, pokemon, 0, false)",
+    "note": ""
+   },
+   {
+    "id": "ac-move",
+    "file": "app/core/abilities/accelerock.ts",
+    "lines": [
+     18,
+     19
+    ],
+    "symbol": "AccelerockStrategy.process",
+    "expect": "pokemon.setTarget(destination.target)",
+    "note": ""
+   },
+   {
+    "id": "far-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     630
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance)",
+    "note": ""
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable",
+    "note": ""
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "adddef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     697
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": ""
+   },
+   {
+    "id": "max-fn",
+    "file": "app/utils/number.ts",
+    "lines": [
+     5,
+     8
+    ],
+    "symbol": "max",
+    "expect": "Math.min(maximum, value)",
+    "note": "max(cap) caps the value"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": ""
+   },
+   {
+    "id": "settarget",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     323,
+     327
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "this.targetEntityId = target.id",
+    "note": ""
+   },
+   {
+    "id": "unit-rockruff",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14743,
+     14757
+    ],
+    "symbol": "class Rockruff",
+    "expect": "skill = Ability.ACCELEROCK",
+    "note": ""
+   },
+   {
+    "id": "unit-dusk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14770,
+     14787
+    ],
+    "symbol": "class LycanrocDusk",
+    "expect": "skill = Ability.ACCELEROCK",
+    "note": ""
+   },
+   {
+    "id": "unit-night",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14789,
+     14806
+    ],
+    "symbol": "class LycanrocNight",
+    "expect": "skill = Ability.ACCELEROCK",
+    "note": ""
+   },
+   {
+    "id": "unit-day",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14808,
+     14825
+    ],
+    "symbol": "class LycanrocDay",
+    "expect": "skill = Ability.ACCELEROCK",
+    "note": ""
+   }
+  ]
+ }
+}
