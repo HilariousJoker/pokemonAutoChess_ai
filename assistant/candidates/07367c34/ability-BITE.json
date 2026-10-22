@@ -1,0 +1,541 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BITE",
+ "kind": "ability",
+ "identifier": "BITE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261022T113939Z"
+ },
+ "record": {
+  "ability": "BITE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The five units in appliesTo declare BITE in this production reference (all with passive NONE in the catalog). The strategy is shared; differences are star count and stats.",
+  "appliesTo": [
+   {
+    "key": "CARVANHA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LARVITAR",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "BITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PUPITAR",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "BITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHARPEDO",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TYRANITAR",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "BITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CARVANHA": {
+    "evidence": [
+     "unit-carvanha"
+    ]
+   },
+   "LARVITAR": {
+    "evidence": [
+     "unit-larvitar"
+    ]
+   },
+   "PUPITAR": {
+    "evidence": [
+     "unit-pupitar"
+    ]
+   },
+   "SHARPEDO": {
+    "evidence": [
+     "unit-sharpedo"
+    ]
+   },
+   "TYRANITAR": {
+    "evidence": [
+     "unit-tyranitar"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BITE] = new BiteStrategy()",
+   "strategy": "BiteStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-bite",
+    "bite-class",
+    "base-flags",
+    "base-pp",
+    "bite-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage (40/80/120 raw by stars); the caster then heals for 30% (rounded up) of the damage the target actually took, and the target is flinched for 5000 ms if it took more than 0 damage.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "bite-class",
+    "base-flags",
+    "bite-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "bite-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 120,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "CARVANHA": 40,
+     "LARVITAR": 40,
+     "PUPITAR": 80,
+     "SHARPEDO": 80,
+     "TYRANITAR": 120
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked entirely by protect / skydiving / magicBounce (takenDamage 0, so no heal and no flinch)",
+    "evidence": [
+     "bite-dmg",
+     "bite-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "heal (self)",
+    "declaredRaw": {
+     "fractionOfTakenDamage": 0.3
+    },
+    "scaling": "ceil(0.3 x takenDamage) where takenDamage is the value returned by handleSpecialDamage; apBoost 0 and crit false are passed, so neither AP nor crit scales it",
+    "resolution": "handleHeal then applies: nothing if the caster is wounded (status.wound) or at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP",
+    "evidence": [
+     "bite-heal",
+     "heal-wound",
+     "heal-mods"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "the target",
+    "declaredRaw": {
+     "value": 5000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after damage and heal; only if takenDamage > 0",
+    "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
+    "combatEffect": "while flinched, damage that would hit a shield is split: half is dealt to the shield and half is residual damage to HP. This is the only use of status.flinch found in app/core and app/models outside status.ts; other directories were not searched.",
+    "evidence": [
+     "bite-flinch",
+     "flinch-trig",
+     "flinch-shield"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CARVANHA": 1,
+    "LARVITAR": 1,
+    "PUPITAR": 2,
+    "SHARPEDO": 2,
+    "TYRANITAR": 3
+   },
+   "declaredRawDamage": {
+    "CARVANHA": 40,
+    "LARVITAR": 40,
+    "PUPITAR": 80,
+    "SHARPEDO": 80,
+    "TYRANITAR": 120
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (200, also the fallback) is not reachable by the five units' bare star counts (1, 2, 3). maxPP is 80 for Carvanha/Sharpedo and 90 for Larvitar/Pupitar/Tyranitar; range 1 for all.",
+   "evidence": [
+    "bite-dmg",
+    "unit-carvanha",
+    "unit-larvitar",
+    "unit-pupitar",
+    "unit-sharpedo",
+    "unit-tyranitar"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage, heal and flinch; a second flinch only extends the timer if longer.",
+  "rawVsResolved": "Declared raw: damage 40/80/120 (1/2/3 stars). Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) and untraced modifiers; the heal is ceil(30% x that dealt amount) before the handleHeal modifiers; flinch is 5000 ms before status duration reductions.",
+  "sourceTables": [
+   {
+    "id": "biteDamage",
+    "file": "app/core/abilities/bite.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers) - only the SPECIAL speDef division and the minimum of 1 were read; takenDamage may therefore differ from the damage after SPE_DEF if shields absorb it (what takenDamage counts was not traced)",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "applyStatusDurationReductions (what shortens the 5000 ms)"
+  ],
+  "unresolved": [
+   "What 'takenDamage' returned by handleSpecialDamage counts when the target has a shield (the heal and flinch depend on it); the relevant tail of handleDamage was not fully read",
+   "Whether the flinch has other combat effects in files outside app/core and app/models that were searched",
+   "Whether any item or synergy effect changes BITE beyond what is listed",
+   "Tyranitar / Pupitar / Larvitar and Carvanha / Sharpedo have no passive in the catalog; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-carvanha",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11859,
+     11873
+    ],
+    "symbol": "class Carvanha",
+    "expect": "skill = Ability.BITE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-larvitar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1755,
+     1768
+    ],
+    "symbol": "class Larvitar",
+    "expect": "skill = Ability.BITE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-pupitar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1770,
+     1783
+    ],
+    "symbol": "class Pupitar",
+    "expect": "skill = Ability.BITE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-sharpedo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11875,
+     11888
+    ],
+    "symbol": "class Sharpedo",
+    "expect": "skill = Ability.BITE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tyranitar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1785,
+     1797
+    ],
+    "symbol": "class Tyranitar",
+    "expect": "skill = Ability.BITE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-bite",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     764,
+     764
+    ],
+    "symbol": "AbilityStrategies[Ability.BITE]",
+    "expect": "[Ability.BITE]: new BiteStrategy()",
+    "note": ""
+   },
+   {
+    "id": "bite-class",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BiteStrategy",
+    "expect": "class BiteStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "bite-super",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BiteStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "bite-dmg",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BiteStrategy.process",
+    "expect": "[40, 80, 120, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "bite-hit",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     15,
+     21
+    ],
+    "symbol": "BiteStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "bite-heal",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "BiteStrategy.process",
+    "expect": "pokemon.handleHeal(Math.ceil(0.3 * takenDamage), pokemon, 0, false)",
+    "note": "heal 30% of damage taken by the target, no AP, no crit"
+   },
+   {
+    "id": "bite-flinch",
+    "file": "app/core/abilities/bite.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "BiteStrategy.process",
+    "expect": "if (takenDamage > 0) target.status.triggerFlinch(5000, target, pokemon)",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     316
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded caster receives 0 healing"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     353
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH weather x1.2, then rounded and capped at missing HP"
+   },
+   {
+    "id": "flinch-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     986
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "duration > this.flinchCooldown",
+    "note": "not applied with runeProtect; duration reduced by applyStatusDurationReductions; replaces remaining time only if longer"
+   },
+   {
+    "id": "flinch-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     622,
+     625
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "while flinched, damage on a shield is halved and the other half goes to HP (only use of status.flinch found in core/models besides status.ts)"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
