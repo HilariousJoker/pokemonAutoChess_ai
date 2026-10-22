@@ -1,0 +1,481 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BOUNCE",
+ "kind": "ability",
+ "identifier": "BOUNCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261022T233939Z"
+ },
+ "record": {
+  "ability": "BOUNCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Spoink (1 star), Grumpig (2 stars), Mantyke (2 stars) and Mantine (3 stars) declare ABILITY BOUNCE (all maxPP 100; Spoink and Grumpig range 1, Mantyke and Mantine range 2). Mantyke and Mantine also declare passives MANTYKE and MANTINE, which are separate queue records and are not covered.",
+  "appliesTo": [
+   {
+    "key": "GRUMPIG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BOUNCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MANTINE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "BOUNCE",
+    "declaredPassive": "MANTINE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MANTYKE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "BOUNCE",
+    "declaredPassive": "MANTYKE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SPOINK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BOUNCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GRUMPIG": {
+    "evidence": [
+     "unit-grumpig"
+    ]
+   },
+   "MANTINE": {
+    "evidence": [
+     "unit-mantine"
+    ]
+   },
+   "MANTYKE": {
+    "evidence": [
+     "unit-mantyke"
+    ]
+   },
+   "SPOINK": {
+    "evidence": [
+     "unit-spoink"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BOUNCE] = new BounceStrategy()",
+   "strategy": "BounceStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-bn",
+    "base",
+    "cast",
+    "bn-class"
+   ]
+  },
+  "summary": "Series of jumps. The cast spends maxPP and queues N delayed commands (N = 1/2/3/4 by caster stars, one every 500 ms starting immediately). Each command, when it runs, moves the caster to the free cell adjacent to the farthest targetable enemy (same selection as Accelerock) and deals flat special damage (15/20/25/30 by stars) to every enemy on a cell adjacent to the landing cell. Nothing happens in a bounce if no destination exists.",
+  "targeting": {
+   "who": "destination: free cell next to the farthest targetable enemy, re-evaluated at each bounce; damage: every enemy on the up-to-8 cells adjacent to the landing cell",
+   "needsTarget": false,
+   "note": "requiresTarget is false and the target argument is null; the destination is recomputed per bounce so later bounces can pick a different enemy. The caster's own target is not changed (no setTarget call).",
+   "evidence": [
+    "bn-dest",
+    "bn-adj",
+    "far-fn"
+   ]
+  },
+  "geometry": {
+   "shape": "jump to a cell, then 3x3 ring (8 neighbours, centre excluded) around the landing cell",
+   "detail": "getAdjacentCells(destination.x, destination.y) without centre; only cells holding an entity of the other team are hit.",
+   "evidence": [
+    "bn-adj",
+    "adjacent-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "bounce-count",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "fallback": 4
+     }
+    },
+    "perUnitRaw": {
+     "GRUMPIG": 2,
+     "MANTINE": 3,
+     "MANTYKE": 2,
+     "SPOINK": 1
+    },
+    "scaling": "none; one DelayedCommand per bounce with delay i x 500 ms (i = 0..N-1)",
+    "resolution": "commands are pushed on pokemon.commands and updated each tick by the state update; a command runs when its delay has dropped below 0.",
+    "evidence": [
+     "bn-count",
+     "bn-delay",
+     "cmd-update",
+     "cmd-class"
+    ]
+   },
+   {
+    "kind": "special-damage",
+    "target": "each enemy adjacent to the landing cell, per bounce",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 20,
+      "3": 25,
+      "4": 30,
+      "fallback": 30
+     }
+    },
+    "perUnitRaw": {
+     "GRUMPIG": 20,
+     "MANTINE": 25,
+     "MANTYKE": 20,
+     "SPOINK": 15
+    },
+    "scaling": "handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then crit as for any ability only if the cast crit (ABILITY_CRIT needed, canCritByDefault false). The crit flag is the one rolled at cast time and reused by all bounces.",
+    "resolution": "handleSpecialDamage then state.handleDamage (defences, shields and item hooks not read); blocked by protect, skydiving, magicBounce.",
+    "evidence": [
+     "bn-damage",
+     "bn-hit",
+     "spdmg"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "declaredRaw": {
+     "note": "moveTo(destination, forcedDisplacement false) per bounce"
+    },
+    "scaling": "none",
+    "resolution": "moveTo swaps cells, puts the caster into MovingState and sets cooldown 100.",
+    "evidence": [
+     "bn-move",
+     "moveto"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "GRUMPIG": 2,
+    "MANTINE": 3,
+    "MANTYKE": 2,
+    "SPOINK": 1
+   },
+   "declaredRawBounces": {
+    "GRUMPIG": 2,
+    "MANTINE": 3,
+    "MANTYKE": 2,
+    "SPOINK": 1
+   },
+   "declaredRawDamage": {
+    "GRUMPIG": 20,
+    "MANTINE": 25,
+    "MANTYKE": 20,
+    "SPOINK": 15
+   },
+   "note": "Caster stars index both tables (1-4, fallback 4 / 30). Catalog units are 1, 2 or 3 stars.",
+   "evidence": [
+    "bn-count",
+    "bn-damage"
+   ]
+  },
+  "positionalConditions": "A bounce does nothing if getFarthestTargetCoordinateAvailablePlace returns null or the caster's maxHP is not positive. The enemies hit are those adjacent to the landing cell at the moment of that bounce.",
+  "repeatedCastsAndModes": "No stored state. Queued bounces of an earlier cast and a new cast can overlap in time (commands accumulate on the caster).",
+  "rawVsResolved": "Declared raw: 15/20/25 special damage per enemy per bounce for 1/2/3 stars, times 1/2/3 bounces. Resolved damage adds the AP percentage and goes through generic damage handling.",
+  "sourceTables": [
+   {
+    "id": "nbBounces",
+    "file": "app/core/abilities/bounce.ts",
+    "pattern": "const nbBounces = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "bounceDamage",
+    "file": "app/core/abilities/bounce.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body",
+   "getClosestAvailablePlace body (fallback) and distanceM",
+   "What happens to queued bounces if the caster dies or the fight ends (only the maxHP > 0 test was read)",
+   "Whether the DelayedCommand with delay 0 fires on the first update after the cast",
+   "When the cast fires in a real fight"
+  ],
+  "unresolved": [
+   "Passives MANTYKE and MANTINE on Mantyke/Mantine are separate queue records and are not investigated here",
+   "Crit: the flag is reused by all bounces; whether ABILITY_CRIT effects are present was not traced further",
+   "handleDamage and item hooks not read",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-bn",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     778,
+     778
+    ],
+    "symbol": "AbilityStrategies[Ability.BOUNCE]",
+    "expect": "[Ability.BOUNCE]: new BounceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     5,
+     24
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "bn-class",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     7,
+     10
+    ],
+    "symbol": "BounceStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed; default animation suppressed"
+   },
+   {
+    "id": "bn-count",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "const nbBounces = [1, 2, 3, 4][pokemon.stars - 1] ?? 4",
+    "note": ""
+   },
+   {
+    "id": "bn-delay",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     12,
+     14
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": ""
+   },
+   {
+    "id": "bn-dest",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": ""
+   },
+   {
+    "id": "bn-move",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": ""
+   },
+   {
+    "id": "bn-adj",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": ""
+   },
+   {
+    "id": "bn-damage",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "const damage = [15, 20, 25, 30][pokemon.stars - 1] ?? 30",
+    "note": ""
+   },
+   {
+    "id": "bn-hit",
+    "file": "app/core/abilities/bounce.ts",
+    "lines": [
+     27,
+     37
+    ],
+    "symbol": "BounceStrategy.process",
+    "expect": "}, i * 500)",
+    "note": ""
+   },
+   {
+    "id": "far-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     630
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance)",
+    "note": ""
+   },
+   {
+    "id": "adjacent-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "this.delayedFunction()",
+    "note": ""
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     873
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": ""
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": ""
+   },
+   {
+    "id": "unit-spoink",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15435,
+     15449
+    ],
+    "symbol": "class Spoink",
+    "expect": "skill = Ability.BOUNCE",
+    "note": ""
+   },
+   {
+    "id": "unit-grumpig",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15451,
+     15465
+    ],
+    "symbol": "class Grumpig",
+    "expect": "skill = Ability.BOUNCE",
+    "note": ""
+   },
+   {
+    "id": "unit-mantyke",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16127,
+     16166
+    ],
+    "symbol": "class Mantyke",
+    "expect": "skill = Ability.BOUNCE",
+    "note": ""
+   },
+   {
+    "id": "unit-mantine",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16168,
+     16181
+    ],
+    "symbol": "class Mantine",
+    "expect": "skill = Ability.BOUNCE",
+    "note": ""
+   }
+  ]
+ }
+}
