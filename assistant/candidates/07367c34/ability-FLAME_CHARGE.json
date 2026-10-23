@@ -89,11 +89,11 @@
     "pp-gate"
    ]
   },
-  "summary": "The caster dashes in a line to a free cell next to the farthest targetable enemy and deals SPECIAL damage (raw 30/60/120/240 by caster stars) once to every enemy on the cells of that line; if the line holds no enemy (or no destination exists) only the cast target is hit.",
+  "summary": "The caster dashes to the destination returned by Board.getFarthestTargetCoordinateAvailablePlace and deals SPECIAL damage (raw 30/60/120/240 by caster stars) once to every enemy on the cells of the line between its starting cell and that destination. The destination is NOT guaranteed to be next to the farthest enemy: the helper can retain a cell chosen for an earlier, nearer enemy (see positionalConditions). If the line holds no enemy only the cast target is hit; if the helper returns null the caster does not move and only the cast target is hit.",
   "targeting": {
-   "who": "every enemy standing on the cells between the caster and the destination; destination comes from the farthest targetable enemy, not from the cast target",
+   "who": "every enemy standing on the cells between the caster and the destination; the destination comes from the helper's scan of targettable enemies, not from the cast target",
    "needsTarget": true,
-   "note": "requiresTarget is the base default true, so a target in range is needed to cast; the target is used only as the fallback victim. isTargettableBy (which enemies count) was not read.",
+   "note": "requiresTarget is the base default true, so a target in range is needed to cast; the target is used only as the fallback victim. isTargettableBy (which enemies count) was not read. The helper's selection rule is described in positionalConditions.",
    "evidence": [
     "fc-farthest",
     "board-far",
@@ -104,13 +104,14 @@
    ]
   },
   "geometry": {
-   "shape": "line (supercover) from the caster's cell to the destination cell, both endpoints included; the destination is a free cell, so it holds no enemy; the cells are read before the caster moves",
+   "shape": "line (supercover) from the caster's starting cell to the destination cell chosen by the helper (not necessarily next to the farthest enemy), both endpoints included; the destination is a free cell, so it holds no enemy; the cells are read before the caster moves",
    "evidence": [
     "fc-cells",
     "board-between",
     "board-far",
     "board-far-dist",
-    "dist-m"
+    "dist-m",
+    "board-select"
    ]
   },
   "effects": [
@@ -154,12 +155,16 @@
     "target": "the caster",
     "declaredRaw": {},
     "scaling": "none",
-    "resolution": "moveTo swaps the caster with whatever occupies the destination (normally nothing, since the destination is chosen as a free cell). The damage is dealt after the move, to the enemies collected before it.",
+    "resolution": "moveTo(destination, forced displacement false) after the line cells were collected; it swaps the caster with whatever occupies the destination (normally nothing, since the destination is a free cell). The damage is dealt after the move to the enemies collected before it. The destination is next to the farthest enemy only when that enemy had a free adjacent cell; otherwise see positionalConditions.",
     "evidence": [
      "fc-farthest",
      "fc-move",
      "moveto",
-     "board-far"
+     "board-far",
+     "board-reset",
+     "board-select",
+     "board-fallback",
+     "board-scan"
     ]
    }
   ],
@@ -184,7 +189,7 @@
     "fc-dmg"
    ]
   },
-  "positionalConditions": "If getFarthestTargetCoordinateAvailablePlace returns null (no targetable enemy or no free cell) the caster does not move and only the cast target is hit. The destination ignores the cast target: it is next to the enemy with the largest Manhattan distance from the caster.",
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as NUZZLE and AQUA_JET): board.forEach scans cells row by row (y outer, x inner); only targettable enemies whose Manhattan distance from the caster is STRICTLY greater than the running maximum are considered, so equal distances keep the first one scanned and enemies up to the running maximum are skipped afterwards. When such an enemy is found the running cell maximum is reset to 0 and its free adjacent cells (getAdjacentCells order) are compared by distance from the caster, the first strictly farther one winning; selectedCell is replaced only when that enemy has at least one free adjacent cell. If it has none, selectedCell is NOT cleared and keeps the cell chosen for an earlier, nearer enemy, whose enemy then counts as the target of the destination. The fallback (the free cell closest by Manhattan distance to the farthest enemy found, anywhere on the board, which may not be adjacent) runs only if selectedCell is still null at the end. Pinned-helper probe on a 6-row x 8-column board, caster (0,0): near enemy (2,0), far enemy (7,5) boxed in by three allies -> destination (3,1) next to the NEAR enemy; far enemy with a free neighbour -> destination (7,4) next to the far enemy; far enemy as the only enemy and boxed in -> fallback cell (7,3). If it returns null (no targettable enemy or no free cell) the caster does not move and only the cast target is hit.",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repositions the caster again.",
   "rawVsResolved": "Declared raw: 30/60/120/240 by caster stars. Dealt per enemy = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) and untraced modifiers.",
   "sourceTables": [
@@ -205,7 +210,8 @@
   "unresolved": [
    "isTargettableBy was not read, so which enemies can be the farthest target is not established",
    "Whether any item or synergy effect changes FLAME_CHARGE",
-   "Units not listed in appliesTo that might share the identifier are not covered"
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Whether the retained-selection case (a farther enemy with no free adjacent cell) is common on real boards was not examined; the same helper nuance applies to NUZZLE and AQUA_JET. The probe builds the pinned Board methods on a toy layout, not a real fight"
   ],
   "evidence": [
    {
@@ -548,7 +554,65 @@
     "symbol": "castAbility",
     "expect": "abilityStrategy.canCritByDefault",
     "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "board-scan",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "scan order: y outer, x inner"
+   },
+   {
+    "id": "board-reset",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "maxCellDistance = 0",
+    "note": "a strictly farther enemy resets only the cell maximum; selectedCell is not cleared"
+   },
+   {
+    "id": "board-select",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "selectedCell is replaced only inside the loop over that enemy's free adjacent cells"
+   },
+   {
+    "id": "board-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     629
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback to the closest free cell of the farthest enemy only when selectedCell is still null"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "FLAME_CHARGE",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "do not promise movement next to the farthest enemy: getFarthestTargetCoordinateAvailablePlace can retain a cell chosen for an earlier nearer enemy; the fallback runs only when selectedCell remains null",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "FLAME_CHARGE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

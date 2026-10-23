@@ -90,7 +90,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Area self-centred special damage: every unit of the other team standing in the 8 cells around the caster takes SPECIAL damage (raw 50/100/200/400 by caster stars), and the caster then damages itself with the same raw amount unless it holds Protective Pads.",
+  "summary": "Area self-centred special damage: every unit of the other team standing in the 8 cells around the caster takes SPECIAL damage (raw 50/100/200/400 by caster stars), and the caster then damages itself with the same raw amount unless it holds Protective Pads. If the caster has Magic Bounce active, that self hit is not applied immediately: handleSpecialDamage returns takenDamage 0 and queues a delayed callback (see the self-damage effect). An enemy with Magic Bounce likewise queues a bounce aimed at the caster.",
   "targeting": {
    "who": "enemy units in the cells adjacent to the caster (not adjacent to the cast target)",
    "needsTarget": true,
@@ -131,7 +131,7 @@
      "VOLTORB": 50
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the crit flag multiplies by critPower (reduced by the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false)",
-    "resolution": "requested = the raw amount; after handleSpecialDamage AP/crit scaling the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; a target with protect / skydiving / magicBounce takes none (takenDamage 0). Damage lands on a shield first (whole amount unless flinched); a Protective Pads holder doubles the amount that hits a shield. The strategy does not read takenDamage, so applied damage does not feed back into the ability.",
+    "resolution": "requested = the raw amount; after handleSpecialDamage AP/crit scaling the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; a target with protect / skydiving / magicBounce takes none (takenDamage 0). Damage lands on a shield first (whole amount unless flinched); a Protective Pads holder doubles the amount that hits a shield. The strategy does not read takenDamage, so applied damage does not feed back into the ability. A target with magicBounce also queues a 500-delayed SPECIAL bounce request aimed at the caster unless the caster holds Protective Pads (the bounce amount was not traced further).",
     "evidence": [
      "exp-dmg",
      "exp-hit",
@@ -144,7 +144,9 @@
      "armor-factor",
      "cast-crit",
      "shield-split",
-     "shield-pads"
+     "shield-pads",
+     "special-bounce",
+     "special-bounce-delay"
     ]
    },
    {
@@ -155,14 +157,17 @@
      "sameAsEnemies": true
     },
     "scaling": "same raw amount; handleSpecialDamage is called with the caster as attacker, so the caster's own AP (and crit) scale it, then the caster's own SPE_DEF applies",
-    "resolution": "requested = the raw amount; applied = after the caster's AP/crit, its own SPE_DEF division (ceil, min 1) and its shield; blocked if the caster has protect / skydiving / magicBounce. The caster is not guaranteed to survive; its death handling was not traced.",
+    "resolution": "requested = the raw amount; applied = after the caster's AP/crit, its own SPE_DEF division (ceil, min 1) and its shield; blocked if the caster has protect / skydiving / magicBounce. The caster is not guaranteed to survive; its death handling was not traced. Self Magic Bounce: with magicBounce active on the caster, handleSpecialDamage (damage > 0, attacker = itself, attacker without Protective Pads, which is the only case in which the strategy makes the self hit) returns takenDamage 0 at once and pushes a DelayedCommand with delay 500 onto the caster's own commands. When that callback runs it requests, through handleDamage on the same entity (attacker = itself, SPECIAL, isRetaliation true), round(([0.5, 1, 2, 4][stars - 1] ?? 4) x raw x (1 + AP/100) x critPower if crit). Pinned-helper probe: 1 star, AP 0, noncritical, raw 50 -> immediate takenDamage 0 and one delay-500 callback requesting 25 SPECIAL on itself. This is a queued handler request, not a confirmed final HP loss or live execution timing (whether the callback runs, and the entity's state when it does, were not traced).",
     "evidence": [
      "exp-pads",
      "exp-self",
      "special-block",
      "special-ap",
      "def-step",
-     "def-min"
+     "def-min",
+     "special-bounce",
+     "special-bounce-delay",
+     "bounce-calc"
     ]
    }
   ],
@@ -188,8 +193,8 @@
    ]
   },
   "positionalConditions": "Damages only enemies currently occupying one of the cells touching the caster; if none, only the caster's self-damage (unless Protective Pads) occurs. Cell contents are read at cast time.",
-  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the area damage and the self-damage (the caster's pp is reset by super.process).",
-  "rawVsResolved": "Declared raw: 50/100/200/400 by caster stars (the same number for enemies and for the caster). Dealt = raw x (1 + AP/100) [x crit factor], then the receiver's SPE_DEF division (ceil, at least 1) and untraced modifiers; shield damage counts as damage taken. Requested, applied and takenDamage are not reported by this strategy.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the area damage and the self-damage (super.process subtracts maxPP from the caster's pp with a floor of zero, `pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)`; PP above maxPP, which addPP can leave up to 2 x maxPP - 1, stays as overflow).",
+  "rawVsResolved": "Declared raw: 50/100/200/400 by caster stars (the same number for enemies and for the caster). Dealt = raw x (1 + AP/100) [x crit factor], then the receiver's SPE_DEF division (ceil, at least 1) and untraced modifiers; shield damage counts as damage taken. Requested, applied and takenDamage are not reported by this strategy. Under self Magic Bounce the self hit is a queued request (1 star, AP 0, noncritical raw 50: 25 SPECIAL on itself after a 500 delay), not an immediate takenDamage.",
   "sourceTables": [
    {
     "id": "explosionDamage",
@@ -207,7 +212,8 @@
   "unresolved": [
    "Routing uncertainty CONSTANT_STRATEGY: the ability is registered through the shared constant explosionStrategy; this record reads the constant's class in explosion.ts and found no other definition, but other registrations of the same constant were not searched",
    "Whether any item or synergy effect other than Protective Pads changes EXPLOSION",
-   "Units not listed in appliesTo that might share the identifier are not covered"
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Whether the delayed self-bounce callback can run, and what the caster's state is when it does (including whether it has already died from other hits), was not traced; the probe exercises the pinned handleSpecialDamage text only"
   ],
   "evidence": [
    {
@@ -528,7 +534,72 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "damageOnShield = reducedDamage",
     "note": "without flinch the whole reduced damage goes to the shield first"
+   },
+   {
+    "id": "special-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     366
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce && attackType === AttackType.SPECIAL && damage > 0 && attacker && !attacker.items.has(Item.PROTECTIVE_PADS)",
+    "note": "a magicBounce target bounces SPECIAL damage back at the attacker unless the attacker holds Protective Pads; the attacker may be the target itself"
+   },
+   {
+    "id": "special-bounce-delay",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     394,
+     394
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "}, 500)",
+    "note": "the bounce is a DelayedCommand with delay 500"
+   },
+   {
+    "id": "bounce-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     373,
+     378
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "([0.5, 1, 2, 4][this.stars - 1] ?? 4) * damage",
+    "note": "bounce amount: star factor x the original damage x (1 + AP/100) x crit factor, rounded"
+   },
+   {
+    "id": "addpp-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     530,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "PP can exceed maxPP up to 2 x maxPP - 1, so a cast's subtraction of maxPP can leave overflow"
    }
-  ]
- }
+  ],
+  "ppAfterCast": {
+   "statement": "super.process subtracts maxPP from the caster's pp with a floor of zero; PP above maxPP (addPP allows up to 2 x maxPP - 1) leaves overflow",
+   "evidence": [
+    "base-pp",
+    "addpp-clamp"
+   ]
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "EXPLOSION",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "self Magic Bounce can queue a delayed hit back onto the same entity; replace 'PP resets' with maxPP subtracted with a floor of zero (overflow PP can remain)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "EXPLOSION",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

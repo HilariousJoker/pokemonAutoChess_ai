@@ -90,7 +90,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Single-target ability: armor reduction on the target for 3000 ms, then the target's reflect, protect and magicBounce flags and cooldowns are cleared directly, then special damage (20/40/80/160 raw by the caster's stars) is dealt. The order matters: protect and magicBounce are removed before the damage call, so they do not block this hit; skydiving is not cleared and still blocks it.",
+  "summary": "Single-target ability. As written, the strategy (1) calls target.status.triggerArmorReduction(3000, pokemon) with the CASTER as the entity argument, (2) sets the target's reflect, protect and magicBounce flags to false and their cooldowns to 0 directly, and (3) requests SPECIAL damage (20/40/80/160 raw by the caster's stars). Rune Protect is checked on the target's status inside triggerArmorReduction, so a target with Rune Protect gets no armor reduction (the damage is then divided by its full SPE_DEF); the direct flag clearing in (2) still happens. Duration reductions (Swift Swim, Hydration, Water Veil / Surge Surfer, Odd Keystone) read the entity that was supplied, i.e. the caster, not the target. Protect and magicBounce are cleared before the damage call, so they do not block it; skydiving is not cleared and still blocks it.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -127,7 +127,7 @@
      "TAUROS_COMBAT_BREED": 80
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
-    "resolution": "requested amount = raw x AP factor [x crit]. The armor reduction applied just before makes handleDamage use Math.round(speDef / 2) instead of speDef in the division damage / (1 + 0.05 x speDef) (ceil, min 1), so the applied amount is computed against the halved SPE_DEF; later untraced modifiers follow. takenDamage (not used by this strategy) would count HP removed plus shield damage. Blocked entirely only by skydiving (protect and magicBounce were cleared first).",
+    "resolution": "requested amount = raw x AP factor [x crit]. If the armor reduction was applied (the target has no Rune Protect), handleDamage uses Math.round(speDef / 2) while it lasts, so the division is made by that halved SPE_DEF; if Rune Protect prevented it, the full SPE_DEF is used. The division is an intermediate calculation (ceil, min 1) and later untraced modifiers follow, so it is not the final HP loss; takenDamage (not used by this strategy) would count HP removed plus shield damage. Blocked entirely only by skydiving (protect and magicBounce were cleared first).",
     "evidence": [
      "rb-dmg",
      "rb-hit",
@@ -149,19 +149,22 @@
     "status": "armorReduction",
     "target": "the target",
     "declaredRaw": {
-     "value": 3000,
-     "unit": "ms"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "first, before the barrier flags are cleared and before the damage",
-    "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% per stone); a new application replaces the remaining time only if longer",
-    "combatEffect": "while set, handleDamage halves the target's def and speDef (Math.round(x / 2)) for damage reduction; the same halving appears in the POWER_LENS retaliation computation (handleSpecialDamage) and in an items.ts second-hit calculation. Other readers of the flag were not searched beyond app/core and app/models.",
+    "guards": "not applied at all if the TARGET's status has runeProtect (checked on `this` in triggerArmorReduction). When applied, the duration goes through applyStatusDurationReductions(duration, pkm) where pkm is the entity argument the strategy supplied, the CASTER: if the caster has SWIFT_SWIM the duration is x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (all Math.round), and each Odd Keystone in the CASTER's player's items takes a further 10 % off (Math.round). So a caster with HYDRATION turns 3000 into 1500, whereas HYDRATION on the target alone changes nothing. A new application replaces the remaining time only if longer. Pinned-helper probe: plain 3000, caster HYDRATION 1500, HYDRATION on the target only 3000, caster with 2 Odd Keystones 2400, target Rune Protect: no armor reduction",
+    "combatEffect": "while set, handleDamage uses Math.round(def / 2) and Math.round(speDef / 2) for the damage division; the same halving appears in the POWER_LENS retaliation computation (handleSpecialDamage) and in an items.ts second-hit calculation. Other readers of the flag were not searched beyond app/core and app/models. The code is described as written; whether passing the caster is intended is not asserted.",
     "evidence": [
      "rb-ar",
      "ar-trig",
      "ar-red",
      "ar-upd",
-     "ar-def"
+     "ar-def",
+     "ar-runeprotect",
+     "ar-supplied-entity",
+     "ar-odd"
     ]
    },
    {
@@ -172,7 +175,7 @@
     },
     "scaling": "none",
     "applicationOrder": "after armor reduction, before the damage call",
-    "guards": "none: the six assignments run unconditionally; skydiving is not touched",
+    "guards": "none: the six assignments run unconditionally, including when the target has Rune Protect (which only blocks the armor reduction); skydiving is not touched",
     "combatEffect": "protect: handleDamage and handleSpecialDamage no longer block; magicBounce: the bounce branch in handleSpecialDamage no longer fires; reflect: only affects PHYSICAL damage in handleDamage and this hit is SPECIAL. Protect can be reapplied by triggerProtect later (unless the target is enraged); the removal is not a lasting immunity.",
     "evidence": [
      "rb-clear",
@@ -208,8 +211,8 @@
    ]
   },
   "positionalConditions": "None read beyond needing a target (the unit must have a target at range to reach the cast gate).",
-  "repeatedCastsAndModes": "No stored state, no modes. Each cast clears the barrier flags and refreshes the armor reduction only if the new duration is longer.",
-  "rawVsResolved": "Declared raw: damage 80 for the four 3-star units and armor reduction 3000 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; applied damage uses the halved SPE_DEF (rounded) in the division, ceil and minimum 1, then untraced later modifiers. Armor reduction duration is requested 3000 ms and applied after the duration reductions.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast clears the barrier flags and refreshes the armor reduction only if the target has no Rune Protect and the new duration is longer.",
+  "rawVsResolved": "Declared raw: damage 80 for the four 3-star units and armor reduction 3000 ms (requested). Requested damage = raw x (1 + AP/100) [x crit factor]; the SPE_DEF division uses the halved value only if the armor reduction was actually applied (not under Rune Protect on the target), then ceil, minimum 1 and untraced later modifiers; this is an intermediate calculation, not the final HP loss. Armor reduction duration: requested 3000 ms, applied after reductions that read the supplied caster (not the target).",
   "sourceTables": [
    {
     "id": "ragingBullDamage",
@@ -228,7 +231,8 @@
   "unresolved": [
    "Whether any item or synergy effect changes RAGING_BULL beyond what is listed",
    "Whether skydiving can coexist with the other barrier flags on the same target in practice (not traced)",
-   "No other unit sharing the identifier exists in the queue"
+   "No other unit sharing the identifier exists in the queue",
+   "Behaviour is described as written (the caster is the entity argument); the probe uses minimal stubs and exercises the pinned strategy, triggerArmorReduction and applyStatusDurationReductions text, not handleDamage"
   ],
   "evidence": [
    {
@@ -582,7 +586,54 @@
     "symbol": "castAbility",
     "expect": "abilityStrategy.canCritByDefault",
     "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   },
+   {
+    "id": "ar-runeprotect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     346
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect is read from the status the method is called on (the target's)"
+   },
+   {
+    "id": "ar-supplied-entity",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1295
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "the duration reductions read the entity passed as pkm (for RAGING_BULL the caster)"
+   },
+   {
+    "id": "ar-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1297,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "count(pkm.player.items, Item.ODD_KEYSTONE)",
+    "note": "Odd Keystone count comes from the supplied entity's player"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "RAGING_BULL",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "armor reduction is passed the caster: Rune Protect is read on the target while duration reductions read the supplied caster; do not guarantee halved SPE_DEF; barrier flags are still cleared",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "RAGING_BULL",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

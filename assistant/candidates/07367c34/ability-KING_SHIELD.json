@@ -89,7 +89,7 @@
     "ks-class"
    ]
   },
-  "summary": "The caster gains protect for 1500 ms (if it is not already protected and not enraged) and a self shield of 10/20/40/80 by stars (requested; applied after Big Eater Belt, AP, crit, enraged halving and rounding). It then swaps cells with the farthest targettable enemy (forced displacement, so it does nothing if either side cannot be moved). Units with passive AEGISLASH also toggle form after 1500 ms: Aegislash becomes Blade (+10 attack, -5 DEF, -5 SPE_DEF) and Blade returns to Aegislash (the reverse).",
+  "summary": "The caster gains protect for 1500 ms (if it is not already protected and not enraged) and a self shield of 10/20/40/80 by stars (requested; applied after Big Eater Belt, AP, crit, enraged halving and rounding). It then swaps cells with the farthest targettable enemy (forced displacement, so it does nothing if either side cannot be moved). Units with passive AEGISLASH also toggle form after 1500 ms: Aegislash becomes Blade (requested +10 attack, -5 DEF, -5 SPE_DEF) and Blade returns to Aegislash (requested reverse). The applied amounts depend on Big Eater Belt, which also scales negative changes the holder causes to itself, so the two directions need not cancel (see the statChange effect).",
   "targeting": {
    "who": "the caster (protect, shield, form change); the farthest targettable enemy only as the cell to swap with",
    "needsTarget": true,
@@ -193,16 +193,22 @@
       "speDef": 5
      },
      "delayMs": 1500,
-     "label": "requested amounts (raw)"
+     "label": "requested amounts (raw); applied amounts depend on Big Eater Belt and the floors"
     },
-    "scaling": "apBoost 0 and crit false for each call, so no AP or crit scaling",
-    "resolution": "applied amount goes through the stat adders: Big Eater Belt (positive values) and Twist Band (negative values only from another team or the environment, so not here) helpers; attack floored at 1 and DEF / SPE_DEF floored at 0 after the change, so the applied value can differ from the requested one when a floor is reached",
+    "scaling": "each delayed callback calls addAttack / addDefense / addSpecialDefense on the caster with the caster itself as source, apBoost 0 and crit false, so there is no AP or crit scaling",
+    "resolution": "the requested amounts go through the stat adders. applyBigEaterBeltStatBuff first multiplies by 1.25 and rounds with mode 'down' (Math.floor) when the value is positive OR when it is negative and comes from a caster on the holder's own team (here the holder itself): for a Big Eater Belt holder +10 becomes +12, -5 becomes -7, +5 becomes +6 and -10 becomes -13 (floor of a negative number goes further from zero). applyTwistBandBuff then changes only negative values from another team or the environment, so it does nothing here. Floors afterwards: attack at least 1, DEF and SPE_DEF at least 0. Pinned-helper probe (AP 0, no crit, no floor reached; holder ATK / DEF / SPE_DEF 30 / 20 / 20): without the belt Aegislash->Blade gives 40 / 15 / 15 and Blade->Aegislash returns to 30 / 20 / 20; with Big Eater Belt Aegislash->Blade gives 42 / 13 / 13 and Blade->Aegislash gives 29 / 19 / 19, so the inverse changes do not cancel (net -1 ATK, -1 DEF, -1 SPE_DEF per round trip). The applied value therefore differs from the requested one whenever the belt or a floor applies.",
     "evidence": [
      "ks-form1",
      "ks-form2",
      "delayed",
      "add-atk",
-     "add-def"
+     "add-def",
+     "belt-helper",
+     "belt-round",
+     "floor-mode",
+     "twist-helper",
+     "add-spedef",
+     "command-update"
     ]
    }
   ],
@@ -251,8 +257,8 @@
    ]
   },
   "positionalConditions": "Movement targets the farthest targettable enemy by distanceM; it is skipped when none exists or when either unit cannot be moved.",
-  "repeatedCastsAndModes": "Two modes for units with passive AEGISLASH: from AEGISLASH the form delta toward Blade, from AEGISLASH_BLADE the delta back. A cast made before the earlier 1500 ms command has run queues another command; the name check happens at cast time, not at execution time.",
-  "rawVsResolved": "Requested: shield 10/20/40/80; protect 1500 ms; form deltas +10/-5/-5 (and reverse). Applied: shield after Big Eater Belt, AP, crit, enraged halving and rounding; protect only if not already active and not enraged; stat deltas after helpers and floors.",
+  "repeatedCastsAndModes": "Two modes for units with passive AEGISLASH: from AEGISLASH the form delta toward Blade, from AEGISLASH_BLADE the delta back. The form check happens when the cast runs, not when the callback runs, and the callback body does not re-check the form: a cast made before the earlier 1500 ms callback has run queues another callback of the same direction, so several callbacks can be queued at once and each applies its full delta. Probe (Big Eater Belt, AP 0): two casts before the first callback runs queue two Aegislash->Blade callbacks and leave ATK / DEF / SPE_DEF at 54 / 6 / 6 after both have run (30 + 12 + 12; 20 - 7 - 7), with the name set to the blade form twice. Whether this can happen in a real fight (cooldown and PP gating of two casts within 1500 ms) was not traced.",
+  "rawVsResolved": "Requested: shield 10/20/40/80; protect 1500 ms; form deltas +10/-5/-5 (and reverse). Applied: shield after Big Eater Belt, AP, crit, enraged halving and rounding; protect only if not already active and not enraged; stat deltas after Big Eater Belt (which scales positive deltas and the caster's own negative deltas, floor rounding, so +10/-5/-5 becomes +12/-7/-7 and the reverse -10/+5/+5 becomes -13/+6/+6) and the stat floors.",
   "sourceTables": [
    {
     "id": "shield",
@@ -274,7 +280,8 @@
    "Which units canBeMoved is false for was not traced; the move is silently skipped then",
    "isTargettableBy conditions (which enemies are valid for the farthest search) were not read",
    "Whether passive state or item effects react to the rename (pokemon.name / index change) was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The probe uses minimal stubs for the holder; it exercises the pinned helper text and the strategy text, not a fight (clamps other than the stat floors, shields, protect interaction and the entity lifecycle are not exercised)"
   ],
   "evidence": [
    {
@@ -557,18 +564,18 @@
     "file": "app/core/pokemon-entity.ts",
     "lines": [
      726,
-     745
+     750
     ],
     "symbol": "PokemonEntity.addAttack",
     "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
-    "note": "stat adder: apBoost 0 so no AP scaling; Big Eater Belt / Twist Band helpers; atk floored at 1"
+    "note": "stat adder: apBoost 0 so no AP scaling; Big Eater Belt / Twist Band helpers; atk floored at 1 (target.atk = min(1)(...))"
    },
    {
     "id": "add-def",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
      674,
-     693
+     698
     ],
     "symbol": "PokemonEntity.addDefense",
     "expect": "target.def = min(0)(target.def + value)",
@@ -617,7 +624,87 @@
     "symbol": "class Honedge",
     "expect": "skill = Ability.KING_SHIELD",
     "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "belt-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value > 0 || (value < 0 && caster !== \"environment\" && caster.team === pokemon.team)",
+    "note": "positive values, and negative values from a same-team caster (a buff being lost), are scaled for a Big Eater Belt holder"
+   },
+   {
+    "id": "belt-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1848,
+     1850
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 with rounding mode down"
+   },
+   {
+    "id": "floor-mode",
+    "file": "app/utils/number.ts",
+    "lines": [
+     16,
+     32
+    ],
+    "symbol": "roundToNDigits",
+    "expect": "Math.floor(scaled)",
+    "note": "mode 'down' is Math.floor, so a negative result is rounded away from zero (-6.25 -> -7)"
+   },
+   {
+    "id": "twist-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 && pokemon.items.has(Item.TWIST_BAND)",
+    "note": "flips only negative values from the environment or another team; not applicable to self-inflicted changes"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "stat adder: Big Eater Belt / Twist Band helpers, SPE_DEF floored at 0"
+   },
+   {
+    "id": "command-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0)",
+    "note": "a command runs once its delay has been consumed by update(dt); DelayedCommand.execute calls the stored function (see delayed)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "KING_SHIELD",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "Big Eater Belt scales negative own-team stat changes too (floor rounding), so the inverse form changes need not cancel; delayed callbacks and stat helpers traced; multiple-queued-callback caveat preserved",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "KING_SHIELD",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

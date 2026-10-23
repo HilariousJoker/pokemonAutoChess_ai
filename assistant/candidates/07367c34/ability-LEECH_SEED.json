@@ -89,11 +89,11 @@
     "ls-class"
    ]
   },
-  "summary": "The caster heals itself by 20/40/80/160 (requested; by stars, with AP and crit scaling) and applies one poison stack to the cast target for 3000/6000/12000/24000 ms (requested; by stars). The heal is a fixed self-heal; it is not tied to damage dealt by the poison. Poison then deals TRUE damage once per second equal to 5% of the target's max HP per stack, attributed to the caster as poison origin.",
+  "summary": "The caster heals itself by 20/40/80/160 (requested; by stars, with AP and crit scaling) and applies one poison stack to the cast target for 3000/6000/12000/24000 ms (requested; by stars). The cast heal is a fixed self-heal of the CASTER; it is not tied to damage dealt by the poison. Separately, Status.updatePoison computes a signed amount on each poison tick (5% of the poisoned unit's max HP per stack, passed through the listed multipliers and rounded): a negative result calls handleHeal on the POISONED unit, zero makes no call, and a positive result requests TRUE damage on the poisoned unit attributed to the poison origin. These are handler requests, not guaranteed final HP changes.",
   "targeting": {
    "who": "heal: the caster; poison: the cast target",
    "needsTarget": true,
-   "note": "The name suggests a drain, but the code heals the caster at cast time and the poison tick does not heal the caster.",
+   "note": "The name suggests a drain, but the cast heals the caster once at cast time and no poison tick heals the caster. A tick can heal only the poisoned unit itself (negative computed amount, reachable in the code read only through the Gliscor passive formula).",
    "evidence": [
     "ls-class",
     "ls-heal",
@@ -134,7 +134,8 @@
      "entity-heal",
      "state-heal",
      "state-heal-credit"
-    ]
+    ],
+    "label": "cast self-heal of the caster (separate from the poison ticks)"
    },
    {
     "kind": "status",
@@ -167,16 +168,21 @@
     ]
    },
    {
-    "kind": "damage",
-    "damageType": "TRUE",
-    "target": "the poisoned target, once per 1000 ms while poison lasts",
+    "kind": "poison tick (damage request, no call, or heal request)",
+    "damageType": "TRUE (positive result only)",
+    "target": "the poisoned unit, each time the poison tick fires (about every 1000 ms of update time while poison lasts)",
     "declaredRaw": {
-     "maxHpFractionPerStack": 0.05
+     "formula": "round(maxHP x 0.05 x stacks x multipliers); negative -> heal request, zero -> no call",
+     "maxHpFractionPerStack": 0.05,
+     "stacksUsed": "stacks (stacks - 2 for a holder of Passive.GLISCOR)"
     },
-    "scaling": "5% of target max HP per stack; rain x0.7; Assault Vest x0.5; TOXIC_BOOST x0.5; Swift Swim x0.7 / Hydration x0.5 / Water Veil or Surge Surfer x0.3; Gliscor passive uses stacks - 2; rounded, minimum 1",
-    "resolution": "applied through handleDamage as TRUE damage with the poison origin as attacker; takenDamage and shield interaction are in handleDamage (not traced here)",
+    "scaling": "poisonDamage = maxHP x 0.05 x stacks; GLISCOR uses (stacks - 2); rain x0.7; Assault Vest x0.5; TOXIC_BOOST x0.5; Swift Swim x0.7 else Hydration x0.5 else Water Veil / Surge Surfer x0.3; then Math.round. No AP or crit.",
+    "resolution": "negative result: pkm.handleHeal(round(-poisonDamage), pkm, 0, false), a heal REQUEST on the poisoned unit itself (handleHeal modifiers and the missing-HP cap apply; wound or protect make it do nothing); zero: no call at all; positive result: pkm.handleDamage with damage min(1)(round(poisonDamage)), attackType TRUE, attacker = poisonOrigin or null, shouldTargetGainMana false. Pinned-helper probe (GLISCOR holder, maxHP 1000, no weather, items or other modifiers): 1 stack -> heal request 50; 2 stacks -> no call; 3 stacks -> TRUE damage request 50. Every other unit uses stacks, so for them the result is never negative. The final HP change is decided by handleHeal / handleDamage (shields, protect, caps), not by this calculation.",
     "evidence": [
-     "poison-update"
+     "poison-update",
+     "poison-gliscor",
+     "poison-sign",
+     "poison-end"
     ]
    }
   ],
@@ -184,12 +190,17 @@
    {
     "status": "POISON",
     "durationMs": "3000/6000/12000/24000 by stars (requested)",
-    "effect": "1 stack, 5% target max HP TRUE damage per stack per second",
+    "effect": "1 stack added per application (cap 3, 4 with VENOMOUS, 5 with TOXIC on the origin); each tick requests TRUE damage, nothing, or a heal on the poisoned unit as described in the tick effect",
     "evidence": [
      "ls-dur",
      "poison-trigger",
-     "poison-update"
-    ]
+     "poison-update",
+     "poison-immune",
+     "poison-guts",
+     "poison-berry",
+     "poison-gas"
+    ],
+    "applicationGuards": "triggerPoison does nothing at all (no stack, no origin update, no passive or berry reaction) if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect. When it applies: GUTS passive gains +5 attack once (removed again at the end of the poison unless burned), TOXIC_BOOST gains +10 attack once (removed at the end) and halves ticks, and a held Pecha Berry is eaten (eatBerry; its effect was not traced). POISON_GAS on the unit re-applies a 1500 ms stack on every tick unless it holds Heavy Duty Boots."
    }
   ],
   "buffs": [],
@@ -225,7 +236,7 @@
   },
   "positionalConditions": "None in the strategy beyond the cast target; range is 1 for Shroomish and Breloom and 2 for Lileep and Cradily.",
   "repeatedCastsAndModes": "Single mode. Each cast adds one poison stack (up to the cap) and keeps the longer remaining poison cooldown; poisonOrigin is overwritten by the latest caster.",
-  "rawVsResolved": "Requested (raw): heal 20 (1 star) / 40 (2 stars); poison 3000 / 6000 ms. Applied: heal after AP, crit, heal modifiers, rounding and the missing-HP cap; poison duration after reductions, one stack under immunity and stack caps. Poison damage per tick is separate and TRUE.",
+  "rawVsResolved": "Requested (raw): cast heal 20 (1 star) / 40 (2 stars) for the caster; poison 3000 / 6000 ms. Applied: cast heal after AP, crit, heal modifiers, rounding and the missing-HP cap; poison duration after reductions, one stack, subject to immunity, Rune Protect and the stack cap. Poison ticks are separate from the cast heal: each tick is a handler request (heal on the poisoned unit, nothing, or TRUE damage) whose final HP effect is decided by handleHeal / handleDamage.",
   "sourceTables": [
    {
     "id": "duration",
@@ -253,7 +264,8 @@
    "The poison tick order relative to the cast and to other status updates was not examined",
    "Weather sources, items and effects that appear in the poison multipliers were read only as conditions; their sources were not traced",
    "Whether any other mechanic converts poison damage dealt into healing for the origin was not searched beyond the cited lines",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The probe uses minimal stubs for the poisoned unit; it exercises the pinned updatePoison text only (weather, items and the other multipliers are absent), not handleHeal / handleDamage resolution"
   ],
   "evidence": [
    {
@@ -486,7 +498,98 @@
     "symbol": "class Shroomish",
     "expect": "skill = Ability.LEECH_SEED",
     "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "poison-gliscor",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     621,
+     623
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "pkm.maxHP * 0.05 * (this.poisonStacks - 2)",
+    "note": "Gliscor uses stacks - 2, which can be negative (1 stack) or zero (2 stacks)"
+   },
+   {
+    "id": "poison-sign",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     646,
+     658
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (poisonDamage < 0) {",
+    "note": "negative -> handleHeal(round(-x), pkm, 0, false); positive -> handleDamage TRUE min(1)(round(x)); zero -> no call"
+   },
+   {
+    "id": "poison-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     673,
+     684
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "pkm.addAttack(-5, pkm, 0, false)",
+    "note": "when the poison cooldown runs out stacks and origin are cleared and the GUTS / TOXIC_BOOST attack bonuses are removed"
+   },
+   {
+    "id": "poison-immune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "poison application is skipped entirely under immunity or Rune Protect"
+   },
+   {
+    "id": "poison-guts",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     609
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.addAttack(5, pkm, 0, false)",
+    "note": "GUTS +5 attack once; TOXIC_BOOST +10 attack once"
+   },
+   {
+    "id": "poison-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     611,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "a Pecha Berry holder eats it when poison is applied"
+   },
+   {
+    "id": "poison-gas",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     660,
+     666
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "this.triggerPoison(1500, pkm, undefined)",
+    "note": "POISON_GAS re-applies a stack on every tick unless Heavy Duty Boots"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "LEECH_SEED",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "separate the poison tick handler requests (heal / nothing / TRUE damage) from the caster's cast self-heal; preserve immunity, Rune Protect and berry reactions",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "LEECH_SEED",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
