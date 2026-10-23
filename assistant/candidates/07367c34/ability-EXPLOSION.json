@@ -1,0 +1,534 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/EXPLOSION",
+ "kind": "ability",
+ "identifier": "EXPLOSION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T054001Z"
+ },
+ "record": {
+  "ability": "EXPLOSION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The four units in appliesTo declare EXPLOSION in this production reference. The strategy is a shared constant instance (explosionStrategy); differences between the units are star count, stats and maxPP.",
+  "appliesTo": [
+   {
+    "key": "ELECTRODE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EXPLOSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FORRETRESS",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "EXPLOSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PINECO",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "EXPLOSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VOLTORB",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EXPLOSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ELECTRODE": {
+    "evidence": [
+     "unit-electrode"
+    ]
+   },
+   "FORRETRESS": {
+    "evidence": [
+     "unit-forretress"
+    ]
+   },
+   "PINECO": {
+    "evidence": [
+     "unit-pineco"
+    ]
+   },
+   "VOLTORB": {
+    "evidence": [
+     "unit-voltorb"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.EXPLOSION] = explosionStrategy (the constant `export const explosionStrategy = new ExplosionStrategy()` in explosion.ts)",
+   "strategy": "ExplosionStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-explosion",
+    "exp-class",
+    "exp-const",
+    "base-flags",
+    "base-pp",
+    "exp-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Area self-centred special damage: every unit of the other team standing in the 8 cells around the caster takes SPECIAL damage (raw 50/100/200/400 by caster stars), and the caster then damages itself with the same raw amount unless it holds Protective Pads.",
+  "targeting": {
+   "who": "enemy units in the cells adjacent to the caster (not adjacent to the cast target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true, so the caster still needs a target in range to cast; the target parameter is only used by super.process for the animation and is not used for the damage. How the target is picked before the cast was not read.",
+   "evidence": [
+    "exp-cells",
+    "exp-enemy",
+    "base-flags",
+    "exp-super"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 board cells around the caster (3x3 minus centre), clipped to the board; allies and empty cells are skipped",
+   "evidence": [
+    "exp-cells",
+    "board-adj",
+    "exp-enemy"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy in the adjacent cells",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     }
+    },
+    "perUnitRaw": {
+     "ELECTRODE": 100,
+     "FORRETRESS": 100,
+     "PINECO": 50,
+     "VOLTORB": 50
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the crit flag multiplies by critPower (reduced by the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false)",
+    "resolution": "requested = the raw amount; after handleSpecialDamage AP/crit scaling the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; a target with protect / skydiving / magicBounce takes none (takenDamage 0). Damage lands on a shield first (whole amount unless flinched); a Protective Pads holder doubles the amount that hits a shield. The strategy does not read takenDamage, so applied damage does not feed back into the ability.",
+    "evidence": [
+     "exp-dmg",
+     "exp-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast-crit",
+     "shield-split",
+     "shield-pads"
+    ]
+   },
+   {
+    "kind": "damage (self)",
+    "damageType": "SPECIAL",
+    "target": "the caster itself, skipped if it holds PROTECTIVE_PADS",
+    "declaredRaw": {
+     "sameAsEnemies": true
+    },
+    "scaling": "same raw amount; handleSpecialDamage is called with the caster as attacker, so the caster's own AP (and crit) scale it, then the caster's own SPE_DEF applies",
+    "resolution": "requested = the raw amount; applied = after the caster's AP/crit, its own SPE_DEF division (ceil, min 1) and its shield; blocked if the caster has protect / skydiving / magicBounce. The caster is not guaranteed to survive; its death handling was not traced.",
+    "evidence": [
+     "exp-pads",
+     "exp-self",
+     "special-block",
+     "special-ap",
+     "def-step",
+     "def-min"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ELECTRODE": 2,
+    "FORRETRESS": 2,
+    "PINECO": 1,
+    "VOLTORB": 1
+   },
+   "declaredRawDamage": {
+    "ELECTRODE": 100,
+    "FORRETRESS": 100,
+    "PINECO": 50,
+    "VOLTORB": 50
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (400, also the fallback) is not reachable by the four units' bare star counts. maxPP and range are in appliesTo.",
+   "evidence": [
+    "exp-dmg"
+   ]
+  },
+  "positionalConditions": "Damages only enemies currently occupying one of the cells touching the caster; if none, only the caster's self-damage (unless Protective Pads) occurs. Cell contents are read at cast time.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the area damage and the self-damage (the caster's pp is reset by super.process).",
+  "rawVsResolved": "Declared raw: 50/100/200/400 by caster stars (the same number for enemies and for the caster). Dealt = raw x (1 + AP/100) [x crit factor], then the receiver's SPE_DEF division (ceil, at least 1) and untraced modifiers; shield damage counts as damage taken. Requested, applied and takenDamage are not reported by this strategy.",
+  "sourceTables": [
+   {
+    "id": "explosionDamage",
+    "file": "app/core/abilities/explosion.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items such as Poke Doll, synergy effects, damage-reduction effects, resurrection, field multipliers); only the SPECIAL SPE_DEF division, the minimum of 1 and the shield step were read",
+   "When the cast fires in a real fight (PP gain, target selection before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Death handling of a caster that kills itself with its own explosion (and whether deaths inside the loop change later cells)"
+  ],
+  "unresolved": [
+   "Routing uncertainty CONSTANT_STRATEGY: the ability is registered through the shared constant explosionStrategy; this record reads the constant's class in explosion.ts and found no other definition, but other registrations of the same constant were not searched",
+   "Whether any item or synergy effect other than Protective Pads changes EXPLOSION",
+   "Units not listed in appliesTo that might share the identifier are not covered"
+  ],
+  "evidence": [
+   {
+    "id": "unit-electrode",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9623,
+     9636
+    ],
+    "symbol": "class Electrode",
+    "expect": "skill = Ability.EXPLOSION",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-forretress",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11033,
+     11046
+    ],
+    "symbol": "class Forretress",
+    "expect": "skill = Ability.EXPLOSION",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-pineco",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11017,
+     11031
+    ],
+    "symbol": "class Pineco",
+    "expect": "skill = Ability.EXPLOSION",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-voltorb",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9607,
+     9621
+    ],
+    "symbol": "class Voltorb",
+    "expect": "skill = Ability.EXPLOSION",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-explosion",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     867,
+     867
+    ],
+    "symbol": "AbilityStrategies[Ability.EXPLOSION]",
+    "expect": "[Ability.EXPLOSION]: explosionStrategy",
+    "note": "registered through the constant instance, not a new-expression"
+   },
+   {
+    "id": "exp-class",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "ExplosionStrategy",
+    "expect": "export class ExplosionStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "exp-const",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "explosionStrategy",
+    "expect": "export const explosionStrategy = new ExplosionStrategy()",
+    "note": "the constant registered for Ability.EXPLOSION"
+   },
+   {
+    "id": "exp-super",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "exp-dmg",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "exp-cells",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "cells around the caster, not around the target"
+   },
+   {
+    "id": "exp-enemy",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team)",
+    "note": "only occupied cells holding a unit of another team"
+   },
+   {
+    "id": "exp-hit",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "exp-pads",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "if (!pokemon.items.has(Item.PROTECTIVE_PADS)) {",
+    "note": "self-damage is skipped with Protective Pads"
+   },
+   {
+    "id": "exp-self",
+    "file": "app/core/abilities/explosion.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "ExplosionStrategy.process",
+    "expect": "pokemon.handleSpecialDamage(",
+    "note": "the caster damages itself with the same amount, attacker = itself"
+   },
+   {
+    "id": "board-adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "the 8 surrounding cells that are on the board; the centre is excluded by default"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "shield-pads",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     631,
+     631
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.items.has(Item.PROTECTIVE_PADS) &&",
+    "note": "damage on a shield is doubled when the attacker holds Protective Pads and is not the target"
+   },
+   {
+    "id": "shield-split",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     626,
+     626
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = reducedDamage",
+    "note": "without flinch the whole reduced damage goes to the shield first"
+   }
+  ]
+ }
+}
