@@ -1,0 +1,560 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PLAY_ROUGH",
+ "kind": "ability",
+ "identifier": "PLAY_ROUGH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T174041Z"
+ },
+ "record": {
+  "ability": "PLAY_ROUGH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The four units in appliesTo declare PLAY_ROUGH in this production reference (all with passive NONE in the catalog). The strategy is shared; differences are star count, range (Azurill/Marill/Azumarill 2, Mawile 1), maxPP (100; Mawile 80) and stats.",
+  "appliesTo": [
+   {
+    "key": "AZUMARILL",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "PLAY_ROUGH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "AZURILL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "PLAY_ROUGH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MARILL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "PLAY_ROUGH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAWILE",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PLAY_ROUGH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "AZUMARILL": {
+    "evidence": [
+     "unit-azumarill"
+    ]
+   },
+   "AZURILL": {
+    "evidence": [
+     "unit-azurill"
+    ]
+   },
+   "MARILL": {
+    "evidence": [
+     "unit-marill"
+    ]
+   },
+   "MAWILE": {
+    "evidence": [
+     "unit-mawile"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PLAY_ROUGH] = new PlayRoughStrategy()",
+   "strategy": "PlayRoughStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pr",
+    "pr-class",
+    "base-flags",
+    "base-pp",
+    "pr-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-target special damage (30/60/120/240 raw by the caster's stars) plus a 2500 ms charm on the target. The charm is applied first (the call precedes the damage) and does not depend on the damage dealing anything.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the attacking-state gate.",
+   "evidence": [
+    "pr-class",
+    "base-flags",
+    "pr-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "pr-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "AZURILL": 30,
+     "MARILL": 60,
+     "AZUMARILL": 120,
+     "MAWILE": 120
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "requested amount = raw x AP factor [x crit]; the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) gives the applied amount in handleDamage; takenDamage (not used by this strategy) would count HP removed plus shield damage; blocked entirely by protect / skydiving / magicBounce (takenDamage 0; the charm was already applied before this call and is not blocked by them)",
+    "evidence": [
+     "pr-dmg",
+     "pr-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "charm",
+    "target": "the target",
+    "declaredRaw": {
+     "value": 2500,
+     "unit": "ms"
+    },
+    "scaling": "apBoost false is passed, so the duration does not scale with AP or crit",
+    "applicationOrder": "before the damage (the triggerCharm call precedes handleSpecialDamage)",
+    "guards": "not applied if the target is already charmed (the existing charm and origin are kept) or has runeProtect; MISTY weather multiplies the duration by 1.3; applyStatusDurationReductions then applies SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 and ODD_KEYSTONE -10% per stone; the target's target is set to the caster",
+    "combatEffect": "while charm is set, AttackingState does not reach its attack/cast branch (it only switches to moving when a target is in sight) and MovingState walks the unit toward charmOrigin when it is more than 1 cell away, with no attack or cast branch taken. Damage from the origin (the caster) that results in takenDamage > 0 shortens the remaining charm by 500 ms per damage instance, so the Play Rough hit itself can already shorten the charm by 500 ms if it deals damage. When the charm ends the target is cleared to force retargeting. Other uses of status.charm outside app/core and app/models were not searched.",
+    "evidence": [
+     "pr-charm",
+     "charm-trig",
+     "charm-red",
+     "charm-upd",
+     "charm-atk",
+     "charm-move",
+     "charm-hit",
+     "dmg-recv"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "AZURILL": 1,
+    "MARILL": 2,
+    "AZUMARILL": 3,
+    "MAWILE": 3
+   },
+   "declaredRawDamage": {
+    "AZURILL": 30,
+    "MARILL": 60,
+    "AZUMARILL": 120,
+    "MAWILE": 120
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (240, also the fallback) is not reachable by the four units' bare star counts (1, 2, 3). The charm duration (2500 ms) does not vary with stars.",
+   "evidence": [
+    "pr-dmg",
+    "unit-azumarill",
+    "unit-azurill",
+    "unit-marill",
+    "unit-mawile"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must have a target at range to reach the cast gate).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the charm attempt (ignored while the target is still charmed) and the damage.",
+  "rawVsResolved": "Declared raw: damage 30/60/120 (1/2/3 stars) and charm 2500 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; applied damage after the SPE_DEF division (ceil, at least 1) and untraced later modifiers. Charm: requested 2500 ms, applied after the MISTY multiplier and duration reductions, then shortened by 500 ms per qualifying hit from the caster.",
+  "sourceTables": [
+   {
+    "id": "playRoughDamage",
+    "file": "app/core/abilities/play-rough.ts",
+    "pattern": "\\[([0-9, ]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect changes PLAY_ROUGH beyond what is listed",
+   "Other readers of status.charm outside app/core and app/models were not searched",
+   "No other unit sharing the identifier exists in the queue; Mawile (range 1, maxPP 80) shares the strategy but is a different unit than the Marill line"
+  ],
+  "evidence": [
+   {
+    "id": "unit-azumarill",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4678,
+     4690
+    ],
+    "symbol": "class Azumarill",
+    "expect": "skill = Ability.PLAY_ROUGH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-azurill",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4648,
+     4661
+    ],
+    "symbol": "class Azurill",
+    "expect": "skill = Ability.PLAY_ROUGH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-marill",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4663,
+     4676
+    ],
+    "symbol": "class Marill",
+    "expect": "skill = Ability.PLAY_ROUGH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-mawile",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6687,
+     6703
+    ],
+    "symbol": "class Mawile",
+    "expect": "skill = Ability.PLAY_ROUGH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-pr",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1079,
+     1079
+    ],
+    "symbol": "AbilityStrategies[Ability.PLAY_ROUGH]",
+    "expect": "[Ability.PLAY_ROUGH]: new PlayRoughStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pr-class",
+    "file": "app/core/abilities/play-rough.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PlayRoughStrategy",
+    "expect": "class PlayRoughStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "pr-super",
+    "file": "app/core/abilities/play-rough.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PlayRoughStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pr-charm",
+    "file": "app/core/abilities/play-rough.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PlayRoughStrategy.process",
+    "expect": "target.status.triggerCharm(2500, target, pokemon, false)",
+    "note": "charm 2500 ms, origin = caster, apBoost false; called before the damage"
+   },
+   {
+    "id": "pr-dmg",
+    "file": "app/core/abilities/play-rough.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PlayRoughStrategy.process",
+    "expect": "[30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table by caster stars"
+   },
+   {
+    "id": "pr-hit",
+    "file": "app/core/abilities/play-rough.ts",
+    "lines": [
+     15,
+     20
+    ],
+    "symbol": "PlayRoughStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true; return value not used"
+   },
+   {
+    "id": "charm-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     852,
+     866
+    ],
+    "symbol": "Status.triggerCharm",
+    "expect": "if (!this.charm && !this.runeProtect) {",
+    "note": "applied only if not already charmed and not runeProtect; MISTY weather x1.3; duration reductions; sets target to the origin"
+   },
+   {
+    "id": "charm-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "charm-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     868,
+     875
+    ],
+    "symbol": "Status.updateCharm",
+    "expect": "if (this.charmCooldown - dt <= 0) {",
+    "note": "charm ends when the cooldown runs out; target cleared to force retargeting"
+   },
+   {
+    "id": "charm-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     74,
+     79
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (!target || pokemon.status.charm) {",
+    "note": "while charmed the attack/cast branch of this state is not reached; it only switches to moving if a target is in sight"
+   },
+   {
+    "id": "charm-move",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     25,
+     39
+    ],
+    "symbol": "MovingState.update",
+    "expect": "if (pokemon.status.charm && pokemon.canMove) {",
+    "note": "while charmed (and able to move) the unit walks toward charmOrigin if farther than 1 cell, and takes no other branch (no attack or cast)"
+   },
+   {
+    "id": "charm-hit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1217,
+     1219
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "if (this.status.charmCooldown > 0 && attacker === this.status.charmOrigin) {",
+    "note": "damage from the charm origin shortens the remaining charm by 500 ms (reached from handleDamage only when takenDamage > 0)"
+   },
+   {
+    "id": "dmg-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "called inside the takenDamage > 0 block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "canCritByDefault = false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   }
+  ]
+ }
+}
