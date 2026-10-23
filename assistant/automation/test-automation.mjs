@@ -61,13 +61,16 @@ const qc = rj(resolve(ASSISTANT, "automation/queue.json"))
 const WORK = ["queued", "in_progress", "candidate_ready", "blocked", "superseded"], VALID = ["not_run", "passed", "failed"], REVIEW = ["none", "pending", "reviewed"]
 check("committed queue (structure only; saved progress is legitimate): pinned revision, known states, lock null or well-formed, covered identifiers absent",
   qc.revision === inv.sourceSha && (qc.lock === null || typeof qc.lock.runId === "string") && qc.items.every((i) => WORK.includes(i.progress.work) && VALID.includes(i.progress.validation.status) && REVIEW.includes(i.progress.review.status)) && new Set(qc.items.map((i) => i.id)).size === qc.items.length && !qc.items.some((i) => i.id === "ability/NUZZLE") && qc.items.some((i) => i.id === "passive/PACHIRISU") && qc.items.some((i) => i.id === "ability/CRUNCH" && i.units.join() === "CROCONAW,FERALIGATR,GUZZLORD"))
+// records for identifiers that are now fully covered stay in the committed queue as "superseded" (sync never deletes saved progress); a fresh sync does not contain them
+const qcLive = qc.items.filter((i) => i.progress.work !== "superseded")
+check("every superseded record in the committed queue belongs to an identifier the inventory reports as fully structured", qc.items.filter((i) => i.progress.work === "superseded").every((i) => inv[i.kind === "ability" ? "abilities" : "passives"][i.identifier]?.coverage.status === "structured_full"))
 const Q = join(tmp, "queue.json")
 step("queue: sync, lock, select, start (all on a temporary copy)")
 const Qa = (c, ...a) => { const r = node("queue.mjs", c, "--queue", Q, "--inventory", join(ASSISTANT, "automation/inventory.json"), "--candidates-dir", candDir, ...a); transcript.push(`$ queue.mjs ${c} ${a.join(" ")}\n${(r.out + r.err).trim().split("\n").slice(0, 7).join("\n")}`); return r }
 r = Qa("sync")
-check("sync builds the queue from the inventory", r.code === 0 && /added/.test(r.out) && rj(Q).items.length === qc.items.length)
+check("sync builds the queue from the inventory", r.code === 0 && /added/.test(r.out) && rj(Q).items.length === qcLive.length)
 check("a freshly generated queue is pristine: no lock, every record queued, validation not_run, review none", (() => { const f = rj(Q); return f.lock === null && f.items.every((i) => i.progress.work === "queued" && i.progress.review.status === "none" && i.progress.validation.status === "not_run") })())
-check("sync is idempotent and matches the committed queue's record set", (() => { const r2 = Qa("sync"); return r2.code === 0 && /0 added/.test(r2.out) && JSON.stringify(rj(Q).items.map((i) => i.id)) === JSON.stringify(qc.items.map((i) => i.id)) })())
+check("sync is idempotent and matches the committed queue's record set", (() => { const r2 = Qa("sync"); return r2.code === 0 && /0 added/.test(r2.out) && JSON.stringify(rj(Q).items.map((i) => i.id)) === JSON.stringify(qcLive.map((i) => i.id)) })())
 r = Qa("start", "ability/CRUNCH", "--run", "R1")
 check("mutations without the lock are refused (exit 4)", r.code === 4, r.err)
 r = Qa("lock", "--run", "R1", "--head", "abc")

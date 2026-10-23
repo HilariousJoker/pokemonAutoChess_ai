@@ -51,6 +51,31 @@ r = run("ANNIHILAPE")
 check("ANNIHILAPE: THRASH 120 % of baseAtk; no PRIMEAPE passive; evolution coverage missing (not claimed terminal)", r.code === 0 && has(r, "120 % of baseAtk", "Passive identifier `NONE`", "not in the evolution pilot") && lacks(r, "structured record `passives.PRIMEAPE`", "Terminal in the declarations"), r.err)
 r = run("RAICHU")
 check("shared skill id does not extend to other skills: a unit without NUZZLE has none of its text", lacks(run("ABRA"), "Source-traced: NUZZLE", "Source-traced: THRASH", "Source-traced: DRAGON_RAGE"))
+// ---- imported abilities (BUG_BUZZ, FOUL_PLAY, LEAF_BLADE, SOAK, TORMENT): source-traced and unreviewed by the owner; Codex's independent AI review is named, scoped, and never called owner review or gameplay testing ----
+const aiLabelled = (r, name) => has(r, `### Source-traced: ${name} (independent AI source review by Codex recorded; project-owner review pending`, "independent AI source review by Codex (core strategy and helper explanations of the saved candidate; not a project-owner review; not gameplay-tested)", "Project-owner review is pending", "Import recheck") && lacks(r, `### Reviewed: ${name}`, "independently reviewed", "Review status:** source-traced and mechanically validated only")
+r = run("BEEDRILL")
+check("BEEDRILL: BUG_BUZZ 3★ raw 80, paralysis doubling, magicBounce bounce note, Codex AI review labelled and not owner review", r.code === 0 && common(r) && aiLabelled(r, "BUG_BUZZ") && has(r, "this unit (3★): **raw 80**", "doubled if the target is paralysed", "raw x2 if target.status.paralysis", "a magicBounce target also queues a 500 ms-delayed SPECIAL bounce", "Passive identifier `NONE`: the unit declares no passive") , r.err)
+r = run("VENOMOTH")
+check("VENOMOTH: BUG_BUZZ 2★ raw 40, maxPP 80, range 2", r.code === 0 && has(r, "VENOMOTH is 2★, maxPP 80, range 2", "this unit (2★): **raw 40**"), r.err)
+r = run("HONCHKROW")
+check("HONCHKROW: FOUL_PLAY multiplier (2★: 4) of the TARGET's atk, passive BAD_LUCK reported as not investigated, no invented passive record", r.code === 0 && aiLabelled(r, "FOUL_PLAY") && has(r, "(multiplier of target.atk)", "this unit (2★): **raw 4**", "Structured passive record:** none", "not investigated", "Passives BAD_LUCK and HATCH were not investigated") && lacks(r, "Structured passive record:** yes"), r.err)
+r = run("KROOKODILE")
+check("KROOKODILE: FOUL_PLAY 3★ multiplier 6, declared passive NONE", r.code === 0 && has(r, "this unit (3★): **raw 6**", "Passive identifier `NONE`: the unit declares no passive"), r.err)
+r = run("KARTANA")
+check("KARTANA: LEAF_BLADE TRUE damage, percent of the CASTER's atk (3★ 150), always-crit note, BEAST_BOOST_ATK not investigated", r.code === 0 && aiLabelled(r, "LEAF_BLADE") && has(r, "damage (TRUE)", "percent of caster.atk, then Math.round", "this unit (3★): **raw 150**", "crit is passed as true", "Kartana's passive BEAST_BOOST_ATK was not investigated", "Structured passive record:** none") , r.err)
+r = run("TREECKO")
+check("TREECKO: LEAF_BLADE 1★ raw 100 percent; no magicBounce bounce for TRUE", r.code === 0 && has(r, "this unit (1★): **raw 100**", "no bounce for TRUE"), r.err)
+r = run("POLIWHIRL")
+check("POLIWHIRL: SOAK 2★ raw 40 damage to the target, flat +10 PP to the whole team, fatigue/silence limits, TADPOLE not investigated", r.code === 0 && aiLabelled(r, "SOAK") && has(r, "this unit (2★): **raw 40**", "pp_gain → every unit of the caster's team, caster included: raw flat 10", "halves under fatigue", "applyTwistBandBuff", "TADPOLE and COMMANDER", "Structured passive record:** none"), r.err)
+r = run("TATSUGIRI_CURLY")
+check("TATSUGIRI_CURLY: SOAK 1★ raw 20, maxPP 100, range 1, COMMANDER not investigated", r.code === 0 && has(r, "TATSUGIRI_CURLY is 1★, maxPP 100, range 1", "this unit (1★): **raw 20**", "Passives TADPOLE (Poliwhirl) and COMMANDER (Tatsugiri forms) are not investigated"), r.err)
+r = run("INFERNAPE")
+check("INFERNAPE: TORMENT self speed buff raw 50, no target, Big Eater Belt order, 300 clamp, cooldown reset uses boosted speed, expiry unresolved", r.code === 0 && aiLabelled(r, "TORMENT") && has(r, "speed buff (self)", "(speed points) → this unit (3★): **raw 50**", "requiresTarget is false", "Big Eater Belt first multiplies a positive value by 1.25", "MAX_SPEED (300)", "uses the boosted speed", "Whether the speed gain expires") , r.err)
+r = run("LUDICOLO")
+check("LUDICOLO: TORMENT 3★ raw 50 with maxPP 80, range 3", r.code === 0 && has(r, "LUDICOLO is 3★, maxPP 80, range 3", "this unit (3★): **raw 50**"), r.err)
+for (const [k, names] of [["ABRA", ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT"]], ["CHARMANDER", ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT"]]]) check(`${k}: none of the imported ability text leaks to a unit that does not declare the skill`, names.every((n) => lacks(run(k), `Source-traced: ${n}`)))
+r = run("--list")
+check("--list: imported abilities listed as source-traced with the Codex AI review recorded and owner review pending", r.code === 0 && has(r, "Ability record BUG_BUZZ (source-traced, Codex AI review recorded, owner review pending) applies to: BEEDRILL, KAKUNA, VENOMOTH, VENONAT, WEEDLE", "Ability record FOUL_PLAY (source-traced, Codex AI review recorded, owner review pending) applies to: HONCHKROW, KROKOROK, KROOKODILE, MURKROW, SANDILE", "Ability record LEAF_BLADE (source-traced, Codex AI review recorded, owner review pending) applies to: GALARIAN_FARFETCH_D, GROVYLE, KARTANA, SCEPTILE, TREECKO", "Ability record SOAK (source-traced, Codex AI review recorded, owner review pending) applies to: POLITOED, POLIWAG, POLIWHIRL, TATSUGIRI_CURLY, TATSUGIRI_DROOPY, TATSUGIRI_STRETCHY", "Ability record TORMENT (source-traced, Codex AI review recorded, owner review pending) applies to: CHIMCHAR, INFERNAPE, LOMBRE, LOTAD, LUDICOLO, MONFERNO") && lacks(r, "BUG_BUZZ (reviewed)"), r.err)
 // ---- review labels follow review-status.json, not mechanical validation ----
 r = run("RAICHU")
 check("unreviewed records are labelled source-traced with review pending, never 'Reviewed'", has(r, "### Source-traced: NUZZLE", "independent review pending", "does not mean the claims were independently reviewed") && lacks(r, "### Reviewed: NUZZLE"))
@@ -136,6 +161,28 @@ check("fixture: review status naming a record that does not exist is refused (ex
 rvs = rd2("review-status.json"); rvs.records["data/07367c34/reusable-abilities.json#abilities.NUZZLE"].status = "maybe"
 r = run("RAICHU", "--review", put("rev-bad2.json", rvs))
 check("fixture: unknown review status value refused (exit 3)", r.code === 3 && /expected reviewed or unreviewed/.test(r.err), r.err)
+// AI review metadata: attributed, scoped, and unable to turn an unreviewed record into an owner-reviewed one
+const BB = "data/07367c34/reusable-abilities.json#abilities.BUG_BUZZ"
+rvs = rd2("review-status.json"); delete rvs.records[BB].aiReview
+r = run("BEEDRILL", "--review", put("rev-noai.json", rvs))
+check("fixture: without the aiReview block the label falls back to plain 'independent review pending' (labels are driven by review-status.json only)", r.code === 0 && has(r, "### Source-traced: BUG_BUZZ (independent review pending", "Review status:** source-traced and mechanically validated only") && lacks(r, "Codex"), r.err)
+rvs = rd2("review-status.json"); rvs.records[BB].status = "reviewed"
+r = run("BEEDRILL", "--review", put("rev-owner.json", rvs))
+check("fixture: status 'reviewed' (set by the owner) switches the label to Reviewed; the AI review block alone never does", r.code === 0 && has(r, "### Reviewed: BUG_BUZZ (independently reviewed"), r.err)
+rvs = rd2("review-status.json"); rvs.records[BB].aiReview.projectOwnerReviewed = true
+r = run("BEEDRILL", "--review", put("rev-ownerclaim.json", rvs))
+check("fixture: an aiReview claiming project-owner review on an unreviewed record is refused (exit 3)", r.code === 3 && r.out === "" && /claims project-owner review/.test(r.err), r.err)
+rvs = rd2("review-status.json"); delete rvs.records[BB].aiReview.gameplayTested
+r = run("BEEDRILL", "--review", put("rev-malformed.json", rvs))
+check("fixture: a malformed aiReview (missing gameplayTested) is refused (exit 3)", r.code === 3 && /malformed aiReview/.test(r.err), r.err)
+rvs = rd2("review-status.json"); rvs.records[BB].aiReview.gameplayTested = true
+r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
+check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
+{
+  const shipped = rd2("review-status.json")
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT"]
+  check("shipped review-status.json: the five imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+}
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)
 

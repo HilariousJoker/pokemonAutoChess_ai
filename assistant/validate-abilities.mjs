@@ -107,7 +107,7 @@ for (const row of ["| 1 | ATTACK_ORDER | 3 |", "| 2 | HEAL_ORDER | 2 |", "| 3 | 
 for (const [k, v] of [["Charmander (1★) 30", 1], ["Charmeleon (2★) 60", 1], ["Charizard (3★) 120", 1], ["Totodile is 1★ → 40", 1]]) if (!md.includes(k)) bad(`Markdown lacks "${k}"`)
 
 
-// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
+// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
 const reuse = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
 const catalog = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/catalog-units.json"), "utf8"))
 const reuseMd = readFileSync(resolve(HERE, "knowledge/07367c34/reusable-abilities.md"), "utf8")
@@ -161,13 +161,24 @@ for (const [name, rec] of allRecs) {
 }
 // coverage completeness against the catalog: every catalog unit with these skills/passives is bound, no others
 const boundBy = (field, id) => Object.entries(catalog.pokemon).filter(([, v]) => v.stats[field] === id).map(([k]) => k).sort()
-for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH"]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
+const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", LEAF_BLADE: "LeafBladeStrategy", SOAK: "SoakStrategy", TORMENT: "TormentStrategy" } // imported from candidates after a source recheck
+for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH", ...Object.keys(IMPORTED)]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
 eq(RP.SURGE_SURFER.appliesTo.map((u) => u.key).sort(), boundBy("passive", "SURGE_SURFER"), "SURGE_SURFER appliesTo vs catalog")
 eq(RP.PRIMEAPE.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PRIMEAPE"), "PRIMEAPE appliesTo vs catalog")
 eq(RG.PACHIRISU.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PACHIRISU"), "PACHIRISU gap appliesTo vs catalog")
 // registry bindings
-for (const [id, cls] of [["NUZZLE", "NuzzleStrategy"], ["DRAGON_RAGE", "DragonRageStrategy"], ["THRASH", "ThrashStrategy"]]) {
+for (const [id, cls] of [["NUZZLE", "NuzzleStrategy"], ["DRAGON_RAGE", "DragonRageStrategy"], ["THRASH", "ThrashStrategy"], ...Object.entries(IMPORTED)]) {
   if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`))) bad(`registry entry ${id} -> ${cls} not found`)
+}
+// imported records: the recheck is recorded, and the review metadata never claims owner review or gameplay testing
+const reviewStatus = JSON.parse(readFileSync(resolve(HERE, "automation/review-status.json"), "utf8"))
+for (const id of Object.keys(IMPORTED)) {
+  if (!RA[id].importRecheck?.notes?.length || !RA[id].importRecheck.run) bad(`${id}: importRecheck (run + notes) missing`)
+  const rs = reviewStatus.records[`data/07367c34/reusable-abilities.json#abilities.${id}`]
+  if (!rs) { bad(`review-status.json has no entry for the imported record ${id}`); continue }
+  if (rs.status !== "unreviewed") bad(`${id}: review status is ${rs.status}; an AI review must not make an imported record 'reviewed' (owner acceptance only)`)
+  const ai = rs.aiReview
+  if (!ai || ai.reviewer !== "Codex" || ai.kind !== "independent AI source review" || ai.projectOwnerReviewed !== false || ai.gameplayTested !== false) bad(`${id}: aiReview must name Codex as an independent AI source review with projectOwnerReviewed=false and gameplayTested=false`)
 }
 // declared tables equal the arrays in the source text
 const tbl = (file, re) => table(file, re)

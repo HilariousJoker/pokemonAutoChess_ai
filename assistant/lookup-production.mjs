@@ -123,12 +123,19 @@ function load(o) {
   for (const n of Object.keys(reu.abilities)) refs.set(`data/07367c34/reusable-abilities.json#abilities.${n}`, ["abilities", n])
   for (const n of Object.keys(reu.passives)) refs.set(`data/07367c34/reusable-abilities.json#passives.${n}`, ["passives", n])
   if (!rv || typeof rv.records !== "object" || rv.records === null) fail(2, `${o.review} has no "records" section`)
-  const review = { abilities: {}, passives: {} }
+  // `ai` holds an optional, separately attributed AI source review (review-status.json `aiReview`); it never changes the status
+  const review = { abilities: {}, passives: {}, ai: { abilities: {}, passives: {} } }
   for (const [ref, [k, n]] of refs) review[k][n] = "unreviewed"
   for (const [ref, v] of Object.entries(rv.records)) {
     if (!refs.has(ref)) fail(3, `review-status.json names ${ref}, which is not a saved record; refusing`)
     if (!["reviewed", "unreviewed"].includes(v.status)) fail(3, `review-status.json: ${ref} has status ${v.status}; expected reviewed or unreviewed`)
     const [k, n] = refs.get(ref); review[k][n] = v.status
+    if (own(v, "aiReview")) {
+      const ai = v.aiReview
+      if (!ai || typeof ai !== "object" || typeof ai.reviewer !== "string" || typeof ai.kind !== "string" || typeof ai.scope !== "string" || typeof ai.projectOwnerReviewed !== "boolean" || typeof ai.gameplayTested !== "boolean") fail(3, `review-status.json: ${ref} has a malformed aiReview (needs reviewer, kind, scope, projectOwnerReviewed, gameplayTested); refusing`)
+      if (v.status !== "reviewed" && ai.projectOwnerReviewed) fail(3, `review-status.json: ${ref} claims project-owner review in aiReview but its status is ${v.status}; refusing`)
+      review.ai[k][n] = ai
+    }
   }
   // pilot and reusable ability records are presented together (names are disjoint, checked above)
   return { cat, evo, abi: { ...abi, abilities: { ...abi.abilities, ...reu.abilities } }, pilotNames: Object.keys(abi.abilities), reusable: reu, review }
@@ -164,16 +171,26 @@ const NOTE_MAP = {
   COSMOEM: [["pilot-evolution", "COSMOEM"], ["evolution-context", "Cosmoem"], ["evolution-context", "Cosmog"]],
   COSMOG: [["evolution-context", "Cosmog"]]
 }
-const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"] }
+const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"] }
 const PASSIVE_NOTE = { SURGE_SURFER: ["reusable-abilities", "SURGE_SURFER"], PRIMEAPE: ["reusable-abilities", "PRIMEAPE"], PACHIRISU: ["reusable-abilities", "PACHIRISU"] }
 const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|Resolved later|Not claimed)/.test(l.trim()))
 
 // ---- rendering ------------------------------------------------------------------------------------------
 const code = (s) => `\`${s}\``
 const REVIEW_LABEL = { reviewed: "independently reviewed", unreviewed: "source-traced, independent review pending (mechanical validation only; not independently reviewed)" }
+// Review wording for one record. A record with a separately attributed AI review stays source-traced/unreviewed: the AI review is named, scoped,
+// and never described as project-owner review or gameplay testing.
+const aiOf = (review, kind, name) => review.ai?.[kind]?.[name]
+const aiScope = (ai) => `${ai.kind} by ${ai.reviewer} (${ai.scope}; ${ai.projectOwnerReviewed ? "project-owner review also recorded" : "not a project-owner review"}; ${ai.gameplayTested ? "gameplay-tested" : "not gameplay-tested"})`
+const reviewShort = (review, kind, name) => (review[kind][name] === "reviewed" ? "independently reviewed" : aiOf(review, kind, name) ? `source-traced; ${aiOf(review, kind, name).kind} by ${aiOf(review, kind, name).reviewer} recorded; project-owner review pending` : "source-traced, independent review pending")
 const arr = (a) => (a.length ? a.join(", ") : "—")
 const cap = (s, n = 700) => (s.length > n ? s.slice(0, n) + " … (see the note)" : s)
 const rawTable = (t) => Object.entries(t).map(([k, v]) => (/^\d+$/.test(k) ? `${k}★ ${v}` : `${k} ${v}`)).join(", ")
+// declared raw amount of an effect: a by-stars table, a percent-of-caster-ATK table, a flat amount or a formula; `unit` says what the number is (e.g. a multiplier of target.atk)
+const rawDesc = (d) => {
+  const core = d.byStars ? rawTable(d.byStars) : d.percentOfCasterAtkByStars ? rawTable(d.percentOfCasterAtkByStars) : d.flat !== undefined ? `flat ${d.flat}` : d.formula
+  return d.unit && !d.formula ? `${core} (${d.unit})` : core
+}
 
 function renderEvolution(L, key, cat, evo) {
   L.push("## Evolution declarations")
@@ -221,8 +238,11 @@ function renderAbility(L, key, cat, abi, covering, review) {
   for (const rec of covering) {
     const a = rec.appliesTo.find((u) => u.key === key)
     const rvw = review.abilities[rec.ability]
-    L.push(`### ${rvw === "reviewed" ? "Reviewed" : "Source-traced"}: ${rec.ability} (${rvw === "reviewed" ? "independently reviewed" : "independent review pending"}; record \`abilities.${rec.ability}\`, covers ${rec.appliesTo.map((u) => u.key).join(", ")})`)
-    if (rvw !== "reviewed") L.push("> **Review status:** source-traced and mechanically validated only; independent review is pending (see automation/review-status.json). Validation checks that cited text exists and tables match; it does not mean the claims were independently reviewed.")
+    const ai = aiOf(review, "abilities", rec.ability)
+    L.push(`### ${rvw === "reviewed" ? "Reviewed" : "Source-traced"}: ${rec.ability} (${rvw === "reviewed" ? "independently reviewed" : ai ? `${ai.kind} by ${ai.reviewer} recorded; project-owner review pending` : "independent review pending"}; record \`abilities.${rec.ability}\`, covers ${rec.appliesTo.map((u) => u.key).join(", ")})`)
+    if (rvw !== "reviewed" && ai) L.push(`> **Review status:** source-traced and mechanically validated, plus a recorded ${aiScope(ai)} (see automation/review-status.json). Project-owner review is pending; the AI review does not make this record owner-reviewed. Validation checks that cited text exists and tables match.`)
+    else if (rvw !== "reviewed") L.push("> **Review status:** source-traced and mechanically validated only; independent review is pending (see automation/review-status.json). Validation checks that cited text exists and tables match; it does not mean the claims were independently reviewed.")
+    if (rec.importRecheck) L.push(`> **Import recheck:** imported from a saved candidate after a recheck against the pinned source (${rec.importRecheck.run}); what was confirmed or corrected is in the record field \`importRecheck\`.`)
     L.push("> **Amounts below are RAW declared values from the ability code — not final damage, healing or shields.** Final results depend on the generic combat pipeline, which is mostly unverified.")
     if (rec.scope) L.push(`Scope: ${rec.scope}`)
     L.push(`Unit facts: ${key} is ${a.stars}★, maxPP ${a.maxPP}, range ${a.range}.`)
@@ -230,8 +250,8 @@ function renderAbility(L, key, cat, abi, covering, review) {
     if (rec.targeting) L.push(`- Targets: ${rec.targeting.who}${rec.targeting.note ? `; note: ${rec.targeting.note}` : ""}.`)
     if (rec.geometry) L.push(`- Geometry: ${rec.geometry.shape}${rec.geometry.cells ? ` (${rec.geometry.cells} cells)` : ""}.`)
     for (const e of rec.effects ?? []) {
-      const pu = e.perUnitRaw ? e.perUnitRaw[key] : e.declaredRaw.byStars ? rec.starBehavior?.declaredRawDamage?.[key] : undefined
-      L.push(`- ${e.kind}${e.damageType ? ` (${e.damageType})` : ""}${e.stat ? ` ${e.stat}` : ""}${e.target ? ` → ${e.target}` : ""}${e.condition ? `, ${e.condition}` : ""}: raw ${e.declaredRaw.byStars ? rawTable(e.declaredRaw.byStars) : e.declaredRaw.formula}${pu !== undefined ? ` → this unit (${a.stars}★): **raw ${pu}**` : ""}.`)
+      const pu = e.perUnitRaw ? e.perUnitRaw[key] : e.declaredRaw.byStars ? rec.starBehavior?.declaredRawDamage?.[key] : undefined // the five imported abilities carry perUnitRaw
+      L.push(`- ${e.kind}${e.damageType ? ` (${e.damageType})` : ""}${e.stat ? ` ${e.stat}` : ""}${e.target ? ` → ${e.target}` : ""}${e.condition ? `, ${e.condition}` : ""}: raw ${rawDesc(e.declaredRaw)}${pu !== undefined ? ` → this unit (${a.stars}★): **raw ${pu}**` : ""}.`)
       L.push(`  - Scaling: ${e.scaling}. Resolution: ${e.resolution}.`)
     }
     if (rec.identifierOnlyBehavior) {
@@ -328,7 +348,7 @@ function renderCoverage(L, key, cat, evo, covering, reusable, review) {
   const gap = s.passive !== "NONE" && own(reusable.passiveGaps, s.passive) && reusable.passiveGaps[s.passive].appliesTo.some((u) => u.key === key)
   L.push("## Coverage at a glance")
   L.push("Three separate kinds; each is a claim about this unit only (a shared skill or passive identifier does not carry behaviour from another unit).")
-  L.push(`- **Ability** (${code(s.skill)}): ${covering.length ? `record ${covering.map((r) => `\`abilities.${r.ability}\` (${review.abilities[r.ability] === "reviewed" ? "independently reviewed" : "source-traced, independent review pending"})`).join(", ")}` : "no record for this unit"}.`)
+  L.push(`- **Ability** (${code(s.skill)}): ${covering.length ? `record ${covering.map((r) => `\`abilities.${r.ability}\` (${reviewShort(review, "abilities", r.ability)})`).join(", ")}` : "no record for this unit"}.`)
   L.push(`- **Passive** (${code(s.passive)}): ${s.passive === "NONE" ? "none declared" : prec ? `structured record \`passives.${s.passive}\` (${review.passives[s.passive] === "reviewed" ? "independently reviewed" : "source-traced, independent review pending"})` : gap ? "**gap** — not covered" : "no structured record"}.`)
   L.push(`- **Evolution**: ${own(evo.units, key) ? "covered by the 20-unit evolution pilot" : "not in the evolution pilot (missing coverage, not a statement about the unit)"}.`)
 }
@@ -384,7 +404,7 @@ function renderList({ cat, evo, abi, reusable, review }) {
   const c = cat.inventory.counts
   L.push(`- Catalog identifiers: ${c.inventory} (${c.extracted} with baseline records, ${c.excluded} excluded: ${Object.keys(cat.inventory.excluded).map((k) => `${k} — ${cat.inventory.excluded[k].reason.split(":")[0]}`).join("; ")}, ${c.failed} failed)`)
   L.push(`- Evolution records (pilot subset, ${Object.keys(evo.units).length}): ${Object.keys(evo.units).join(", ")}`)
-  for (const [n, r] of Object.entries(abi.abilities)) L.push(`- Ability record ${n} (${review.abilities[n] === "reviewed" ? "reviewed" : "source-traced, review pending"}) applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
+  for (const [n, r] of Object.entries(abi.abilities)) L.push(`- Ability record ${n} (${review.abilities[n] === "reviewed" ? "reviewed" : aiOf(review, "abilities", n) ? `source-traced, ${aiOf(review, "abilities", n).reviewer} AI review recorded, owner review pending` : "source-traced, review pending"}) applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
   for (const [n, r] of Object.entries(reusable.passives)) L.push(`- Passive record ${n} (${review.passives[n] === "reviewed" ? "reviewed" : "source-traced, review pending"}) applies to: ${r.appliesTo.map((u) => u.key).join(", ")}`)
   for (const [n, r] of Object.entries(reusable.passiveGaps)) L.push(`- Passive gap ${n} (not covered) for: ${r.appliesTo.map((u) => u.key).join(", ")}`)
   L.push("", `## Catalog identifiers with baseline records (${Object.keys(cat.pokemon).length})`, Object.keys(cat.pokemon).join(", "))

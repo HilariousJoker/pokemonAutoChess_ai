@@ -1,0 +1,77 @@
+# Review follow-ups for pending candidates
+
+**Production-branch reference `07367c341fe928763da2b565c2eee010433e4fc1`; deployment unverified.** Branch `claude/great-volta-v6znve`. Persistent record of **outstanding review findings** on candidates that stay **pending** (state `candidate_ready`, review `pending` in `automation/queue.json`). Nothing here is reviewed knowledge, nothing here is read by the lookups, `ASK.md` or `match-reference.md`, and **none of the ten candidates below was edited** when this file was written: repairing them is a separate task.
+
+**Provenance.** The findings were handed to the maintenance run `run-20261023T034704Z` as the outcome of an independent review of these candidates; the review text itself is not stored in the repository, so each finding below is worded from that hand-over. The "Source pointers" were spot-read at the pinned commit during that run to make each finding actionable. They confirm that the cited code exists as described; they are **not** a full trace and **not** a repair.
+
+**How to use.** A future repair run takes one entry, reads the listed code, rewrites the candidate (same file, `queue.mjs candidate` / `validate`), then marks the entry **resolved** here (commit + date) instead of deleting it. A worker that sees a "not read / not located" statement for something listed under *Shared helpers* below must read the helper before repeating that statement (see AUTOMATION.md, worker instruction step 5).
+
+| # | Queue id(s) | Candidate file(s) | Finding in one line |
+|---|---|---|---|
+| 1 | `ability/POWDER` | `ability-POWDER.json` | requested `speedNerf` is not necessarily the actual stat change; Twist Band and Big Eater Belt also alter the later positive restoration |
+| 2 | `ability/JUDGEMENT`, `ability/MULTI_ATTACK` | `ability-JUDGEMENT.json`, `ability-MULTI_ATTACK.json` | a zero raw calculation does not guarantee zero resolved damage; trace the minimum-damage path |
+| 3 | `ability/BITE`, `ability/HORN_LEECH` | `ability-BITE.json`, `ability-HORN_LEECH.json` | `takenDamage` includes shield damage and defensive exceptions; clarify the healing inputs |
+| 4 | `ability/ICE_BALL` | `ability-ICE_BALL.json` | +10 SPE_DEF is the raw request; Big Eater Belt can make it +12 |
+| 5 | `ability/SPIKY_SHIELD` | `ability-SPIKY_SHIELD.json` | RIGHT uses `board.rows` on the actual 8-column / 6-row board; retaliation belongs to the `onHit` pathway |
+| 6 | `ability/TELEPORT` | `ability-TELEPORT.json` | trace flag consumption and bonus damage through missed or blocked attacks |
+| 7 | `passive/HATCH` | `passive-HATCH.json` | resetting stacks before the transformation does not establish an immediate second hatch evolution |
+| 8 | `passive/PROTEAN3` | `passive-PROTEAN3.json` | bench units can keep item-derived types after the dynamic reset, although they do not contribute to synergy counts |
+
+All paths below are in the pinned source (`git show 07367c34…:<path>`).
+
+## Shared helpers (read these before calling an item or stat effect "unknown")
+- `app/core/pokemon-entity.ts:1839–1852` `applyBigEaterBeltStatBuff(pokemon, value, caster, nbDigits = 0)`: for a **positive** value, or a negative one from a caster on the holder's own team, a Big Eater Belt holder gets `roundToNDigits(value × 1.25, nbDigits, "down")`.
+- `app/core/pokemon-entity.ts:1854–1867` `applyTwistBandBuff(pokemon, value, caster)`: a **negative** value from `"environment"` or from a caster on another team is multiplied by −1 (a debuff becomes a buff) for a Twist Band holder.
+- Both are plain functions at the end of the file, not methods of `PokemonEntity`. They are called from the stat adders (`addSpeed` 752–780, `addSpecialDefense` 700–724, `addAttack`, `addShield`, …) and, for Twist Band only, from `addPP` (508–532).
+- The same behaviour is already traced in the shared references: `knowledge/07367c34/item-effects.md` (`### TWIST_BAND`, `### BIG_EATER_BELT`) and `data/07367c34/item-effects.json` (`items.TWIST_BAND`, `items.BIG_EATER_BELT`), `knowledge/07367c34/silk-scarf-items.md`, and `node assistant/lookup-item.mjs "Twist Band" "Big Eater Belt"`. The shared combat foundation is `knowledge/07367c34/core-mechanics.md` §A (damage and the floor of 1; it records an executed case "1 physical vs DEF 100 → 1"), §H (casting and damage foundation) and §I (how declared item bonuses become combat stats).
+
+## 1. POWDER — requested `speedNerf` vs the stat change that actually happens
+- **Candidate says:** "Speed lowered is raw × (1 + AP/100) (× critPower on crit), capped at the victim's current speed, then item adjustments and clamping inside addSpeed", and lists as unresolved that the bodies of `applyBigEaterBeltStatBuff` / `applyTwistBandBuff` "were not located by a search of the pinned tree".
+- **Finding:** the helpers exist (see *Shared helpers*, lines ≈1839–1871), so that unresolved item is wrong as stated. The value computed in the strategy is a **request**; the stat change depends on the holder's items, and the later positive restoration is altered too.
+- **Source pointers:** `app/core/abilities/powder.ts:54–63` computes `speedNerf = max(victim.speed)(factor × (1 + AP/100) × crit)`, calls `addSpeed(-speedNerf, caster, 0, false)`, and queues a 5000 ms `DelayedCommand` that calls `addSpeed(+speedNerf, caster, 0, false)`. In `addSpeed`: an enemy Powder debuff is **not** scaled by Big Eater Belt (negative value from another team), but a **Twist Band** holder has it flipped into a speed **gain**; the restoration (a positive value) is scaled ×1.25 (rounded down) for a **Big Eater Belt** holder, and the result is clamped to 0…`MAX_SPEED` (300). So the restoration can differ from the nerf, and a Twist Band holder gains speed twice.
+- **To resolve (not done):** restate the effect as requested change vs applied change per holder item, remove the "not located" item, keep the remaining unresolved items (Scatterbug / Spewpa passives, Vivillon forms, targettable filter, scan order, 5000 ms timing).
+
+## 2. JUDGEMENT and MULTI_ATTACK — zero raw does not mean zero resolved damage
+- **Candidates say:** JUDGEMENT: "A caster without a player (no owner board) deals 0", and "With a multiplier of 0 the raw damage is 0 (the minimum-of-1 step applies inside handleDamage; whether a 0 passes that step was not traced)". MULTI_ATTACK: "A caster without a player deals 0".
+- **Finding:** a zero **raw** calculation does not guarantee zero **resolved** damage. The minimum-damage path has to be traced before any "deals 0" statement.
+- **Source pointers:** `PokemonState.handleDamage` (`app/core/pokemon-state.ts`, opening at ≈425) returns early only for NaN, `hp <= 0` / resurrecting, and (as `takenDamage = 0`) protect / skydiving; it has no `damage <= 0` guard. Further down, `reducedDamage = min(1)(Math.ceil(reducedDamage))` (`pokemon-state.ts:597`) forces **at least 1** for any damage type that reaches it (`core-mechanics.md` §A records the same floor from an executed case). `handleSpecialDamage` (`pokemon-entity.ts:346–467`) has no `damage > 0` guard either (only the magicBounce reflection checks it). Read this way, a raw 0 would resolve to 1 unless blocked earlier; that reading is **not** confirmed by a full trace.
+- **To resolve (not done):** trace a raw 0 from `process` through `handleSpecialDamage` and `handleDamage` for both abilities (including AP and crit factors on 0, shields, and the per-target loop in MULTI_ATTACK), then replace the "deals 0" wording by the traced result.
+
+## 3. BITE and HORN_LEECH — what `takenDamage` really counts
+- **Candidates say:** BITE heals 30 % (rounded up) of "the damage the target actually took" and flinches if it took more than 0; HORN_LEECH heals 50 % (rounded) of "the damage actually taken by the target", with half of the surplus overheal added as shield. Both list "what takenDamage counts when the target has a shield" as unresolved.
+- **Finding:** `takenDamage` **includes damage absorbed by shields** and is subject to **defensive exceptions**, so the healing input is neither the HP lost nor the pre-defence amount.
+- **Source pointers:** `PokemonState.handleDamage` (`pokemon-state.ts`): shield-absorbed damage is added with `takenDamage += damageOnShield` (≈620–646; flinch halves the part that hits the shield; Protective Pads doubles damage on a shield), then `takenDamage += Math.min(residualDamage, pokemon.hp)` (649). Exceptions that change the returned value: protect / skydiving set it to 0 (459–461); the Shiny Charm branch sets `takenDamage = 0` and consumes the charm (651–661); the Fossil synergy branch adds shield damage (663–696); `handleSpecialDamage` returns 0 for protect / skydiving / magicBounce (354–397). Branches below line ≈698 (for example the Cover Band check) were not read.
+- **To resolve (not done):** list the exact inputs of the heal for each ability (shield part, HP part, which exceptions zero it), then restate the heal / flinch conditions and the HORN_LEECH shield input accordingly.
+
+## 4. ICE_BALL — +10 SPE_DEF is a request, not always +10
+- **Candidate says:** "The caster first gains +10 special defense" and uses the SPE_DEF "read after the +10"; unresolved: whether the Big Eater Belt / Twist Band helpers "change the +10 (functions not read)".
+- **Finding:** +10 is the **raw request**; a Big Eater Belt holder gets **+12**.
+- **Source pointers:** `app/core/abilities/ice-ball.ts:16–20` calls `addSpecialDefense(10, caster, 0, false)` before `target.handleSpecialDamage(baseDamage + multiplier × pokemon.speDef, …)`. `addSpecialDefense` (`pokemon-entity.ts:700–724`) applies `applyBigEaterBeltStatBuff` (10 × 1.25 = 12.5 → **12** rounded down, `nbDigits` 0) and `applyTwistBandBuff` (no effect on a positive value), then `speDef = min(0)(speDef + value)`. The damage formula therefore reads a SPE_DEF that is +12 for a Big Eater Belt holder.
+- **To resolve (not done):** restate the buff as 10 raw / 12 with Big Eater Belt, recompute the "SPE_DEF used for damage" wording, and close the "functions not read" item.
+
+## 5. SPIKY_SHIELD — RIGHT ray bound and the retaliation pathway
+- **Candidate says:** "the RIGHT ray is bounded by board.rows instead of board.columns in the source as written" with the effect on a board where columns differ from rows "not analysed"; retaliation is "applied through handleDamage with isRetaliation true (not read further)".
+- **Finding:** the actual board is **8 columns × 6 rows**, so the RIGHT ray is cut short; and the retaliation belongs to the **`onHit` pathway**, not to the strategy.
+- **Source pointers:** `effectInOrientation` (`app/core/board.ts:810–`): the RIGHT case loops `x < board.rows` (863) while the diagonal cases use `board.columns`. The simulation board is `new Board(BOARD_HEIGHT, BOARD_WIDTH)` (`app/core/simulation.ts:104`) with `BOARD_WIDTH = 8`, `BOARD_HEIGHT = 6` (`app/config/game/board.ts:1–2`), so a RIGHT ray stops at column 5 instead of 7. Retaliation is in `PokemonEntity.onHit` (`pokemon-entity.ts:969`, spike-armor block 1096–1125): when the **hitter** (`this`) hits a spike-armored target at distance exactly 1 and does not hold Protective Pads, it is wounded for 2000 ms and takes `handleDamage` with `isRetaliation: true`; `onHit` itself runs only for successful attacks (`pokemon-state.ts:295–304`).
+- **To resolve (not done):** state the RIGHT-ray shortfall for the real board, move the retaliation description to the on-hit pathway (who triggers it, when, which attacks), keep the remaining unresolved items.
+
+## 6. TELEPORT — flag consumption and bonus damage on missed or blocked attacks
+- **Candidate says:** the mark `TELEPORT_NEXT_ATTACK` makes the next attack deal extra SPECIAL damage and is cleared; unresolved: whether the bonus line "sits in a block skipped when the attack misses" and whether the flag can stay set if the unit never attacks.
+- **Finding:** the flag consumption and the bonus damage have to be traced through **missed and blocked** attacks.
+- **Source pointers:** `app/core/abilities/teleport.ts:13` adds the flag when a cell was found. In the attack path (`pokemon-state.ts`) the bonus is added to `specialDamage` and the flag deleted at 163–174, **after** a dodge (≈100–112) or protect / skydiving (114–117) has only zeroed `damage` and cleared `isAttackSuccessful`; `specialDamage > 0` is then applied through `handleSpecialDamage(…, crit false, apBoost false)` (257–269), whose own protect / skydiving / magicBounce blocks apply, and `onHit` runs only when the attack was successful (295–304). Read this way the flag is consumed by the first attack whatever its outcome, and a dodged attack may still deliver the bonus; **not confirmed** by a full trace.
+- **To resolve (not done):** trace dodge, protect / skydiving, magicBounce, and "no attack ever happens" (death, end of fight, `pokemon-entity.ts:254` cast gate) and rewrite the summary and resolution text from the result.
+
+## 7. HATCH — the stacks reset does not prove "no immediate second hatch"
+- **Candidate says:** stacks reset to 0 on hatch; unresolved: "Whether stacks is carried across transformPokemon on hatch (transformPokemon was not read)".
+- **Finding:** resetting stacks **before** the transformation does not establish that the transformed unit cannot hatch again immediately.
+- **Source pointers:** `HatchEvolutionHandler.evolve` (`app/core/evolution-logic/hatch-evolution-handler.ts:18–31`) sets `pokemon.stacks = 0` on the **old** instance ("prevent trying to evolve twice in a row") and only then calls `player.transformPokemon(...)`; what the new instance receives is decided in `transformPokemon` (not read). `canEvolve` is `stacks >= stacksRequired` (11–16); the stage-end increment is in `evolution-manager.ts:135–154` and the stage-end call in `game-commands.ts:1963–1966`. Several HATCH-rule units evolve into units that carry a HATCH rule themselves (the candidate's own evidence lists both Dreepy and Drakloak).
+- **To resolve (not done):** read `transformPokemon` (stacks copy), the 2 s delay and the loop that visits the board at stage end, then say whether and when the evolved unit can hatch again; reword the reset behaviour accordingly.
+
+## 8. PROTEAN3 — bench units and item-derived types
+- **Candidate says:** types are cleared on every recompute and, "when the unit is off the bench", up to three dynamic types are added.
+- **Finding:** after the dynamic reset, **bench** units can still retain **item-derived** types, although they do not contribute to synergy counts.
+- **Source pointers:** `computeSynergies` (`app/models/colyseus-models/synergies.ts:109–125`): for every PROTEAN2 / PROTEAN3 unit on the board (bench included) `pkm.types.clear()` runs (111–113), then `addSynergiesGivenByItems(pkm)` (115; defined at 287) re-adds the types given by held items, and only units with `positionY != 0` are counted in `typesPerFamily` (116–124); the dynamic types are added only for off-bench units. So a benched Arceus can end up holding item-derived types and no dynamic types, outside the counts.
+- **To resolve (not done):** restate the reset as "dynamic types cleared; item-derived types re-added for every unit", state exactly which units contribute to counts, and check whether anything else reads a benched unit's `types`.
+
+## Not in scope of this file
+New queue records, the five already imported abilities (BUG_BUZZ, FOUL_PLAY, LEAF_BLADE, SOAK, TORMENT; see `knowledge/07367c34/reusable-abilities.md`), and any other candidate in the folder.

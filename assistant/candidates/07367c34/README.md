@@ -8,3 +8,6 @@ Files here are **machine-generated candidate records** for the production-branch
 - **Promotion** (moving a candidate into `data/` and `knowledge/`, adding it to `review-status.json`, lookup wiring) is a separate, human-decided step. Automated runs never do it.
 
 File names: `<kind>-<IDENTIFIER>.json`, for example `ability-SOME_ABILITY.json` (one file per queue record; a repair overwrites the same file).
+
+- **Imported candidates stay here unchanged as history.** `ability-BUG_BUZZ.json`, `ability-FOUL_PLAY.json`, `ability-LEAF_BLADE.json`, `ability-SOAK.json` and `ability-TORMENT.json` were imported into `data/07367c34/reusable-abilities.json` after a recheck against the pinned source (the canonical records carry an `importRecheck` field with the few corrections); their queue records are `superseded`. They remain source-traced / unreviewed by the project owner.
+- **`review-followups.md`** records outstanding review findings on ten candidates that stay `candidate_ready` / review `pending` (POWDER, JUDGEMENT, MULTI_ATTACK, BITE, HORN_LEECH, ICE_BALL, SPIKY_SHIELD, TELEPORT, HATCH, PROTEAN3). Read it before editing or promoting any of them.
