@@ -1,0 +1,492 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LEECH_SEED",
+ "kind": "ability",
+ "identifier": "LEECH_SEED",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T114002Z"
+ },
+ "record": {
+  "ability": "LEECH_SEED",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Four units declare LEECH_SEED: Shroomish (1 star), Breloom (2 stars), Lileep (1 star) and Cradily (2 stars); none declares a passive. The strategy is shared; differences are the star index, maxPP and range.",
+  "appliesTo": [
+   {
+    "key": "BRELOOM",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "LEECH_SEED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CRADILY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "LEECH_SEED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LILEEP",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "LEECH_SEED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHROOMISH",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "LEECH_SEED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BRELOOM": {
+    "evidence": [
+     "unit-breloom"
+    ]
+   },
+   "CRADILY": {
+    "evidence": [
+     "unit-cradily"
+    ]
+   },
+   "LILEEP": {
+    "evidence": [
+     "unit-lileep"
+    ]
+   },
+   "SHROOMISH": {
+    "evidence": [
+     "unit-shroomish"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LEECH_SEED] = new LeechSeedStrategy()",
+   "strategy": "LeechSeedStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ls",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ls-class"
+   ]
+  },
+  "summary": "The caster heals itself by 20/40/80/160 (requested; by stars, with AP and crit scaling) and applies one poison stack to the cast target for 3000/6000/12000/24000 ms (requested; by stars). The heal is a fixed self-heal; it is not tied to damage dealt by the poison. Poison then deals TRUE damage once per second equal to 5% of the target's max HP per stack, attributed to the caster as poison origin.",
+  "targeting": {
+   "who": "heal: the caster; poison: the cast target",
+   "needsTarget": true,
+   "note": "The name suggests a drain, but the code heals the caster at cast time and the poison tick does not heal the caster.",
+   "evidence": [
+    "ls-class",
+    "ls-heal",
+    "ls-poison"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "ls-poison"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested heal (raw)"
+    },
+    "perUnitRaw": {
+     "BRELOOM": 40,
+     "CRADILY": 40,
+     "LILEEP": 20,
+     "SHROOMISH": 20
+    },
+    "scaling": "x (1 + AP/100) (apBoost 1); x critPower only if the cast crit (needs ABILITY_CRIT); x1.3 with BUFF_HEAL_RECEIVED; x0.5 burn; x0.5 enraged; x1.2 ZENITH weather; Math.round",
+    "resolution": "applied heal = min(rounded value, missing HP), added to hp; returns 0 with no effect if the caster is wounded; skipped if the caster is protected or dead; overheal on a unit with the GRASS synergy effect adds max HP (0.4 x overheal). Caster healDone counts the effective heal only.",
+    "evidence": [
+     "ls-heal-table",
+     "ls-heal",
+     "entity-heal",
+     "state-heal",
+     "state-heal-credit"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "POISON",
+    "target": "the cast target",
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 3000,
+      "2": 6000,
+      "3": 12000,
+      "4": 24000,
+      "fallback": 24000
+     },
+     "stacks": 1,
+     "label": "requested duration (raw)"
+    },
+    "perUnitRaw": {
+     "BRELOOM": 6000,
+     "CRADILY": 6000,
+     "LILEEP": 3000,
+     "SHROOMISH": 3000
+    },
+    "scaling": "none from AP or crit",
+    "resolution": "no effect if the target has IMMUNITY_POISON or runeProtect; stacks +1 up to a maximum of 3 (4 if the caster has VENOMOUS, 5 if TOXIC); applied duration = requested after Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reductions; poison cooldown = max(current, applied)",
+    "evidence": [
+     "ls-dur",
+     "ls-poison",
+     "poison-trigger",
+     "poison-reduce"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "target": "the poisoned target, once per 1000 ms while poison lasts",
+    "declaredRaw": {
+     "maxHpFractionPerStack": 0.05
+    },
+    "scaling": "5% of target max HP per stack; rain x0.7; Assault Vest x0.5; TOXIC_BOOST x0.5; Swift Swim x0.7 / Hydration x0.5 / Water Veil or Surge Surfer x0.3; Gliscor passive uses stacks - 2; rounded, minimum 1",
+    "resolution": "applied through handleDamage as TRUE damage with the poison origin as attacker; takenDamage and shield interaction are in handleDamage (not traced here)",
+    "evidence": [
+     "poison-update"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "POISON",
+    "durationMs": "3000/6000/12000/24000 by stars (requested)",
+    "effect": "1 stack, 5% target max HP TRUE damage per stack per second",
+    "evidence": [
+     "ls-dur",
+     "poison-trigger",
+     "poison-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BRELOOM": 2,
+    "CRADILY": 2,
+    "LILEEP": 1,
+    "SHROOMISH": 1
+   },
+   "healRaw": {
+    "BRELOOM": 40,
+    "CRADILY": 40,
+    "LILEEP": 20,
+    "SHROOMISH": 20
+   },
+   "durationMs": {
+    "BRELOOM": 6000,
+    "CRADILY": 6000,
+    "LILEEP": 3000,
+    "SHROOMISH": 3000
+   },
+   "note": "Both tables are indexed by the casting entity's stars; the 4-star entry is also the fallback. Listed units are 1 or 2 stars.",
+   "evidence": [
+    "ls-dur",
+    "ls-heal-table",
+    "unit-breloom",
+    "unit-cradily",
+    "unit-lileep",
+    "unit-shroomish"
+   ]
+  },
+  "positionalConditions": "None in the strategy beyond the cast target; range is 1 for Shroomish and Breloom and 2 for Lileep and Cradily.",
+  "repeatedCastsAndModes": "Single mode. Each cast adds one poison stack (up to the cap) and keeps the longer remaining poison cooldown; poisonOrigin is overwritten by the latest caster.",
+  "rawVsResolved": "Requested (raw): heal 20 (1 star) / 40 (2 stars); poison 3000 / 6000 ms. Applied: heal after AP, crit, heal modifiers, rounding and the missing-HP cap; poison duration after reductions, one stack under immunity and stack caps. Poison damage per tick is separate and TRUE.",
+  "sourceTables": [
+   {
+    "id": "duration",
+    "file": "app/core/abilities/leech-seed.ts",
+    "pattern": "const duration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.durationMsByStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   },
+   {
+    "id": "heal",
+    "file": "app/core/abilities/leech-seed.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "handleDamage resolution of the TRUE poison tick (shield order, takenDamage) was not traced; see knowledge core-mechanics §A",
+   "When the cast fires in a real fight (PP gain, silence, canCast) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether the target dies or the poison is removed (cleanse effects) before the first tick was not traced",
+   "The poison tick order relative to the cast and to other status updates was not examined",
+   "Weather sources, items and effects that appear in the poison multipliers were read only as conditions; their sources were not traced",
+   "Whether any other mechanic converts poison damage dealt into healing for the origin was not searched beyond the cited lines",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ls",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1007,
+     1007
+    ],
+    "symbol": "AbilityStrategies[Ability.LEECH_SEED]",
+    "expect": "[Ability.LEECH_SEED]: new LeechSeedStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and counts the cast"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ls-class",
+    "file": "app/core/abilities/leech-seed.ts",
+    "lines": [
+     5,
+     12
+    ],
+    "symbol": "LeechSeedStrategy",
+    "expect": "export class LeechSeedStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target, crit); calls super.process first"
+   },
+   {
+    "id": "ls-dur",
+    "file": "app/core/abilities/leech-seed.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "duration table",
+    "expect": "const duration = [3000, 6000, 12000, 24000][pokemon.stars - 1] ?? 24000",
+    "note": "poison duration in ms by caster stars"
+   },
+   {
+    "id": "ls-heal-table",
+    "file": "app/core/abilities/leech-seed.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "heal table",
+    "expect": "const heal = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "self-heal amount by caster stars"
+   },
+   {
+    "id": "ls-heal",
+    "file": "app/core/abilities/leech-seed.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "caster heal",
+    "expect": "pokemon.handleHeal(heal, pokemon, 1, crit)",
+    "note": "caster heals itself with AP scaling (apBoost 1) and the cast crit"
+   },
+   {
+    "id": "ls-poison",
+    "file": "app/core/abilities/leech-seed.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "poison",
+    "expect": "target.status.triggerPoison(duration, target, pokemon)",
+    "note": "cast target is poisoned with the caster as origin"
+   },
+   {
+    "id": "entity-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "state-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.hp > 0 && !pokemon.status.protect",
+    "note": "wound returns 0; skipped if protected; AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2; round; capped at missing HP"
+   },
+   {
+    "id": "state-heal-credit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     370,
+     370
+    ],
+    "symbol": "handleHeal healDone",
+    "expect": "caster.healDone += healReceived",
+    "note": "caster credited with the effective heal only"
+   },
+   {
+    "id": "poison-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     615
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "blocked by IMMUNITY_POISON or runeProtect; sets origin; +1 stack up to 3 (4 with origin VENOMOUS, 5 with TOXIC); duration reduced then cooldown = max(current, new); GUTS / TOXIC_BOOST / Pecha Berry reactions"
+   },
+   {
+    "id": "poison-reduce",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "const nbOddStones = pkm.player",
+    "note": "duration x0.7 swift swim, x0.5 hydration, x0.3 water veil / surge surfer; then Odd Keystone x(1-0.1 per stone)"
+   },
+   {
+    "id": "poison-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     672
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "every 1000 ms: TRUE damage 5% of target max HP per stack (modified by weather, items, passives, effects), minimum 1, attacker = poison origin"
+   },
+   {
+    "id": "unit-breloom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10048,
+     10061
+    ],
+    "symbol": "class Breloom",
+    "expect": "skill = Ability.LEECH_SEED",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-cradily",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8099,
+     8112
+    ],
+    "symbol": "class Cradily",
+    "expect": "skill = Ability.LEECH_SEED",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lileep",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8083,
+     8097
+    ],
+    "symbol": "class Lileep",
+    "expect": "skill = Ability.LEECH_SEED",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-shroomish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10032,
+     10046
+    ],
+    "symbol": "class Shroomish",
+    "expect": "skill = Ability.LEECH_SEED",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
