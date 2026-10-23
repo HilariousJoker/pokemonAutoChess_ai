@@ -1,0 +1,623 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/KING_SHIELD",
+ "kind": "ability",
+ "identifier": "KING_SHIELD",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T114002Z"
+ },
+ "record": {
+  "ability": "KING_SHIELD",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Four units declare KING_SHIELD: Honedge (1 star), Doublade (2 stars), Aegislash and Aegislash Blade (3 stars, both with passive AEGISLASH). The strategy is shared; the form-change branch only runs for units whose passive is AEGISLASH.",
+  "appliesTo": [
+   {
+    "key": "AEGISLASH",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "AEGISLASH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "AEGISLASH_BLADE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "AEGISLASH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DOUBLADE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HONEDGE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "AEGISLASH": {
+    "evidence": [
+     "unit-aegislash"
+    ]
+   },
+   "AEGISLASH_BLADE": {
+    "evidence": [
+     "unit-aegislash_blade"
+    ]
+   },
+   "DOUBLADE": {
+    "evidence": [
+     "unit-doublade"
+    ]
+   },
+   "HONEDGE": {
+    "evidence": [
+     "unit-honedge"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.KING_SHIELD] = new KingShieldStrategy()",
+   "strategy": "KingShieldStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ks",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ks-class"
+   ]
+  },
+  "summary": "The caster gains protect for 1500 ms (if it is not already protected and not enraged) and a self shield of 10/20/40/80 by stars (requested; applied after Big Eater Belt, AP, crit, enraged halving and rounding). It then swaps cells with the farthest targettable enemy (forced displacement, so it does nothing if either side cannot be moved). Units with passive AEGISLASH also toggle form after 1500 ms: Aegislash becomes Blade (+10 attack, -5 DEF, -5 SPE_DEF) and Blade returns to Aegislash (the reverse).",
+  "targeting": {
+   "who": "the caster (protect, shield, form change); the farthest targettable enemy only as the cell to swap with",
+   "needsTarget": true,
+   "note": "The cast target is passed to the base process (animation) but not used otherwise; the movement uses getFarthestTarget. Honedge and Doublade have no form change.",
+   "evidence": [
+    "ks-class",
+    "ks-move",
+    "farthest",
+    "moveto"
+   ]
+  },
+  "geometry": {
+   "shape": "self effects plus a cell swap with the farthest targettable enemy",
+   "evidence": [
+    "ks-move",
+    "farthest",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "status": "PROTECT",
+    "target": "the caster",
+    "declaredRaw": {
+     "durationMs": 1500
+    },
+    "perUnitRaw": {
+     "AEGISLASH": 1500,
+     "AEGISLASH_BLADE": 1500,
+     "DOUBLADE": 1500,
+     "HONEDGE": 1500
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "set only if not already protected and not enraged (a protect in progress is not extended). While protected, attacks on the unit are unsuccessful with 0 damage, handleDamage yields takenDamage 0, ability damage is blocked, and heals are skipped.",
+    "evidence": [
+     "ks-dur",
+     "ks-protect",
+     "protect-trigger",
+     "protect-update",
+     "protect-attack",
+     "protect-damage",
+     "protect-special",
+     "protect-heal"
+    ]
+   },
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested shield amount (raw)"
+    },
+    "perUnitRaw": {
+     "AEGISLASH": 40,
+     "AEGISLASH_BLADE": 40,
+     "DOUBLADE": 20,
+     "HONEDGE": 10
+    },
+    "scaling": "requested = table[stars-1]; Big Eater Belt on a positive value: x 1.25 rounded down; state.addShield with apBoost 1: x (1 + AP/100); x critPower only if the cast crit; x 0.5 if enraged; Math.round",
+    "resolution": "applied = rounded result added to the caster's shield (only if hp > 0); the amount that reaches HP loss later goes through handleDamage (not traced; protect makes takenDamage 0 while active)",
+    "evidence": [
+     "ks-table",
+     "ks-shield",
+     "addshield-entity",
+     "addshield-state"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "declaredRaw": {
+     "description": "moveTo the cell of the farthest targettable enemy, forced displacement"
+    },
+    "scaling": "none",
+    "resolution": "swaps cells with the enemy on that cell unless the caster or the occupant cannot be moved; no movement if there is no targettable enemy",
+    "evidence": [
+     "ks-move",
+     "farthest",
+     "moveto"
+    ]
+   },
+   {
+    "kind": "statChange",
+    "target": "the caster, only with passive AEGISLASH, after 1500 ms",
+    "declaredRaw": {
+     "AEGISLASH_to_BLADE": {
+      "attack": 10,
+      "def": -5,
+      "speDef": -5
+     },
+     "BLADE_to_AEGISLASH": {
+      "attack": -10,
+      "def": 5,
+      "speDef": 5
+     },
+     "delayMs": 1500,
+     "label": "requested amounts (raw)"
+    },
+    "scaling": "apBoost 0 and crit false for each call, so no AP or crit scaling",
+    "resolution": "applied amount goes through the stat adders: Big Eater Belt (positive values) and Twist Band (negative values only from another team or the environment, so not here) helpers; attack floored at 1 and DEF / SPE_DEF floored at 0 after the change, so the applied value can differ from the requested one when a floor is reached",
+    "evidence": [
+     "ks-form1",
+     "ks-form2",
+     "delayed",
+     "add-atk",
+     "add-def"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PROTECT",
+    "durationMs": 1500,
+    "effect": "attacks and ability damage against the unit are blocked; heals skipped",
+    "evidence": [
+     "ks-dur",
+     "protect-trigger",
+     "protect-attack",
+     "protect-damage",
+     "protect-special",
+     "protect-heal"
+    ]
+   }
+  ],
+  "buffs": [
+   "PROTECT",
+   "AEGISLASH form stat change"
+  ],
+  "shields": [
+   "self shield 10/20/40/80"
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "AEGISLASH": 3,
+    "AEGISLASH_BLADE": 3,
+    "DOUBLADE": 2,
+    "HONEDGE": 1
+   },
+   "shieldRaw": {
+    "AEGISLASH": 40,
+    "AEGISLASH_BLADE": 40,
+    "DOUBLADE": 20,
+    "HONEDGE": 10
+   },
+   "note": "Only the shield amount is star dependent; protect duration and form deltas are fixed. The 4-star entry (80) is the fallback.",
+   "evidence": [
+    "ks-table",
+    "unit-aegislash",
+    "unit-aegislash_blade",
+    "unit-doublade",
+    "unit-honedge"
+   ]
+  },
+  "positionalConditions": "Movement targets the farthest targettable enemy by distanceM; it is skipped when none exists or when either unit cannot be moved.",
+  "repeatedCastsAndModes": "Two modes for units with passive AEGISLASH: from AEGISLASH the form delta toward Blade, from AEGISLASH_BLADE the delta back. A cast made before the earlier 1500 ms command has run queues another command; the name check happens at cast time, not at execution time.",
+  "rawVsResolved": "Requested: shield 10/20/40/80; protect 1500 ms; form deltas +10/-5/-5 (and reverse). Applied: shield after Big Eater Belt, AP, crit, enraged halving and rounding; protect only if not already active and not enraged; stat deltas after helpers and floors.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/king-shield.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How the shield and protect interact with handleDamage beyond the cited protect branch (shield absorption order, takenDamage) was not traced; see knowledge core-mechanics §A",
+   "When the cast fires in a real fight (PP gain, silence, canCast) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Passive AEGISLASH itself was not traced (whether it also changes forms elsewhere)",
+   "Whether the delayed form command runs if the unit dies or the fight ends before 1500 ms was not traced",
+   "Which units canBeMoved is false for was not traced; the move is silently skipped then",
+   "isTargettableBy conditions (which enemies are valid for the farthest search) were not read",
+   "Whether passive state or item effects react to the rename (pokemon.name / index change) was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ks",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     997,
+     997
+    ],
+    "symbol": "AbilityStrategies[Ability.KING_SHIELD]",
+    "expect": "[Ability.KING_SHIELD]: new KingShieldStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and counts the cast"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ks-class",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     8,
+     15
+    ],
+    "symbol": "KingShieldStrategy",
+    "expect": "export class KingShieldStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target, crit); calls super.process first"
+   },
+   {
+    "id": "ks-dur",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "duration",
+    "expect": "const duration = 1500",
+    "note": "protect duration in ms, not star dependent"
+   },
+   {
+    "id": "ks-table",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "shield table",
+    "expect": "const shield = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "shield amount by caster stars"
+   },
+   {
+    "id": "ks-protect",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "triggerProtect",
+    "expect": "pokemon.status.triggerProtect(duration)",
+    "note": "caster gains protect"
+   },
+   {
+    "id": "ks-shield",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "addShield",
+    "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+    "note": "self shield with AP scaling (apBoost 1) and the cast crit"
+   },
+   {
+    "id": "ks-move",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     20,
+     28
+    ],
+    "symbol": "farthest target move",
+    "expect": "const farthestTarget = pokemon.state.getFarthestTarget(pokemon, board)",
+    "note": "caster is moved onto the cell of the farthest targettable enemy with forcedDisplacement true"
+   },
+   {
+    "id": "ks-form1",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     29,
+     44
+    ],
+    "symbol": "Aegislash to Blade",
+    "expect": "pokemon.name = Pkm.AEGISLASH_BLADE",
+    "note": "if passive AEGISLASH and name AEGISLASH: after 1500 ms +10 attack, -5 DEF, -5 SPE_DEF and rename to blade (apBoost 0, no crit)"
+   },
+   {
+    "id": "ks-form2",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     45,
+     58
+    ],
+    "symbol": "Blade to Aegislash",
+    "expect": "pokemon.name = Pkm.AEGISLASH",
+    "note": "if passive AEGISLASH and name AEGISLASH_BLADE: after 1500 ms -10 attack, +5 DEF, +5 SPE_DEF and rename back"
+   },
+   {
+    "id": "delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "this.delayedFunction()",
+    "note": "runs the stored function after the delay"
+   },
+   {
+    "id": "protect-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect is set only if not already protected and not enraged; cooldown set to timer"
+   },
+   {
+    "id": "protect-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "this.protect = false",
+    "note": "protect ends when the cooldown runs out"
+   },
+   {
+    "id": "protect-attack",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a protected target's attack hit is unsuccessful and damage is 0"
+   },
+   {
+    "id": "protect-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protected: no death, takenDamage 0"
+   },
+   {
+    "id": "protect-special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect blocks ability damage"
+   },
+   {
+    "id": "protect-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "heal is skipped while protected"
+   },
+   {
+    "id": "addshield-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt multiplies a positive shield, then state.addShield"
+   },
+   {
+    "id": "addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     402
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling, crit multiplier, enraged halving, round, add to shield, only if hp > 0"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "getFarthestTarget",
+    "expect": "const distance = distanceM(pokemon.positionX, pokemon.positionY, x, y)",
+    "note": "first enemy with the greatest Manhattan-type distance among cells whose entity isTargettableBy the caster; ties keep the earlier board cell"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "returns without moving if forced and the caster or the occupant cannot be moved; otherwise swaps cells with the occupant and sets cooldown 100"
+   },
+   {
+    "id": "add-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     745
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "stat adder: apBoost 0 so no AP scaling; Big Eater Belt / Twist Band helpers; atk floored at 1"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     693
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "stat adder: DEF floored at 0"
+   },
+   {
+    "id": "unit-aegislash",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1634,
+     1651
+    ],
+    "symbol": "class Aegislash",
+    "expect": "skill = Ability.KING_SHIELD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-aegislash_blade",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1653,
+     1670
+    ],
+    "symbol": "class AegislashBlade",
+    "expect": "skill = Ability.KING_SHIELD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-doublade",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1615,
+     1632
+    ],
+    "symbol": "class Doublade",
+    "expect": "skill = Ability.KING_SHIELD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-honedge",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1596,
+     1613
+    ],
+    "symbol": "class Honedge",
+    "expect": "skill = Ability.KING_SHIELD",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
