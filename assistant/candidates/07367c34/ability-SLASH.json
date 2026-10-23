@@ -1,0 +1,582 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SLASH",
+ "kind": "ability",
+ "identifier": "SLASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T234050Z"
+ },
+ "record": {
+  "ability": "SLASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The four units in appliesTo declare SLASH in this production reference. Zigzagoon and Linoone declare passive PICKUP; the Galarian forms declare none. The strategy is shared; differences are star count, maxPP (50 for Zigzagoon/Linoone, 80 for the Galarian forms) and stats.",
+  "appliesTo": [
+   {
+    "key": "GALARIAN_LINOONE",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GALARIAN_ZIGZAGOON",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LINOONE",
+    "stars": 2,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "SLASH",
+    "declaredPassive": "PICKUP",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ZIGZAGOON",
+    "stars": 1,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "SLASH",
+    "declaredPassive": "PICKUP",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALARIAN_LINOONE": {
+    "evidence": [
+     "unit-galarian_linoone"
+    ]
+   },
+   "GALARIAN_ZIGZAGOON": {
+    "evidence": [
+     "unit-galarian_zigzagoon"
+    ]
+   },
+   "LINOONE": {
+    "evidence": [
+     "unit-linoone"
+    ]
+   },
+   "ZIGZAGOON": {
+    "evidence": [
+     "unit-zigzagoon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SLASH] = new SlashStrategy()",
+   "strategy": "SlashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": true,
+   "evidence": [
+    "reg",
+    "reg-slash",
+    "slash-class",
+    "slash-cbd",
+    "base-flags",
+    "base-pp",
+    "slash-super",
+    "pp-gate",
+    "cast-fn",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage (raw 10/20/40/80 by stars) on the cast target. SLASH can crit by default and ignores the crit flag it is given: it re-rolls the crit itself with a chance of (casterCritChance + 30/60/90/100) / 100 by stars, so 2-star and higher casters crit a lot more often than the base crit chance.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the attacking-state gate.",
+   "evidence": [
+    "slash-class",
+    "base-flags",
+    "slash-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "slash-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "GALARIAN_LINOONE": 20,
+     "GALARIAN_ZIGZAGOON": 10,
+     "LINOONE": 20,
+     "ZIGZAGOON": 10
+    },
+    "scaling": "requested amount = raw table value. handleSpecialDamage then applies AP: damage x (1 + AP/100) (apBoost defaults to true); the crit flag (re-rolled inside SLASH) multiplies by 1 + (critPower - 1) x critReductionFactor, where the factor is reduced to 0 by a Rocky Helmet on the target and by 0.1 per Black Augurite on the target's player (not below 0).",
+    "resolution": "applied change: handleDamage divides by (1 + 0.05 x SPE_DEF) (SPECIAL), then rounds up with a minimum of 1 (shields, items and other modifiers lie between and were not traced in full). takenDamage reported by handleDamage includes damage absorbed by shield plus HP actually lost; SLASH ignores the return value. Blocked entirely (takenDamage 0) by protect / skydiving / magicBounce.",
+    "evidence": [
+     "slash-dmg",
+     "slash-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "shield-take",
+     "hp-take"
+    ]
+   },
+   {
+    "kind": "crit roll (self-contained)",
+    "declaredRaw": {
+     "increasedCritChanceByStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 100,
+      "fallback": 100
+     }
+    },
+    "scaling": "probability = (caster.critChance + increasedCrit) / 100, passed to chance(); chance raises it to the power 1 - luck/100 and caps it at 1, and returns false only for probability exactly 0. The caster's critChance is held at most 100 (surplus is converted to crit power by addCritChance), so for 1-star casters the probability is (critChance + 30)/100 and for 2-star casters (critChance + 60)/100. Default critChance is 10 and default critPower 2.",
+    "resolution": "the roll replaces the crit flag computed by castAbility (which used critChance / 100 only); the new flag feeds the broadcast ap value and handleSpecialDamage's crit multiplier. The castAbility roll is made first but its result is discarded.",
+    "evidence": [
+     "slash-crit-table",
+     "slash-crit",
+     "chance",
+     "crit-chance-def",
+     "crit-power-def",
+     "crit-chance-add",
+     "cast-fn",
+     "base-anim",
+     "special-crit"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GALARIAN_LINOONE": 2,
+    "GALARIAN_ZIGZAGOON": 1,
+    "LINOONE": 2,
+    "ZIGZAGOON": 1
+   },
+   "declaredRawDamage": {
+    "GALARIAN_LINOONE": 20,
+    "GALARIAN_ZIGZAGOON": 10,
+    "LINOONE": 20,
+    "ZIGZAGOON": 10
+   },
+   "note": "indexed by the casting entity's stars; the 3- and 4-star entries (40, 80; crit bonus 90, 100) are not reachable by the listed units' bare star counts (1 and 2). Raw crit bonus 30 for 1 star, 60 for 2 stars. maxPP is 50 for Zigzagoon/Linoone and 80 for the Galarian forms; range 1 for all.",
+   "evidence": [
+    "slash-dmg",
+    "slash-crit-table",
+    "unit-galarian_linoone",
+    "unit-galarian_zigzagoon",
+    "unit-linoone",
+    "unit-zigzagoon"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast spends maxPP of PP and repeats damage plus a fresh crit roll.",
+  "rawVsResolved": "Requested: 10 (1 star) or 20 (2 stars) raw SPECIAL damage. Applied: x (1 + AP/100), x crit factor when SLASH's own crit roll succeeds (probability (critChance + 30 or 60)/100 before luck and the cap), then divided by (1 + 0.05 x SPE_DEF), rounded up, at least 1, plus untraced modifiers. takenDamage (shield part + HP part, 0 if blocked) is not used by SLASH.",
+  "sourceTables": [
+   {
+    "id": "slashDamage",
+    "file": "app/core/abilities/slash.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "slashCrit",
+    "file": "app/core/abilities/slash.ts",
+    "pattern": "const increasedCrit = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.increasedCritChanceByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's modifiers between the SPE_DEF division and the minimum of 1 (items, damage-reduction effects) and after the shield/Shiny Charm/Fossil/Cover Band branches - only the SPECIAL SPE_DEF division, the floor of 1 and the takenDamage accumulation lines were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution outside SLASH: only castAbility's roll and handleSpecialDamage's multiplier were read"
+  ],
+  "unresolved": [
+   "Zigzagoon and Linoone declare passive PICKUP; its effect (a simulation.ts reference at line 499 and a separate PICKUP ability) was not traced here and may interact with held items, not with SLASH's formula",
+   "Whether any item or synergy effect other than Rocky Helmet / Black Augurite (crit reduction) and Reaper Cloth / Leek / Large Leek (crit power bonus for canCritByDefault abilities, seen in effects/items.ts and effects/dishes.ts) changes SLASH",
+   "Units not listed in appliesTo that might share SLASH are not covered"
+  ],
+  "evidence": [
+   {
+    "id": "unit-galarian_linoone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13478,
+     13492
+    ],
+    "symbol": "class GalarianLinoone",
+    "expect": "skill = Ability.SLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-galarian_zigzagoon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13462,
+     13476
+    ],
+    "symbol": "class GalarianZigzagoon",
+    "expect": "skill = Ability.SLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-linoone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13447,
+     13460
+    ],
+    "symbol": "class Linoone",
+    "expect": "skill = Ability.SLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-zigzagoon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13431,
+     13445
+    ],
+    "symbol": "class Zigzagoon",
+    "expect": "skill = Ability.SLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled in castAbility only if ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n this.status.skydiving ||\n this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "shield-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield-absorbed damage counts in takenDamage"
+   },
+   {
+    "id": "hp-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   },
+   {
+    "id": "reg-slash",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1171,
+     1171
+    ],
+    "symbol": "AbilityStrategies[Ability.SLASH]",
+    "expect": "[Ability.SLASH]: new SlashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "slash-class",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "SlashStrategy",
+    "expect": "class SlashStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "slash-cbd",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SlashStrategy",
+    "expect": "canCritByDefault = true",
+    "note": ""
+   },
+   {
+    "id": "slash-dmg",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SlashStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "slash-crit-table",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SlashStrategy.process",
+    "expect": "const increasedCrit = [30, 60, 90, 100][pokemon.stars - 1] ?? 100",
+    "note": ""
+   },
+   {
+    "id": "slash-crit",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "SlashStrategy.process",
+    "expect": "crit = chance((pokemon.critChance + increasedCrit) / 100, pokemon)",
+    "note": "the crit argument passed in is overwritten before use"
+   },
+   {
+    "id": "slash-super",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SlashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "slash-hit",
+    "file": "app/core/abilities/slash.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "SlashStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, attacker = caster, apBoost default true; return value unused"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability 0 -> false; exponent shrinks with luck; capped at 1 (cap default)"
+   },
+   {
+    "id": "crit-chance-def",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "DEFAULT_CRIT_CHANCE",
+    "expect": "export const DEFAULT_CRIT_CHANCE = 10",
+    "note": ""
+   },
+   {
+    "id": "crit-power-def",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "DEFAULT_CRIT_POWER",
+    "expect": "export const DEFAULT_CRIT_POWER = 2",
+    "note": ""
+   },
+   {
+    "id": "crit-chance-add",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     555,
+     555
+    ],
+    "symbol": "PokemonEntity.addCritChance",
+    "expect": "this.critChance = 100",
+    "note": "critChance above 100 is converted to crit power and clamped to 100"
+   },
+   {
+    "id": "cast-fn",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "crit = chance(pokemon.critChance / 100, pokemon)",
+    "note": "the castAbility roll; SLASH's process discards it"
+   },
+   {
+    "id": "base-anim",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "ap: Math.round(pokemon.ap * (crit ? pokemon.critPower : 1))",
+    "note": "crit passed to super.process only affects the broadcast ap value"
+   }
+  ]
+ }
+}
