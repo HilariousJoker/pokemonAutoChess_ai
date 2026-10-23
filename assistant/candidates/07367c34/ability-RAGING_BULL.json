@@ -1,0 +1,588 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/RAGING_BULL",
+ "kind": "ability",
+ "identifier": "RAGING_BULL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261023T174041Z"
+ },
+ "record": {
+  "ability": "RAGING_BULL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The four units in appliesTo (Tauros and its three breeds) declare RAGING_BULL in this production reference, all 3 stars, maxPP 100, range 1, passive NONE in the catalog. Each breed is its own registered class; the strategy is shared.",
+  "appliesTo": [
+   {
+    "key": "TAUROS",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RAGING_BULL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TAUROS_AQUA_BREED",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RAGING_BULL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TAUROS_BLAZE_BREED",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RAGING_BULL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TAUROS_COMBAT_BREED",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RAGING_BULL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TAUROS": {
+    "evidence": [
+     "unit-tauros"
+    ]
+   },
+   "TAUROS_AQUA_BREED": {
+    "evidence": [
+     "unit-tauros-aqua-breed"
+    ]
+   },
+   "TAUROS_BLAZE_BREED": {
+    "evidence": [
+     "unit-tauros-blaze-breed"
+    ]
+   },
+   "TAUROS_COMBAT_BREED": {
+    "evidence": [
+     "unit-tauros-combat-breed"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.RAGING_BULL] = new RagingBullStrategy()",
+   "strategy": "RagingBullStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-rb",
+    "rb-class",
+    "base-flags",
+    "base-pp",
+    "rb-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-target ability: armor reduction on the target for 3000 ms, then the target's reflect, protect and magicBounce flags and cooldowns are cleared directly, then special damage (20/40/80/160 raw by the caster's stars) is dealt. The order matters: protect and magicBounce are removed before the damage call, so they do not block this hit; skydiving is not cleared and still blocks it.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the attacking-state gate.",
+   "evidence": [
+    "rb-class",
+    "base-flags",
+    "rb-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "rb-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "TAUROS": 80,
+     "TAUROS_AQUA_BREED": 80,
+     "TAUROS_BLAZE_BREED": 80,
+     "TAUROS_COMBAT_BREED": 80
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "requested amount = raw x AP factor [x crit]. The armor reduction applied just before makes handleDamage use Math.round(speDef / 2) instead of speDef in the division damage / (1 + 0.05 x speDef) (ceil, min 1), so the applied amount is computed against the halved SPE_DEF; later untraced modifiers follow. takenDamage (not used by this strategy) would count HP removed plus shield damage. Blocked entirely only by skydiving (protect and magicBounce were cleared first).",
+    "evidence": [
+     "rb-dmg",
+     "rb-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "ar-def",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armorReduction",
+    "target": "the target",
+    "declaredRaw": {
+     "value": 3000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "first, before the barrier flags are cleared and before the damage",
+    "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% per stone); a new application replaces the remaining time only if longer",
+    "combatEffect": "while set, handleDamage halves the target's def and speDef (Math.round(x / 2)) for damage reduction; the same halving appears in the POWER_LENS retaliation computation (handleSpecialDamage) and in an items.ts second-hit calculation. Other readers of the flag were not searched beyond app/core and app/models.",
+    "evidence": [
+     "rb-ar",
+     "ar-trig",
+     "ar-red",
+     "ar-upd",
+     "ar-def"
+    ]
+   },
+   {
+    "status": "reflect / protect / magicBounce (removal)",
+    "target": "the target",
+    "declaredRaw": {
+     "action": "set flag false and cooldown 0"
+    },
+    "scaling": "none",
+    "applicationOrder": "after armor reduction, before the damage call",
+    "guards": "none: the six assignments run unconditionally; skydiving is not touched",
+    "combatEffect": "protect: handleDamage and handleSpecialDamage no longer block; magicBounce: the bounce branch in handleSpecialDamage no longer fires; reflect: only affects PHYSICAL damage in handleDamage and this hit is SPECIAL. Protect can be reapplied by triggerProtect later (unless the target is enraged); the removal is not a lasting immunity.",
+    "evidence": [
+     "rb-clear",
+     "special-block",
+     "hd-protect",
+     "hd-reflect",
+     "protect-trig"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TAUROS": 3,
+    "TAUROS_AQUA_BREED": 3,
+    "TAUROS_BLAZE_BREED": 3,
+    "TAUROS_COMBAT_BREED": 3
+   },
+   "declaredRawDamage": {
+    "TAUROS": 80,
+    "TAUROS_AQUA_BREED": 80,
+    "TAUROS_BLAZE_BREED": 80,
+    "TAUROS_COMBAT_BREED": 80
+   },
+   "note": "indexed by the casting entity's stars; all four listed units are 3-star in the catalog, so their bare value is 80. The 160 value (also the fallback) is not reachable by their bare star count. The 3000 ms armor reduction does not vary with stars.",
+   "evidence": [
+    "rb-dmg",
+    "unit-tauros",
+    "unit-tauros-aqua-breed",
+    "unit-tauros-blaze-breed",
+    "unit-tauros-combat-breed"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must have a target at range to reach the cast gate).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast clears the barrier flags and refreshes the armor reduction only if the new duration is longer.",
+  "rawVsResolved": "Declared raw: damage 80 for the four 3-star units and armor reduction 3000 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; applied damage uses the halved SPE_DEF (rounded) in the division, ceil and minimum 1, then untraced later modifiers. Armor reduction duration is requested 3000 ms and applied after the duration reductions.",
+  "sourceTables": [
+   {
+    "id": "ragingBullDamage",
+    "file": "app/core/abilities/raging-bull.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the armor-reduction halving, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier",
+   "What other code applies protect / magicBounce / reflect to the target after the removal (only triggerProtect was read)"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect changes RAGING_BULL beyond what is listed",
+   "Whether skydiving can coexist with the other barrier flags on the same target in practice (not traced)",
+   "No other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-tauros",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5896,
+     5908
+    ],
+    "symbol": "class Tauros",
+    "expect": "skill = Ability.RAGING_BULL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tauros-aqua-breed",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5958,
+     5981
+    ],
+    "symbol": "class TaurosAquaBreed",
+    "expect": "skill = Ability.RAGING_BULL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tauros-blaze-breed",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5936,
+     5955
+    ],
+    "symbol": "class TaurosBlazeBreed",
+    "expect": "skill = Ability.RAGING_BULL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tauros-combat-breed",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5910,
+     5933
+    ],
+    "symbol": "class TaurosCombatBreed",
+    "expect": "skill = Ability.RAGING_BULL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-rb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1111,
+     1111
+    ],
+    "symbol": "AbilityStrategies[Ability.RAGING_BULL]",
+    "expect": "[Ability.RAGING_BULL]: new RagingBullStrategy()",
+    "note": ""
+   },
+   {
+    "id": "rb-class",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RagingBullStrategy",
+    "expect": "class RagingBullStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "rb-super",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "rb-ar",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "target.status.triggerArmorReduction(3000, pokemon)",
+    "note": "armor reduction 3000 ms, first action after super.process"
+   },
+   {
+    "id": "rb-clear",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "target.status.reflectCooldown = 0",
+    "note": "clears reflect, protect and magicBounce flags and their cooldowns directly (reflect, protect, magicBounce; not skydiving)"
+   },
+   {
+    "id": "rb-dmg",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "[20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table by caster stars"
+   },
+   {
+    "id": "rb-hit",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "ar-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     351
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity)",
+    "note": "not applied with runeProtect; duration passes through applyStatusDurationReductions; a new application only replaces the remaining time if longer"
+   },
+   {
+    "id": "ar-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "ar-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     354,
+     360
+    ],
+    "symbol": "Status.updateArmorReduction",
+    "expect": "updateArmorReduction(dt: number) {",
+    "note": "flag cleared when the cooldown runs out"
+   },
+   {
+    "id": "ar-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     519
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "while armorReduction is set def and speDef are halved (Math.round) before use; WONDER_ROOM then swaps them"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect or skydiving: no damage taken"
+   },
+   {
+    "id": "hd-reflect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     522,
+     522
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.reflect && attackType === AttackType.PHYSICAL) {",
+    "note": "reflect only affects PHYSICAL damage; the RAGING_BULL hit is SPECIAL"
+   },
+   {
+    "id": "protect-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     745,
+     749
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect cannot be (re)applied while enraged"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "canCritByDefault = false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   }
+  ]
+ }
+}
