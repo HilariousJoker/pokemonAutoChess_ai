@@ -107,7 +107,7 @@ for (const row of ["| 1 | ATTACK_ORDER | 3 |", "| 2 | HEAL_ORDER | 2 |", "| 3 | 
 for (const [k, v] of [["Charmander (1★) 30", 1], ["Charmeleon (2★) 60", 1], ["Charizard (3★) 120", 1], ["Totodile is 1★ → 40", 1]]) if (!md.includes(k)) bad(`Markdown lacks "${k}"`)
 
 
-// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
+// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT / IRON_DEFENSE / MACH_PUNCH / ROCK_SLIDE ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
 const reuse = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
 const catalog = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/catalog-units.json"), "utf8"))
 const reuseMd = readFileSync(resolve(HERE, "knowledge/07367c34/reusable-abilities.md"), "utf8")
@@ -161,7 +161,7 @@ for (const [name, rec] of allRecs) {
 }
 // coverage completeness against the catalog: every catalog unit with these skills/passives is bound, no others
 const boundBy = (field, id) => Object.entries(catalog.pokemon).filter(([, v]) => v.stats[field] === id).map(([k]) => k).sort()
-const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", LEAF_BLADE: "LeafBladeStrategy", SOAK: "SoakStrategy", TORMENT: "TormentStrategy" } // imported from candidates after a source recheck
+const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", LEAF_BLADE: "LeafBladeStrategy", SOAK: "SoakStrategy", TORMENT: "TormentStrategy", IRON_DEFENSE: "IronDefenseStrategy", MACH_PUNCH: "MachPunchStrategy", ROCK_SLIDE: "RockSlideStrategy" } // imported from candidates after a source recheck
 for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH", ...Object.keys(IMPORTED)]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
 eq(RP.SURGE_SURFER.appliesTo.map((u) => u.key).sort(), boundBy("passive", "SURGE_SURFER"), "SURGE_SURFER appliesTo vs catalog")
 eq(RP.PRIMEAPE.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PRIMEAPE"), "PRIMEAPE appliesTo vs catalog")

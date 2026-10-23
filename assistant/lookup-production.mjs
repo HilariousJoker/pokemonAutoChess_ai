@@ -171,7 +171,7 @@ const NOTE_MAP = {
   COSMOEM: [["pilot-evolution", "COSMOEM"], ["evolution-context", "Cosmoem"], ["evolution-context", "Cosmog"]],
   COSMOG: [["evolution-context", "Cosmog"]]
 }
-const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"] }
+const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"], IRON_DEFENSE: ["reusable-abilities", "IRON_DEFENSE"], MACH_PUNCH: ["reusable-abilities", "MACH_PUNCH"], ROCK_SLIDE: ["reusable-abilities", "ROCK_SLIDE"] }
 const PASSIVE_NOTE = { SURGE_SURFER: ["reusable-abilities", "SURGE_SURFER"], PRIMEAPE: ["reusable-abilities", "PRIMEAPE"], PACHIRISU: ["reusable-abilities", "PACHIRISU"] }
 const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|Resolved later|Not claimed)/.test(l.trim()))
 
@@ -253,6 +253,7 @@ function renderAbility(L, key, cat, abi, covering, review) {
       const pu = e.perUnitRaw ? e.perUnitRaw[key] : e.declaredRaw.byStars ? rec.starBehavior?.declaredRawDamage?.[key] : undefined // the five imported abilities carry perUnitRaw
       L.push(`- ${e.kind}${e.damageType ? ` (${e.damageType})` : ""}${e.stat ? ` ${e.stat}` : ""}${e.target ? ` → ${e.target}` : ""}${e.condition ? `, ${e.condition}` : ""}: raw ${rawDesc(e.declaredRaw)}${pu !== undefined ? ` → this unit (${a.stars}★): **raw ${pu}**` : ""}.`)
       L.push(`  - Scaling: ${e.scaling}. Resolution: ${e.resolution}.`)
+      if (e.conditional) { const vs = Object.entries(e.conditional).find(([k]) => /^perUnitRawVs/.test(k))?.[1]?.[key]; L.push(`  - Conditional: ${e.conditional.condition} → raw ×${e.conditional.multiplier}${vs !== undefined ? ` (this unit: **raw ${vs}**)` : ""}. ${e.conditional.note ?? ""}`.trimEnd()) }
     }
     if (rec.identifierOnlyBehavior) {
       L.push(`**The bare skill ${code(rec.ability)} is a placeholder.** As a cast it does: ${rec.identifierOnlyBehavior.effects}.`)
