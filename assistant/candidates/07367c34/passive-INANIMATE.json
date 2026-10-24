@@ -1,0 +1,526 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/INANIMATE",
+ "kind": "passive",
+ "identifier": "INANIMATE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T053935Z"
+ },
+ "record": {
+  "passive": "INANIMATE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BUG_NEST",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SWARM",
+    "declaredPassive": "INANIMATE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PILLAR_CONCRETE",
+    "stars": 3,
+    "maxPP": 0,
+    "range": 1,
+    "declaredSkill": "DEFAULT",
+    "declaredPassive": "INANIMATE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PILLAR_IRON",
+    "stars": 2,
+    "maxPP": 0,
+    "range": 1,
+    "declaredSkill": "DEFAULT",
+    "declaredPassive": "INANIMATE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PILLAR_WOOD",
+    "stars": 1,
+    "maxPP": 0,
+    "range": 1,
+    "declaredSkill": "DEFAULT",
+    "declaredPassive": "INANIMATE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BUG_NEST": {
+    "evidence": [
+     "unit-bug-nest"
+    ]
+   },
+   "PILLAR_CONCRETE": {
+    "evidence": [
+     "unit-pillar-concrete"
+    ]
+   },
+   "PILLAR_IRON": {
+    "evidence": [
+     "unit-pillar-iron"
+    ]
+   },
+   "PILLAR_WOOD": {
+    "evidence": [
+     "unit-pillar-wood"
+    ]
+   }
+  },
+  "kind": "spawn-time marker passive (PassiveEffects entry with one OnSpawnEffect) that other code also tests by name",
+  "summary": "On spawn each INANIMATE entity gets status.tree = true, 30000 ms of rune protection (triggerRuneProtect clears negative statuses and blocks new ones) and is put in the idle state. Separately, many places test passive === INANIMATE: toMovingState and toAttackingState return immediately (it never moves or attacks), idle-state makes an INANIMATE entity that has a PP bar (maxPP > 0, i.e. BUG_NEST with SWARM) cast its skill with no target when pp >= maxPP, status code refuses resurrection and Pokerus, and several getters/loops exclude it (cannot be cloned or copied or eat, does not count for team size or as a played Pokemon, ignored for bot team building, the Drummer check and the damage count of an enemy team). The three pillars have maxPP 0, atk 0, speed 0 and Ability.DEFAULT, so they only stand on the board as targets. No numeric stat is changed by the passive.",
+  "triggers": [
+   "OnSpawnEffect when the entity is created in a simulation (fight start or spawn)",
+   "Per-tick idle-state update for the PP-bar cast",
+   "Direct passive === INANIMATE checks in the listed callers"
+  ],
+  "effects": [
+   {
+    "kind": "status_on_spawn",
+    "declaredRaw": "tree = true; runeProtect for 30000 ms",
+    "scaling": "none (no AP, no crit); the 30000 is a literal in the effect, not reduced by status-duration helpers in the lines read",
+    "resolution": "triggerRuneProtect sets the flag, clears negative statuses and stores the larger timer; updateRuneProtect counts it down; the combat effect of tree is in canMove/canAttack/addPP/silence",
+    "evidence": [
+     "eff",
+     "eff-tree",
+     "eff-rune",
+     "eff-idle",
+     "reg",
+     "spawn-contract",
+     "spawn-call",
+     "rune-trigger",
+     "rune-update",
+     "rune-tick",
+     "can-move",
+     "pp-tree",
+     "silence"
+    ]
+   },
+   {
+    "kind": "state_lock",
+    "declaredRaw": "never enters moving or attacking state",
+    "scaling": "none",
+    "resolution": "toMovingState / toAttackingState return early for passive INANIMATE (and for tree)",
+    "evidence": [
+     "no-state",
+     "idle-enter"
+    ]
+   },
+   {
+    "kind": "idle_cast",
+    "declaredRaw": "INANIMATE entity with maxPP > 0 casts its skill (no target) when pp >= maxPP; tree is cleared first by the earlier branch",
+    "scaling": "depends on the skill (SWARM for BUG_NEST; not covered here)",
+    "resolution": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, null)",
+    "evidence": [
+     "idle-cast"
+    ]
+   },
+   {
+    "kind": "exclusions",
+    "declaredRaw": "no resurrection, no Pokerus, cannot be copied, cloned or eat, not counted for team size / played Pokemon / enemy damage count / drum / bot team",
+    "scaling": "none",
+    "resolution": "early returns and filters at each caller",
+    "evidence": [
+     "no-resurrect",
+     "no-pokerus",
+     "no-copy",
+     "unit-getters",
+     "drummer",
+     "bot-team",
+     "player-played",
+     "game-room-damage",
+     "game-room-avatar"
+    ]
+   }
+  ],
+  "conditions": [
+   "The three pillars and the nest are the only catalog units with this passive; units sharing the identifier but not listed are not covered.",
+   "Whether tree is ever cleared for the pillars: their maxPP is 0, so the idle-state branch that clears tree needs maxPP > 0 and does not apply; BUG_NEST (maxPP 80) clears tree when pp >= maxPP and then casts on later idle updates.",
+   "Rune protection lasts 30000 ms from spawn (a literal); after that negative statuses are no longer blocked by it, but tree (where still set) keeps blocking silence."
+  ],
+  "resetBehaviour": "Entity status is built per fight; nothing persists. Tree is cleared only by the idle-state branch (maxPP > 0, pp >= maxPP) or by TRANSE (transe.ts) for other units.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How PP is gained by a BUG_NEST that never attacks or takes part in the fight (PP-per-second or on-hit sources) - not traced here",
+   "Targeting: whether enemies target INANIMATE units like any other unit is not part of this record (the moving-state check covers only the Drummer)",
+   "SWARM skill behaviour (separate ability record)"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: the passive is tested by name in the listed files; a name grep over app/ (excluding public/ and precomputed data) was used, other code reading it indirectly (e.g. via canBeCopied callers, tree, or the unit class flags canHoldItems/canBeSold/canBeBenched) was not enumerated",
+   "Callers of canBeCopied, canBeCloned, canEat and doesCountForTeamSize were not traced",
+   "Pillar and nest placement (Player.updatePillars, the board spawn rules) were not read",
+   "Whether the PP bar of BUG_NEST fills in practice and what the first idle-state branch then does to the animation state was not examined",
+   "The effect of status.tree on targeting/damage by enemies was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "sourceEvidence": {
+   "spawn": {
+    "evidence": [
+     "eff",
+     "eff-tree",
+     "eff-rune",
+     "eff-idle",
+     "reg",
+     "spawn-contract",
+     "spawn-call"
+    ]
+   },
+   "statusMechanics": {
+    "evidence": [
+     "rune-trigger",
+     "rune-update",
+     "rune-tick",
+     "can-move",
+     "pp-tree",
+     "silence"
+    ]
+   },
+   "stateLock": {
+    "evidence": [
+     "no-state",
+     "idle-enter",
+     "idle-cast"
+    ]
+   },
+   "exclusions": {
+    "evidence": [
+     "no-resurrect",
+     "no-pokerus",
+     "no-copy",
+     "unit-getters",
+     "drummer",
+     "bot-team",
+     "player-played",
+     "game-room-damage",
+     "game-room-avatar"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "eff",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1020,
+     1024
+    ],
+    "symbol": "inanimateObjectEffect",
+    "expect": "const inanimateObjectEffect = new OnSpawnEffect((entity) => {",
+    "note": "the passive's own effect: an OnSpawnEffect registered with origin Passive.INANIMATE"
+   },
+   {
+    "id": "eff-tree",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1021,
+     1021
+    ],
+    "symbol": "inanimateObjectEffect",
+    "expect": "entity.status.tree = true",
+    "note": "sets the tree status (blocks movement/attack/casting-by-state, silence, PP loss)"
+   },
+   {
+    "id": "eff-rune",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1022,
+     1022
+    ],
+    "symbol": "inanimateObjectEffect",
+    "expect": "entity.status.triggerRuneProtect(30000, entity, entity)",
+    "note": "30000 ms of rune protection (negative-status immunity) on spawn, origin = itself"
+   },
+   {
+    "id": "eff-idle",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1023,
+     1023
+    ],
+    "symbol": "inanimateObjectEffect",
+    "expect": "entity.toIdleState()",
+    "note": "puts the entity in the idle state"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1428,
+     1428
+    ],
+    "symbol": "PassiveEffects[Passive.INANIMATE]",
+    "expect": "[Passive.INANIMATE]: [inanimateObjectEffect],",
+    "note": "registry entry; the only effect"
+   },
+   {
+    "id": "spawn-contract",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     30,
+     43
+    ],
+    "symbol": "OnSpawnEffect",
+    "expect": "// applied on fight start or when spawning",
+    "note": "contract: applied on fight start or when spawning"
+   },
+   {
+    "id": "spawn-call",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     384,
+     387
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "pokemonEntity.getEffects(OnSpawnEffect).forEach((effect) => {",
+    "note": "where the spawn effects are applied to the entity"
+   },
+   {
+    "id": "rune-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.clearNegativeStatus(pokemon, origin)",
+    "note": "sets runeProtect, clears negative statuses, keeps the larger of the timers"
+   },
+   {
+    "id": "rune-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     968,
+     974
+    ],
+    "symbol": "Status.updateRuneProtect",
+    "expect": "updateRuneProtect(dt: number) {",
+    "note": "countdown; runeProtect ends when the cooldown reaches 0"
+   },
+   {
+    "id": "rune-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     227,
+     229
+    ],
+    "symbol": "Status update",
+    "expect": "this.updateRuneProtect(dt)",
+    "note": "called every update while runeProtect is true"
+   },
+   {
+    "id": "idle-cast",
+    "file": "app/core/idle-state.ts",
+    "lines": [
+     16,
+     29
+    ],
+    "symbol": "IdleState.update",
+    "expect": "// CAST ABILITY FOR INANIMATE ENTITIES THAT HAVE A PP BAR",
+    "note": "first branch clears tree when pp >= maxPP (maxPP > 0); second branch makes an INANIMATE entity with a PP bar cast its skill with no target"
+   },
+   {
+    "id": "idle-enter",
+    "file": "app/core/idle-state.ts",
+    "lines": [
+     47,
+     56
+    ],
+    "symbol": "IdleState.onEnter",
+    "expect": "pokemon.passive !== Passive.INANIMATE",
+    "note": "tree -> IDLE action; sleep/freeze sleeping animation is skipped for INANIMATE"
+   },
+   {
+    "id": "no-state",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     492
+    ],
+    "symbol": "toMovingState / toAttackingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": "an INANIMATE entity never enters moving or attacking state, even after tree is cleared"
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     248
+    ],
+    "symbol": "canMove / canAttack",
+    "expect": "!this.status.tree",
+    "note": "tree blocks canMove and canAttack"
+   },
+   {
+    "id": "pp-tree",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     529
+    ],
+    "symbol": "addPP",
+    "expect": "!(value < 0 && this.status.tree) // cannot lose PP if tree",
+    "note": "tree prevents PP loss (gain is allowed)"
+   },
+   {
+    "id": "silence",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     521
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "tree and rune protection prevent silence (one example of the negative statuses it blocks)"
+   },
+   {
+    "id": "no-resurrect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1041,
+     1042
+    ],
+    "symbol": "Status.addResurrection",
+    "expect": "if (pokemon.passive === Passive.INANIMATE) return",
+    "note": "cannot be resurrected"
+   },
+   {
+    "id": "no-pokerus",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1108,
+     1109
+    ],
+    "symbol": "Status.triggerPokerus",
+    "expect": "if (pokemon.passive === Passive.INANIMATE) return",
+    "note": "cannot get Pokerus"
+   },
+   {
+    "id": "no-copy",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     266,
+     268
+    ],
+    "symbol": "canBeCopied",
+    "expect": "return this.passive !== Passive.INANIMATE",
+    "note": "cannot be copied (getter; callers not enumerated)"
+   },
+   {
+    "id": "unit-getters",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     151,
+     179
+    ],
+    "symbol": "Pokemon.canBeCloned / canEat / doesCountForTeamSize",
+    "expect": "this.passive !== Passive.INANIMATE &&",
+    "note": "cannot be cloned, cannot eat dishes, and does not count for team size"
+   },
+   {
+    "id": "drummer",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     48,
+     55
+    ],
+    "symbol": "MovingState (DRUMMER)",
+    "expect": "entity?.passive !== Passive.INANIMATE",
+    "note": "INANIMATE allies are not counted as a reason for the Drummer to drum"
+   },
+   {
+    "id": "bot-team",
+    "file": "app/core/bot-logic.ts",
+    "lines": [
+     265,
+     268
+    ],
+    "symbol": "bot team building",
+    "expect": "p.passive !== Passive.INANIMATE",
+    "note": "bot logic ignores INANIMATE units in its team list"
+   },
+   {
+    "id": "player-played",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     921,
+     923
+    ],
+    "symbol": "Player.registerPlayedPokemons",
+    "expect": "pokemon.passive !== Passive.INANIMATE",
+    "note": "not counted as a played Pokemon"
+   },
+   {
+    "id": "game-room-damage",
+    "file": "app/rooms/game-room.ts",
+    "lines": [
+     1455,
+     1458
+    ],
+    "symbol": "player damage after a lost fight",
+    "expect": "pokemon.passive !== Passive.INANIMATE",
+    "note": "opposing INANIMATE units do not add to the damage taken"
+   },
+   {
+    "id": "game-room-avatar",
+    "file": "app/rooms/game-room.ts",
+    "lines": [
+     1211,
+     1212
+    ],
+    "symbol": "game-room avatar loop",
+    "expect": "pokemon.positionY != 0 && pokemon.passive !== Passive.INANIMATE",
+    "note": "skipped in an avatar/emote string loop"
+   },
+   {
+    "id": "unit-bug-nest",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20762,
+     20778
+    ],
+    "symbol": "class BugNest",
+    "expect": "passive = Passive.INANIMATE",
+    "note": "unit class block: skill / passive / stars / stats (canHoldItems and canBeSold are false)"
+   },
+   {
+    "id": "unit-pillar-concrete",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17228,
+     17243
+    ],
+    "symbol": "class PillarConcrete",
+    "expect": "passive = Passive.INANIMATE",
+    "note": "unit class block: skill / passive / stars / stats (canHoldItems and canBeSold are false)"
+   },
+   {
+    "id": "unit-pillar-iron",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17211,
+     17226
+    ],
+    "symbol": "class PillarIron",
+    "expect": "passive = Passive.INANIMATE",
+    "note": "unit class block: skill / passive / stars / stats (canHoldItems and canBeSold are false)"
+   },
+   {
+    "id": "unit-pillar-wood",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17194,
+     17209
+    ],
+    "symbol": "class PillarWood",
+    "expect": "passive = Passive.INANIMATE",
+    "note": "unit class block: skill / passive / stars / stats (canHoldItems and canBeSold are false)"
+   }
+  ]
+ }
+}
