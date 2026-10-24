@@ -1,0 +1,703 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BLAZE_KICK",
+ "kind": "ability",
+ "identifier": "BLAZE_KICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T174037Z"
+ },
+ "record": {
+  "ability": "BLAZE_KICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare BLAZE_KICK: Blaziken (3 stars), Combusken (2 stars), Torchic (1 star). The strategy is shared; unit differences are the star count, range and maxPP. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BLAZIKEN",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BLAZE_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "COMBUSKEN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BLAZE_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TORCHIC",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BLAZE_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BLAZIKEN": {
+    "evidence": [
+     "unit-blaziken"
+    ]
+   },
+   "COMBUSKEN": {
+    "evidence": [
+     "unit-combusken"
+    ]
+   },
+   "TORCHIC": {
+    "evidence": [
+     "unit-torchic"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BLAZE_KICK] = new BlazeKickStrategy()",
+   "strategy": "BlazeKickStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "bk-class",
+    "bk-super"
+   ]
+  },
+  "summary": "Burns the cast target for a base 2000 ms, deals SPECIAL damage (raw 30/60/120/240 by stars, x1.3 if the target was already burning before the cast), then knocks the target to the farthest empty cell along the board line from the caster in the target's direction. If no empty cell lies on that line, the target stays.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "effectInOrientation walks all cells in the target's 8-way direction from the caster to the board edge (including empty cells before the target) and the last empty cell visited is chosen. The direction is sign-based (dx, dy), not an exact line to the target, so a target at a non-diagonal offset is pushed along the nearest of the 8 directions that matches the signs of its offset, which may not pass through its own cell.",
+   "evidence": [
+    "bk-orient",
+    "bk-empty",
+    "eio-orient",
+    "eio-up",
+    "eio-right",
+    "eio-fallback",
+    "orient",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "displacement along one of 8 board directions to the farthest empty cell; no area damage",
+   "evidence": [
+    "bk-orient",
+    "bk-empty",
+    "eio-orient",
+    "eio-up",
+    "eio-right",
+    "orient"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "label": "requested damage (raw), before the burning-target bonus"
+    },
+    "perUnitRaw": {
+     "BLAZIKEN": 120,
+     "COMBUSKEN": 60,
+     "TORCHIC": 30
+    },
+    "scaling": "requested = table[stars-1]; if the target was burning when the cast started, requested = Math.round(requested x 1.3). handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The burn is applied before the damage, so the burn bonus tests the state before this cast.",
+    "evidence": [
+     "bk-table",
+     "bk-ifburn",
+     "bk-bonus",
+     "bk-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "the cast target",
+    "declaredRaw": {
+     "description": "moveTo(farthest empty cell along the target's 8-way direction from the caster), forcedDisplacement true"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "nothing happens if no empty cell was found, or if moveTo refuses (the target, or the unit on the destination, cannot be moved). Otherwise the cells are swapped, the target goes to the moving state and its cooldown is set to 100. The displacement happens even if the damage was blocked by protect / magicBounce (it is not conditioned on the damage result).",
+    "evidence": [
+     "bk-orient",
+     "bk-empty",
+     "bk-move",
+     "moveto",
+     "moveto-block",
+     "moveto-swap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BURN",
+    "target": "the cast target",
+    "durationMs": 2000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "BLAZIKEN": 2000,
+     "COMBUSKEN": 2000,
+     "TORCHIC": 2000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "applied only if the target lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the target's duration reductions; replaces the running burn timer only if longer. While burning the target takes TRUE damage of 5% max HP each second (reduced by weather, Assault Vest, water effects; zero with Well Baked or Magmarizer).",
+    "evidence": [
+     "bk-burn",
+     "burn-trig",
+     "burn-set",
+     "burn-red",
+     "burn-tick",
+     "burn-true"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BLAZIKEN": 3,
+    "COMBUSKEN": 2,
+    "TORCHIC": 1
+   },
+   "declaredRawDamage": {
+    "BLAZIKEN": 120,
+    "COMBUSKEN": 60,
+    "TORCHIC": 30
+   },
+   "note": "Damage is indexed by the casting entity's stars; the 4-star value (240, also the ?? fallback) is not reachable by the bare factory star counts. Burn duration and displacement do not depend on stars. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "bk-table",
+    "unit-blaziken",
+    "unit-combusken",
+    "unit-torchic"
+   ]
+  },
+  "positionalConditions": "The knock-back destination depends on the caster's and target's coordinates and on which cells in that direction are empty; with no empty cell there is no movement.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. A second cast on a target that is still burning gets the x1.3 damage bonus; the burn timer is only extended if the new 2000 ms exceeds the remaining time.",
+  "rawVsResolved": "Requested: damage 30/60/120 (1/2/3 stars), x1.3 rounded if already burning; burn 2000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied burn duration = requested after the target's reductions.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "canBeMoved (which units refuse forced displacement) was not read",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and Status.healBurn were not read",
+   "Board.swapCells side effects beyond the cell swap and the unit state change set by moveTo"
+  ],
+  "unresolved": [
+   "Whether the board's rows/columns mismatch in the RIGHT branch of effectInOrientation (x < board.rows) changes which cells are visited on the production board dimensions",
+   "Whether the direction-by-sign rule can push the target along a line that does not contain it (recorded as read, not exercised)",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-blaziken",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4098,
+     4114
+    ],
+    "symbol": "class Blaziken",
+    "expect": "skill = Ability.BLAZE_KICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-combusken",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4079,
+     4096
+    ],
+    "symbol": "class Combusken",
+    "expect": "skill = Ability.BLAZE_KICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-torchic",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4060,
+     4077
+    ],
+    "symbol": "class Torchic",
+    "expect": "skill = Ability.BLAZE_KICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     768,
+     768
+    ],
+    "symbol": "AbilityStrategies[Ability.BLAZE_KICK]",
+    "expect": "[Ability.BLAZE_KICK]: new BlazeKickStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "bk-class",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BlazeKickStrategy",
+    "expect": "export class BlazeKickStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "bk-super",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "bk-table",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "let damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "bk-bonus",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "damage = Math.round(damage * 1.3)",
+    "note": "x1.3 rounded when the target is already burning (checked before this cast's burn is applied)"
+   },
+   {
+    "id": "bk-ifburn",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "if (target.status.burn) {",
+    "note": ""
+   },
+   {
+    "id": "bk-burn",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "target.status.triggerBurn(2000, target, pokemon)",
+    "note": "burn 2000 ms on the cast target, origin = caster"
+   },
+   {
+    "id": "bk-hit",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target"
+   },
+   {
+    "id": "bk-orient",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "effectInOrientation(board, pokemon, target, (cell) => {",
+    "note": "walks the cells from the caster outward in the direction of the target"
+   },
+   {
+    "id": "bk-empty",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "if (!cell.value) {",
+    "note": "remembers the latest (= farthest) empty cell"
+   },
+   {
+    "id": "bk-move",
+    "file": "app/core/abilities/blaze-kick.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "BlazeKickStrategy.process",
+    "expect": "target.moveTo(x, y, board, true)",
+    "note": "forced displacement of the target to that cell"
+   },
+   {
+    "id": "eio-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     810,
+     827
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "export function effectInOrientation(",
+    "note": "direction = board.orientation(caster, target) (8 sectors by sign of dx/dy), no maxRange passed here"
+   },
+   {
+    "id": "eio-up",
+    "file": "app/core/board.ts",
+    "lines": [
+     847,
+     847
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let y = pokemon.positionY + 1; y < board.rows; y++) {",
+    "note": "UP: walks y upward from the cell after the caster to the board edge"
+   },
+   {
+    "id": "eio-right",
+    "file": "app/core/board.ts",
+    "lines": [
+     863,
+     863
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX + 1; x < board.rows; x++) {",
+    "note": "RIGHT bound uses board.rows (not columns); recorded as read"
+   },
+   {
+    "id": "eio-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     916,
+     916
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "effect({ x: target.positionX, y: target.positionY, value: target })",
+    "note": "if no enemy was on the walked cells the original target's cell is passed once"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx>0 RIGHT/UPRIGHT/DOWNRIGHT, dx<0 LEFT/..., dx==0 UP/DOWN; sign-based, so any non-axis offset becomes a diagonal"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "forced displacement is refused if the mover or the unit on the destination cannot be moved; otherwise swaps cells"
+   },
+   {
+    "id": "moveto-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     891,
+     891
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": ""
+   },
+   {
+    "id": "moveto-swap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     897,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "swap with whatever is on the destination (here empty by construction)"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and origin; a shorter one keeps the existing"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second as TRUE damage (weather / items / passives modify it)"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": ""
+   }
+  ]
+ }
+}
