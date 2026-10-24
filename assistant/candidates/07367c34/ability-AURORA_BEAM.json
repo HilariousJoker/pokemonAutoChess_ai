@@ -1,0 +1,658 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AURORA_BEAM",
+ "kind": "ability",
+ "identifier": "AURORA_BEAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T174037Z"
+ },
+ "record": {
+  "ability": "AURORA_BEAM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare AURORA_BEAM: Dewgong (2 stars), Iron Bundle (3 stars), Seel (1 star). The strategy is shared; unit differences are the star count, range and maxPP. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "DEWGONG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AURORA_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "IRON_BUNDLE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AURORA_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SEEL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AURORA_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DEWGONG": {
+    "evidence": [
+     "unit-dewgong"
+    ]
+   },
+   "IRON_BUNDLE": {
+    "evidence": [
+     "unit-iron_bundle"
+    ]
+   },
+   "SEEL": {
+    "evidence": [
+     "unit-seel"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AURORA_BEAM] = new AuroraBeamStrategy()",
+   "strategy": "AuroraBeamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by stars) to every enemy-team unit on a straight line from the caster through the cast target, and gives each unit hit an independent 50% chance (caster's luck applies) to be frozen for a base 2000 ms. The line is extended to the board edge, so it continues past the target.",
+  "targeting": {
+   "who": "every enemy-team entity on the cells of the supercover line from the caster's cell toward the cast target and on to a point 12 cells away along the same angle (clipped to the board); the caster's own cell is on the line but filtered out as same-team",
+   "needsTarget": true,
+   "note": "The target only fixes the line's angle: it is hit only if its cell lies on the computed line (a rounding/angle effect of the 12-cell end point could in principle miss it; unlike effectInOrientation, effectInLine has no fall-back that touches the original target). Enemies behind the target are hit too. Allies are skipped.",
+   "evidence": [
+    "ab-line",
+    "ab-filter",
+    "el-class",
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster through the cast target to the board edge; every touched cell counts, diagonal crossings included",
+   "evidence": [
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team unit on the line (each cell visited once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "DEWGONG": 50,
+     "IRON_BUNDLE": 100,
+     "SEEL": 25
+    },
+    "scaling": "requested = table[stars-1] per enemy hit, no falloff along the line. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the hit unit) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect (consumed by the first hit); x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FREEZE",
+    "target": "each enemy-team unit hit (independent roll)",
+    "durationMs": 2000,
+    "probability": 0.5,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "probability": 0.5,
+     "label": "requested base duration / chance"
+    },
+    "scaling": "none from stars, AP or crit; the 50% chance goes through chance(0.5, caster) so the caster's luck raises it (p ^ (1 - luck/100))",
+    "resolution": "applied only if the unit's status is not already frozen, has no rune protect or skydiving, and its ccCooldown is 0. Because the call is `cell.value.status.triggerFreeze(2000, target, pokemon)`, the immunity check, weather (SNOW x1.3, DROUGHT x0.7), enraged halving and duration reductions are evaluated against the CAST TARGET (the second argument), not against the unit being frozen; only the freeze/runeProtect/skydiving/ccCooldown checks read the frozen unit. Freeze then lasts Math.round(duration) and wears off faster if the unit is also burning.",
+    "evidence": [
+     "ab-chance",
+     "ab-roll",
+     "ab-freeze",
+     "chance",
+     "fr-trig",
+     "fr-immune",
+     "fr-snow",
+     "fr-red",
+     "fr-set",
+     "fr-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DEWGONG": 2,
+    "IRON_BUNDLE": 3,
+    "SEEL": 1
+   },
+   "declaredRawDamage": {
+    "DEWGONG": 50,
+    "IRON_BUNDLE": 100,
+    "SEEL": 25
+   },
+   "note": "Damage is indexed by the casting entity's stars; the 4-star value (200, also the ?? fallback) is not reachable by the bare factory star counts. Freeze chance and duration do not depend on stars. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "ab-table",
+    "unit-dewgong",
+    "unit-iron_bundle",
+    "unit-seel"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the line; a unit already frozen is not re-frozen and the freeze timer is not extended; a unit that just ended a freeze has a crowd-control cooldown (ccCooldown) that blocks a new freeze.",
+  "rawVsResolved": "Requested: damage 25/50/100 (1/2/3 stars) per enemy on the line, freeze 2000 ms at 50%. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied freeze duration is computed from the cast target's context (see statusEffects).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and the effects of the frozen status on a unit's actions (the status flag and timer were read, not what a frozen unit is prevented from doing)",
+   "Board.getEntityOnCell / isOnBoard and what `cells` holds for dead units were not read for the line's cell values (getCellsBetween reads this.cells directly)"
+  ],
+  "unresolved": [
+   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "Whether the freeze's use of the cast target for the immunity / weather / enraged checks is intended; recorded as read",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-dewgong",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9838,
+     9851
+    ],
+    "symbol": "class Dewgong",
+    "expect": "skill = Ability.AURORA_BEAM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-iron_bundle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6986,
+     7002
+    ],
+    "symbol": "class IronBundle",
+    "expect": "skill = Ability.AURORA_BEAM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-seel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9822,
+     9836
+    ],
+    "symbol": "class Seel",
+    "expect": "skill = Ability.AURORA_BEAM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     755,
+     755
+    ],
+    "symbol": "AbilityStrategies[Ability.AURORA_BEAM]",
+    "expect": "[Ability.AURORA_BEAM]: new AuroraBeamStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AuroraBeamStrategy",
+    "expect": "export class AuroraBeamStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "ab-line",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "callback runs for every cell on the line"
+   },
+   {
+    "id": "ab-filter",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "only enemy-team entities are affected"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, default apBoost"
+   },
+   {
+    "id": "ab-chance",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "const freezeChance = 0.5",
+    "note": ""
+   },
+   {
+    "id": "ab-roll",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "if (chance(freezeChance, pokemon)) {",
+    "note": "one independent roll per enemy hit, using the caster's luck"
+   },
+   {
+    "id": "ab-freeze",
+    "file": "app/core/abilities/aurora-beam.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "AuroraBeamStrategy.process",
+    "expect": "cell.value.status.triggerFreeze(2000, target, pokemon)",
+    "note": "freeze 2000 ms on the hit unit's status, but the `pkm` argument is the cast target, not the hit unit"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     10,
+     12
+    ],
+    "symbol": "chance",
+    "expect": "Math.random() <",
+    "note": "chance(p, entity) = random < min(cap, p ^ (1 - luck/100))"
+   },
+   {
+    "id": "el-class",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     920
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": ""
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target; line is extended 12 cells beyond the caster along that angle"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": ""
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     938,
+     938
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped); each cell carries the entity on it"
+   },
+   {
+    "id": "fr-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     696,
+     696
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.freeze && // freeze cannot be stacked",
+    "note": "not applied if already frozen, rune protect, skydiving, IMMUNITY_FREEZE on pkm, or ccCooldown > 0"
+   },
+   {
+    "id": "fr-immune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     699,
+     699
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_FREEZE) &&",
+    "note": ""
+   },
+   {
+    "id": "fr-snow",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     702,
+     716
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.simulation.weather === Weather.SNOW) {",
+    "note": "SNOW x1.3 (Icy Rock reduces), DROUGHT x0.7, enraged pkm /2"
+   },
+   {
+    "id": "fr-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     717,
+     717
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "fr-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     720,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "this.freezeCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "fr-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     740,
+     740
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.freezeCooldown -= dt * (this.burn ? 2 : 1)",
+    "note": "burn halves the remaining freeze faster; when it ends ccCooldown is set to CC_COOLDOWN"
+   }
+  ]
+ }
+}
