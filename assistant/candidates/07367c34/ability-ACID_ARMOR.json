@@ -1,0 +1,563 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ACID_ARMOR",
+ "kind": "ability",
+ "identifier": "ACID_ARMOR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T113936Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare ACID_ARMOR: Goomy (1 star), Sliggoo (2 stars) and Goodra (3 stars). Units are bound by the queue record only; Sliggoo's and Goomy's passives are as listed in appliesTo. Hisuian forms are separate identifiers and are not covered.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ACID_ARMOR] = new AcidArmorStrategy()",
+   "strategy": "AcidArmorStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-aa",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "aa-class",
+    "aa-super"
+   ]
+  },
+  "summary": "Self-buff plus a short thorn effect. The caster gains raw DEF 3/6/12/25 (by stars; AP-scaled) and registers an on-damage-received effect that lasts for its next four damage events: each time the caster takes damage from an attacker standing at Chebyshev distance 1, that attacker loses 1 DEF; the counter drops on every damage event (adjacent attacker or not) and the effect removes itself at zero. The DEF gain itself has no timer in this file.",
+  "targeting": {
+   "who": "the caster itself (DEF buff); later, any attacker that is adjacent (Chebyshev distance 1) when the caster takes damage",
+   "needsTarget": true,
+   "note": "The strategy keeps requiresTarget = true (the base default) but never uses the cast target after super.process; the target only matters for the cast gate. A damage event with no attacker (attacker null) still decrements the counter but applies no debuff.",
+   "evidence": [
+    "aa-super",
+    "aa-dist",
+    "aa-debuff",
+    "aa-dec",
+    "effect-args",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "none for the buff; adjacency check with distanceC(...) === 1 between the caster's and the attacker's cells at the moment damage is received (ranged attackers beyond distance 1 are not debuffed)",
+   "evidence": [
+    "aa-dist",
+    "dist-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "buff",
+    "stat": "DEF",
+    "target": "caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 6,
+      "3": 12,
+      "4": 25,
+      "fallback": 25
+     }
+    },
+    "perUnitRaw": {
+     "GOODRA": 12,
+     "GOOMY": 3,
+     "SLIGOO": 6
+    },
+    "scaling": "requested = table value. applied by addDefense: round(value x (1 + apBoost x AP/100) x (crit ? critPower : 1)) with apBoost = 1 and the cast crit flag, then Big Eater Belt (x1.25 rounded down, holder only) and Twist Band (only flips negative values), then def = max(0, def + value). The cast crits only if ABILITY_CRIT is active (canCritByDefault is false).",
+    "resolution": "requested -> applied differs by AP, crit, and a Big Eater Belt on the caster; no timer or removal of the DEF gain in this file",
+    "evidence": [
+     "aa-table",
+     "aa-gain",
+     "adddef",
+     "adddef-body",
+     "adddef-helpers",
+     "adddef-clamp",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "debuff",
+    "stat": "DEF",
+    "target": "each attacker adjacent (distance 1) to the caster when the caster takes damage, for at most 4 damage events",
+    "declaredRaw": {
+     "value": -1,
+     "apBoost": 0,
+     "crit": false
+    },
+    "scaling": "requested = -1 DEF with apBoost 0 and crit false, so no AP or crit scaling. applied: addDefense on the attacker; a Twist Band holder turns the -1 into +1 (the caster is on the other team); Big Eater Belt does not boost it because the debuff comes from another team; the attacker's DEF cannot go below 0.",
+    "resolution": "requested -1 -> applied -1, or +1 on a Twist Band holder, or 0 change at DEF 0",
+    "evidence": [
+     "aa-effect",
+     "aa-dist",
+     "aa-debuff",
+     "aa-dec",
+     "aa-count",
+     "aa-add",
+     "effect-cls",
+     "aa-remove",
+     "adddef-body",
+     "adddef-helpers",
+     "adddef-clamp",
+     "belt-fn",
+     "twist-fn",
+     "recv-fn",
+     "recv-call"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "DEF",
+    "target": "caster",
+    "raw": "3/6/12/25 by stars",
+    "evidence": [
+     "aa-table",
+     "aa-gain"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GOODRA": 3,
+    "GOOMY": 1,
+    "SLIGOO": 2
+   },
+   "declaredRawDefGain": {
+    "GOODRA": 12,
+    "GOOMY": 3,
+    "SLIGOO": 6
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 25 is not reachable at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined. The DEF debuff of -1 and the four-event limit do not depend on stars.",
+   "evidence": [
+    "aa-table",
+    "unit-goodra",
+    "unit-goomy",
+    "unit-sligoo"
+   ]
+  },
+  "positionalConditions": "The debuff needs an attacker at Chebyshev distance 1 from the caster at the time damage is received; attackers at range do not get debuffed but still consume one of the four events.",
+  "repeatedCastsAndModes": "Each cast adds a new OnDamageReceivedEffect with its own count = 4, so recasting while an earlier effect is still active stacks effects: each one debuffs the adjacent attacker by 1 per damage event and counts down separately. Each cast also adds another DEF gain. No stored mode.",
+  "rawVsResolved": "Requested: self DEF +3/6/12 (1/2/3 stars) and attacker DEF -1 up to 4 times. Applied: the gain is round(raw x (1 + AP/100) x crit factor), x1.25 down for a Big Eater Belt holder; the -1 is flipped to +1 by a Twist Band holder and clamped at DEF 0. Damage taken by the caster is not changed by this ability's code beyond the DEF stat.",
+  "sourceTables": [
+   {
+    "id": "defGain",
+    "file": "app/core/abilities/acid-armor.ts",
+    "pattern": "const defGain = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How much the +DEF reduces physical damage (handleDamage's DEF formula was not traced for this record; see core-mechanics.md section A)",
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was located",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether damage events from non-attack sources (status ticks, retaliation) reach onDamageReceived with an attacker; only the handleDamage call site (takenDamage > 0, pokemon alive) was read",
+   "Whether the effectsSet entry is cleared at the end of the fight or reused (effectsSet lifecycle beyond add/delete not read)",
+   "Whether Goomy/Sliggoo/Goodra ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "ACID_ARMOR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GOODRA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACID_ARMOR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOOMY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACID_ARMOR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SLIGOO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACID_ARMOR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOODRA": {
+    "evidence": [
+     "unit-goodra"
+    ]
+   },
+   "GOOMY": {
+    "evidence": [
+     "unit-goomy"
+    ]
+   },
+   "SLIGOO": {
+    "evidence": [
+     "unit-sligoo"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-goodra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2644,
+     2660
+    ],
+    "symbol": "class Goodra",
+    "expect": "skill = Ability.ACID_ARMOR",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-goomy",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2597,
+     2623
+    ],
+    "symbol": "class Goomy",
+    "expect": "skill = Ability.ACID_ARMOR",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-sligoo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2625,
+     2642
+    ],
+    "symbol": "class Sligoo",
+    "expect": "skill = Ability.ACID_ARMOR",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-aa",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     731,
+     731
+    ],
+    "symbol": "AbilityStrategies[Ability.ACID_ARMOR]",
+    "expect": "[Ability.ACID_ARMOR]: new AcidArmorStrategy()",
+    "note": ""
+   },
+   {
+    "id": "aa-class",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AcidArmorStrategy",
+    "expect": "export class AcidArmorStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget or canCritByDefault"
+   },
+   {
+    "id": "aa-super",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AcidArmorStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process called without preventDefaultAnim"
+   },
+   {
+    "id": "aa-table",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "defGain table",
+    "expect": "const defGain = [3, 6, 12, 25][pokemon.stars - 1] ?? 25",
+    "note": "raw DEF gain by caster stars, 25 fallback"
+   },
+   {
+    "id": "aa-gain",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "self DEF buff",
+    "expect": "pokemon.addDefense(defGain, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag passed"
+   },
+   {
+    "id": "aa-count",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "hit counter",
+    "expect": "let count = 4",
+    "note": "closure-local counter per cast"
+   },
+   {
+    "id": "aa-effect",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "acidHitEffect",
+    "expect": "const acidHitEffect = new OnDamageReceivedEffect(",
+    "note": "on-damage-received effect created per cast"
+   },
+   {
+    "id": "aa-dist",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "adjacency test",
+    "expect": "=== 1",
+    "note": "Chebyshev distance between caster and attacker must equal 1"
+   },
+   {
+    "id": "aa-debuff",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "DEF debuff on attacker",
+    "expect": "attacker.addDefense(-1, pokemon, 0, false)",
+    "note": "raw -1, apBoost 0, no crit"
+   },
+   {
+    "id": "aa-dec",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "hit counter decrement",
+    "expect": "count--",
+    "note": "decremented on every received-damage event, whether or not the attacker was adjacent"
+   },
+   {
+    "id": "aa-remove",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "effect removal",
+    "expect": "pokemon.effectsSet.delete(acidHitEffect)",
+    "note": "removed when count <= 0"
+   },
+   {
+    "id": "aa-add",
+    "file": "app/core/abilities/acid-armor.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "effect registration",
+    "expect": "pokemon.effectsSet.add(acidHitEffect)",
+    "note": "effect added to the caster's effectsSet"
+   },
+   {
+    "id": "adddef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     676,
+     676
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "caster: IPokemonEntity | \"environment\",",
+    "note": "addDefense signature (value, caster, apBoost, crit, permanent)"
+   },
+   {
+    "id": "adddef-body",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     682,
+     685
+    ],
+    "symbol": "addDefense scaling",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP boost and crit multiplier, rounded"
+   },
+   {
+    "id": "adddef-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     687,
+     688
+    ],
+    "symbol": "addDefense helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt then Twist Band adjust the value before it is applied"
+   },
+   {
+    "id": "adddef-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     692,
+     692
+    ],
+    "symbol": "addDefense clamp",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "DEF cannot go below 0"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down for buffs (value > 0, or negative from a same-team caster) on a holder of BIG_EATER_BELT"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1864,
+     1864
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "a debuff from another team on a Twist Band holder is turned into a buff of the same size"
+   },
+   {
+    "id": "recv-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1222,
+     1222
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.getEffects(OnDamageReceivedEffect).forEach((effect) => {",
+    "note": "effects are applied from onDamageReceived"
+   },
+   {
+    "id": "recv-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "onDamageReceived is called only when takenDamage > 0 and the pokemon is still alive"
+   },
+   {
+    "id": "effect-cls",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     364,
+     364
+    ],
+    "symbol": "OnDamageReceivedEffect",
+    "expect": "export class OnDamageReceivedEffect extends Effect",
+    "note": ""
+   },
+   {
+    "id": "effect-args",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     347,
+     354
+    ],
+    "symbol": "OnDamageReceivedEffectArgs",
+    "expect": "export interface OnDamageReceivedEffectArgs",
+    "note": "args: pokemon, attacker (nullable), damage..."
+   },
+   {
+    "id": "dist-fn",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     3,
+     3
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   }
+  ]
+ }
+}
