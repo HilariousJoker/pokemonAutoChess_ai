@@ -1,0 +1,735 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BULLDOZE",
+ "kind": "ability",
+ "identifier": "BULLDOZE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T233950Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare BULLDOZE: Turtwig (1 star), Grotle (2 stars) and Torterra (3 stars); all have range 1 and maxPP 100 and no passive. The strategy is shared; unit differences are the star count (damage table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BULLDOZE] = new BulldozeStrategy()",
+   "strategy": "BulldozeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "bd-class",
+    "bd-super"
+   ]
+  },
+  "summary": "The caster hits every adjacent enemy: each is knocked one cell directly away (if an empty cell is found), its attack cooldown is reset, its speed is reduced by a requested 10, and it takes SPECIAL damage (raw 25/45/85 by stars; AP-scaled). The cast target itself is not used.",
+  "targeting": {
+   "who": "every enemy entity in the 8 cells around the caster, at cast time",
+   "needsTarget": true,
+   "note": "The cast target is passed to super.process only; hits depend on adjacency, not on the target. Allies are skipped. Cells are processed in board-scan order (rows then columns) from a list built before the loop.",
+   "evidence": [
+    "bd-adj",
+    "bd-loop",
+    "bd-enemy",
+    "board-adj",
+    "bd-super"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square around the caster (8 neighbours); knockback along the line from caster to each enemy",
+   "evidence": [
+    "bd-adj",
+    "board-adj",
+    "bd-orient",
+    "board-orient",
+    "bd-knock",
+    "board-kb",
+    "kb-table"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 45,
+      "3": 85,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "GROTLE": 45,
+     "TORTERRA": 85,
+     "TURTWIG": 25
+    },
+    "scaling": "requested = table value. applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default); x critPower (adjusted by target items) if the cast crit.",
+    "resolution": "then PokemonState.handleDamage: divided by 1 + ARMOR_FACTOR x SPE_DEF, at least 1 (rounded up), shield absorbs before HP; protect / skydiving / magicBounce on the target block the hit entirely. takenDamage includes shield damage.",
+    "evidence": [
+     "bd-dmg-table",
+     "bd-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "debuff",
+    "stat": "SPEED",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "value": -10
+    },
+    "perUnitRaw": {
+     "GROTLE": -10,
+     "TORTERRA": -10,
+     "TURTWIG": -10
+    },
+    "scaling": "requested = -10 for every star count. addSpeed is called with apBoost 0 and crit false, so AP and crit do not change it. Big Eater Belt does not apply (the value is negative and the caster is on the other team). Twist Band on the target flips a negative value from an enemy caster to +10 (a speed gain). Then speed = clamp(speed + value, 0, MAX_SPEED = 300). A MELMETAL-passive target instead receives value x 0.5 as an attack change and its speed is not changed.",
+    "resolution": "requested -10 -> applied -10 (or +10 with Twist Band; the Melmetal case routes to addAttack) -> actual change after the 0..300 clamp. No timer or removal appears in this file.",
+    "evidence": [
+     "bd-speed",
+     "bd-addspeed",
+     "spd-sig",
+     "spd-helpers",
+     "spd-melmetal",
+     "spd-scale",
+     "spd-clamp",
+     "belt-fn",
+     "twist-fn",
+     "max-speed",
+     "max-speed",
+     "twist-fn",
+     "belt-fn"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "step": "one cell directly away from the caster, with two fallback directions"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, true) swaps with the chosen empty cell and sets cooldown 100, unless the mover is skydiving, locked or holds Heavy Duty Boots (then nothing moves). Afterwards resetCooldown(500) sets cooldown = round(500 / (0.4 + speed x 0.007)) using the speed before the reduction.",
+    "evidence": [
+     "bd-orient",
+     "bd-knock",
+     "bd-move",
+     "bd-cd",
+     "board-orient",
+     "board-kb",
+     "kb-table",
+     "moveto",
+     "canbemoved",
+     "resetcd"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GROTLE": 2,
+    "TORTERRA": 3,
+    "TURTWIG": 1
+   },
+   "declaredRawDamage": {
+    "GROTLE": 45,
+    "TORTERRA": 85,
+    "TURTWIG": 25
+   },
+   "note": "the damage table is indexed by the casting entity's stars; the 4-star value 160 is not reachable at the bare factory star counts of these units. The speed reduction (10) and knockback do not vary by star. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "bd-dmg-table",
+    "unit-grotle",
+    "unit-torterra",
+    "unit-turtwig"
+   ]
+  },
+  "positionalConditions": "Only enemies in the 8 adjacent cells are affected. The knockback destination must be an empty on-board cell among the three ordered candidates for the away direction; with none (edge, blocked), the enemy stays but still loses speed and takes damage (the cooldown reset is skipped too, because it sits inside the destination check). A caster with no adjacent enemy deals nothing.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast acts immediately; speed reductions stack additively across casts down to 0.",
+  "rawVsResolved": "Declared raw: damage 25/45/85 (1/2/3 stars) and speed -10. Damage dealt = raw x (1 + AP/100) (x crit factor), then SPE_DEF division, minimum 1; shield damage is included in takenDamage. Speed applied = -10 (apBoost 0, no crit scaling), flipped to +10 by Twist Band, then clamped to 0..300. None is computed here for a specific target or caster.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/bulldoze.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, items, resurrection, field multipliers); only the SPE_DEF division and the minimum of 1 were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether a knocked-back enemy that was moved earlier in the loop can be hit twice or skipped: the adjacent-cell list is built once before the loop, so each entry keeps the entity that occupied it at that time; the effect of swaps on later entries was not traced further",
+   "How the target's movement state reacts to toMovingState after the displacement (retargeting beyond the cooldown values) was not traced",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "BULLDOZE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GROTLE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BULLDOZE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TORTERRA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BULLDOZE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TURTWIG",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BULLDOZE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GROTLE": {
+    "evidence": [
+     "unit-grotle"
+    ]
+   },
+   "TORTERRA": {
+    "evidence": [
+     "unit-torterra"
+    ]
+   },
+   "TURTWIG": {
+    "evidence": [
+     "unit-turtwig"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     784,
+     784
+    ],
+    "symbol": "AbilityStrategies[Ability.BULLDOZE]",
+    "expect": "[Ability.BULLDOZE]: new BulldozeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet (not for TRUE) / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "resolved damage handed to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage (core-mechanics.md section A)"
+   },
+   {
+    "id": "spd-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     757
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "addSpeed(",
+    "note": "(value, caster, apBoost, crit, permanent)"
+   },
+   {
+    "id": "spd-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     759,
+     760
+    ],
+    "symbol": "addSpeed helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt (x1.25 rounded down for buffs and own-team losses) then Twist Band (negative value from an enemy caster is flipped positive)"
+   },
+   {
+    "id": "spd-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     762
+    ],
+    "symbol": "addSpeed",
+    "expect": "if (this.passive === Passive.MELMETAL)",
+    "note": "a MELMETAL-passive target gets value x 0.5 as attack instead of speed"
+   },
+   {
+    "id": "spd-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     763,
+     769
+    ],
+    "symbol": "addSpeed scaling",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP boost and crit multiplier (not rounded)"
+   },
+   {
+    "id": "spd-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "addSpeed clamp",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED",
+    "note": ""
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "plain function, not a method"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "plain function, not a method"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": "MAX_SPEED clamp ceiling"
+   },
+   {
+    "id": "unit-grotle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2112,
+     2128
+    ],
+    "symbol": "class Grotle",
+    "expect": "skill = Ability.BULLDOZE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-torterra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2131,
+     2146
+    ],
+    "symbol": "class Torterra",
+    "expect": "skill = Ability.BULLDOZE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-turtwig",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2093,
+     2109
+    ],
+    "symbol": "class Turtwig",
+    "expect": "skill = Ability.BULLDOZE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "bd-class",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BulldozeStrategy",
+    "expect": "export class BulldozeStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "bd-super",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BulldozeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default broadcast not prevented; the cast target is not otherwise used"
+   },
+   {
+    "id": "bd-dmg-table",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [25, 45, 85, 160][pokemon.stars - 1] ?? 160",
+    "note": "raw damage by caster stars, 160 fallback"
+   },
+   {
+    "id": "bd-speed",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "speedReduction",
+    "expect": "const speedReduction = 10",
+    "note": "fixed 10, not star-indexed"
+   },
+   {
+    "id": "bd-adj",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     16,
+     20
+    ],
+    "symbol": "adjacent cells",
+    "expect": "const adjacentsCells = board.getAdjacentCells(",
+    "note": "8-neighbourhood of the caster, centre excluded"
+   },
+   {
+    "id": "bd-loop",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "adjacent loop",
+    "expect": "for (const cell of adjacentsCells) {",
+    "note": ""
+   },
+   {
+    "id": "bd-enemy",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "enemy filter",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "occupied cells holding an entity of a different team"
+   },
+   {
+    "id": "bd-orient",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     24,
+     31
+    ],
+    "symbol": "orientation",
+    "expect": "const orientation = board.orientation(",
+    "note": "direction from caster to the adjacent enemy"
+   },
+   {
+    "id": "bd-knock",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     32,
+     36
+    ],
+    "symbol": "knockback destination",
+    "expect": "const destination = board.getKnockBackPlace(",
+    "note": ""
+   },
+   {
+    "id": "bd-move",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "knockback move",
+    "expect": "cell.value.moveTo(destination.x, destination.y, board, true)",
+    "note": "forced displacement; only when a destination exists"
+   },
+   {
+    "id": "bd-cd",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "cooldown reset",
+    "expect": "cell.value.resetCooldown(500)",
+    "note": "only when a destination exists; replaces the 100 set by moveTo"
+   },
+   {
+    "id": "bd-addspeed",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     43,
+     43
+    ],
+    "symbol": "speed reduction",
+    "expect": "cell.value.addSpeed(-speedReduction, pokemon, 0, false)",
+    "note": "requested -10, apBoost 0, crit false; runs whether or not the knockback happened"
+   },
+   {
+    "id": "bd-hit",
+    "file": "app/core/abilities/bulldoze.ts",
+    "lines": [
+     45,
+     51
+    ],
+    "symbol": "damage call",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, crit flag from the cast; default apBoost true"
+   },
+   {
+    "id": "board-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     149
+    ],
+    "symbol": "Board.orientation",
+    "expect": "  orientation(",
+    "note": "dx/dy sign of target minus caster picks one of 8 orientations"
+   },
+   {
+    "id": "board-adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number",
+    "note": "y outer / x inner scan, skips centre unless includesCenter, drops off-board cells"
+   },
+   {
+    "id": "board-kb",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     713
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "getKnockBackPlace(",
+    "note": "tries the orientation then two neighbouring orientations, first empty on-board cell; null if none"
+   },
+   {
+    "id": "kb-table",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     66,
+     67
+    ],
+    "symbol": "OrientationKnockback",
+    "expect": "export const OrientationKnockback",
+    "note": "orientation -> ordered fallback orientations"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "forced moves return early if canBeMoved is false for the mover or the entity on the destination; otherwise swap cells and cooldown = 100"
+   },
+   {
+    "id": "canbemoved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "canBeMoved",
+    "expect": "get canBeMoved(): boolean",
+    "note": "false when skydiving, locked, or holding Heavy Duty Boots"
+   },
+   {
+    "id": "resetcd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "resetCooldown",
+    "expect": "resetCooldown(baseDuration: number, speed = this.speed)",
+    "note": "cooldown = round(baseDuration / (0.4 + speed x 0.007)), using the speed at call time"
+   }
+  ]
+ }
+}
