@@ -1,0 +1,912 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/COLUMN_CRUSH",
+ "kind": "ability",
+ "identifier": "COLUMN_CRUSH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T233950Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare COLUMN_CRUSH: CONKELDURR (3 stars), GURDURR (2 stars), TIMBURR (1 star); all have range 1 and maxPP 100 and no passive per the unit blocks. The strategy is shared; unit differences are the star count (damage table and pillar type index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.COLUMN_CRUSH] = new ColumnCrushStrategy()",
+   "strategy": "ColumnCrushStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "cc-class",
+    "cc-notarget",
+    "cc-super"
+   ]
+  },
+  "summary": "Two modes chosen at cast time. If no allied pillar entity is on the board, the caster builds one on the closest free cell (wood / iron / concrete by stars). If an allied pillar already exists, the caster destroys it, jumps onto its cell and, 500 ms later, throws it at the nearest enemy: SPECIAL damage of 50/100/150 (by stars) plus the pillar's remaining HP, landing after distance x 160 ms.",
+  "targeting": {
+   "who": "build mode: none (a free cell); throw mode: the nearest targettable enemy at the moment of the 500 ms command (fallback the first enemy in cell order)",
+   "needsTarget": false,
+   "note": "requiresTarget is false so no walk-up is needed; the cast target argument is null. Ties between equally near enemies are broken by pickRandomIn.",
+   "evidence": [
+    "cc-notarget",
+    "cc-find",
+    "isin",
+    "pillars-enum",
+    "cc-nearest",
+    "cc-fallback",
+    "nearest-fn",
+    "targettable",
+    "cc-settarget"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; thrown projectile travel time = Euclidean distance from the pillar cell to the enemy x 160 ms",
+   "evidence": [
+    "cc-travel",
+    "distanceE",
+    "cc-delay2"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "summon",
+    "target": "a free cell chosen by getClosestFreeCellToPokemonEntity",
+    "declaredRaw": {
+     "pillar": "PILLAR_WOOD / PILLAR_IRON / PILLAR_CONCRETE by caster stars 1 / 2 / 3+",
+     "hp": "100 / 200 / 300",
+     "def": "2 / 6 / 10",
+     "speDef": "2 / 6 / 10"
+    },
+    "perUnitRaw": {
+     "CONKELDURR": "PILLAR_CONCRETE",
+     "GURDURR": "PILLAR_IRON",
+     "TIMBURR": "PILLAR_WOOD"
+    },
+    "scaling": "none in this file. The pillar HP, DEF and SPE_DEF come from the pillar class blocks, not from the source comment (which says 1/3/5 DEF and SPE_DEF; the class blocks say 2/6/10).",
+    "resolution": "the pillar is an allied, INANIMATE entity added with isSpawn true; nothing is built if no free cell is found (PP is still spent). Whether synergy or item effects change the pillar's stats on spawn was not traced.",
+    "evidence": [
+     "cc-else",
+     "cc-closestfree",
+     "cc-nocell",
+     "cc-pillartype",
+     "cc-create",
+     "cc-addpokemon",
+     "sim-closest-fn",
+     "sim-closest-ent",
+     "sim-addpokemon",
+     "unit-pillarwood",
+     "unit-pillariron",
+     "unit-pillarconcrete"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "step": "moves onto the existing pillar's cell, then waits 500 ms to throw"
+    },
+    "scaling": "none",
+    "resolution": "the pillar entity is destroyed first (shield 0, 9999 TRUE damage, no attacker), then moveTo(pillarX, pillarY, board, false) puts the caster on that cell with cooldown 100, then resetCooldown(800) overrides it.",
+    "evidence": [
+     "cc-shield0",
+     "cc-kill",
+     "cc-jump",
+     "cc-cd",
+     "moveto",
+     "resetcd"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the chosen enemy (landing after travel time)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 150,
+      "4": 300,
+      "fallback": 300
+     },
+     "plus": "the thrown pillar's HP at the moment of the cast (PILLAR_WOOD up to 100, PILLAR_IRON up to 200, PILLAR_CONCRETE up to 300 at full HP)"
+    },
+    "perUnitRaw": {
+     "CONKELDURR": 150,
+     "GURDURR": 100,
+     "TIMBURR": 50
+    },
+    "scaling": "requested = table value + pillar remaining HP (the pillar HP is not star-indexed and is added unscaled before the call). applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default) applies to the whole sum; x critPower if the cast crit. A magicBounce target reflects the SPECIAL hit instead.",
+    "resolution": "then PokemonState.handleDamage: divided by 1 + ARMOR_FACTOR x SPE_DEF, at least 1 (rounded up), shield absorbs before HP; protect / skydiving block it. takenDamage includes shield damage. The damage is skipped if the enemy has hp <= 0 when the command fires.",
+    "evidence": [
+     "cc-dmg-table",
+     "cc-capture",
+     "cc-hit",
+     "cc-alive",
+     "special-bounce",
+     "cc-delay1",
+     "cc-delay1-end",
+     "cc-bcast1",
+     "cc-rocksmash",
+     "cmd-delay",
+     "cmd-run",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-min",
+     "hd-recv"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CONKELDURR": 3,
+    "GURDURR": 2,
+    "TIMBURR": 1
+   },
+   "declaredRawDamage": {
+    "CONKELDURR": 150,
+    "GURDURR": 100,
+    "TIMBURR": 50
+   },
+   "note": "the damage table and the pillar choice are indexed by the casting entity's stars; the 4-star value 300 is not reachable at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "cc-dmg-table",
+    "cc-pillartype",
+    "unit-conkeldurr",
+    "unit-gurdurr",
+    "unit-timburr"
+   ]
+  },
+  "positionalConditions": "Build mode needs a free cell (the offset list is tried in priority order, then the first free cell of the team's side). Throw mode needs at least one enemy on the board; with none, the pillar is still destroyed and the caster still moves, but no damage is dealt.",
+  "repeatedCastsAndModes": "Stateful through the board: the first cast builds a pillar, the next cast (while that pillar is alive) consumes it. A pillar damaged before the throw adds only its remaining HP. A pillar of any allied origin on the caster's team counts, not only one built by this caster. Delayed commands are queued on the caster's command list.",
+  "rawVsResolved": "Declared raw: damage 50/100/150 (1/2/3 stars) plus the pillar's remaining HP (max 100/200/300). Damage dealt = (raw + remaining HP) x (1 + AP/100) (x crit factor), then SPE_DEF division, minimum 1; shield damage is included in takenDamage. None is computed here for a specific target.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/column-crush.ts",
+    "pattern": "\\(\\[([0-9, ]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 300\\)",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, items, resurrection, field multipliers); only the SPE_DEF division and the minimum of 1 were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "REFERENCES_OTHER_ABILITIES: the only reference to another ability is Ability.ROCK_SMASH as an animation id in a broadcast; no ROCK_SMASH strategy is invoked (traced in this file only)",
+   "The source comment says the pillar has 1/3/5 DEF and SPE_DEF but the pillar class blocks say 2/6/10; the class blocks are cited here, the comment is stale or refers to other scaling",
+   "Whether synergy or item effects applied in Simulation.addPokemon change a built pillar's stats was not traced",
+   "The second broadcast reads pillar.positionX / positionY after the pillar was destroyed; what those values are for a dead entity was not traced",
+   "What handleSpecialDamage with a null attacker and TRUE type does (death handling of the pillar) was not traced beyond its signature",
+   "Whether the delayed commands still run if the caster dies before they fire was not traced",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "COLUMN_CRUSH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CONKELDURR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GURDURR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TIMBURR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CONKELDURR": {
+    "evidence": [
+     "unit-conkeldurr"
+    ]
+   },
+   "GURDURR": {
+    "evidence": [
+     "unit-gurdurr"
+    ]
+   },
+   "TIMBURR": {
+    "evidence": [
+     "unit-timburr"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     801,
+     801
+    ],
+    "symbol": "AbilityStrategies[Ability.COLUMN_CRUSH]",
+    "expect": "[Ability.COLUMN_CRUSH]: new ColumnCrushStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet (not for TRUE) / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "resolved damage handed to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-conkeldurr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17176,
+     17191
+    ],
+    "symbol": "class Conkeldurr",
+    "expect": "skill = Ability.COLUMN_CRUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gurdurr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17157,
+     17173
+    ],
+    "symbol": "class Gurdurr",
+    "expect": "skill = Ability.COLUMN_CRUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-timburr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17138,
+     17154
+    ],
+    "symbol": "class Timburr",
+    "expect": "skill = Ability.COLUMN_CRUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "cc-class",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "ColumnCrushStrategy",
+    "expect": "export class ColumnCrushStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "cc-notarget",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ColumnCrushStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without walking up to a target"
+   },
+   {
+    "id": "cc-super",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the default broadcast is skipped; broadcasts happen inside the delayed commands"
+   },
+   {
+    "id": "cc-find",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     17,
+     19
+    ],
+    "symbol": "pillar search",
+    "expect": "const pillar = board.cells.find(",
+    "note": "first entity of the caster's team whose name is one of the pillar Pokemon"
+   },
+   {
+    "id": "isin",
+    "file": "app/utils/array.ts",
+    "lines": [
+     4,
+     6
+    ],
+    "symbol": "isIn",
+    "expect": "export function isIn<T>(",
+    "note": "includes() test"
+   },
+   {
+    "id": "pillars-enum",
+    "file": "app/types/enum/Pokemon.ts",
+    "lines": [
+     3817,
+     3820
+    ],
+    "symbol": "Pillars",
+    "expect": "export const Pillars = [",
+    "note": "PILLAR_WOOD, PILLAR_IRON, PILLAR_CONCRETE"
+   },
+   {
+    "id": "cc-capture",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     24,
+     25
+    ],
+    "symbol": "throw branch",
+    "expect": "const remainingHp = pillar.hp",
+    "note": "pillar HP captured before the pillar is destroyed"
+   },
+   {
+    "id": "cc-kill",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "throw branch",
+    "expect": "pillar.handleSpecialDamage(9999, board, AttackType.TRUE, null, false)",
+    "note": "shield zeroed first, then 9999 TRUE damage with no attacker destroys the pillar"
+   },
+   {
+    "id": "cc-shield0",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "throw branch",
+    "expect": "pillar.shield = 0",
+    "note": ""
+   },
+   {
+    "id": "cc-jump",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "throw branch",
+    "expect": "pokemon.moveTo(pillarX, pillarY, board, false)",
+    "note": "the caster moves onto the pillar's cell (non-forced move)"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "throw branch",
+    "expect": "pokemon.resetCooldown(800)",
+    "note": ""
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "non-forced: swaps cells and sets cooldown = 100"
+   },
+   {
+    "id": "resetcd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "resetCooldown",
+    "expect": "resetCooldown(baseDuration: number, speed = this.speed)",
+    "note": "cooldown = round(baseDuration / (0.4 + speed x 0.007))"
+   },
+   {
+    "id": "cc-dmg-table",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "damage",
+    "expect": "([50, 100, 150, 300][pokemon.stars - 1] ?? 300) + remainingHp",
+    "note": "raw damage by caster stars (300 fallback) plus the pillar's remaining HP"
+   },
+   {
+    "id": "cc-delay1",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "delayed command",
+    "expect": "new DelayedCommand(() => {",
+    "note": "first command (500 ms) chooses the enemy; it contains the second command"
+   },
+   {
+    "id": "cc-delay1-end",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     95,
+     95
+    ],
+    "symbol": "first delay",
+    "expect": "}, 500)",
+    "note": ""
+   },
+   {
+    "id": "cc-nearest",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     37,
+     40
+    ],
+    "symbol": "target choice",
+    "expect": "pokemon.state.getNearestTargetAtSight(",
+    "note": "nearest targettable enemy by Manhattan distance, ties picked at random"
+   },
+   {
+    "id": "cc-fallback",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     45,
+     47
+    ],
+    "symbol": "target fallback",
+    "expect": "enemyHit = board.cells.find(",
+    "note": "fallback: first entity of another team in cell order"
+   },
+   {
+    "id": "nearest-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1164,
+     1197
+    ],
+    "symbol": "PokemonState.getNearestTargetAtSight",
+    "expect": "getNearestTargetAtSight(",
+    "note": "Manhattan distance, isTargettableBy, random among ties"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     286
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "isTargettableBy(",
+    "note": "not untargettable and on the other team (or MERCILESS exception)"
+   },
+   {
+    "id": "cc-settarget",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "target set",
+    "expect": "pokemon.setTarget(enemyHit)",
+    "note": ""
+   },
+   {
+    "id": "cc-travel",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     53,
+     59
+    ],
+    "symbol": "travel time",
+    "expect": "const travelTime =",
+    "note": "Euclidean distance from the pillar's cell to the enemy x 160 ms"
+   },
+   {
+    "id": "distanceE",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     11,
+     14
+    ],
+    "symbol": "distanceE",
+    "expect": "export function distanceE(",
+    "note": "Euclidean distance"
+   },
+   {
+    "id": "cc-bcast1",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     61,
+     61
+    ],
+    "symbol": "broadcast",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation broadcasts only (the second one names ROCK_SMASH as animation id, no ROCK_SMASH behaviour is run)"
+   },
+   {
+    "id": "cc-rocksmash",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     76,
+     76
+    ],
+    "symbol": "broadcast",
+    "expect": "skill: Ability.ROCK_SMASH,",
+    "note": "animation id only; this is the REFERENCES_OTHER_ABILITIES routing uncertainty"
+   },
+   {
+    "id": "cc-delay2",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "second delay",
+    "expect": "}, travelTime)",
+    "note": "second command fires after travelTime"
+   },
+   {
+    "id": "cc-alive",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     83,
+     83
+    ],
+    "symbol": "landing check",
+    "expect": "if (enemyHit && enemyHit.hp > 0) {",
+    "note": "damage only if the enemy is still alive when the second command fires"
+   },
+   {
+    "id": "cc-hit",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     84,
+     90
+    ],
+    "symbol": "damage call",
+    "expect": "enemyHit.handleSpecialDamage(",
+    "note": "SPECIAL damage, crit flag from the cast; default apBoost true"
+   },
+   {
+    "id": "cmd-delay",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     14,
+     16
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "the command fires once delay is below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's commands are updated by its state"
+   },
+   {
+    "id": "cc-else",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     98,
+     98
+    ],
+    "symbol": "build branch",
+    "expect": "//Builds a pillar of 100/200/300 HP and 1/3/5 DEF and SPE_DEF on the closest empty spot.",
+    "note": "source comment states 1/3/5 DEF and SPE_DEF; see the pillar class blocks"
+   },
+   {
+    "id": "cc-closestfree",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     100,
+     101
+    ],
+    "symbol": "build branch",
+    "expect": "pokemon.simulation.getClosestFreeCellToPokemonEntity(pokemon)",
+    "note": ""
+   },
+   {
+    "id": "cc-nocell",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     101,
+     101
+    ],
+    "symbol": "build branch",
+    "expect": "if (!coord) return",
+    "note": "no cell: nothing is built (PP was already spent in super.process)"
+   },
+   {
+    "id": "cc-pillartype",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     102,
+     102
+    ],
+    "symbol": "build branch",
+    "expect": "const pillarType = Pillars[pokemon.stars - 1] ?? Pkm.PILLAR_CONCRETE",
+    "note": "pillar by caster stars: 1 wood, 2 iron, 3+ concrete"
+   },
+   {
+    "id": "cc-create",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     103,
+     106
+    ],
+    "symbol": "build branch",
+    "expect": "PokemonFactory.createPokemonFromName(",
+    "note": ""
+   },
+   {
+    "id": "cc-addpokemon",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     108,
+     114
+    ],
+    "symbol": "build branch",
+    "expect": "pokemon.simulation.addPokemon(",
+    "note": "added on the caster's team with isSpawn true"
+   },
+   {
+    "id": "sim-closest-fn",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     423,
+     476
+    ],
+    "symbol": "Simulation.getClosestFreeCellTo",
+    "expect": "getClosestFreeCellTo(",
+    "note": "tries a fixed list of offsets around the caster (own cell first, rows flipped by team), then getFirstFreeCell"
+   },
+   {
+    "id": "sim-closest-ent",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     491,
+     496
+    ],
+    "symbol": "Simulation.getClosestFreeCellToPokemonEntity",
+    "expect": "getClosestFreeCellToPokemonEntity(",
+    "note": ""
+   },
+   {
+    "id": "sim-addpokemon",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     202,
+     254
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "  addPokemon(",
+    "note": "creates the entity (synergy and item effects applied, onSpawn run) on the cell"
+   },
+   {
+    "id": "unit-pillarwood",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17194,
+     17209
+    ],
+    "symbol": "class PillarWood",
+    "expect": "export class PillarWood extends Pokemon",
+    "note": "hp 100, def 2, speDef 2, INANIMATE"
+   },
+   {
+    "id": "unit-pillariron",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17211,
+     17226
+    ],
+    "symbol": "class PillarIron",
+    "expect": "export class PillarIron extends Pokemon",
+    "note": "hp 200, def 6, speDef 6, INANIMATE"
+   },
+   {
+    "id": "unit-pillarconcrete",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17228,
+     17243
+    ],
+    "symbol": "class PillarConcrete",
+    "expect": "export class PillarConcrete extends Pokemon",
+    "note": "hp 300, def 10, speDef 10, INANIMATE"
+   },
+   {
+    "id": "special-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     361,
+     361
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.magicBounce &&",
+    "note": "SPECIAL ability damage on a magicBounce target is reflected by a delayed command"
+   }
+  ]
+ }
+}
