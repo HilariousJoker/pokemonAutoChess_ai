@@ -1,0 +1,717 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AQUA_STEP",
+ "kind": "ability",
+ "identifier": "AQUA_STEP",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T113936Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare AQUA_STEP: Quaxly (1 star), Quaxwell (2 stars) and Quaquaval (3 stars); all have range 1 and maxPP 100 and no passive. The strategy is shared; unit differences are the star count (table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AQUA_STEP] = new AquaStepStrategy()",
+   "strategy": "AquaStepStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "as-class",
+    "as-super"
+   ]
+  },
+  "summary": "The caster steps one cell toward the cast target (to the empty cell closest to the cell one sign-step away), then 300 ms later deals SPECIAL damage (raw 25/50/100/200 by stars) to the cast target and gains raw speed 10/15/20/25 (by stars; AP-scaled).",
+  "targeting": {
+   "who": "the cast target (damage); caster itself (step and speed gain)",
+   "needsTarget": true,
+   "note": "The step uses the cast target's position at cast time; the delayed damage uses the target's entity (its position is read again for the broadcast only). The damage is queued whether or not a step cell was found.",
+   "evidence": [
+    "as-dir",
+    "as-stepcell",
+    "as-move",
+    "as-delay",
+    "as-hit",
+    "as-bcast",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "one-cell step: destination = closest empty cell (Manhattan) to (caster.x + sign(dx), caster.y + sign(dy)); single-target damage afterwards",
+   "evidence": [
+    "as-dir",
+    "as-stepcell",
+    "closest",
+    "closest-sort",
+    "as-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "cast target (after 300 ms)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "QUAQUAVAL": 100,
+     "QUAXLY": 25,
+     "QUAXWELL": 50
+    },
+    "scaling": "requested = table value. applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default); x critPower (adjusted by target items) if the cast crit.",
+    "resolution": "then PokemonState.handleDamage: divided by 1 + ARMOR_FACTOR x SPE_DEF, at least 1, shield absorbs before HP; protect / skydiving / magicBounce on the target at the time the command fires block the hit entirely. takenDamage includes shield damage.",
+    "evidence": [
+     "as-dmg-table",
+     "as-delay",
+     "as-delay-end",
+     "as-hit",
+     "cmd-delay",
+     "cmd-run",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "buff",
+    "stat": "SPEED",
+    "target": "caster (after 300 ms)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 15,
+      "3": 20,
+      "4": 25,
+      "fallback": 25
+     }
+    },
+    "perUnitRaw": {
+     "QUAQUAVAL": 20,
+     "QUAXLY": 10,
+     "QUAXWELL": 15
+    },
+    "scaling": "requested = table value. applied by addSpeed: Big Eater Belt x1.25 rounded down for a holder; then x(1 + AP/100) with apBoost 1, x critPower if the cast crit (no rounding); then speed = clamp(speed + value, 0, MAX_SPEED = 300).",
+    "resolution": "requested (table) -> applied (after belt, AP, crit) -> actual change (after the 0..300 clamp). No timer or removal in this file.",
+    "evidence": [
+     "as-spd-table",
+     "as-speed",
+     "spd-sig",
+     "spd-helpers",
+     "spd-scale",
+     "spd-clamp",
+     "spd-melmetal",
+     "max-speed",
+     "belt-fn"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "step": "one cell toward the target"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false) when a free cell exists: swap with the empty cell, cooldown set to 100.",
+    "evidence": [
+     "as-dir",
+     "as-stepcell",
+     "as-move",
+     "closest",
+     "closest-sort",
+     "moveto"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "SPEED",
+    "target": "caster",
+    "raw": "10/15/20/25 by stars",
+    "evidence": [
+     "as-spd-table",
+     "as-speed"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "QUAQUAVAL": 3,
+    "QUAXLY": 1,
+    "QUAXWELL": 2
+   },
+   "declaredRawDamage": {
+    "QUAQUAVAL": 100,
+    "QUAXLY": 25,
+    "QUAXWELL": 50
+   },
+   "declaredRawSpeedGain": {
+    "QUAQUAVAL": 20,
+    "QUAXLY": 10,
+    "QUAXWELL": 15
+   },
+   "note": "both tables are indexed by the casting entity's stars; the 4-star values (200 damage, +25 speed) are not reachable at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "as-dmg-table",
+    "as-spd-table",
+    "unit-quaquaval",
+    "unit-quaxly",
+    "unit-quaxwell"
+   ]
+  },
+  "positionalConditions": "The step needs an empty cell on the board; with none, the caster stays. A target already adjacent still triggers a step toward it, ending on the closest empty cell to the sign-step cell (which may be the target's own cell, so the nearest free neighbour is used).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast queues its own delayed command, and the speed gain stacks additively across casts (up to MAX_SPEED).",
+  "rawVsResolved": "Declared raw: damage 25/50/100 and speed +10/15/20 (1/2/3 stars). Damage dealt = raw x (1 + AP/100) (x crit factor), then SPE_DEF division, minimum 1; shield damage is included in takenDamage. Speed applied = floor(raw x 1.25) with a Big Eater Belt, then x (1 + AP/100) x crit factor, then clamped to 0..300. None is computed here for a specific target or caster.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/aqua-step.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "speedGain",
+    "file": "app/core/abilities/aqua-step.ts",
+    "pattern": "const speedGain = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, items, resurrection, field multipliers); only the SPE_DEF division and the minimum of 1 were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether the delayed command still runs (and whether the damage and speed gain still apply) if the caster dies or the simulation ends before 300 ms: the removal of a dead entity's commands was not traced",
+   "Whether the damage call is skipped or redirected if the target has died or moved by the time the command fires (the code calls handleSpecialDamage on the stored target entity unconditionally)",
+   "Tie order among equally close empty cells depends on board.forEach order and the stability of Array.prototype.sort (not verified beyond reading)",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "AQUA_STEP",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "QUAQUAVAL",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AQUA_STEP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "QUAXLY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AQUA_STEP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "QUAXWELL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AQUA_STEP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "QUAQUAVAL": {
+    "evidence": [
+     "unit-quaquaval"
+    ]
+   },
+   "QUAXLY": {
+    "evidence": [
+     "unit-quaxly"
+    ]
+   },
+   "QUAXWELL": {
+    "evidence": [
+     "unit-quaxwell"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-quaquaval",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20713,
+     20729
+    ],
+    "symbol": "class Quaquaval",
+    "expect": "skill = Ability.AQUA_STEP",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-quaxly",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20675,
+     20692
+    ],
+    "symbol": "class Quaxly",
+    "expect": "skill = Ability.AQUA_STEP",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-quaxwell",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20694,
+     20711
+    ],
+    "symbol": "class Quaxwell",
+    "expect": "skill = Ability.AQUA_STEP",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet (not for TRUE) / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "resolved damage handed to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage (core-mechanics.md section A)"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     743,
+     743
+    ],
+    "symbol": "AbilityStrategies[Ability.AQUA_STEP]",
+    "expect": "[Ability.AQUA_STEP]: new AquaStepStrategy()",
+    "note": ""
+   },
+   {
+    "id": "as-class",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AquaStepStrategy",
+    "expect": "export class AquaStepStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "as-super",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AquaStepStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the default ability broadcast is skipped; the strategy broadcasts inside the delayed command"
+   },
+   {
+    "id": "as-dmg-table",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "raw damage by caster stars, 200 fallback"
+   },
+   {
+    "id": "as-spd-table",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "speedGain table",
+    "expect": "const speedGain = [10, 15, 20, 25][pokemon.stars - 1] ?? 25",
+    "note": "raw speed gain by caster stars, 25 fallback"
+   },
+   {
+    "id": "as-dir",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "direction",
+    "expect": "const dx = target.positionX - pokemon.positionX",
+    "note": "sign of the offset to the cast target on each axis"
+   },
+   {
+    "id": "as-stepcell",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     17,
+     20
+    ],
+    "symbol": "stepCell",
+    "expect": "const stepCell = board.getClosestAvailablePlace(",
+    "note": "empty cell closest (Manhattan) to the cell one step (sign of dx, sign of dy) from the caster toward the target"
+   },
+   {
+    "id": "as-move",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "step move",
+    "expect": "pokemon.moveTo(stepCell.x, stepCell.y, board, false)",
+    "note": "moves immediately when a cell is found"
+   },
+   {
+    "id": "as-delay",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "delayed command",
+    "expect": "new DelayedCommand(() => {",
+    "note": "damage and speed gain are queued on the caster's commands with a 300 ms delay"
+   },
+   {
+    "id": "as-delay-end",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "delay value",
+    "expect": "}, 300)",
+    "note": ""
+   },
+   {
+    "id": "as-hit",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     29,
+     34
+    ],
+    "symbol": "delayed damage",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target, crit flag captured at cast time"
+   },
+   {
+    "id": "as-speed",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "speed gain call",
+    "expect": "pokemon.addSpeed(speedGain, pokemon, 1, crit)",
+    "note": "after the damage call, in the same delayed function; not conditional on the damage result"
+   },
+   {
+    "id": "as-bcast",
+    "file": "app/core/abilities/aqua-step.ts",
+    "lines": [
+     27,
+     30
+    ],
+    "symbol": "delayed broadcast",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "target cell read when the command fires"
+   },
+   {
+    "id": "closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     541,
+     544
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "  getClosestAvailablePlace(",
+    "note": "candidate = every empty cell; sorted by Manhattan distance; first returned"
+   },
+   {
+    "id": "closest-sort",
+    "file": "app/core/board.ts",
+    "lines": [
+     563,
+     564
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "candidateCells.sort((a, b) => a.distance - b.distance)",
+    "note": "ties keep board scan order if the sort is stable"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     897,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "swaps with the empty cell; sets cooldown 100"
+   },
+   {
+    "id": "cmd-delay",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     10,
+     14
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "delay counts down by dt; the command fires once delay is below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's commands are updated by its state"
+   },
+   {
+    "id": "spd-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     757
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "addSpeed(",
+    "note": "(value, caster, apBoost, crit, permanent)"
+   },
+   {
+    "id": "spd-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     758,
+     759
+    ],
+    "symbol": "addSpeed helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt (x1.25 rounded down for buffs) then Twist Band (only affects negative values)"
+   },
+   {
+    "id": "spd-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     766,
+     769
+    ],
+    "symbol": "addSpeed scaling",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP boost and crit multiplier (not rounded)"
+   },
+   {
+    "id": "spd-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "addSpeed clamp",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "speed clamped between 0 and MAX_SPEED"
+   },
+   {
+    "id": "spd-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     762
+    ],
+    "symbol": "addSpeed MELMETAL branch",
+    "expect": "if (this.passive === Passive.MELMETAL)",
+    "note": "a MELMETAL holder converts speed gain to attack; not applicable to the listed units"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down (0 digits) for buffs on a BIG_EATER_BELT holder"
+   }
+  ]
+ }
+}
