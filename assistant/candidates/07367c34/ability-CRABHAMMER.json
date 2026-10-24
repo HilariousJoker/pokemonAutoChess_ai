@@ -1,0 +1,520 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CRABHAMMER",
+ "kind": "ability",
+ "identifier": "CRABHAMMER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T233950Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare CRABHAMMER: CORPHISH (1 star), CRAWDAUNT (2 stars), POLIWRATH (3 stars); all have range 1 and maxPP 100 per the unit blocks. The strategy is shared; unit differences are the star count (table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CRABHAMMER] = new CrabHammerStrategy()",
+   "strategy": "CrabHammerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": true,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ch-class",
+    "ch-crit-default"
+   ]
+  },
+  "summary": "Single-target hit on the cast target: SPECIAL damage of a raw 40/80/160 (by stars; AP-scaled) with a crit roll at the caster's crit chance + 30 points; if the target is below 30% of its max HP at cast time the hit becomes TRUE damage of a raw 9999 (an execute), which still takes AP and crit scaling.",
+  "targeting": {
+   "who": "the cast target",
+   "needsTarget": true,
+   "note": "No area; the strategy reads only the target's current and max HP.",
+   "evidence": [
+    "ch-threshold",
+    "ch-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "ch-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL, or TRUE when the target is below 30% max HP",
+    "target": "cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     },
+     "executeRaw": 9999
+    },
+    "perUnitRaw": {
+     "CORPHISH": 40,
+     "CRAWDAUNT": 80,
+     "POLIWRATH": 160
+    },
+    "scaling": "requested = table value, or 9999 when target.hp / target.maxHP < 0.3 at cast time (then TRUE). applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default, also for the 9999 case); x critPower (reduced by Rocky Helmet / Black Augurite only for non-TRUE damage) if the re-rolled crit succeeded.",
+    "resolution": "SPECIAL branch: divided by 1 + ARMOR_FACTOR x SPE_DEF, flat reductions, at least 1 (rounded up). TRUE branch: no defence division, no flat reductions, at least 1. Shield absorbs before HP in both; protect / skydiving / magicBounce on the target block it entirely (magicBounce reflects SPECIAL only). takenDamage includes shield damage.",
+    "evidence": [
+     "ch-table",
+     "ch-threshold",
+     "ch-hit",
+     "hd-true",
+     "special-crit-true",
+     "special-bounce",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "modifier",
+    "target": "the cast's crit flag",
+    "declaredRaw": {
+     "critChanceBonus": 30
+    },
+    "scaling": "none",
+    "resolution": "crit = chance((critChance + 30)/100, luck); the roll made in castAbility (canCritByDefault true) is discarded. Crit chance above 100 is converted to crit power elsewhere (addCritChance) so critChance stays at most 100; with the bonus the effective probability is capped at 1 by chance().",
+    "evidence": [
+     "ch-crit-default",
+     "ch-crit",
+     "ch-super",
+     "chance-fn",
+     "cast-roll"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CORPHISH": 1,
+    "CRAWDAUNT": 2,
+    "POLIWRATH": 3
+   },
+   "declaredRawDamage": {
+    "CORPHISH": 40,
+    "CRAWDAUNT": 80,
+    "POLIWRATH": 160
+   },
+   "note": "the table is indexed by the casting entity's stars; the 4-star value 320 is not reachable at the bare factory star counts of these units. The 30% threshold, 9999 execute and +30 crit chance do not vary by star. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ch-table",
+    "unit-corphish",
+    "unit-crawdaunt",
+    "unit-poliwrath"
+   ]
+  },
+  "positionalConditions": "None in this file beyond the cast range handled outside the strategy.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast reads the target's HP fraction at that moment.",
+  "rawVsResolved": "Declared raw: damage 40/80/160 (1/2/3 stars) as SPECIAL, 9999 as TRUE below 30% target HP. Damage dealt = raw x (1 + AP/100) (x crit factor); SPECIAL is then divided by 1 + ARMOR_FACTOR x SPE_DEF with flat reductions and a minimum of 1; TRUE skips the defence division and flat reductions. Shield damage is included in takenDamage. None is computed here for a specific target.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, items, resurrection, field multipliers); only the SPE_DEF division, the TRUE branch and the minimum of 1 were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution outside this file - only the roll in this strategy and the castAbility gate were read"
+  ],
+  "unresolved": [
+   "Whether the cast-time hp / maxHP check can see a different value than the damage call (they run in the same synchronous function, so no gap was found)",
+   "Death handling after a 9999 TRUE hit (resurrection effects, on-death effects) was not traced",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "CRABHAMMER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CORPHISH",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRABHAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CRAWDAUNT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRABHAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "POLIWRATH",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRABHAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CORPHISH": {
+    "evidence": [
+     "unit-corphish"
+    ]
+   },
+   "CRAWDAUNT": {
+    "evidence": [
+     "unit-crawdaunt"
+    ]
+   },
+   "POLIWRATH": {
+    "evidence": [
+     "unit-poliwrath"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     810,
+     810
+    ],
+    "symbol": "AbilityStrategies[Ability.CRABHAMMER]",
+    "expect": "[Ability.CRABHAMMER]: new CrabHammerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet (not for TRUE) / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "resolved damage handed to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-corphish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9190,
+     9203
+    ],
+    "symbol": "class Corphish",
+    "expect": "skill = Ability.CRABHAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-crawdaunt",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9206,
+     9218
+    ],
+    "symbol": "class Crawdaunt",
+    "expect": "skill = Ability.CRABHAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-poliwrath",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2268,
+     2283
+    ],
+    "symbol": "class Poliwrath",
+    "expect": "skill = Ability.CRABHAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "ch-class",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "CrabHammerStrategy",
+    "expect": "export class CrabHammerStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ch-crit-default",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "CrabHammerStrategy",
+    "expect": "canCritByDefault = true",
+    "note": "overrides the base default false"
+   },
+   {
+    "id": "ch-table",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage table",
+    "expect": "let damage = [40, 80, 160, 320][pokemon.stars - 1] ?? 320",
+    "note": "raw damage by caster stars, 320 fallback"
+   },
+   {
+    "id": "ch-crit",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "crit roll",
+    "expect": "crit = chance((pokemon.critChance + 30) / 100, pokemon)",
+    "note": "the crit argument is overwritten by a fresh roll at critChance + 30 (percentage points), luck-adjusted"
+   },
+   {
+    "id": "ch-super",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "uses the re-rolled crit for the default broadcast"
+   },
+   {
+    "id": "ch-threshold",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     19,
+     22
+    ],
+    "symbol": "execute check",
+    "expect": "if (target.hp / target.maxHP < 0.3) {",
+    "note": "execute condition read at cast time, strictly below 30% of max HP"
+   },
+   {
+    "id": "ch-hit",
+    "file": "app/core/abilities/crab-hammer.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "damage call",
+    "expect": "target.handleSpecialDamage(damage, board, attackType, pokemon, crit)",
+    "note": "single target; attackType SPECIAL or TRUE; default apBoost true"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "export function chance(",
+    "note": "Math.random() < min(cap, probability ^ (1 - luck/100)); 0 returns false"
+   },
+   {
+    "id": "cast-roll",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "crit = chance(pokemon.critChance / 100, pokemon)",
+    "note": "castAbility also rolls a crit (canCritByDefault true), but this strategy discards that value"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE: reducedDamage = damage, no defence division, no flat reductions (guts, sturdy, wonder guard)"
+   },
+   {
+    "id": "special-crit-true",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     414,
+     415
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "hasCritNegation =",
+    "note": "Rocky Helmet negates crit bonus only for non-TRUE damage"
+   },
+   {
+    "id": "special-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     361,
+     361
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.magicBounce &&",
+    "note": "magicBounce reflects SPECIAL (not TRUE) damage via a delayed command"
+   }
+  ]
+ }
+}
