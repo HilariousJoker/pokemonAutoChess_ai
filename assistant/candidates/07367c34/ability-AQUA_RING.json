@@ -1,0 +1,651 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AQUA_RING",
+ "kind": "ability",
+ "identifier": "AQUA_RING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T113936Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare AQUA_RING: Finneon (1 star), Gorebyss and Lumineon (2 stars each); all have range 2 and no passive. The strategy is shared; unit differences are the star count (table index) and maxPP (85 / 80 / 85).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AQUA_RING] = new AquaRingStrategy()",
+   "strategy": "AquaRingStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ar",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ar-class",
+    "ar-req",
+    "ar-super"
+   ]
+  },
+  "summary": "Needs no target. The caster moves to the empty board cell with the most allied neighbours, then every allied unit in that cell and its 8 neighbours (the caster included) has its negative-status cooldowns cleared and is healed by raw 20/40/80/160 (by stars; AP-scaled, crit possible). If no empty cell exists, nothing happens apart from the PP spend.",
+  "targeting": {
+   "who": "allies (same team) standing in the 3x3 area centred on the destination cell, the caster included",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the process runs with target null. The destination is chosen over the whole board, not near the caster: any empty cell qualifies, ranked by the number of allied units adjacent to it, counted before the caster moves (the caster counts as an ally neighbour of cells next to its old position).",
+   "evidence": [
+    "ar-req",
+    "ar-most",
+    "most-fn",
+    "most-count",
+    "most-sort",
+    "most-pick",
+    "ar-cells",
+    "ar-push",
+    "ar-ally",
+    "ar-guard"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block (destination plus 8 adjacent cells, clipped to the board)",
+   "evidence": [
+    "ar-cells",
+    "ar-push",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "destination": "empty cell with most allied neighbours (first in scan order on ties)"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false): swaps with the empty destination, sets cooldown to 100; a free cell must exist or the whole effect is skipped.",
+    "evidence": [
+     "ar-most",
+     "most-fn",
+     "most-count",
+     "most-sort",
+     "most-pick",
+     "ar-move",
+     "ar-guard",
+     "moveto"
+    ]
+   },
+   {
+    "kind": "cleanse",
+    "target": "each ally in the 3x3 area",
+    "declaredRaw": {
+     "note": "clearNegativeStatus(ally, caster) before each heal"
+    },
+    "scaling": "none",
+    "resolution": "Status.clearNegativeStatus zeroes the cooldowns of the listed negative statuses (it does not itself set the boolean flags; those are reset by the status update step, e.g. updateWound).",
+    "evidence": [
+     "ar-clear",
+     "clear-fn",
+     "wound-upd"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "each ally in the 3x3 area",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "FINNEON": 20,
+     "GOREBYSS": 40,
+     "LUMINEON": 40
+    },
+    "scaling": "requested = table value. applied by PokemonState.handleHeal: x(1 + AP/100) with apBoost 1; x critPower if the cast crit; x1.3 with BUFF_HEAL_RECEIVED; x0.5 when burning; x0.5 when enraged; x1.2 under ZENITH weather; rounded; capped to the target's missing HP (the remainder is overheal). No heal on a wounded target or a protected / dead one.",
+    "resolution": "requested (raw table) -> applied (after modifiers and rounding) -> healReceived (after the missing-HP cap). Each ally is healed once; allies that are full HP receive 0.",
+    "evidence": [
+     "ar-table",
+     "ar-heal",
+     "ent-heal",
+     "hh-fn",
+     "hh-wound",
+     "hh-prot",
+     "hh-scale",
+     "hh-crit",
+     "hh-mods",
+     "hh-round",
+     "hh-cap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "negative statuses cleared (cooldowns zeroed) on each healed ally",
+    "evidence": [
+     "ar-clear",
+     "clear-fn"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "FINNEON": 1,
+    "GOREBYSS": 2,
+    "LUMINEON": 2
+   },
+   "declaredRawHeal": {
+    "FINNEON": 20,
+    "GOREBYSS": 40,
+    "LUMINEON": 40
+   },
+   "note": "indexed by the casting entity's stars; 80 and 160 are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ar-table",
+    "unit-finneon",
+    "unit-gorebyss",
+    "unit-lumineon"
+   ]
+  },
+  "positionalConditions": "Needs at least one empty cell on the whole board. The healed area is around the destination, which is the cell with the most allied neighbours, not around the caster's old position; units outside the 3x3 block receive nothing.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast recomputes the destination from the current board.",
+  "rawVsResolved": "Declared raw: heal 20/40 (1/2 stars). Requested = raw; applied = raw x (1 + AP/100) x crit factor x the status/weather modifiers listed, rounded; healReceived is capped by missing HP. Cleansing happens before the heal for each ally, but a wounded ally still reads status.wound = true at that moment (see unresolved), so the heal may be 0.",
+  "sourceTables": [
+   {
+    "id": "heal",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Which statuses count as negative beyond the list in clearNegativeStatus (only that function was read)"
+  ],
+  "unresolved": [
+   "Whether the wound flag of a wounded ally is still true when handleHeal runs right after clearNegativeStatus: clearNegativeStatus zeroes woundCooldown but updateWound (which sets wound = false) runs in the status update; the order within a tick was not traced, so a wounded ally may get 0 heal from this cast",
+   "Tie order among equally surrounded cells depends on board.forEach order and the stability of Array.prototype.sort (not verified beyond reading)",
+   "Whether the destination can be anywhere on the board including far from the enemy side (no distance limit in the code read)",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "AQUA_RING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "FINNEON",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "AQUA_RING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOREBYSS",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "AQUA_RING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LUMINEON",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "AQUA_RING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FINNEON": {
+    "evidence": [
+     "unit-finneon"
+    ]
+   },
+   "GOREBYSS": {
+    "evidence": [
+     "unit-gorebyss"
+    ]
+   },
+   "LUMINEON": {
+    "evidence": [
+     "unit-lumineon"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-finneon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12989,
+     13003
+    ],
+    "symbol": "class Finneon",
+    "expect": "skill = Ability.AQUA_RING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gorebyss",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8240,
+     8257
+    ],
+    "symbol": "class Gorebyss",
+    "expect": "skill = Ability.AQUA_RING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lumineon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13005,
+     13018
+    ],
+    "symbol": "class Lumineon",
+    "expect": "skill = Ability.AQUA_RING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-ar",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     742,
+     742
+    ],
+    "symbol": "AbilityStrategies[Ability.AQUA_RING]",
+    "expect": "[Ability.AQUA_RING]: new AquaRingStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ar-class",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "AquaRingStrategy",
+    "expect": "export class AquaRingStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ar-req",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AquaRingStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without walking to a target; process receives target null"
+   },
+   {
+    "id": "ar-super",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AquaRingStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ar-table",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "heal table",
+    "expect": "const heal = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "raw heal by caster stars, 160 fallback"
+   },
+   {
+    "id": "ar-most",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     8,
+     11
+    ],
+    "symbol": "destination pick",
+    "expect": "pokemon.state.getMostSurroundedCoordinateAvailablePlace(",
+    "note": "empty cell with most allied neighbours"
+   },
+   {
+    "id": "ar-move",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     15,
+     20
+    ],
+    "symbol": "relocation",
+    "expect": "pokemon.moveTo(",
+    "note": "caster moves to that cell (moveTo, not forced)"
+   },
+   {
+    "id": "ar-cells",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     20,
+     23
+    ],
+    "symbol": "affected cells",
+    "expect": "const cells = board.getAdjacentCells(",
+    "note": "the 8 adjacent cells of the destination, plus the destination cell itself (now holding the caster)"
+   },
+   {
+    "id": "ar-push",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     20,
+     27
+    ],
+    "symbol": "center cell appended",
+    "expect": "cells.push({",
+    "note": ""
+   },
+   {
+    "id": "ar-ally",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "ally filter",
+    "expect": "if (cell.value && cell.value.team === pokemon.team)",
+    "note": "only same-team occupants (the caster included)"
+   },
+   {
+    "id": "ar-clear",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "cleanse",
+    "expect": "cell.value.status.clearNegativeStatus(cell.value, pokemon)",
+    "note": "each ally in the area has negative status cooldowns cleared before the heal"
+   },
+   {
+    "id": "ar-heal",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "heal call",
+    "expect": "cell.value.handleHeal(heal, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag passed, caster as healer"
+   },
+   {
+    "id": "ar-guard",
+    "file": "app/core/abilities/aqua-ring.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "no-cell guard",
+    "expect": "if (mostSurroundedCoordinate) {",
+    "note": "nothing at all happens (no heal, no cleanse) if no empty cell exists"
+   },
+   {
+    "id": "most-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1238,
+     1241
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "getMostSurroundedCoordinateAvailablePlace(",
+    "note": "scans every board cell"
+   },
+   {
+    "id": "most-count",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1251,
+     1253
+    ],
+    "symbol": "neighbour count",
+    "expect": "if (cell.value && cell.value.team === team) {",
+    "note": "counts adjacent units of the caster's team (the caster's own cell counts while it still stands there)"
+   },
+   {
+    "id": "most-sort",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1262,
+     1262
+    ],
+    "symbol": "sort descending",
+    "expect": "return b.neighbour - a.neighbour",
+    "note": "most allied neighbours first; ties keep scan order (rows, then columns) if the sort is stable"
+   },
+   {
+    "id": "most-pick",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1265,
+     1266
+    ],
+    "symbol": "first entry",
+    "expect": "x = emptyPlaces[0].x",
+    "note": "first after sorting"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, on-board only, center excluded by default"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     897,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "swaps with the empty cell; sets cooldown 100"
+   },
+   {
+    "id": "clear-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     97,
+     122
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity)",
+    "note": "zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armorReduction, locked, blind; curse is handled specially (+2000 ms on an active curse)"
+   },
+   {
+    "id": "wound-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     893,
+     899
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "updateWound(dt: number) {",
+    "note": "the wound flag is reset in the status update, when woundCooldown - dt <= 0"
+   },
+   {
+    "id": "hh-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     302,
+     308
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "handleHeal(",
+    "note": ""
+   },
+   {
+    "id": "hh-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "handleHeal wound",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "a wounded target receives no heal (returns 0)"
+   },
+   {
+    "id": "hh-prot",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "handleHeal guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "no heal on a dead or protected target"
+   },
+   {
+    "id": "hh-scale",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     335,
+     335
+    ],
+    "symbol": "handleHeal AP",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "hh-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     338,
+     338
+    ],
+    "symbol": "handleHeal crit",
+    "expect": "heal *= caster.critPower",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "hh-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     328,
+     341
+    ],
+    "symbol": "handleHeal modifiers",
+    "expect": "heal *= 1.3",
+    "note": "BUFF_HEAL_RECEIVED x1.3; burn x0.5; enraged x0.5; ZENITH weather x1.2"
+   },
+   {
+    "id": "hh-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     353
+    ],
+    "symbol": "handleHeal rounding",
+    "expect": "heal = Math.round(heal)",
+    "note": ""
+   },
+   {
+    "id": "hh-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     354,
+     355
+    ],
+    "symbol": "handleHeal cap",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "healReceived is capped to missing HP; the rest is overheal"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     475,
+     475
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to state.handleHeal"
+   }
+  ]
+ }
+}
