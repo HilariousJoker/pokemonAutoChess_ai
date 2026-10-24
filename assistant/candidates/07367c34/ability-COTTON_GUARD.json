@@ -1,0 +1,655 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/COTTON_GUARD",
+ "kind": "ability",
+ "identifier": "COTTON_GUARD",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T233950Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare COTTON_GUARD: ELDEGOSS (2 stars), FURFROU (3 stars), GOSSIFLEUR (1 star); all have range 1 and maxPP 100 per the unit blocks. The strategy is shared; unit differences are the star count (shield table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.COTTON_GUARD] = new CottonGuardStrategy()",
+   "strategy": "CottonGuardStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "cg-class",
+    "cg-super"
+   ]
+  },
+  "summary": "The caster gains a shield (raw 15/30/60 by stars; AP-scaled) and +3 raw DEF, and marks the cells in front of it (toward the cast target) with a COTTON_BALL board effect; each enemy standing there at cast time is put to sleep for a requested 1000 ms. The cotton effect also lingers on those cells.",
+  "targeting": {
+   "who": "caster itself (shield, DEF); enemies in the cells in front of the caster (sleep); any entity on those cells receives the board effect",
+   "needsTarget": true,
+   "note": "The cast target only sets the facing direction (getCellsInFront updates pokemon.orientation). Allies standing in those cells get the COTTON_BALL effect through addBoardEffect and so fall asleep for 1000 ms via the status update, as far as the source reads; they are not hit by the direct triggerSleep call.",
+   "evidence": [
+    "cg-cells",
+    "board-front",
+    "cg-loop",
+    "cg-enemy",
+    "cg-sleep",
+    "board-effect",
+    "status-cotton"
+   ]
+  },
+  "geometry": {
+   "shape": "up to three adjacent cells in front of the caster: the cell in the facing orientation and the two neighbouring orientations (range 1), on-board only",
+   "evidence": [
+    "cg-cells",
+    "board-front"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "ELDEGOSS": 30,
+     "FURFROU": 60,
+     "GOSSIFLEUR": 15
+    },
+    "scaling": "requested = table value. applied: Big Eater Belt x1.25 rounded down for a holder (PokemonEntity.addShield); then x(1 + AP/100) (apBoost 1), x critPower if the cast crit, x0.5 if the caster is enraged, rounded (PokemonState.addShield); the shield stat is then max(0, shield + value).",
+    "resolution": "requested (table) -> applied (after belt, AP, crit, enraged, rounding) -> shield added; nothing is added if the caster's hp is 0. No timer or removal in this file; the shield is consumed by later damage.",
+    "evidence": [
+     "cg-table",
+     "cg-shield",
+     "add-shield",
+     "state-shield",
+     "belt-fn"
+    ]
+   },
+   {
+    "kind": "buff",
+    "stat": "DEF",
+    "target": "caster",
+    "declaredRaw": {
+     "value": 3
+    },
+    "perUnitRaw": {
+     "ELDEGOSS": 3,
+     "FURFROU": 3,
+     "GOSSIFLEUR": 3
+    },
+    "scaling": "requested = 3 for every star count. applied by addDefense: round(3 x (1 + AP/100) x critPower if crit), then Big Eater Belt x1.25 rounded down for a holder, then Twist Band (no effect on a positive self-buff); def = max(0, def + value).",
+    "resolution": "requested 3 -> applied (after AP, crit rounding, belt) -> actual change (the floor never binds for a gain). No timer or removal appears in this file.",
+    "evidence": [
+     "cg-def",
+     "add-def",
+     "def-round",
+     "def-helpers",
+     "def-min",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "SLEEP",
+    "target": "each enemy in the cells in front of the caster",
+    "declaredRaw": {
+     "durationMs": 1000
+    },
+    "perUnitRaw": {
+     "ELDEGOSS": 1000,
+     "FURFROU": 1000,
+     "GOSSIFLEUR": 1000
+    },
+    "scaling": "requested 1000 ms for every star count. triggerSleep: ignored if the target is already asleep, rune-protected, skydiving, has IMMUNITY_SLEEP or ccCooldown > 0; otherwise duration x1.3 at night / x0.7 at zenith weather, halved if enraged, then the generic status duration reductions, rounded.",
+    "resolution": "requested 1000 -> applied duration after weather, enraged and reductions -> sleep flag true for that long; on waking ccCooldown is set to at least CC_COOLDOWN, which blocks a new sleep meanwhile. The reductions function applyStatusDurationReductions was not read.",
+    "evidence": [
+     "cg-cells",
+     "cg-loop",
+     "cg-enemy",
+     "cg-sleep",
+     "board-front",
+     "status-trigger",
+     "status-updatesleep"
+    ]
+   },
+   {
+    "kind": "boardEffect",
+    "effect": "COTTON_BALL",
+    "target": "every on-board cell in front of the caster",
+    "declaredRaw": {
+     "effect": "COTTON_BALL"
+    },
+    "scaling": "none",
+    "resolution": "addBoardEffect marks each cell and gives the effect to any entity standing there (allies included) unless it holds Heavy Duty Boots; an entity that later moves onto such a cell gains it too. An entity with the effect that is not asleep falls asleep for 1000 ms on its next status update and the effect is removed from that entity (not from the cell).",
+    "evidence": [
+     "cg-cells",
+     "cg-loop",
+     "cg-boardeffect",
+     "board-effect",
+     "board-setentity",
+     "status-cotton",
+     "status-update",
+     "board-front"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "SLEEP",
+    "target": "enemies in front",
+    "raw": "1000 ms",
+    "evidence": [
+     "cg-sleep",
+     "status-trigger",
+     "status-updatesleep"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "DEF",
+    "target": "caster",
+    "raw": "+3",
+    "evidence": [
+     "cg-def",
+     "add-def"
+    ]
+   }
+  ],
+  "shields": [
+   {
+    "target": "caster",
+    "raw": "15/30/60/120 by stars",
+    "evidence": [
+     "cg-table",
+     "cg-shield",
+     "state-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "ELDEGOSS": 2,
+    "FURFROU": 3,
+    "GOSSIFLEUR": 1
+   },
+   "declaredRawShield": {
+    "ELDEGOSS": 30,
+    "FURFROU": 60,
+    "GOSSIFLEUR": 15
+   },
+   "note": "only the shield table is indexed by the casting entity's stars; the 4-star value 120 is not reachable at the bare factory star counts of these units. DEF +3 and sleep 1000 ms do not vary by star. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "cg-table",
+    "unit-eldegoss",
+    "unit-furfrou",
+    "unit-gossifleur"
+   ]
+  },
+  "positionalConditions": "Only on-board cells among the (up to) three in front are affected; with the caster at an edge fewer cells apply. The caster's own cell is not included. Cells are marked whether or not they hold an entity.",
+  "repeatedCastsAndModes": "No stored state or modes in the strategy. Shields and DEF stack additively; the COTTON_BALL cell mark is a set, so recasting does not duplicate it. Sleep is not re-applied to an entity already asleep or inside the crowd-control cooldown.",
+  "rawVsResolved": "Declared raw: shield 15/30/60 (1/2/3 stars), DEF +3, sleep 1000 ms. Shield added = round(raw x belt x (1 + AP/100) x crit factor, halved if enraged); DEF applied = round(3 x (1 + AP/100) x crit factor) then belt; sleep duration after weather, enraged and status reductions. None is computed here for a specific caster or target.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "How a sleeping unit behaves in combat (no attacks, no movement) was not re-read here; only the flag and its duration"
+  ],
+  "unresolved": [
+   "applyStatusDurationReductions (called inside triggerSleep) was not read",
+   "Whether an enemy hit by the direct triggerSleep also receives COTTON_BALL and what happens on its next status update (the effect is removed only after sleeping again is attempted; the ccCooldown guard after waking blocks a second sleep) was read only at the guard level",
+   "Whether allies on the marked cells really fall asleep in a live fight was traced from addBoardEffect and updateAllStatus only (source reading)",
+   "How long the COTTON_BALL cell mark lasts (clearBoardEffect callers) was not traced",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "COTTON_GUARD",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "ELDEGOSS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COTTON_GUARD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FURFROU",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "COTTON_GUARD",
+    "declaredPassive": "FUR_COAT",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOSSIFLEUR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COTTON_GUARD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ELDEGOSS": {
+    "evidence": [
+     "unit-eldegoss"
+    ]
+   },
+   "FURFROU": {
+    "evidence": [
+     "unit-furfrou"
+    ]
+   },
+   "GOSSIFLEUR": {
+    "evidence": [
+     "unit-gossifleur"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     807,
+     807
+    ],
+    "symbol": "AbilityStrategies[Ability.COTTON_GUARD]",
+    "expect": "[Ability.COTTON_GUARD]: new CottonGuardStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "unit-eldegoss",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18643,
+     18655
+    ],
+    "symbol": "class Eldegoss",
+    "expect": "skill = Ability.COTTON_GUARD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-furfrou",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18658,
+     18671
+    ],
+    "symbol": "class Furfrou",
+    "expect": "skill = Ability.COTTON_GUARD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gossifleur",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18627,
+     18640
+    ],
+    "symbol": "class Gossifleur",
+    "expect": "skill = Ability.COTTON_GUARD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "cg-class",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CottonGuardStrategy",
+    "expect": "export class CottonGuardStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "cg-super",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default broadcast not prevented"
+   },
+   {
+    "id": "cg-cells",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "cells",
+    "expect": "const cells = board.getCellsInFront(pokemon, target)",
+    "note": "cells in front of the caster toward the cast target (range 1)"
+   },
+   {
+    "id": "cg-table",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "shield table",
+    "expect": "const shield = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw shield by caster stars, 120 fallback"
+   },
+   {
+    "id": "cg-shield",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "shield call",
+    "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag from the cast; the caster shields itself"
+   },
+   {
+    "id": "cg-def",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "defense call",
+    "expect": "pokemon.addDefense(3, pokemon, 1, crit)",
+    "note": "fixed raw 3, not star-indexed"
+   },
+   {
+    "id": "cg-loop",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "cell loop",
+    "expect": "cells.forEach((cell) => {",
+    "note": ""
+   },
+   {
+    "id": "cg-boardeffect",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     19,
+     24
+    ],
+    "symbol": "board effect",
+    "expect": "board.addBoardEffect(",
+    "note": "COTTON_BALL board effect on every cell in front, empty or not"
+   },
+   {
+    "id": "cg-enemy",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "enemy filter",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": ""
+   },
+   {
+    "id": "cg-sleep",
+    "file": "app/core/abilities/cotton-guard.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "sleep call",
+    "expect": "cell.value.status.triggerSleep(1000, cell.value)",
+    "note": "requested sleep 1000 ms on each enemy standing in a cell in front"
+   },
+   {
+    "id": "board-front",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     235
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "orientation toward the target; three orientations (facing, +1, -1); cells at range 1 from the caster; off-board dropped; sets pokemon.orientation as a side effect"
+   },
+   {
+    "id": "board-effect",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     654
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "  addBoardEffect(",
+    "note": "effect added to any entity on the cell unless it holds Heavy Duty Boots; recorded on the cell"
+   },
+   {
+    "id": "board-setentity",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     66
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "setEntityOnCell(x: number, y: number, entity",
+    "note": "an entity moving onto a cell with board effects gains them (unless IMMUNITY_BOARD_EFFECTS) and loses the previous cell's effects"
+   },
+   {
+    "id": "status-cotton",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     219,
+     226
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "pokemon.effects.has(EffectEnum.COTTON_BALL) &&",
+    "note": "an entity carrying COTTON_BALL that is not asleep and has no Heavy Duty Boots falls asleep 1000 ms and loses the effect, on its next status update"
+   },
+   {
+    "id": "status-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     193,
+     193
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "updateAllStatus(dt: number, pokemon: PokemonEntity, board: Board)",
+    "note": ""
+   },
+   {
+    "id": "status-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     786
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "triggerSleep(duration: number, pkm: PokemonEntity)",
+    "note": "blocked if already asleep, rune protected, skydiving, IMMUNITY_SLEEP or ccCooldown > 0; night x1.3, zenith x0.7, enraged /2, then duration reductions; rounded"
+   },
+   {
+    "id": "status-updatesleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     788,
+     804
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "updateSleep(dt: number, pkm: PokemonEntity)",
+    "note": "when the sleep ends ccCooldown is set to at least CC_COOLDOWN; COMATOSE passive never wakes"
+   },
+   {
+    "id": "add-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "addShield(",
+    "note": "Big Eater Belt applied first, then delegates to PokemonState.addShield"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     323,
+     346
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "addShield(",
+    "note": "only if hp > 0: x(1 + AP x apBoost/100), x critPower if crit, halved if enraged, rounded; shield = max(0, shield + value)"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "plain function; buff on a holder x1.25 rounded down"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     679
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "addDefense(",
+    "note": "(value, caster, apBoost, crit, permanent)"
+   },
+   {
+    "id": "def-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     683,
+     685
+    ],
+    "symbol": "addDefense scaling",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "scaled then Math.round"
+   },
+   {
+    "id": "def-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     688,
+     689
+    ],
+    "symbol": "addDefense helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "belt then Twist Band"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     692,
+     692
+    ],
+    "symbol": "addDefense update",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "floor of 0"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "plain function; only flips negative values from enemy casters"
+   }
+  ]
+ }
+}
