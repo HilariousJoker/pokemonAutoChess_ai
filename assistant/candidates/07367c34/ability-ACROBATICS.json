@@ -1,0 +1,575 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ACROBATICS",
+ "kind": "ability",
+ "identifier": "ACROBATICS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261024T113936Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare ACROBATICS: Hoppip (1 star), Skiploom (2 stars) and Jumpluff (3 stars). The strategy is shared; unit differences are the star count (table index), range and maxPP.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ACROBATICS] = new AcrobaticsStrategy()",
+   "strategy": "AcrobaticsStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ab",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "The caster deals SPECIAL damage (raw 20/40/80/160 by stars) to the cast target, then moves to a free cell within its range of the target's cell, choosing the cell whose Manhattan distance from the caster's old position is closest to 4 minus the number of items the caster holds (the first such cell in board order on ties). If no free cell is available it stays.",
+  "targeting": {
+   "who": "the cast target (damage); caster itself (relocation)",
+   "needsTarget": true,
+   "note": "Damage uses the cast target passed to process. The relocation uses pokemon.targetX/targetY (the caster's stored target cell, mirrored from its current target), not the process argument; they normally coincide. Candidate cells are the empty cells in the (range-radius) neighbourhood of that cell, so the caster ends up within its attack range of the target's cell.",
+   "evidence": [
+    "ab-hit",
+    "ab-cells",
+    "ab-free",
+    "ab-dest",
+    "radius",
+    "radius-test",
+    "target-set",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "destination: empty cell within getCellsInRadius(targetX, targetY, range, false) (radius floor(range)+0.5, Euclidean on cell offsets, center excluded); ranking by Manhattan distance to the caster's starting cell",
+   "evidence": [
+    "ab-cells",
+    "ab-sort",
+    "ab-travel",
+    "radius",
+    "radius-test",
+    "dist-m"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "HOPPIP": 20,
+     "JUMPLUFF": 80,
+     "SKIPLOOM": 40
+    },
+    "scaling": "requested = table value. applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default); if the cast crit, x critPower adjusted by Rocky Helmet / Black Augurite on the target; no dependence on the held-item count.",
+    "resolution": "then PokemonState.handleDamage: divided by 1 + ARMOR_FACTOR x SPE_DEF, at least 1, shield absorbs before HP; protect / skydiving / magicBounce on the target block the hit entirely. takenDamage includes shield damage.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "travelDistance": "4 - number of held items"
+    },
+    "scaling": "Manhattan distance wanted = 4 - items.size; best cell = smallest |wanted - actual distance|.",
+    "resolution": "moveTo(x, y, board, false): swaps with the empty destination cell, sets cooldown to 100; no relocation if no empty cell exists.",
+    "evidence": [
+     "ab-travel",
+     "ab-cells",
+     "ab-free",
+     "ab-sort",
+     "ab-dest",
+     "ab-move",
+     "moveto",
+     "moveto-cd",
+     "dist-m"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HOPPIP": 1,
+    "JUMPLUFF": 3,
+    "SKIPLOOM": 2
+   },
+   "declaredRawDamage": {
+    "HOPPIP": 20,
+    "JUMPLUFF": 80,
+    "SKIPLOOM": 40
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 160 is not reachable at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined. Movement does not depend on stars.",
+   "evidence": [
+    "ab-table",
+    "unit-hoppip",
+    "unit-jumpluff",
+    "unit-skiploom"
+   ]
+  },
+  "positionalConditions": "Relocation needs at least one empty cell within the caster's range of the target's cell. With 4 or more held items the wanted distance is 0 or negative, so the nearest candidate to the caster's old cell wins. The damage is dealt before the move, so it does not depend on the destination.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast recomputes the destination from the current board and the current item count.",
+  "rawVsResolved": "Declared raw: damage 20/40/80 (1/2/3 stars). The damage dealt is raw x (1 + AP/100) (x crit factor if the cast crit), then divided by 1 + ARMOR_FACTOR x SPE_DEF, minimum 1; shield damage is included in takenDamage. These three amounts (requested / applied / takenDamage) are not computed here for any particular target.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/acrobatics.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, items, resurrection, field multipliers); only the SPE_DEF division, the minimum of 1 and the TRUE/SPECIAL branch were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Tie order among equally good candidate cells depends on board.getCellsInRadius row-major order and the stability of Array.prototype.sort (not verified beyond reading)",
+   "Whether pokemon.targetX/targetY can differ from the cast target (the stored target cell is set when a target is assigned; not traced further)",
+   "Whether the target dying from the damage clears targetX before the relocation (the damage call is synchronous; target-clearing code not read)",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "ACROBATICS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "HOPPIP",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ACROBATICS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "JUMPLUFF",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ACROBATICS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKIPLOOM",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ACROBATICS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HOPPIP": {
+    "evidence": [
+     "unit-hoppip"
+    ]
+   },
+   "JUMPLUFF": {
+    "evidence": [
+     "unit-jumpluff"
+    ]
+   },
+   "SKIPLOOM": {
+    "evidence": [
+     "unit-skiploom"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-hoppip",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5020,
+     5033
+    ],
+    "symbol": "class Hoppip",
+    "expect": "skill = Ability.ACROBATICS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-jumpluff",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5050,
+     5062
+    ],
+    "symbol": "class Jumpluff",
+    "expect": "skill = Ability.ACROBATICS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-skiploom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5035,
+     5048
+    ],
+    "symbol": "class Skiploom",
+    "expect": "skill = Ability.ACROBATICS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet (not for TRUE) / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "resolved damage handed to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage (core-mechanics.md section A)"
+   },
+   {
+    "id": "reg-ab",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     733,
+     733
+    ],
+    "symbol": "AbilityStrategies[Ability.ACROBATICS]",
+    "expect": "[Ability.ACROBATICS]: new AcrobaticsStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AcrobaticsStrategy",
+    "expect": "export class AcrobaticsStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AcrobaticsStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "raw damage by caster stars, 160 fallback"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "damage call",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target, crit flag passed, apBoost default true"
+   },
+   {
+    "id": "ab-travel",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "travelDistance",
+    "expect": "const travelDistance = 4 - pokemon.items.size",
+    "note": "desired dash distance shrinks by one per held item (can be 0 or negative with 4+ items)"
+   },
+   {
+    "id": "ab-cells",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "candidate cells",
+    "expect": ".getCellsInRadius(pokemon.targetX, pokemon.targetY, pokemon.range, false)",
+    "note": "cells within the caster's range of the caster's current target cell, center (target cell) excluded"
+   },
+   {
+    "id": "ab-free",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "free filter",
+    "expect": ".filter((cell) => cell.value === undefined)",
+    "note": "only empty cells"
+   },
+   {
+    "id": "ab-sort",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     22,
+     33
+    ],
+    "symbol": "sort by closeness to travelDistance",
+    "expect": "Math.abs(",
+    "note": "orders by |travelDistance - distanceM(cell, caster)| ascending (Manhattan distance)"
+   },
+   {
+    "id": "ab-move",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "moveTo destination",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": "first (best) candidate; no move if the list is empty"
+   },
+   {
+    "id": "ab-dest",
+    "file": "app/core/abilities/acrobatics.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "destination pick",
+    "expect": "const destination = candidateDestinationCells[0]",
+    "note": ""
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     275,
+     275
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "radius = Math.floor(Math.abs(radius)) + 0.5",
+    "note": "radius floor(range)+0.5; cell is in if dx^2+dy^2 < radius^2 (range 1: 3x3 minus center)"
+   },
+   {
+    "id": "radius-test",
+    "file": "app/core/board.ts",
+    "lines": [
+     283,
+     283
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "distanceSquared < radiusSquared",
+    "note": ""
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     897,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "moves by swapping cells (destination is free); sets cooldown 100"
+   },
+   {
+    "id": "moveto-cd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     898,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "this.cooldown = 100",
+    "note": "faster retargeting"
+   },
+   {
+    "id": "target-set",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     326,
+     326
+    ],
+    "symbol": "PokemonEntity target",
+    "expect": "this.targetX = target.positionX",
+    "note": "targetX/targetY mirror the current target's cell and are -1 without a target"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     4,
+     6
+    ],
+    "symbol": "distanceM",
+    "expect": "export function distanceM",
+    "note": "Manhattan distance"
+   }
+  ]
+ }
+}
