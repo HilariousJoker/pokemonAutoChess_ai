@@ -1,0 +1,451 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CRUNCH",
+ "kind": "ability",
+ "identifier": "CRUNCH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T053926Z"
+ },
+ "record": {
+  "ability": "CRUNCH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "CROCONAW, FERALIGATR and GUZZLORD (the queued units). TOTODILE also declares CRUNCH and is covered by the pilot record; it is not part of this candidate.",
+  "appliesTo": [
+   {
+    "key": "CROCONAW",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FERALIGATR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GUZZLORD",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CRUNCH",
+    "declaredPassive": "GUZZLORD",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CRUNCH] = new CrunchStrategy()",
+   "strategy": "CrunchStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-cr",
+    "base",
+    "cast",
+    "dispatch-attack"
+   ]
+  },
+  "summary": "Single-target special damage (80 raw at 2 stars, 160 raw at 3 stars); if that hit reports death, the caster heals ceil(50% of the victim's max HP) (before handleHeal modifiers and the missing-HP cap). GUZZLORD additionally has an on-kill passive that can trigger from the kill.",
+  "targeting": {
+   "who": "the single current target",
+   "needsTarget": true,
+   "evidence": [
+    "cr-impl",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "cr-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     }
+    },
+    "scaling": "requested amount: AP: damage x (1 + AP/100) (6th argument apBoost = true); crit multiplier only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later modifiers in handleDamage; blocked entirely by protect / skydiving / magicBounce (death false, no heal). The kill heal does not use the damage dealt or takenDamage, only the victim's max HP",
+    "evidence": [
+     "cr-impl",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitRaw": {
+     "CROCONAW": 80,
+     "FERALIGATR": 160,
+     "GUZZLORD": 160
+    }
+   },
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "condition": "only when handleSpecialDamage reports death for that hit",
+    "declaredRaw": {
+     "formula": "ceil(0.5 * target.maxHP)",
+     "note": "requested amount; depends on the victim's max HP, not on stars or on damage dealt"
+    },
+    "scaling": "none: apBoost 0 and crit false are passed, so AP and crit do not scale this heal",
+    "resolution": "applied amount: PokemonState.handleHeal: nothing if the caster is wounded or at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at the caster's missing HP",
+    "evidence": [
+     "cr-heal",
+     "heal",
+     "heal-modifiers",
+     "death-true",
+     "death-prevent"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CROCONAW": 2,
+    "FERALIGATR": 3,
+    "GUZZLORD": 3
+   },
+   "declaredRawDamage": {
+    "CROCONAW": 80,
+    "FERALIGATR": 160,
+    "GUZZLORD": 160
+   },
+   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 320 and the fallback 320 are not reached by these units' bare star counts (2, 3, 3). maxPP is 100 and range 1 for all three.",
+   "evidence": [
+    "cr-impl",
+    "unit-croconaw",
+    "unit-feraligatr",
+    "unit-guzzlord"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target in the caster's range.",
+  "repeatedCastsAndModes": "No state is kept: each cast is independent and the heal can happen on any cast that kills. No modes. For GUZZLORD the passive's on-kill effect is separate and can also fire from this ability's kill.",
+  "rawVsResolved": "Requested (raw) damage: 80 (CROCONAW, 2 stars) / 160 (FERALIGATR and GUZZLORD, 3 stars). Applied damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division (ceil, at least 1) and later handleDamage modifiers; takenDamage (which includes shield damage) is not used by this ability. Heal: requested ceil(0.5 x victim maxHP) on a reported kill; received heal after the handleHeal modifiers and the missing-HP cap.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "Death-cancelling and resurrection paths other than SHINY_CHARM (sampled, not traced)"
+  ],
+  "unresolved": [
+   "Whether death-cancelling effects other than SHINY_CHARM or resurrection paths prevent the heal (they would make death false)",
+   "Whether any item or synergy effect changes CRUNCH beyond what is listed",
+   "Consulted for the GUZZLORD passive: passives.ts OnKillEffect entry, PokemonEntity.onKill and PokemonState.triggerDeath; the CHEF_HAT/Gourmet numbers are the passive's, not CRUNCH's",
+   "Queue record lists no routing uncertainties; TOTODILE (same strategy) is covered by the pilot record, not this candidate"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-cr",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     812,
+     812
+    ],
+    "symbol": "AbilityStrategies[Ability.CRUNCH]",
+    "expect": "[Ability.CRUNCH]: new CrunchStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "cr-impl",
+    "file": "app/core/abilities/crunch.ts",
+    "lines": [
+     6,
+     27
+    ],
+    "symbol": "CrunchStrategy.process",
+    "expect": "const damage = [40, 80, 160, 320][pokemon.stars - 1] ?? 320",
+    "note": ""
+   },
+   {
+    "id": "cr-heal",
+    "file": "app/core/abilities/crunch.ts",
+    "lines": [
+     23,
+     25
+    ],
+    "symbol": "CrunchStrategy.process",
+    "expect": "pokemon.handleHeal(Math.ceil(0.5 * target.maxHP), pokemon, 0, false)",
+    "note": "heal only if the hit reports death; apBoost 0, crit false"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect/skydiving/magicBounce block the hit (damage 0, death false)"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef (ARMOR_FACTOR in app/config/game/battle.ts:5); many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "death-prevent",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     650,
+     658
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM)",
+    "note": "one example of death being cancelled; other cancel/resurrection paths exist and are not traced"
+   },
+   {
+    "id": "death-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     792,
+     799
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "death = true",
+    "note": ""
+   },
+   {
+    "id": "heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "wound => 0 heal (315-332); AP/crit/burn/enraged/zenith modifiers (334-352); capped by missing HP (354-357)"
+   },
+   {
+    "id": "heal-modifiers",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     352
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.status.enraged",
+    "note": "burn and enraged halve healing; zenith weather x1.2"
+   },
+   {
+    "id": "unit-croconaw",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4627,
+     4627
+    ],
+    "symbol": "Croconaw",
+    "expect": "skill = Ability.CRUNCH",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-feraligatr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4645,
+     4645
+    ],
+    "symbol": "Feraligatr",
+    "expect": "skill = Ability.CRUNCH",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-guzzlord",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8483,
+     8483
+    ],
+    "symbol": "Guzzlord",
+    "expect": "skill = Ability.CRUNCH",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "guz-passive",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1382,
+     1397
+    ],
+    "symbol": "Passive.GUZZLORD",
+    "expect": "if (attacker.items.has(Item.CHEF_HAT))",
+    "note": "on-kill effect gated on CHEF_HAT"
+   },
+   {
+    "id": "guz-onkill",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1248,
+     1250
+    ],
+    "symbol": "PokemonEntity.onKill",
+    "expect": "this.getEffects(OnKillEffect).forEach",
+    "note": "on-kill effects run for any kill"
+   },
+   {
+    "id": "guz-triggerdeath",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     819,
+     821
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "attacker.onKill({ target: pokemon, board, attackType })",
+    "note": "death calls onKill on the attacker"
+   }
+  ],
+  "unitEvidence": {
+   "CROCONAW": {
+    "evidence": [
+     "unit-croconaw"
+    ]
+   },
+   "FERALIGATR": {
+    "evidence": [
+     "unit-feraligatr"
+    ]
+   },
+   "GUZZLORD": {
+    "evidence": [
+     "unit-guzzlord",
+     "guz-passive"
+    ]
+   }
+  },
+  "guzzlordPassive": {
+   "summary": "GUZZLORD (passive GUZZLORD): an OnKillEffect that does something only if the attacker holds CHEF_HAT (+5 AP, +10 max HP, +1 stack; doubled to 10/20/2 with Gourmet synergy trigger >= 2). Any kill, including a CRUNCH kill, reaches it through triggerDeath -> attacker.onKill -> getEffects(OnKillEffect).",
+   "evidence": [
+    "guz-passive",
+    "guz-onkill",
+    "guz-triggerdeath"
+   ]
+  },
+  "sourceTables": [
+   {
+    "id": "crunchDamage",
+    "file": "app/core/abilities/crunch.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ]
+ }
+}
