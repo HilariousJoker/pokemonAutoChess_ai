@@ -1,0 +1,487 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DIVE",
+ "kind": "ability",
+ "identifier": "DIVE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T113934Z"
+ },
+ "record": {
+  "ability": "DIVE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Lapras (3 stars, maxPP 120), Wailmer (1 star, maxPP 100) and Wailord (2 stars, maxPP 100) declare ABILITY DIVE (range 1, no passive). Similarly named abilities (GRUDGE_DIVE, TRIPLE_DIVE, the skydiving status) are separate and not covered.",
+  "appliesTo": [
+   {
+    "key": "LAPRAS",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WAILMER",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WAILORD",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LAPRAS": {
+    "evidence": [
+     "unit-lapras"
+    ]
+   },
+   "WAILMER": {
+    "evidence": [
+     "unit-wailmer"
+    ]
+   },
+   "WAILORD": {
+    "evidence": [
+     "unit-wailord"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DIVE] = new DiveStrategy()",
+   "strategy": "DiveStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dv",
+    "base",
+    "cast",
+    "dv-class",
+    "moving"
+   ]
+  },
+  "summary": "Self shield, relocation and adjacent burst. The caster first gives itself a flat shield (15/30/60/120 by stars, requested; no AP or crit scaling because apBoost 0 and crit false are passed). It then picks the empty cell with the most adjacent opposing-team units (the first of the sorted list on ties) and, if one exists, moves there (moveTo, not a forced displacement) and deals flat special damage (10/20/40/80 by stars, requested) to every enemy in the 8 adjacent cells. Without an empty cell the shield is still granted but there is no movement and no damage. requiresTarget is false, so the cast does not need a target in range.",
+  "targeting": {
+   "who": "the caster (shield); every enemy unit in the up-to-8 cells adjacent to the destination cell (damage)",
+   "needsTarget": false,
+   "note": "The destination is chosen from empty cells by the number of adjacent units of the opponent team, not from the cast target. The target parameter is null-typed and unused.",
+   "evidence": [
+    "dv-dest",
+    "dv-near",
+    "dv-adj",
+    "moving"
+   ]
+  },
+  "geometry": {
+   "shape": "destination = empty cell with the maximum count of adjacent opponent units (getAdjacentCells, 8-neighbourhood); damage area = the 8 cells adjacent to the destination, centre excluded",
+   "detail": "The candidate list is built over the whole board in board.forEach order, sorted by neighbour count descending with Array.prototype.sort and the first entry is taken, so ties keep the earlier cell in board order (stable sort). Counting is against opponentTeam only. Cells off the board are skipped. The adjacency used for damage is computed after the move, from the caster's new position.",
+   "evidence": [
+    "dv-dest",
+    "dv-near",
+    "dv-adj",
+    "adj-fn",
+    "most-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "the caster itself",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "LAPRAS": 60,
+     "WAILMER": 15,
+     "WAILORD": 30
+    },
+    "scaling": "Requested amount = table value. pokemon.addShield(shield, pokemon, 0, false): apBoost 0 means no AP multiplier and crit false means no crit multiplier, so the caster's AP does not change it. Applied amount: applyBigEaterBeltStatBuff multiplies by 1.25 (rounded down, 0 digits) when the caster holds Big Eater Belt (value > 0); state.addShield halves it while the caster is enraged, then rounds and adds it to pokemon.shield (floored at 0); nothing is added if the caster's hp is not above 0.",
+    "resolution": "Requested 15/30/60/120 -> applied after Big Eater Belt and enrage as described; the shield is granted before the move and independent of whether a destination exists. Twist Band does not apply (it only flips negative values).",
+    "evidence": [
+     "dv-table",
+     "dv-shield",
+     "addshield",
+     "state-addshield",
+     "belt"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "declaredRaw": {
+     "note": "moveTo(destination, forcedDisplacement false) when a destination exists"
+    },
+    "scaling": "none",
+    "resolution": "moveTo puts the caster (and any occupant of the cell, none since the cell is empty) into MovingState, swaps cells and sets cooldown 100. Not a forced displacement, so canBeMoved is not checked.",
+    "evidence": [
+     "dv-move",
+     "moveto"
+    ]
+   },
+   {
+    "kind": "special-damage",
+    "target": "each enemy (team different from the caster) in the cells adjacent to the destination",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "LAPRAS": 40,
+     "WAILMER": 10,
+     "WAILORD": 20
+    },
+    "scaling": "Requested amount = table value. handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then x2 if the caster has the DOUBLE_DAMAGE effect (consumed), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault false). Each adjacent enemy receives one instance.",
+    "resolution": "The requested amount is the pre-defence special damage; the applied/taken amount comes from state.handleDamage (defences, shield damage, minimum of 1 per core-mechanics.md section A; not re-traced here). Targets with protect, skydiving or magicBounce take none (magicBounce reflects when the attacker lacks Protective Pads).",
+    "evidence": [
+     "dv-table",
+     "dv-damage",
+     "spdmg",
+     "spdmg-calc"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "LAPRAS": 3,
+    "WAILMER": 1,
+    "WAILORD": 2
+   },
+   "declaredRawDamage": {
+    "LAPRAS": 40,
+    "WAILMER": 10,
+    "WAILORD": 20
+   },
+   "declaredRawShield": {
+    "LAPRAS": 60,
+    "WAILMER": 15,
+    "WAILORD": 30
+   },
+   "note": "Caster stars index both tables (1-4, fallback 120 for the shield and 80 for the damage). Lapras is a 3-star unique.",
+   "evidence": [
+    "dv-table"
+   ]
+  },
+  "positionalConditions": "Damage only happens when an empty cell exists on the board; enemies are hit if they stand in the 8 cells around that cell at the moment after the move. The destination is the cell most surrounded by opponents, wherever it is on the board.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast re-evaluates the board.",
+  "rawVsResolved": "Requested: shield 60/15/30 (Lapras/Wailmer/Wailord) and special damage 40/10/20. Applied shield: Big Eater Belt x1.25 down and enrage x0.5 can change it; AP does not. Applied damage: AP percentage, DOUBLE_DAMAGE, strange steam and crit raise the amount before handleDamage; taken damage then depends on defences and shields.",
+  "sourceTables": [
+   {
+    "id": "diveDamage",
+    "file": "app/core/abilities/dive.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   },
+   {
+    "id": "diveShield",
+    "file": "app/core/abilities/dive.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defences, shield absorption, minimum of 1) only through the shared reference core-mechanics.md section A",
+   "Moving/pathing after the cast and when the cast fires in a real fight (requiresTarget false is read in moving-state.ts but the gate was not traced further)",
+   "Board.forEach iteration order, which decides ties in the destination choice"
+  ],
+  "unresolved": [
+   "Tie-break among equally surrounded empty cells follows board iteration order and a sort whose stability is a runtime property (not tested)",
+   "The destination can be far from the caster and may contain no opponents at all when no empty cell touches one (count 0); the cast still moves the caster there",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dv",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     832,
+     832
+    ],
+    "symbol": "AbilityStrategies[Ability.DIVE]",
+    "expect": "[Ability.DIVE]: new DiveStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP; requiresTarget defaults to true"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "moving",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     43,
+     43
+    ],
+    "symbol": "MovingState",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "requiresTarget false is read by the moving state"
+   },
+   {
+    "id": "dv-class",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "DiveStrategy",
+    "expect": "requiresTarget = false",
+    "note": "overrides the default; process(target null)"
+   },
+   {
+    "id": "dv-table",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     10,
+     11
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "dv-dest",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     12,
+     18
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "pokemon.state.getMostSurroundedCoordinateAvailablePlace",
+    "note": "destination search against the opponent team"
+   },
+   {
+    "id": "dv-shield",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "pokemon.addShield(shield, pokemon, 0, false)",
+    "note": ""
+   },
+   {
+    "id": "dv-move",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "pokemon.moveTo(",
+    "note": "only when a destination exists"
+   },
+   {
+    "id": "dv-adj",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "after the move"
+   },
+   {
+    "id": "dv-damage",
+    "file": "app/core/abilities/dive.ts",
+    "lines": [
+     32,
+     42
+    ],
+    "symbol": "DiveStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "enemy test is team !== caster team"
+   },
+   {
+    "id": "dv-near",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1247,
+     1259
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "if (cell.value && cell.value.team === team)",
+    "note": "counts opponents around each empty cell"
+   },
+   {
+    "id": "most-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1261,
+     1268
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "return b.neighbour - a.neighbour",
+    "note": "sorted descending, first taken"
+   },
+   {
+    "id": "adj-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "addshield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": ""
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain function near the end of the file"
+   },
+   {
+    "id": "state-addshield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "apBoost 0 skips AP; enraged halves; floor at 0"
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "spdmg-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, DOUBLE_DAMAGE"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": ""
+   },
+   {
+    "id": "unit-lapras",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7004,
+     7016
+    ],
+    "symbol": "class Lapras",
+    "expect": "skill = Ability.DIVE",
+    "note": ""
+   },
+   {
+    "id": "unit-wailmer",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10493,
+     10507
+    ],
+    "symbol": "class Wailmer",
+    "expect": "skill = Ability.DIVE",
+    "note": ""
+   },
+   {
+    "id": "unit-wailord",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10509,
+     10522
+    ],
+    "symbol": "class Wailord",
+    "expect": "skill = Ability.DIVE",
+    "note": ""
+   }
+  ]
+ }
+}
