@@ -1,0 +1,605 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DISCHARGE",
+ "kind": "ability",
+ "identifier": "DISCHARGE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T053926Z"
+ },
+ "record": {
+  "ability": "DISCHARGE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ALOLAN_GEODUDE, ALOLAN_GRAVELER and ALOLAN_GOLEM (the queued units; none has a passive in the catalog). The strategy is shared; the units differ in stars and stats only.",
+  "appliesTo": [
+   {
+    "key": "ALOLAN_GEODUDE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DISCHARGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ALOLAN_GOLEM",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DISCHARGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ALOLAN_GRAVELER",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DISCHARGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ALOLAN_GEODUDE": {
+    "evidence": [
+     "unit-geodude"
+    ]
+   },
+   "ALOLAN_GOLEM": {
+    "evidence": [
+     "unit-golem"
+    ]
+   },
+   "ALOLAN_GRAVELER": {
+    "evidence": [
+     "unit-graveler"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DISCHARGE] = new DischargeStrategy()",
+   "strategy": "DischargeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dc",
+    "dc-class",
+    "base-flags",
+    "base-pp",
+    "dc-super",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "For each entity of another team in the 8 cells around the caster: paralyse it for 5000 ms (before reductions), then deal SPECIAL damage (25/50/100 raw at 1/2/3 stars; 200 at 4 stars). The cast target is not used; the area is always the caster's neighbours.",
+  "targeting": {
+   "who": "every other-team entity on the 8 cells adjacent to the caster at cast time; the cast target parameter is unused (a cast still needs a target in range because requiresTarget is the default true)",
+   "needsTarget": true,
+   "evidence": [
+    "dc-class",
+    "base-flags",
+    "pp-gate",
+    "dc-cells",
+    "dc-loop"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 adjacent cells, centre excluded, on-board only",
+   "evidence": [
+    "dc-cells",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "ALOLAN_GEODUDE": 25,
+     "ALOLAN_GRAVELER": 50,
+     "ALOLAN_GOLEM": 100
+    },
+    "scaling": "requested amount: AP: damage x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies each hit if true (needs ABILITY_CRIT; canCritByDefault is false)",
+    "resolution": "applied amount: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked by protect / skydiving / magicBounce. Applied after that enemy's paralysis; the damage return value is unused (no heal, no kill effect). No stat helper involved.",
+    "evidence": [
+     "dc-dmg",
+     "dc-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "paralysis",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "value": 5000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit: the strategy leaves apBoost at its default false, so triggerParalysis does not multiply by (1 + AP/100)",
+    "applicationOrder": "per enemy, before that enemy's damage; enemies are processed in getAdjacentCells order (row by row)",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather x1.3, then x(1 - 0.2 x ELECTRIC_QUARTZ count of the enemy's player); then applyStatusDurationReductions on the enemy itself (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per ODD_KEYSTONE); the timer keeps the larger of the existing remaining time and the new request; a CHERI_BERRY holder eats the berry after a successful application. Because the strategy passes the adjacent enemy itself as the pkm argument, the reductions, the STORM item count and the Cheri Berry check all read that enemy.",
+    "combatEffect": "a paralysed unit uses half speed for its attack cooldown (attacking-state) and its movement speed (move-speed), and cannot dodge basic attacks (handleAttack). Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies.ts, passives.ts) were seen but not read.",
+    "evidence": [
+     "dc-para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "reductions",
+     "para-atk",
+     "para-move",
+     "para-dodge"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ALOLAN_GEODUDE": 1,
+    "ALOLAN_GRAVELER": 2,
+    "ALOLAN_GOLEM": 3
+   },
+   "declaredRawDamage": {
+    "ALOLAN_GEODUDE": 25,
+    "ALOLAN_GRAVELER": 50,
+    "ALOLAN_GOLEM": 100
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (200, also the fallback) is not reached by these units' bare star counts (1, 2, 3). maxPP is 100 and range 1 for all three.",
+   "evidence": [
+    "dc-dmg",
+    "unit-geodude",
+    "unit-graveler",
+    "unit-golem"
+   ]
+  },
+  "positionalConditions": "Only the 8 cells around the caster at cast time; empty cells and allies are skipped. The caster needs a target in range to cast, but that target is not otherwise used (it is hit only if it is adjacent and an enemy).",
+  "repeatedCastsAndModes": "No stored state and no modes. Each cast re-applies paralysis (timer keeps the larger value) and damages again.",
+  "rawVsResolved": "Requested (raw): damage 25/50/100 per adjacent enemy (200 at 4 stars) and paralysis 5000 ms. Applied damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division (ceil, at least 1) and later handleDamage modifiers. Applied paralysis = 5000 ms (no AP), x1.3 under STORM (less ELECTRIC_QUARTZ), then the enemy's duration reductions, kept only if longer than the remaining time. No heal or stat change, so no Big Eater Belt / Twist Band helper applies.",
+  "sourceTables": [
+   {
+    "id": "dischargeDamage",
+    "file": "app/core/abilities/discharge.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "When the cast fires in a real fight (PP gain, silence, targeting before the cast)",
+   "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "Weather STORM, IMMUNITY_PARALYSIS and the duration-reduction effects' sources were not traced",
+   "Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies, passives) were not read"
+  ],
+  "unresolved": [
+   "Whether any other item or synergy effect changes the ability beyond what is listed",
+   "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     831,
+     831
+    ],
+    "symbol": "AbilityStrategies[Ability.DISCHARGE]",
+    "expect": "[Ability.DISCHARGE]: new DischargeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dc-class",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "DischargeStrategy",
+    "expect": "export class DischargeStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true); the target parameter is never used in the body"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "dc-super",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default cast animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the flag is passed to every damage call"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast with the current target when PP is full"
+   },
+   {
+    "id": "dc-dmg",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "dc-cells",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the 8 cells around the caster"
+   },
+   {
+    "id": "dc-loop",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "every adjacent entity of another team"
+   },
+   {
+    "id": "dc-para",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "cell.value.status.triggerParalysis(5000, cell.value, pokemon)",
+    "note": "paralysis first; pkm = the adjacent enemy itself; apBoost left at its default false"
+   },
+   {
+    "id": "dc-hit",
+    "file": "app/core/abilities/discharge.ts",
+    "lines": [
+     15,
+     21
+    ],
+    "symbol": "DischargeStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, the cast's crit flag, apBoost default true"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, centre excluded, on-board only, row by row"
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     176,
+     181
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "definition"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     554,
+     554
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "apBoost false by default: no AP scaling"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     912,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather x1.3, less 20% per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions read from pkm (= the paralysed enemy here)"
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     933,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": "a CHERI_BERRY holder eats the berry after the application"
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     943,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": "paralysis healed when the timer runs out"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1264,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 on pkm.effects, then ODD_KEYSTONE x(1 - 0.1 n) of pkm.player's items"
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysed units use half speed for the attack cooldown"
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "and for movement speed"
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": "a paralysed target cannot dodge"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     345,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     351,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the hit (the paralysis is applied before and is not blocked by them)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "unit-geodude",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10724,
+     10742
+    ],
+    "symbol": "class AlolanGeodude",
+    "expect": "skill = Ability.DISCHARGE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-golem",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10764,
+     10781
+    ],
+    "symbol": "class AlolanGolem",
+    "expect": "skill = Ability.DISCHARGE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-graveler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10744,
+     10762
+    ],
+    "symbol": "class AlolanGraveler",
+    "expect": "skill = Ability.DISCHARGE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
