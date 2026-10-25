@@ -1,0 +1,503 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DISARMING_VOICE",
+ "kind": "ability",
+ "identifier": "DISARMING_VOICE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T053926Z"
+ },
+ "record": {
+  "ability": "DISARMING_VOICE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "DELCATTY, FEZANDIPITI and SKITTY (the queued units; none has a passive in the catalog). The strategy is shared; the units differ in stars, maxPP (80 for Fezandipiti, 100 for the others) and stats.",
+  "appliesTo": [
+   {
+    "key": "DELCATTY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DISARMING_VOICE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FEZANDIPITI",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DISARMING_VOICE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKITTY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DISARMING_VOICE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DELCATTY": {
+    "evidence": [
+     "unit-delcatty"
+    ]
+   },
+   "FEZANDIPITI": {
+    "evidence": [
+     "unit-fezandipiti"
+    ]
+   },
+   "SKITTY": {
+    "evidence": [
+     "unit-skitty"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DISARMING_VOICE] = new DisarmingVoiceStrategy()",
+   "strategy": "DisarmingVoiceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dv",
+    "dv-class",
+    "base-flags",
+    "base-pp",
+    "dv-super",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "No damage. Charms every entity of another team inside a disc around the caster (radius 1/2/3 at 1/2/3 stars, 4 at 4 stars) for 1000 ms (2000 ms at 4 stars) multiplied by (1 + caster AP/100). As written, the duration reductions are read from the cast target rather than from each charmed entity, and the charm-time retarget (setTarget) is applied to the cast target, not to each charmed enemy.",
+  "targeting": {
+   "who": "all entities whose team differs from the caster's, within the radius around the caster's own position (the centre cell is excluded); the cast target is only used as the pkm argument of triggerCharm",
+   "needsTarget": true,
+   "note": "cast with a current target at range (requiresTarget true); the target does not choose the area.",
+   "evidence": [
+    "dv-class",
+    "base-flags",
+    "pp-gate",
+    "dv-loop",
+    "dv-charm"
+   ]
+  },
+  "geometry": {
+   "shape": "disc around the caster, centre excluded",
+   "radiusRule": "cells with dx^2 + dy^2 < (floor(radius) + 0.5)^2 on the board",
+   "radiusByStars": {
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "fallback": 4
+   },
+   "evidence": [
+    "dv-radius",
+    "dv-cells",
+    "radius"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "crowd control (charm)",
+    "target": "every other-team entity in the disc that is not already charmed",
+    "declaredRaw": {
+     "radiusByStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "fallback": 4
+     },
+     "charmMsByStars": {
+      "1": 1000,
+      "2": 1000,
+      "3": 1000,
+      "4": 2000,
+      "fallback": 2000
+     }
+    },
+    "perUnitRaw": {
+     "radius": {
+      "DELCATTY": 2,
+      "FEZANDIPITI": 3,
+      "SKITTY": 1
+     },
+     "charmMs": {
+      "DELCATTY": 1000,
+      "FEZANDIPITI": 1000,
+      "SKITTY": 1000
+     }
+    },
+    "scaling": "requested duration: charmMs x (1 + AP/100) with the CASTER's AP (apBoost true, origin = caster); no crit scaling (the crit flag is not used)",
+    "resolution": "applied duration: x1.3 under MISTY weather, then applyStatusDurationReductions evaluated on the cast target (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE x(1 - 0.1 n) from that target's player); an enemy that is already charmed, or has runeProtect, is skipped. No damage and no stat helper involved.",
+    "evidence": [
+     "dv-radius",
+     "dv-dur",
+     "dv-cells",
+     "dv-loop",
+     "dv-charm",
+     "radius",
+     "charm-trig",
+     "reductions"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "charm",
+    "target": "each enemy in the disc",
+    "declaredRaw": {
+     "value": "1000 ms (2000 ms at 4 stars)",
+     "unit": "ms"
+    },
+    "scaling": "AP of the caster",
+    "applicationOrder": "in board.getCellsInRadius order (row by row), one triggerCharm per qualifying cell",
+    "guards": "not applied if already charmed or runeProtect; MISTY x1.3; reductions read from the cast target (pkm argument), not from the charmed entity",
+    "combatEffect": "charm and charmOrigin are stored on the enemy; in the moving state a charmed enemy that can move walks toward the origin until adjacent (distance > 1 check); in the attacking state it switches to moving when a target is in sight. Each hit it takes from the charm origin removes 500 ms of the remaining charm. When the charm ends the target is reset to force retargeting. triggerCharm also calls setTarget(origin) on its pkm argument, which here is the cast target: the cast target's target becomes the caster once per newly charmed enemy; other charmed enemies get no setTarget call from this ability.",
+    "evidence": [
+     "dv-charm",
+     "charm-trig",
+     "charm-update",
+     "settarget",
+     "moving-charm",
+     "attacking-charm",
+     "charm-hit",
+     "reductions"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SKITTY": 1,
+    "DELCATTY": 2,
+    "FEZANDIPITI": 3
+   },
+   "declaredRadius": {
+    "DELCATTY": 2,
+    "FEZANDIPITI": 3,
+    "SKITTY": 1
+   },
+   "declaredCharmMs": {
+    "DELCATTY": 1000,
+    "FEZANDIPITI": 1000,
+    "SKITTY": 1000
+   },
+   "note": "both tables are indexed by the casting entity's stars; 4-star values (radius 4, 2000 ms; also the fallbacks) are not reached by these units' bare star counts (1, 2, 3). maxPP is 100 for Skitty / Delcatty and 80 for Fezandipiti; range 1 for all.",
+   "evidence": [
+    "dv-radius",
+    "dv-dur",
+    "unit-skitty",
+    "unit-delcatty",
+    "unit-fezandipiti"
+   ]
+  },
+  "positionalConditions": "The disc is centred on the caster's position at cast time; only on-board cells count; empty cells and allies are skipped. The caster needs a current target in range to cast.",
+  "repeatedCastsAndModes": "No stored state and no modes. A repeat cast skips enemies that are still charmed; the cast target (the pkm argument) is re-targeted to the caster only for enemies that are newly charmed.",
+  "rawVsResolved": "Requested (raw): radius 1/2/3 (4) and charm 1000/1000/1000 (2000) ms for 1/2/3 (4) stars. Requested duration after AP = charmMs x (1 + caster AP/100). Applied duration: MISTY x1.3, then the duration reductions of the cast target's effects/player items, rounded where those branches round; a later hit from the caster shortens the remaining charm by 500 ms each. No damage, no heal, no stat change, so no Big Eater Belt / Twist Band helper applies.",
+  "sourceTables": [
+   {
+    "id": "disarmingVoiceRadius",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "pattern": "const radius = \\[([^\\]]+)\\]",
+    "recordPath": "geometry.radiusByStars",
+    "unitValuesPath": "effects.0.perUnitRaw.radius"
+   },
+   {
+    "id": "disarmingVoiceCharm",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "pattern": "const charmDuration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.charmMsByStars",
+    "unitValuesPath": "effects.0.perUnitRaw.charmMs"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Exact behaviour of a charmed entity in a real fight (whether it can still attack, how it reacts after the charm ends) - only the moving-state and attacking-state branches that read status.charm were read",
+   "Board.forEach / getCellsInRadius iteration order only matters for which enemy is charmed first; it does not change the result",
+   "Weather MISTY and the duration-reduction effects' availability (what grants SWIFT_SWIM, HYDRATION, WATER_VEIL, SURGE_SURFER) were not traced",
+   "When the cast fires in a real fight (PP gain, silence, targeting)"
+  ],
+  "unresolved": [
+   "Whether passing the cast target as the pkm argument of triggerCharm (instead of the charmed entity) is intended: as read, duration reductions and the immediate setTarget(origin) use the cast target. Not tested in a fight.",
+   "Whether the cast target is always inside the radius: it is for range-1 units at stars >= 1, since the radius is at least 1 and the target is adjacent, but a target at larger distance (e.g. after displacement) would not be charmed yet still be re-targeted",
+   "Whether any other item or synergy effect changes the ability beyond what is listed",
+   "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dv",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     830,
+     830
+    ],
+    "symbol": "AbilityStrategies[Ability.DISARMING_VOICE]",
+    "expect": "[Ability.DISARMING_VOICE]: new DisarmingVoiceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dv-class",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "DisarmingVoiceStrategy",
+    "expect": "export class DisarmingVoiceStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "dv-super",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default cast animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "the crit flag is passed in but DisarmingVoiceStrategy never uses it"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast with the current target when PP is full"
+   },
+   {
+    "id": "dv-radius",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "const radius = [1, 2, 3, 4][pokemon.stars - 1] ?? 4",
+    "note": ""
+   },
+   {
+    "id": "dv-cells",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     9,
+     14
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "board.getCellsInRadius(",
+    "note": "centre on the caster, includesCenter false"
+   },
+   {
+    "id": "dv-dur",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "const charmDuration = [1000, 1000, 1000, 2000][pokemon.stars - 1] ?? 2000",
+    "note": ""
+   },
+   {
+    "id": "dv-loop",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "every entity of another team in the radius"
+   },
+   {
+    "id": "dv-charm",
+    "file": "app/core/abilities/disarming-voice.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "DisarmingVoiceStrategy.process",
+    "expect": "cell.value.status.triggerCharm(charmDuration, target, pokemon, true)",
+    "note": "called on each enemy's status, but the second argument (pkm) is the CAST TARGET, not the enemy; origin = caster; apBoost true"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     246,
+     267
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "getCellsInRadius(",
+    "note": "all on-board cells whose squared distance to the centre is < (floor(|radius|) + 0.5)^2, centre excluded when includesCenter is false; occupied and empty cells alike"
+   },
+   {
+    "id": "charm-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     165,
+     182
+    ],
+    "symbol": "Status.triggerCharm",
+    "expect": "triggerCharm(",
+    "note": "only if not already charmed and no runeProtect; duration x (1 + origin.ap/100) when apBoost; MISTY weather x1.3; applyStatusDurationReductions(duration, pkm); sets charm, charmCooldown, charmOrigin; pkm.setTarget(origin)"
+   },
+   {
+    "id": "charm-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     859,
+     867
+    ],
+    "symbol": "Status.updateCharm",
+    "expect": "updateCharm(dt: number, pkm: PokemonEntity)",
+    "note": "when the cooldown runs out charm and origin are cleared and the entity's target is reset to force retargeting"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1264,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 (checked on pkm.effects), then ODD_KEYSTONE x(1 - 0.1 n) from pkm.player's items; both read from pkm, here the cast target"
+   },
+   {
+    "id": "settarget",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     323
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "setTarget(target: IPokemonEntity | null) {",
+    "note": "sets targetEntityId / targetX / targetY"
+   },
+   {
+    "id": "moving-charm",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     12,
+     25
+    ],
+    "symbol": "MovingState.update",
+    "expect": "if (pokemon.status.charm && pokemon.canMove) {",
+    "note": "while charmed (and able to move) the entity walks toward charmOrigin until within distanceC 1"
+   },
+   {
+    "id": "attacking-charm",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     70,
+     74
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (!target || pokemon.status.charm) {",
+    "note": "in the attacking state a charmed entity switches to moving when a target is in sight"
+   },
+   {
+    "id": "charm-hit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1215,
+     1217
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "attacker === this.status.charmOrigin",
+    "note": "each hit taken from the charm origin shortens the remaining charm by 500 ms"
+   },
+   {
+    "id": "unit-delcatty",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18414,
+     18427
+    ],
+    "symbol": "class Delcatty",
+    "expect": "skill = Ability.DISARMING_VOICE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-fezandipiti",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18582,
+     18594
+    ],
+    "symbol": "class Fezandipiti",
+    "expect": "skill = Ability.DISARMING_VOICE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-skitty",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18398,
+     18412
+    ],
+    "symbol": "class Skitty",
+    "expect": "skill = Ability.DISARMING_VOICE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
