@@ -171,7 +171,7 @@ const NOTE_MAP = {
   COSMOEM: [["pilot-evolution", "COSMOEM"], ["evolution-context", "Cosmoem"], ["evolution-context", "Cosmog"]],
   COSMOG: [["evolution-context", "Cosmog"]]
 }
-const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"], IRON_DEFENSE: ["reusable-abilities", "IRON_DEFENSE"], MACH_PUNCH: ["reusable-abilities", "MACH_PUNCH"], ROCK_SLIDE: ["reusable-abilities", "ROCK_SLIDE"] }
+const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"], IRON_DEFENSE: ["reusable-abilities", "IRON_DEFENSE"], MACH_PUNCH: ["reusable-abilities", "MACH_PUNCH"], ROCK_SLIDE: ["reusable-abilities", "ROCK_SLIDE"], SLASH: ["reusable-abilities", "SLASH"], VENOSHOCK: ["reusable-abilities", "VENOSHOCK"], AERIAL_ACE: ["reusable-abilities", "AERIAL_ACE"], AQUA_TAIL: ["reusable-abilities", "AQUA_TAIL"], CLANGOROUS_SOUL: ["reusable-abilities", "CLANGOROUS_SOUL"], CRABHAMMER: ["reusable-abilities", "CRABHAMMER"] }
 const PASSIVE_NOTE = { SURGE_SURFER: ["reusable-abilities", "SURGE_SURFER"], PRIMEAPE: ["reusable-abilities", "PRIMEAPE"], PACHIRISU: ["reusable-abilities", "PACHIRISU"] }
 const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|Resolved later|Not claimed)/.test(l.trim()))
 
@@ -188,7 +188,11 @@ const cap = (s, n = 700) => (s.length > n ? s.slice(0, n) + " … (see the note)
 const rawTable = (t) => Object.entries(t).map(([k, v]) => (/^\d+$/.test(k) ? `${k}★ ${v}` : `${k} ${v}`)).join(", ")
 // declared raw amount of an effect: a by-stars table, a percent-of-caster-ATK table, a flat amount or a formula; `unit` says what the number is (e.g. a multiplier of target.atk)
 const rawDesc = (d) => {
-  const core = d.byStars ? rawTable(d.byStars) : d.percentOfCasterAtkByStars ? rawTable(d.percentOfCasterAtkByStars) : d.flat !== undefined ? `flat ${d.flat}` : d.formula
+  let core = d.byStars ? rawTable(d.byStars) : d.percentOfCasterAtkByStars ? rawTable(d.percentOfCasterAtkByStars) : d.flat !== undefined ? `flat ${d.flat}` : d.formula
+  if (core === undefined) { // generic fallback: never print "undefined"; tables (all keys are star numbers or "fallback") are shown as tables, other fields as key value
+    const isTable = (v) => v && typeof v === "object" && Object.keys(v).every((k) => /^\d+$|^fallback$/.test(k))
+    core = Object.entries(d).filter(([k]) => k !== "label" && k !== "unit").map(([k, v]) => (isTable(v) ? `${k} ${rawTable(v)}` : `${k} ${typeof v === "object" ? JSON.stringify(v) : v}`)).join("; ") || "(no declared amount)"
+  }
   return d.unit && !d.formula ? `${core} (${d.unit})` : core
 }
 
@@ -251,9 +255,13 @@ function renderAbility(L, key, cat, abi, covering, review) {
     if (rec.geometry) L.push(`- Geometry: ${rec.geometry.shape}${rec.geometry.cells ? ` (${rec.geometry.cells} cells)` : ""}.`)
     for (const e of rec.effects ?? []) {
       const pu = e.perUnitRaw ? e.perUnitRaw[key] : e.declaredRaw.byStars ? rec.starBehavior?.declaredRawDamage?.[key] : undefined // the five imported abilities carry perUnitRaw
-      L.push(`- ${e.kind}${e.damageType ? ` (${e.damageType})` : ""}${e.stat ? ` ${e.stat}` : ""}${e.target ? ` → ${e.target}` : ""}${e.condition ? `, ${e.condition}` : ""}: raw ${rawDesc(e.declaredRaw)}${pu !== undefined ? ` → this unit (${a.stars}★): **raw ${pu}**` : ""}.`)
+      L.push(`- ${e.kind}${e.damageType ? ` (${e.damageType})` : ""}${e.stat ? ` ${e.stat}` : ""}${e.target ? ` → ${e.target}` : ""}${e.condition ? `, ${e.condition}` : ""}: raw ${rawDesc(e.declaredRaw)}${pu !== undefined ? ` → this unit (${a.stars}★): **raw ${typeof pu === "object" ? JSON.stringify(pu) : pu}**` : ""}.`)
       L.push(`  - Scaling: ${e.scaling}. Resolution: ${e.resolution}.`)
-      if (e.conditional) { const vs = Object.entries(e.conditional).find(([k]) => /^perUnitRawVs/.test(k))?.[1]?.[key]; L.push(`  - Conditional: ${e.conditional.condition} → raw ×${e.conditional.multiplier}${vs !== undefined ? ` (this unit: **raw ${vs}**)` : ""}. ${e.conditional.note ?? ""}`.trimEnd()) }
+      if (e.conditional) { // conditional change of the raw amount: a multiplier (perUnitRawVs* / perUnitRawIf*) or a replacement amount
+        const c = e.conditional, vs = Object.entries(c).find(([k]) => /^perUnitRaw(Vs|If)/.test(k))?.[1]?.[key]
+        const what = c.multiplier !== undefined ? `raw ×${c.multiplier}` : c.replacementRaw !== undefined ? `raw ${c.replacementRaw}${c.replacementDamageType ? ` as ${c.replacementDamageType} damage` : ""} instead of the table value` : "see note"
+        L.push(`  - Conditional: ${c.condition} → ${what}${vs !== undefined ? ` (this unit: **raw ${vs}**)` : ""}. ${c.note ? c.note[0].toUpperCase() + c.note.slice(1) : ""}`.trimEnd())
+      }
     }
     if (rec.identifierOnlyBehavior) {
       L.push(`**The bare skill ${code(rec.ability)} is a placeholder.** As a cast it does: ${rec.identifierOnlyBehavior.effects}.`)
