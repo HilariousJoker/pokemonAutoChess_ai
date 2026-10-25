@@ -1,0 +1,636 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ELECTRO_BALL",
+ "kind": "ability",
+ "identifier": "ELECTRO_BALL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T173941Z"
+ },
+ "record": {
+  "ability": "ELECTRO_BALL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ELECTRO_BALL: Chinchou (1 star, speed 43), Lanturn (2 stars, speed 43), Emolga (3 stars, speed 66), all range 2 and maxPP 100. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "CHINCHOU",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ELECTRO_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EMOLGA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ELECTRO_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LANTURN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ELECTRO_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CHINCHOU": {
+    "evidence": [
+     "unit-chinchou"
+    ]
+   },
+   "EMOLGA": {
+    "evidence": [
+     "unit-emolga"
+    ]
+   },
+   "LANTURN": {
+    "evidence": [
+     "unit-lanturn"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ELECTRO_BALL] = new ElectroBallStrategy()",
+   "strategy": "ElectroBallStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base-process",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "eball-class",
+    "eball-super"
+   ]
+  },
+  "summary": "Hits the cast target with SPECIAL damage (raw 10/20/40 by stars, same for every bounce) and then bounces to other enemies. The caster's current speed at cast time is a budget: each scheduled bounce costs 30, and a further bounce is scheduled only while the budget is above 0, i.e. up to ceil(speed/30) extra hits after the first (e.g. base speed 43 gives 2 extra, 66 gives 3 extra), limited by the enemies not yet hit. The bounce target is the FIRST unhit enemy in board-cell order, while the delay is computed from the distance to the CLOSEST unhit enemy; the closest enemy is computed but never used as the target. Each bounce is a delayed command, so later hits happen after the cast and read board and caster state at that time.",
+  "targeting": {
+   "who": "first hit: the cast target. Later hits: the first not-yet-hit unit whose team differs from the caster's, in board.cells order (row by row, lowest y then lowest x), re-read from the board at each bounce",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true; range 2). Bounces are not range-limited. Which unit is chosen as cast target is decided by generic targeting code, which was not read.",
+   "evidence": [
+    "eball-first",
+    "eball-possible",
+    "eball-next",
+    "eball-closest",
+    "board-cells",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "chain of single hits; no area. Distances (Manhattan) only set the delay between hits, not who is hit",
+   "evidence": [
+    "eball-dist",
+    "eball-sched",
+    "distm",
+    "eball-next"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target, then up to ceil(speed/30) further distinct enemies",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested damage per bounce (raw)"
+    },
+    "perUnitRaw": {
+     "CHINCHOU": 10,
+     "EMOLGA": 40,
+     "LANTURN": 20
+    },
+    "scaling": "requested = table[stars-1] per hit (no falloff). handleSpecialDamage with default apBoost true: x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); the crit flag is rolled once at cast and reused for every bounce. AP and other multipliers are read when each delayed hit runs.",
+    "resolution": "applied = figure handed to PokemonState.handleDamage for that hit; there it is divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and the unit's shield absorbs first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for protect / skydiving / magicBounce. Bounce count: 1 + min(ceil(speed/30), unhit enemies still on the board); speed is the caster's current speed at cast, not its base speed.",
+    "evidence": [
+     "eball-speed",
+     "eball-table",
+     "eball-hit",
+     "eball-hit-set",
+     "eball-possible",
+     "eball-cond",
+     "eball-next",
+     "eball-dec",
+     "eball-first",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "timing",
+    "target": "each bounce after the first",
+    "scaling": "delay per bounce = Math.round(200 * (50 / speed)) * minDistance ms, with speed the caster's speed at cast time and minDistance the Manhattan distance from the unit just hit to the closest unhit enemy.",
+    "resolution": "The first hit is immediate. Each later hit runs through the caster's command list (advanced by its own update) when its delay has passed. A speed of 0 gives an infinite delay (not examined further).",
+    "evidence": [
+     "eball-delay",
+     "eball-sched",
+     "cmd-update",
+     "cmd-run",
+     "eball-dist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CHINCHOU": 1,
+    "EMOLGA": 3,
+    "LANTURN": 2
+   },
+   "declaredRawDamage": {
+    "CHINCHOU": 10,
+    "EMOLGA": 40,
+    "LANTURN": 20
+   },
+   "baseSpeed": {
+    "CHINCHOU": 43,
+    "EMOLGA": 66,
+    "LANTURN": 43
+   },
+   "note": "Damage table is indexed by the caster's stars (4-star column 80 and the ?? fallback are not reachable by the bare factory star counts). The bounce budget depends on current speed, so base speed (43, 43, 66) gives 2, 2 and 3 extra bounces before buffs or debuffs; derived from the 30-per-bounce rule.",
+   "evidence": [
+    "eball-table",
+    "eball-speed",
+    "eball-dec",
+    "unit-chinchou",
+    "unit-emolga",
+    "unit-lanturn"
+   ]
+  },
+  "positionalConditions": "Which enemy is hit next depends on board.cells order, not on distance; distance only delays the hit.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0); casts get their own budget and unhit set. A second cast while delayed bounces of the first are pending runs independently.",
+  "rawVsResolved": "Requested: damage 10/20/40 per hit for 1/2/3 stars. Applied damage per hit = requested x (1 + AP/100) x optional crit multiplier (rolled once per cast), then reduced by each target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. Total hits = 1 + min(ceil(speed/30), unhit enemies). Final values depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/electro-ball.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read",
+   "What happens when a delayed bounce targets a unit that has already died or been removed, or when the caster has died before its commands run, was not traced"
+  ],
+  "unresolved": [
+   "Helpers consulted: distanceM, DelayedCommand / SimulationCommand.update, PokemonState.updateCommands, handleSpecialDamage and handleDamage were read (see evidence); no routing uncertainties are listed for this record",
+   "The next target is possibleTargets[0] while the delay uses the closest target's distance: this is what the source does; whether it is intended was not examined",
+   "Whether a dead caster's pending commands still run was not traced; the command list is advanced by the caster's own state update",
+   "board.cells.filter on a sparse array skips empty holes in JavaScript; this was read from the source expression, not run",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-chinchou",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9891,
+     9909
+    ],
+    "symbol": "class Chinchou",
+    "expect": "skill = Ability.ELECTRO_BALL",
+    "note": "unit class block: skill / stars / base speed / stats"
+   },
+   {
+    "id": "unit-emolga",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18768,
+     18780
+    ],
+    "symbol": "class Emolga",
+    "expect": "skill = Ability.ELECTRO_BALL",
+    "note": "unit class block: skill / stars / base speed / stats"
+   },
+   {
+    "id": "unit-lanturn",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9911,
+     9928
+    ],
+    "symbol": "class Lanturn",
+    "expect": "skill = Ability.ELECTRO_BALL",
+    "note": "unit class block: skill / stars / base speed / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     859,
+     859
+    ],
+    "symbol": "AbilityStrategies[Ability.ELECTRO_BALL]",
+    "expect": "[Ability.ELECTRO_BALL]: new ElectroBallStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-process",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     25
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP (floor 0); preventDefaultAnim true skips the default animation broadcast"
+   },
+   {
+    "id": "eball-class",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "ElectroBallStrategy",
+    "expect": "export class ElectroBallStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "eball-super",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ElectroBallStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default process with preventDefaultAnim = true (own broadcast per bounce)"
+   },
+   {
+    "id": "eball-speed",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "ElectroBallStrategy.process",
+    "expect": "let projectileSpeedRemaining = pokemon.speed",
+    "note": "the caster's CURRENT speed at cast time is the bounce budget"
+   },
+   {
+    "id": "eball-delay",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "ElectroBallStrategy.process",
+    "expect": "const delay = Math.round(200 * (50 / pokemon.speed))",
+    "note": "per-cell travel delay in ms, fixed at cast time from the caster's current speed"
+   },
+   {
+    "id": "eball-dist",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     24,
+     29
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "const distance = distanceM(",
+    "note": "Manhattan distance from the previous hit unit (the caster for the first hit) to the current target; only used for the animation broadcast delay"
+   },
+   {
+    "id": "eball-table",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage table by stars (same value for every bounce)"
+   },
+   {
+    "id": "eball-hit",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     39,
+     45
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "currentTarget.handleSpecialDamage(",
+    "note": "SPECIAL damage, default apBoost, the cast's crit flag, attacker = caster"
+   },
+   {
+    "id": "eball-hit-set",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     47,
+     47
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "targetsHit.add(currentTarget)",
+    "note": "each unit can be hit at most once per cast"
+   },
+   {
+    "id": "eball-possible",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     48,
+     53
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "cell.team !== pokemon.team &&",
+    "note": "candidate next targets: every unit currently on the board on a team other than the caster's that has not been hit yet; board.cells is read at bounce time"
+   },
+   {
+    "id": "eball-closest",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     63,
+     64
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "const closestTarget = possibleTargets[distances.indexOf(minDistance)]",
+    "note": "closest candidate by Manhattan distance is computed, but see eball-next"
+   },
+   {
+    "id": "eball-cond",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     66,
+     66
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "if (closestTarget && projectileSpeedRemaining > 0) {",
+    "note": "a further bounce is scheduled only while the remaining speed budget is above 0"
+   },
+   {
+    "id": "eball-next",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     67,
+     67
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "const nextTarget = possibleTargets[0]",
+    "note": "the NEXT TARGET is the first candidate in board.cells order, not closestTarget"
+   },
+   {
+    "id": "eball-dec",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     68,
+     68
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "projectileSpeedRemaining -= 30",
+    "note": "each scheduled bounce costs 30 of the budget"
+   },
+   {
+    "id": "eball-sched",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     69,
+     74
+    ],
+    "symbol": "ElectroBallStrategy.process bounce",
+    "expect": "new DelayedCommand(",
+    "note": "the next bounce runs after delay * minDistance ms, where minDistance is the distance to the closest candidate, not to nextTarget"
+   },
+   {
+    "id": "eball-first",
+    "file": "app/core/abilities/electro-ball.ts",
+    "lines": [
+     78,
+     78
+    ],
+    "symbol": "ElectroBallStrategy.process",
+    "expect": "bounce(target, pokemon)",
+    "note": "first hit is the cast target, immediately, at the cast"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "a delayed command runs the first update after its delay has elapsed (delay < 0)"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "commands stored on the caster are advanced by the caster's own state update"
+   },
+   {
+    "id": "board-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     17,
+     31
+    ],
+    "symbol": "Board.cells",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": "flat array indexed columns*y + x; order is row by row"
+   },
+   {
+    "id": "distm",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   }
+  ]
+ }
+}
