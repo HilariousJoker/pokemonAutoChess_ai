@@ -1,0 +1,774 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DARKEST_LARIAT",
+ "kind": "ability",
+ "identifier": "DARKEST_LARIAT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T053926Z"
+ },
+ "record": {
+  "ability": "DARKEST_LARIAT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "INCINEROAR, LITTEN and TORRACAT (the queued units; none has a passive in the catalog). The strategy is shared; the units differ in stars and stats only.",
+  "appliesTo": [
+   {
+    "key": "INCINEROAR",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DARKEST_LARIAT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LITTEN",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DARKEST_LARIAT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TORRACAT",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DARKEST_LARIAT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "INCINEROAR": {
+    "evidence": [
+     "unit-incineroar"
+    ]
+   },
+   "LITTEN": {
+    "evidence": [
+     "unit-litten"
+    ]
+   },
+   "TORRACAT": {
+    "evidence": [
+     "unit-torracat"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DARKEST_LARIAT] = new DarkestLariatStrategy()",
+   "strategy": "DarkestLariatStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dl",
+    "dl-class",
+    "base-flags",
+    "base-pp",
+    "dl-super",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target multi-hit SPECIAL damage: the target is flinched for 1000 ms, and round((1 + 0.01 x speed) x 3) hits (speed read at cast time) are queued over about one second, each dealing 1 x the caster's ATK (read at that hit) at 1-3 stars (2 x at 4 stars). Fire-synergy effects add attack to the caster after each hit. The caster then moves to the empty cell closest to the point behind the target, if there is one.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target); every queued hit goes to that same target",
+   "needsTarget": true,
+   "note": "hits are skipped once the target's hp is 0; there is no range, position or retargeting check at hit time.",
+   "evidence": [
+    "dl-class",
+    "base-flags",
+    "pp-gate",
+    "dl-alive",
+    "dl-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; displacement of the caster to the empty cell nearest (target position + (target - caster))",
+   "destination": "Board.getClosestAvailablePlace of the point one step past the target in the caster -> target direction (the point may lie off the board; only empty cells are candidates; ties keep the sorted order of board.forEach, not traced)",
+   "evidence": [
+    "dl-dir",
+    "dl-behind",
+    "closest",
+    "dl-bcast",
+    "dl-move",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (multi-hit)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "multiplierByStars": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 2,
+      "fallback": 2
+     },
+     "base": "the caster's atk at the moment of each hit",
+     "hits": "round((1 + 0.01 x speed) x 3), speed at cast time",
+     "spacing": "hit i delayed round(i x 1000 / hits) ms"
+    },
+    "perUnitRaw": {
+     "INCINEROAR": "1 x atk",
+     "LITTEN": "1 x atk",
+     "TORRACAT": "1 x atk"
+    },
+    "scaling": "requested amount per hit: multiplier x atk (atk includes whatever the entity has at that moment, e.g. earlier attack gains from this cast, items per core-mechanics section I); then AP: x (1 + AP/100) (apBoost default true); the cast's single crit flag multiplies every hit if it is true (needs ABILITY_CRIT)",
+    "resolution": "applied amount per hit: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked by protect / skydiving / magicBounce. No hit is dealt once the target is dead. takenDamage is not used by this ability.",
+    "evidence": [
+     "dl-hits",
+     "dl-loop",
+     "dl-alive",
+     "dl-dmg",
+     "dl-hit",
+     "dl-delay",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast"
+    ]
+   },
+   {
+    "kind": "buff (self, attack)",
+    "declaredRaw": {
+     "WILDFIRE": 1,
+     "BLAZE": 2,
+     "DESOLATE_LAND": 3,
+     "note": "flat attack added after each damaging hit; first matching effect only"
+    },
+    "scaling": "requested amount: addAttack(value, caster = self, apBoost 0, crit false), so neither AP nor crit scales it",
+    "resolution": "applied amount: applyBigEaterBeltStatBuff multiplies a positive value by 1.25 (rounded down, 0 digits) if the caster holds BIG_EATER_BELT; applyTwistBandBuff affects only negative values, so it does nothing here; atk = max(1, atk + value); not permanent. The gain raises atk for the NEXT hit(s) of this cast and for the basic attacks afterwards.",
+    "evidence": [
+     "dl-fire",
+     "add-attack",
+     "bigeater",
+     "twist",
+     "fire-list",
+     "fire-add"
+    ]
+   },
+   {
+    "kind": "move (self)",
+    "declaredRaw": {
+     "destination": "closest empty cell to the point behind the target"
+    },
+    "scaling": "none",
+    "resolution": "if a cell exists: moveTo(..., false) (forcedDisplacement false, canBeMoved not consulted) then resetCooldown(500), i.e. cooldown = round(500 / (0.4 + speed x 0.007)) with the caster's current speed, replacing the cooldown of 100 that moveTo sets. If no empty cell exists the caster stays and the cooldown is not reset.",
+    "evidence": [
+     "dl-behind",
+     "closest",
+     "dl-move",
+     "dl-cd",
+     "moveto",
+     "reset-cd"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "the target",
+    "declaredRaw": {
+     "value": 1000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "at cast time, before any hit and independent of whether damage is dealt",
+    "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
+    "combatEffect": "while flinched, damage that would hit a shield is split: half is dealt to the shield and half is residual damage to HP (the only use of status.flinch read in app/core and app/models besides status.ts; other directories not searched).",
+    "evidence": [
+     "dl-flinch",
+     "flinch-trig",
+     "flinch-shield"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "atk",
+    "target": "self",
+    "evidence": [
+     "dl-fire",
+     "add-attack"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "LITTEN": 1,
+    "TORRACAT": 2,
+    "INCINEROAR": 3
+   },
+   "declaredMultiplier": {
+    "INCINEROAR": 1,
+    "LITTEN": 1,
+    "TORRACAT": 1
+   },
+   "note": "multiplier indexed by the casting entity's stars: 1 for 1-3 stars, 2 only at 4 stars (and the fallback); the 4-star value is not reached by these units' bare star counts (1, 2, 3). maxPP is 80 and range 1 for all three. Catalog base speed is 44 for all three, which gives round(1.44 x 3) = 4 hits at base speed; actual speed at cast time may differ (items, buffs).",
+   "evidence": [
+    "dl-dmg",
+    "dl-hits",
+    "unit-litten",
+    "unit-torracat",
+    "unit-incineroar"
+   ]
+  },
+  "positionalConditions": "The caster needs the target in range to cast (requiresTarget true). Hits do not check range or position, so they still land after the caster has moved behind the target. The move needs at least one empty cell on the board.",
+  "repeatedCastsAndModes": "No stored state and no modes. Queued hits are entries in the caster's commands list, each tied to the cast's target and crit flag; a later cast adds its own set. Permanent effects: none (the attack gains are not permanent).",
+  "rawVsResolved": "Requested (raw): damage per hit = 1 x atk (4-star: 2 x atk) at hit time, number of hits round((1 + 0.01 x speed) x 3), flinch 1000 ms, attack gain +1/+2/+3 per hit under WILDFIRE/BLAZE/DESOLATE_LAND. Applied: damage after AP/crit, then SPE_DEF division (ceil, min 1) and later handleDamage modifiers; attack gain after the Big Eater Belt helper (x1.25 rounded down) and the atk floor of 1; flinch after status duration reductions; cooldown reset per resetCooldown with the caster's speed.",
+  "sourceTables": [
+   {
+    "id": "lariatMultiplier",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.multiplierByStars",
+    "unitValuesPath": "starBehavior.declaredMultiplier"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Whether the caster's pending commands keep running when the caster dies, is frozen, asleep or otherwise not updated normally (PokemonState.updateCommands was read, not every state that skips update)",
+   "How the caster's atk and speed are built from items, synergies and buffs before the cast (core-mechanics section I covers declared item bonuses)",
+   "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "applyStatusDurationReductions (what shortens the 1000 ms flinch)"
+  ],
+  "unresolved": [
+   "Board.forEach iteration order, which decides ties between equally distant empty cells",
+   "Whether hits of a cast still happen if the caster dies before they are due (commands live on the caster entity; not traced)",
+   "Whether any other item or synergy effect changes the ability beyond what is listed",
+   "Whether the sourceTables pattern's multiplier table is the only star-scaled number: the hit count is a speed formula, not a star table",
+   "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dl",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "AbilityStrategies[Ability.DARKEST_LARIAT]",
+    "expect": "[Ability.DARKEST_LARIAT]: new DarkestLariatStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dl-class",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "DarkestLariatStrategy",
+    "expect": "export class DarkestLariatStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "dl-super",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim true: the strategy broadcasts its own animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; that single flag is reused for every hit"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast with the current target when PP is full"
+   },
+   {
+    "id": "dl-comment",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "Each hit deals [100,SP]% ATK as SPECIAL",
+    "note": "source comment: hits scale with speed; flinch during the attack"
+   },
+   {
+    "id": "dl-hits",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "const hits = Math.round((1 + 0.01 * pokemon.speed) * 3)",
+    "note": "number of hits from the caster's speed at cast time"
+   },
+   {
+    "id": "dl-flinch",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "target.status.triggerFlinch(1000, target, pokemon)",
+    "note": "flinch 1000 ms, applied at cast time regardless of damage"
+   },
+   {
+    "id": "dl-loop",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "for (let i = 0; i < hits; i++) {",
+    "note": "one DelayedCommand per hit, pushed on the caster's commands"
+   },
+   {
+    "id": "dl-alive",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "if (target.hp > 0) {",
+    "note": "each hit is skipped if the target is already dead; no range or position check"
+   },
+   {
+    "id": "dl-dmg",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "([1, 1, 1, 2][pokemon.stars - 1] ?? 2) * pokemon.atk",
+    "note": "damage = multiplier(stars) x the caster's atk read at the moment of each hit"
+   },
+   {
+    "id": "dl-hit",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, the cast's crit flag, apBoost default true"
+   },
+   {
+    "id": "dl-fire",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     28,
+     34
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "if (pokemon.effects.has(EffectEnum.WILDFIRE)) {",
+    "note": "after each hit that happened: +1 / +2 / +3 attack for WILDFIRE / BLAZE / DESOLATE_LAND (first match wins)"
+   },
+   {
+    "id": "dl-delay",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     43,
+     43
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "Math.round((i * 1000) / hits)",
+    "note": "hit i is delayed round(i x 1000 / hits) ms: hits are spread over about one second, the first with delay 0"
+   },
+   {
+    "id": "dl-dir",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     46,
+     47
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "const dx = target.positionX - pokemon.positionX",
+    "note": "direction caster -> target"
+   },
+   {
+    "id": "dl-behind",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     46,
+     49
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "const freeCellBehind = board.getClosestAvailablePlace(",
+    "note": "closest empty cell to (target + direction)"
+   },
+   {
+    "id": "dl-bcast",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     50,
+     53
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation target = that cell, or the caster's own cell when none"
+   },
+   {
+    "id": "dl-move",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     59,
+     59
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "pokemon.moveTo(freeCellBehind.x, freeCellBehind.y, board, false)",
+    "note": "only if a cell was found; forcedDisplacement false"
+   },
+   {
+    "id": "dl-cd",
+    "file": "app/core/abilities/darkest-lariat.ts",
+    "lines": [
+     60,
+     60
+    ],
+    "symbol": "DarkestLariatStrategy.process",
+    "expect": "pokemon.resetCooldown(500)",
+    "note": "only if a cell was found"
+   },
+   {
+    "id": "closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     527,
+     544
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "getClosestAvailablePlace(",
+    "note": "all EMPTY cells sorted by distance (distanceM) to the given point, first returned; null when none; the point may be off the board"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     882,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "swap with the empty cell; cooldown 100; forcedDisplacement false skips canBeMoved checks"
+   },
+   {
+    "id": "reset-cd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     317,
+     319
+    ],
+    "symbol": "PokemonEntity.resetCooldown",
+    "expect": "resetCooldown(baseDuration: number, speed = this.speed)",
+    "note": "cooldown = round(baseDuration / (0.4 + speed x 0.007)) (this overrides moveTo's 100)"
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     12,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": "executes its function once delay has elapsed (delay - dt < 0)"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     11,
+     14
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "delay counts down per update; executes when below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's pending commands are updated at the start of every state update, then executed ones are removed"
+   },
+   {
+    "id": "cmd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": ""
+   },
+   {
+    "id": "flinch-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     967,
+     976
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "triggerFlinch(duration: number, pkm: PokemonEntity, origin?: PokemonEntity)",
+    "note": "not applied with runeProtect; duration passes through applyStatusDurationReductions; a longer duration replaces the remaining time"
+   },
+   {
+    "id": "flinch-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     623,
+     623
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "while flinched, damage on a shield is halved and the other half goes to HP"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     345,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     351,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the hit"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     608,
+     629
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "addAttack(",
+    "note": "requested value: with apBoost 0 and crit false the value stays as passed; then Big Eater Belt (x1.25, rounded down, for a positive change on the holder) and Twist Band (only for negative values) helpers; atk = max(1, atk + value); not permanent here"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1826,
+     1839
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "plain function: positive value on a BIG_EATER_BELT holder x1.25 rounded down"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1841,
+     1854
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "only negative values from enemies are turned positive; the +1/+2/+3 attack here is positive so unaffected"
+   },
+   {
+    "id": "fire-list",
+    "file": "app/config/game/synergies.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "SynergyEffects[Synergy.FIRE]",
+    "expect": "EffectEnum.DESOLATE_LAND",
+    "note": "WILDFIRE / BLAZE / DESOLATE_LAND are Fire synergy effects"
+   },
+   {
+    "id": "fire-add",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     837,
+     839
+    ],
+    "symbol": "Simulation effect assignment",
+    "expect": "case EffectEnum.DESOLATE_LAND:",
+    "note": "these effects are added to units that have the FIRE type"
+   },
+   {
+    "id": "unit-incineroar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17314,
+     17326
+    ],
+    "symbol": "class Incineroar",
+    "expect": "skill = Ability.DARKEST_LARIAT",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-litten",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17284,
+     17297
+    ],
+    "symbol": "class Litten",
+    "expect": "skill = Ability.DARKEST_LARIAT",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-torracat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17299,
+     17312
+    ],
+    "symbol": "class Torracat",
+    "expect": "skill = Ability.DARKEST_LARIAT",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "executionEvidence": {
+   "evidence": [
+    "cmd-call",
+    "cmd-class",
+    "cmd-run",
+    "cmd-update",
+    "dl-comment"
+   ]
+  }
+ }
+}
