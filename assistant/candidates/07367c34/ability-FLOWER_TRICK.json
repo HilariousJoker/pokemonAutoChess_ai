@@ -1,0 +1,581 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FLOWER_TRICK",
+ "kind": "ability",
+ "identifier": "FLOWER_TRICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T234005Z"
+ },
+ "record": {
+  "ability": "FLOWER_TRICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare FLOWER_TRICK: Sprigatito (1 star), Floragato (2) and Meowscarada (3); maxPP 100, range 2 and passive NONE for all in the catalog. The strategy is shared; unit differences are the star count (damage table index).",
+  "appliesTo": [
+   {
+    "key": "SPRIGATITO",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "FLOWER_TRICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FLORAGATO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "FLOWER_TRICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MEOWSCARADA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "FLOWER_TRICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SPRIGATITO": {
+    "evidence": [
+     "unit-sprigatito"
+    ]
+   },
+   "FLORAGATO": {
+    "evidence": [
+     "unit-floragato"
+    ]
+   },
+   "MEOWSCARADA": {
+    "evidence": [
+     "unit-meowscarada"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FLOWER_TRICK] = new FlowerTrickStrategy()",
+   "strategy": "FlowerTrickStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ft",
+    "ft-class",
+    "base-flags",
+    "base-pp",
+    "ft-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Delayed area hit around the cast target. At cast time the strategy only records how many crits the cast target has received so far (its crit counter) and queues a command on the caster that runs 3000 ms later (on the first update after the delay has elapsed). When it runs it counts the crits the target received in between (from any source, not only the caster), takes the 3x3 block centred on the target's position AT THAT TIME (centre included) and gives every enemy unit in it SPECIAL damage of (raw 15/40/85 by the caster's stars + 15 per counted crit), AP-scaled and crit-multiplied only if the original cast crit. The crit bonus is added to the raw amount, so AP scaling applies to it too. The target is the unit fixed at cast time; it need not be alive or in the same cell, and the explosion is centred on its last known position. Nothing is dealt at cast time.",
+  "targeting": {
+   "who": "all enemy units in the 3x3 block around the cast target's position at the moment the delayed command runs, the target included if it is still there",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; the delayed command holds the target object and reads its position when it fires.",
+   "evidence": [
+    "ft-class",
+    "base-flags",
+    "ft-start",
+    "ft-cells",
+    "ft-team"
+   ]
+  },
+  "geometry": {
+   "shape": "3 x 3 block (centre + 8 neighbours, clipped to the board) centred on the cast target's position 3000 ms after the cast",
+   "evidence": [
+    "ft-cells",
+    "adj",
+    "ft-delay",
+    "ft-3000",
+    "dc-class",
+    "cmd-run",
+    "cmd-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy unit in the 3x3 block at fire time",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 40,
+      "3": 85,
+      "4": 170,
+      "fallback": 170
+     },
+     "perCritBonus": 15
+    },
+    "perUnitRaw": {
+     "SPRIGATITO": 15,
+     "FLORAGATO": 40,
+     "MEOWSCARADA": 85
+    },
+    "scaling": "requested raw = table value + 15 x numberOfCrits; AP: x (1 + AP/100) per enemy (apBoost default true) read from the caster when the command runs; the cast's crit flag (from cast time) multiplies by critPower (reduced by each enemy's critReductionFactor) only if that cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "numberOfCrits = target.count.crit at fire time minus its value at cast time; the counter rises when a crit lands on the target through handleSpecialDamage (ability) or handleAttack (basic attack), unless the target holds Rocky Helmet, so it counts every source and all crits on that target in the window. Per enemy: SPE_DEF division (ceil, min 1) and untraced later modifiers, so it is an intermediate calculation, not the final HP loss; takenDamage (not used, the return value is discarded) would count HP removed plus shield damage. Blocked entirely by protect / skydiving / magicBounce on that enemy at fire time (takes 0; the explosion animation is still broadcast); a magicBounce enemy also queues a delayed SPECIAL bounce at the caster unless it holds Protective Pads. Requested vs applied: the table value (15/40/85) is the minimum raw; the crit bonus can only raise it.",
+    "evidence": [
+     "ft-dmg",
+     "ft-count",
+     "ft-hit",
+     "ft-team",
+     "crit-spec",
+     "crit-atk",
+     "hd-protect",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SPRIGATITO": 1,
+    "FLORAGATO": 2,
+    "MEOWSCARADA": 3
+   },
+   "declaredRawDamage": {
+    "SPRIGATITO": 15,
+    "FLORAGATO": 40,
+    "MEOWSCARADA": 85
+   },
+   "note": "indexed by the casting entity's stars; the three listed units are 1-3 stars, so their bare values are 15/40/85. The 170 value (4th column and fallback) is not reachable by their bare star counts. The +15 per crit does not vary with stars.",
+   "evidence": [
+    "ft-dmg",
+    "unit-sprigatito",
+    "unit-floragato",
+    "unit-meowscarada"
+   ]
+  },
+  "positionalConditions": "The blast centre is the cast target's position 3000 ms later, not its position at cast time. Cells off the board are clipped. Allies in the block are ignored.",
+  "repeatedCastsAndModes": "No stored state or modes besides the pending command. Each cast queues its own command (several casts overlap, each with its own cast-time crit count and target).",
+  "rawVsResolved": "Declared raw: 15/40/85 (1/2/3 stars) plus 15 per crit counted on the target in the 3 s window, per enemy in the block. Requested damage = (raw + 15 x crits) x (1 + AP/100) [x crit factor]; then the SPE_DEF division (ceil, min 1) and untraced modifiers (intermediate, not final HP loss).",
+  "sourceTables": [
+   {
+    "id": "flowerTrickDamage",
+    "file": "app/core/abilities/flower-trick.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage per enemy after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier",
+   "Magic-bounce bounce amount (not traced beyond the trigger condition)"
+  ],
+  "unresolved": [
+   "Whether the delayed command still runs when the caster dies before 3000 ms: commands are advanced from PokemonState.update of the caster's own state, and whether a dead entity's state keeps updating was not traced",
+   "Whether the crit counter is also changed by other code paths than the two cited (a repository-wide search showed only these two increments in app/, outside the client code)",
+   "Whether any item or synergy effect changes FLOWER_TRICK beyond what is listed",
+   "Mechanics consulted: core-mechanics.md section A via the cited handleDamage lines; no PP or stat adder is called by this strategy"
+  ],
+  "evidence": [
+   {
+    "id": "unit-sprigatito",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5123,
+     5136
+    ],
+    "symbol": "class Sprigatito",
+    "expect": "skill = Ability.FLOWER_TRICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-floragato",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5138,
+     5151
+    ],
+    "symbol": "class Floragato",
+    "expect": "skill = Ability.FLOWER_TRICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-meowscarada",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5153,
+     5165
+    ],
+    "symbol": "class Meowscarada",
+    "expect": "skill = Ability.FLOWER_TRICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-ft",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     894,
+     894
+    ],
+    "symbol": "AbilityStrategies[Ability.FLOWER_TRICK]",
+    "expect": "[Ability.FLOWER_TRICK]: new FlowerTrickStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ft-class",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "FlowerTrickStrategy",
+    "expect": "class FlowerTrickStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "ft-super",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "the cast itself deals nothing: everything below is delayed"
+   },
+   {
+    "id": "ft-dmg",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "[15, 40, 85, 170][pokemon.stars - 1] ?? 170",
+    "note": "base damage table by caster stars"
+   },
+   {
+    "id": "ft-start",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "const startingCritCount = target.count.crit",
+    "note": "crit counter of the cast target read at cast time"
+   },
+   {
+    "id": "ft-delay",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "the explosion is a DelayedCommand stored on the CASTER's command list"
+   },
+   {
+    "id": "ft-count",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "const numberOfCrits = currentCritCount - startingCritCount",
+    "note": "crits counted on the target during the delay"
+   },
+   {
+    "id": "ft-cells",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     21,
+     25
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "board.getAdjacentCells(",
+    "note": "the 8 neighbours and (includesCenter true) the centre of the cast target's CURRENT position when the command runs"
+   },
+   {
+    "id": "ft-team",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "only occupied cells with a unit of another team"
+   },
+   {
+    "id": "ft-hit",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     33,
+     39
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "damage + 15 * numberOfCrits,",
+    "note": "SPECIAL damage = table value + 15 per crit counted, attacker = caster, crit = the cast's crit flag, apBoost default true"
+   },
+   {
+    "id": "ft-3000",
+    "file": "app/core/abilities/flower-trick.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "FlowerTrickStrategy.process",
+    "expect": "}, 3000)",
+    "note": "delay 3000 ms"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "3 x 3 block clipped to the board; the centre is included only when asked"
+   },
+   {
+    "id": "dc-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "runs on the first update after the delay has elapsed (delay < 0)"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the entity's command list is advanced from the entity's own state update"
+   },
+   {
+    "id": "cmd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called at the start of PokemonState.update for each entity"
+   },
+   {
+    "id": "crit-spec",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     421
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.count.crit++",
+    "note": "a crit ability hit raises the receiver's crit counter unless it holds Rocky Helmet"
+   },
+   {
+    "id": "crit-atk",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     80,
+     82
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "target.count.crit++",
+    "note": "a critical basic attack raises the target's crit counter unless it holds Rocky Helmet"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect or skydiving: no damage taken"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "canCritByDefault = false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   }
+  ]
+ }
+}
