@@ -1,0 +1,536 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRAGON_DARTS",
+ "kind": "ability",
+ "identifier": "DRAGON_DARTS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T113934Z"
+ },
+ "record": {
+  "ability": "DRAGON_DARTS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Dreepy (1 star) and Drakloak (2 stars) carry passive HATCH; Dragapult (3 stars) has no passive. All three are Dragon/Ghost, maxPP 100, range 2, and declare ABILITY DRAGON_DARTS. The HATCH passive (evolution by hatching) is not described here.",
+  "appliesTo": [
+   {
+    "key": "DRAGAPULT",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DRAGON_DARTS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DRAKLOAK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DRAGON_DARTS",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DREEPY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DRAGON_DARTS",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DREEPY": {
+    "evidence": [
+     "unit-dreepy"
+    ]
+   },
+   "DRAKLOAK": {
+    "evidence": [
+     "unit-drakloak"
+    ]
+   },
+   "DRAGAPULT": {
+    "evidence": [
+     "unit-dragapult"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRAGON_DARTS] = new DragonDartsStrategy()",
+   "strategy": "DragonDartsStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dd",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "dd-class"
+   ]
+  },
+  "summary": "Three darts at one target. The cast target takes three separate instances of flat special damage (10/20/40 by stars for the catalog units, requested per instance), all with the same crit result. If the target's hp is 0 or below after the third instance, the caster regains PP (40 for 1-3 stars, 80 from 4 stars; requested).",
+  "targeting": {
+   "who": "the cast target only, three times",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true. All three instances go to the same unit; there is no re-targeting between them, so later instances land on an already dead target and are ignored by handleDamage (hp <= 0 returns takenDamage 0).",
+   "evidence": [
+    "dd-loop",
+    "dd-pp",
+    "hdmg-dead"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "dd-loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the cast target, three separate instances",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "DRAGAPULT": 40,
+     "DRAKLOAK": 20,
+     "DREEPY": 10
+    },
+    "scaling": "Requested amount per instance = table value (total 3 x). Each instance calls handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then x2 if the caster has DOUBLE_DAMAGE (the effect is deleted after use, so only the first instance is doubled), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault false; one roll, shared by the three instances).",
+    "resolution": "Requested 10/20/40 per instance is pre-defence. Each instance is reduced by the target's special defence (damage / (1 + 0.05 x speDef), rounded up, minimum 1 per instance), and shield damage counts in takenDamage (core-mechanics.md section A). Blocked per instance by protect, skydiving, magicBounce (magicBounce reflects each blocked instance). Shiny Charm, Fossil shield and a Cover Band ally can absorb or redirect an instance (handleDamage branches seen, not traced here).",
+    "evidence": [
+     "dd-table",
+     "dd-loop",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "shield-take",
+     "hp-take",
+     "hdmg-hp",
+     "hdmg-dead",
+     "hdmg-shiny",
+     "hdmg-cover",
+     "double-del"
+    ]
+   },
+   {
+    "kind": "pp-gain",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 40,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "DRAGAPULT": 40,
+     "DRAKLOAK": 40,
+     "DREEPY": 40
+    },
+    "scaling": "Requested amount = table value. addPP(ppRegained, caster, 0, false): apBoost 0 and crit false, so AP and crit do not scale it.",
+    "resolution": "Applied: halved (round) if the caster has fatigue; applyTwistBandBuff only flips negative values, so it does nothing to this positive gain; the gain is skipped entirely if the caster is silenced, protected, has NO_PP_GAIN or is resurrecting; otherwise pp is clamped to 0..(2 x maxPP - 1). The condition is `target.hp <= 0` evaluated once after the loop, so it is also true if the target was already dead, or killed by a different source in between, and false if a Cover Band ally took the hits or a Shiny Charm saved the target. The pp was already spent (maxPP removed) by the base process before the darts.",
+    "evidence": [
+     "dd-pp",
+     "dd-pp-table",
+     "addpp",
+     "twist",
+     "base-pp"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "DRAGAPULT": 3,
+    "DRAKLOAK": 2,
+    "DREEPY": 1
+   },
+   "declaredRawDamage": {
+    "DRAGAPULT": 40,
+    "DRAKLOAK": 20,
+    "DREEPY": 10
+   },
+   "declaredRawPpRegained": {
+    "DRAGAPULT": 40,
+    "DRAKLOAK": 40,
+    "DREEPY": 40
+   },
+   "note": "Caster stars index both tables (1-4; fallback 80 for both). The damage figures are per instance, three instances per cast. The 80 PP refund exists only from 4 stars, which no catalog unit has.",
+   "evidence": [
+    "dd-table",
+    "dd-pp-table"
+   ]
+  },
+  "positionalConditions": "None beyond the cast range (2).",
+  "repeatedCastsAndModes": "No stored state or modes.",
+  "rawVsResolved": "Requested: 3 x 10/20/40 special damage (30/60/120 before AP, defence and shield) and a 40 PP refund on a kill. Damage applied: AP percentage, DOUBLE_DAMAGE (first instance only), strange steam and crit raise each instance before the target's special defence and shield; taken damage includes shield-absorbed damage, minimum 1 per instance. PP applied: fatigue and the silence/protect/NO_PP_GAIN guards, then the clamp.",
+  "sourceTables": [
+   {
+    "id": "ddDamage",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "ddPp",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "pattern": "const ppRegained = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Death handling after hp reaches 0 (the checks only read pokemon.hp)",
+   "Shiny Charm, Fossil shield and Cover Band redirection effects on each instance (branches seen, not traced)",
+   "When the cast fires in a real fight (range 2 gate and target acquisition)"
+  ],
+  "unresolved": [
+   "The HATCH passive of Dreepy and Drakloak is a different mechanism and is not covered",
+   "Whether `target.hp <= 0` can be true because a prior death already occurred before the cast was not traced",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dd",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     841,
+     841
+    ],
+    "symbol": "AbilityStrategies[Ability.DRAGON_DARTS]",
+    "expect": "[Ability.DRAGON_DARTS]: new DragonDartsStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "dd-class",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "DragonDartsStrategy",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dd-table",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "DragonDartsStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "dd-loop",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "lines": [
+     16,
+     24
+    ],
+    "symbol": "DragonDartsStrategy.process",
+    "expect": "for (let n = 0; n < 3; n++) {",
+    "note": "three instances on the same target"
+   },
+   {
+    "id": "dd-pp",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "lines": [
+     25,
+     28
+    ],
+    "symbol": "DragonDartsStrategy.process",
+    "expect": "if (target.hp <= 0) {",
+    "note": "kill check once after the loop"
+   },
+   {
+    "id": "dd-pp-table",
+    "file": "app/core/abilities/dragon-darts.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "DragonDartsStrategy.process",
+    "expect": "const ppRegained = [40,40,40,80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n this.status.skydiving ||\n this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "double-del",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "DOUBLE_DAMAGE consumed by the first instance"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "shield-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield-absorbed damage counts"
+   },
+   {
+    "id": "hp-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": ""
+   },
+   {
+    "id": "hdmg-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "already-dead target ignores further damage"
+   },
+   {
+    "id": "hdmg-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm prevents the lethal part"
+   },
+   {
+    "id": "hdmg-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "// cover ally takes the hit instead",
+    "note": "Cover Band ally takes the hit"
+   },
+   {
+    "id": "hdmg-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     726,
+     726
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp = Math.max(0, pokemon.hp - residualDamage)",
+    "note": ""
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "fatigue halves a positive gain; silence/protect/NO_PP_GAIN block it"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only flips negative values; plain function near the end of the file"
+   },
+   {
+    "id": "unit-dreepy",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10524,
+     10539
+    ],
+    "symbol": "class Dreepy",
+    "expect": "skill = Ability.DRAGON_DARTS",
+    "note": ""
+   },
+   {
+    "id": "unit-drakloak",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10541,
+     10556
+    ],
+    "symbol": "class Drakloak",
+    "expect": "skill = Ability.DRAGON_DARTS",
+    "note": ""
+   },
+   {
+    "id": "unit-dragapult",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10558,
+     10571
+    ],
+    "symbol": "class Dragapult",
+    "expect": "skill = Ability.DRAGON_DARTS",
+    "note": ""
+   }
+  ]
+ }
+}
