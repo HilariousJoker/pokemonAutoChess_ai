@@ -1,0 +1,479 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRAGON_BREATH",
+ "kind": "ability",
+ "identifier": "DRAGON_BREATH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T113934Z"
+ },
+ "record": {
+  "ability": "DRAGON_BREATH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Gible (1 star), Gabite (2 stars) and Garchomp (3 stars), all Dragon/Ground/Monster, maxPP 100, range 1, no passive, declare ABILITY DRAGON_BREATH.",
+  "appliesTo": [
+   {
+    "key": "GIBLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_BREATH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GABITE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_BREATH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GARCHOMP",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_BREATH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GIBLE": {
+    "evidence": [
+     "unit-gible"
+    ]
+   },
+   "GABITE": {
+    "evidence": [
+     "unit-gabite"
+    ]
+   },
+   "GARCHOMP": {
+    "evidence": [
+     "unit-garchomp"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRAGON_BREATH] = new DragonBreathStrategy()",
+   "strategy": "DragonBreathStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-db",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "db-class"
+   ]
+  },
+  "summary": "Directional breath. Deals flat special damage (25/50/100/200 by stars, requested) to every enemy-team unit on the cells walked by effectInOrientation from the caster toward the cast target, limited to Chebyshev distance range + 1 = 2 from the caster. The direction is one of 8 chosen by the sign of the target's offset (dx, dy), not an exact line to the target. If no enemy is found on the walked cells within distance 2, the cast target itself is hit once.",
+  "targeting": {
+   "who": "every enemy-team unit (team different from the caster) on the walked cells within distance 2 in one of 8 directions; fallback: the cast target",
+   "needsTarget": true,
+   "note": "Direction = board.orientation(caster, target): sign of dx and dy, so a target at a non-axis, non-45-degree offset yields a diagonal that may not contain it. The walk starts at the cell after the caster and runs to the board edge, but applyEffect skips cells whose Chebyshev distance to the caster is above maxRange (2). Allies are never damaged: the strategy's callback tests team !== caster team. The RIGHT case loops x < board.rows (6) although the board has 8 columns (see the BLAZE_KICK record), so a RIGHT-facing cast never visits columns 6 and 7: from a caster in column 4 only column 5 is reached, and from column 5 or beyond nothing is walked (the fallback then hits the cast target).",
+   "evidence": [
+    "db-range",
+    "db-callback",
+    "eio-orient",
+    "eio-right",
+    "eio-apply",
+    "eio-fallback",
+    "orient",
+    "dist"
+   ]
+  },
+  "geometry": {
+   "shape": "ray of 2 cells in one of 8 directions from the caster (not a cone and not width 3)",
+   "detail": "Cells at distance 1 and 2 along the direction are visited, in order; cells beyond are skipped by the maxRange check (the loop continues to the edge but does nothing). maxRange is pokemon.range + 1 and range is 1 for all three units, so 2. The fallback hits the target even if it lay outside the ray.",
+   "evidence": [
+    "db-range",
+    "eio-apply",
+    "eio-orient",
+    "eio-right",
+    "eio-fallback"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "each enemy on the walked cells (or the cast target by fallback)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "GIBLE": 25,
+     "GABITE": 50,
+     "GARCHOMP": 100
+    },
+    "scaling": "Requested amount = table value. handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then x2 if the caster has DOUBLE_DAMAGE (consumed once per hit instance), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault false). Each enemy receives one instance.",
+    "resolution": "Requested 25/50/100 is pre-defence. The target's special defence reduces it (damage / (1 + 0.05 x speDef), rounded up, minimum 1); shield damage counts in takenDamage (core-mechanics.md section A). Blocked by protect, skydiving, magicBounce (magicBounce reflects).",
+    "evidence": [
+     "db-table",
+     "db-callback",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "shield-take",
+     "hp-take"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "GIBLE": 1,
+    "GABITE": 2,
+    "GARCHOMP": 3
+   },
+   "declaredRawDamage": {
+    "GIBLE": 25,
+    "GABITE": 50,
+    "GARCHOMP": 100
+   },
+   "note": "Caster stars index the damage table (1-4, fallback 200). Range stays 1, so the reach is always 2 cells.",
+   "evidence": [
+    "db-table",
+    "db-range"
+   ]
+  },
+  "positionalConditions": "Enemies are hit only if they stand on the 2 cells along the chosen direction. If the direction ray contains no enemy within distance 2 (including when the target sits at a diagonal-ish offset), only the cast target is hit.",
+  "repeatedCastsAndModes": "No stored state or modes.",
+  "rawVsResolved": "Requested: 25/50/100 special damage per enemy for 1/2/3 stars. Applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit raise it before the target's special defence and shield; taken damage includes shield-absorbed damage, minimum 1 per hit.",
+  "sourceTables": [
+   {
+    "id": "dbDamage",
+    "file": "app/core/abilities/dragon-breath.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (range 1 gate and target acquisition)",
+   "Board.getEntityOnCell body (assumed to return the unit on the cell)"
+  ],
+  "unresolved": [
+   "Whether the sign-based direction can point away from the target's actual cell (recorded as read, not exercised); the fallback then hits the target alone",
+   "In the ray walk the damage callback fires for each enemy once; confusion makes board.orientation pick a random direction only for a zero offset, which would not occur with a distinct target",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-db",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     839,
+     839
+    ],
+    "symbol": "AbilityStrategies[Ability.DRAGON_BREATH]",
+    "expect": "[Ability.DRAGON_BREATH]: new DragonBreathStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "db-class",
+    "file": "app/core/abilities/dragon-breath.ts",
+    "lines": [
+     8,
+     15
+    ],
+    "symbol": "DragonBreathStrategy",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "db-table",
+    "file": "app/core/abilities/dragon-breath.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "DragonBreathStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "db-range",
+    "file": "app/core/abilities/dragon-breath.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "DragonBreathStrategy.process",
+    "expect": "const maxRange = pokemon.range + 1",
+    "note": "passed as the last argument of effectInOrientation"
+   },
+   {
+    "id": "db-callback",
+    "file": "app/core/abilities/dragon-breath.ts",
+    "lines": [
+     19,
+     35
+    ],
+    "symbol": "DragonBreathStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "enemy test and damage call"
+   },
+   {
+    "id": "eio-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     810,
+     827
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "export function effectInOrientation(",
+    "note": "direction = board.orientation(caster, target) when target is an entity"
+   },
+   {
+    "id": "eio-apply",
+    "file": "app/core/board.ts",
+    "lines": [
+     831,
+     843
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "const distance = distanceC(x, y, pokemon.positionX, pokemon.positionY)",
+    "note": "cells beyond maxRange are skipped"
+   },
+   {
+    "id": "eio-right",
+    "file": "app/core/board.ts",
+    "lines": [
+     863,
+     863
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX + 1; x < board.rows; x++) {",
+    "note": "RIGHT bound uses board.rows (6), not the 8 columns"
+   },
+   {
+    "id": "eio-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     911,
+     917
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "if (isEntity(target) && targetsHit.size === 0) {",
+    "note": "when no enemy was visited the effect is called once on the target's cell"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "sign-based 8-way direction"
+   },
+   {
+    "id": "dist",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n this.status.skydiving ||\n this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "shield-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield-absorbed damage counts"
+   },
+   {
+    "id": "hp-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": ""
+   },
+   {
+    "id": "unit-gible",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1108,
+     1125
+    ],
+    "symbol": "class Gible",
+    "expect": "skill = Ability.DRAGON_BREATH",
+    "note": ""
+   },
+   {
+    "id": "unit-gabite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1127,
+     1144
+    ],
+    "symbol": "class Gabite",
+    "expect": "skill = Ability.DRAGON_BREATH",
+    "note": ""
+   },
+   {
+    "id": "unit-garchomp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1146,
+     1163
+    ],
+    "symbol": "class Garchomp",
+    "expect": "skill = Ability.DRAGON_BREATH",
+    "note": ""
+   }
+  ]
+ }
+}
