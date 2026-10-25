@@ -1,0 +1,610 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/EXPANDING_FORCE",
+ "kind": "ability",
+ "identifier": "EXPANDING_FORCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T173941Z"
+ },
+ "record": {
+  "ability": "EXPANDING_FORCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare EXPANDING_FORCE: Blipbug (1 star), Dottler (2 stars), Orbeetle (3 stars), all range 1 and maxPP 85. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BLIPBUG",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "EXPANDING_FORCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DOTTLER",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "EXPANDING_FORCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ORBEETLE",
+    "stars": 3,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "EXPANDING_FORCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BLIPBUG": {
+    "evidence": [
+     "unit-blipbug"
+    ]
+   },
+   "DOTTLER": {
+    "evidence": [
+     "unit-dottler"
+    ]
+   },
+   "ORBEETLE": {
+    "evidence": [
+     "unit-orbeetle"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.EXPANDING_FORCE] = new ExpandingForceStrategy()",
+   "strategy": "ExpandingForceStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "ef-notarget",
+    "cast",
+    "pp-gate",
+    "ef-class",
+    "ef-super"
+   ]
+  },
+  "summary": "First gives the caster a Psychic Field if it has none; if it already has one, gives one to the nearest ally (by Manhattan distance) that lacks it. Then, for every ally of the caster's team that now has a Psychic Field (caster included), deals SPECIAL damage (raw 10/20/40 by stars) to every enemy in the 8 cells around that ally, with the caster as attacker. An enemy adjacent to several field allies is hit once per such ally. Because the caster always has the field after the first step (unless removed), its damage also gets the attacker-has-Psychic-Field x1.2 inside handleDamage.",
+  "targeting": {
+   "who": "field grant: the caster, or the nearest field-less ally; damage: every enemy standing in a cell adjacent to any ally that has a Psychic Field",
+   "needsTarget": false,
+   "note": "requiresTarget is false: the strategy does not use a cast target. Which fights make it cast (PP gain, silence) is generic and was not read.",
+   "evidence": [
+    "ef-notarget",
+    "ef-self",
+    "ef-allies",
+    "ef-sort",
+    "ef-chosen",
+    "ef-field-allies",
+    "ef-adj",
+    "ef-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around each Psychic-Field ally (Board.getAdjacentCells, centre excluded), clipped to the board; one hit per (field ally, adjacent enemy) pair",
+   "evidence": [
+    "ef-adj",
+    "adj",
+    "ef-field-allies"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "field grant",
+    "status": "psychicField",
+    "target": "the caster if it has none, otherwise the nearest ally without one",
+    "scaling": "No numbers. Status.addPsychicField sets the flag only if not already set; a SURGE_SURFER-passive unit also gains +30 speed (no AP, no crit). Nearest = lowest Manhattan distance to the caster, ties in board-cell order.",
+    "resolution": "At most one new unit gets the field per cast. The field has no timer in this code; it is removed by clearAllStatus or when a PSYCHIC_TERRAIN-passive unit dies (other callers of those paths not traced).",
+    "evidence": [
+     "ef-self",
+     "ef-else",
+     "ef-allies",
+     "ef-sort",
+     "ef-chosen",
+     "add-field",
+     "clear-all",
+     "remove-terrain"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "every enemy adjacent to each Psychic-Field ally, once per such ally",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested damage per hit (raw)"
+    },
+    "perUnitRaw": {
+     "BLIPBUG": 10,
+     "DOTTLER": 20,
+     "ORBEETLE": 40
+    },
+    "scaling": "requested = table[stars-1] per hit. handleSpecialDamage with default apBoost true: x (1 + AP/100) of the caster; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT). In handleDamage the attacker (caster) with a Psychic Field adds x1.2 and an enraged caster x2.",
+    "resolution": "applied = figure handed to PokemonState.handleDamage for each hit; there it is multiplied by the attacker-state factors above, divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and absorbed by shield first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for protect / skydiving / magicBounce. Each hit resolves separately, so one enemy can take several hits per cast.",
+    "evidence": [
+     "ef-table",
+     "ef-field-allies",
+     "ef-adj",
+     "ef-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-psychic",
+     "hd-enraged",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   "Psychic Field (flag on the caster, or on the nearest field-less ally)"
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BLIPBUG": 1,
+    "DOTTLER": 2,
+    "ORBEETLE": 3
+   },
+   "declaredRawDamage": {
+    "BLIPBUG": 10,
+    "DOTTLER": 20,
+    "ORBEETLE": 40
+   },
+   "note": "Table indexed by the caster's stars; the 4-star column (80, also the ?? fallback) is not reachable by the bare factory star counts of these units.",
+   "evidence": [
+    "ef-table",
+    "unit-blipbug",
+    "unit-dottler",
+    "unit-orbeetle"
+   ]
+  },
+  "positionalConditions": "Damage position depends on where the Psychic-Field allies stand; the caster's own position matters only for who is nearest when spreading the field.",
+  "repeatedCastsAndModes": "Stateful through the field flags: the first cast gives the caster the field and damages around the caster; each later cast spreads the field to one more ally (nearest first) and every field ally then radiates damage, so the number of damage sources grows by one per cast until no field-less ally is left.",
+  "rawVsResolved": "Requested: damage 10/20/40 per hit for 1/2/3 stars. Applied per hit = requested x (1 + AP/100) x optional crit multiplier, x1.2 if the caster has a Psychic Field (normally yes), x2 if the caster is enraged, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. Number of hits per enemy = number of field allies adjacent to it. Final values depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/expanding-force.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read; requiresTarget false means no target is needed",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: attacker field and enraged multipliers, protect, SPE_DEF division, minimum 1 and shield absorption were read"
+  ],
+  "unresolved": [
+   "Helpers consulted: getAdjacentCells, Status.addPsychicField / removePsychicField / clearAllStatus, handleSpecialDamage and handleDamage's attacker-field branch were read (see evidence); no routing uncertainties are listed for this record",
+   "Other sources of Psychic Field (the item effect at items.ts around line 917, terrain passives, TERRAIN_PULSE, MIST/PSYCHIC terrain synergies) change which allies already hold the field and were not traced; fields granted by them also count as damage sources here",
+   "Callers of clearAllStatus (which removes the field) were not traced",
+   "Sort ties and the order of enemy hits follow board.cells order; JavaScript sort stability was assumed from the language definition, not run",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-blipbug",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19076,
+     19090
+    ],
+    "symbol": "class Blipbug",
+    "expect": "skill = Ability.EXPANDING_FORCE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-dottler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19092,
+     19106
+    ],
+    "symbol": "class Dottler",
+    "expect": "skill = Ability.EXPANDING_FORCE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-orbeetle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19108,
+     19121
+    ],
+    "symbol": "class Orbeetle",
+    "expect": "skill = Ability.EXPANDING_FORCE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     866,
+     866
+    ],
+    "symbol": "AbilityStrategies[Ability.EXPANDING_FORCE]",
+    "expect": "[Ability.EXPANDING_FORCE]: new ExpandingForceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ef-class",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "ExpandingForceStrategy",
+    "expect": "export class ExpandingForceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ef-notarget",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "ExpandingForceStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target in range; canCritByDefault stays false (base default)"
+   },
+   {
+    "id": "ef-super",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, increments count.ult, broadcasts the animation"
+   },
+   {
+    "id": "ef-self",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "pokemon.status.addPsychicField(pokemon)",
+    "note": "if the caster has no Psychic Field it gains one"
+   },
+   {
+    "id": "ef-else",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "} else {",
+    "note": "only when the caster already has a Psychic Field is the field spread"
+   },
+   {
+    "id": "ef-allies",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     17,
+     21
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "ally.team === pokemon.team && !ally.status.psychicField",
+    "note": "candidates: same-team units on the board without a Psychic Field (caster excluded because it has one)"
+   },
+   {
+    "id": "ef-sort",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     22,
+     36
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": ".sort(",
+    "note": "candidates sorted by Manhattan distance to the caster, nearest first (ties keep board-cell order)"
+   },
+   {
+    "id": "ef-chosen",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     38,
+     41
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "chosen.status.addPsychicField(chosen)",
+    "note": "the nearest candidate gains the field; if there is none nothing is spread"
+   },
+   {
+    "id": "ef-table",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "ef-field-allies",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     46,
+     50
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "ally.team === pokemon.team && ally.status.psychicField",
+    "note": "every same-team unit with a Psychic Field now (after the grant above), caster included if it has one"
+   },
+   {
+    "id": "ef-adj",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     53,
+     55
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "getAdjacentCells(ally.positionX, ally.positionY)",
+    "note": "the 8 cells around each such ally (centre excluded)"
+   },
+   {
+    "id": "ef-hit",
+    "file": "app/core/abilities/expanding-force.ts",
+    "lines": [
+     56,
+     63
+    ],
+    "symbol": "ExpandingForceStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage to each enemy in those cells; attacker is the CASTER, not the field ally"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 neighbourhood clipped to the board; centre excluded unless includesCenter"
+   },
+   {
+    "id": "add-field",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1307,
+     1313
+    ],
+    "symbol": "Status.addPsychicField",
+    "expect": "this.psychicField = true",
+    "note": "sets the flag if not already set; a SURGE_SURFER passive holder also gets +30 speed (addSpeed(30, ..., 0, false))"
+   },
+   {
+    "id": "clear-all",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     116,
+     117
+    ],
+    "symbol": "Status.clearAllStatus",
+    "expect": "this.removePsychicField(entity)",
+    "note": "clearAllStatus removes the Psychic Field (not further traced who calls it)"
+   },
+   {
+    "id": "remove-terrain",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     832,
+     838
+    ],
+    "symbol": "PokemonState (death handling)",
+    "expect": "pkm.status.removePsychicField(pkm)",
+    "note": "when a PSYCHIC_TERRAIN-passive unit dies, its team's Psychic Fields are removed"
+   },
+   {
+    "id": "hd-psychic",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     467,
+     469
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.psychicField) {",
+    "note": "x1.2 on damage dealt by an attacker that has a Psychic Field - here the attacker is the caster"
+   },
+   {
+    "id": "hd-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "x2 when the attacker (caster) is enraged"
+   }
+  ]
+ }
+}
