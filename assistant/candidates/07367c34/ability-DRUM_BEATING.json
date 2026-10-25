@@ -1,0 +1,720 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRUM_BEATING",
+ "kind": "ability",
+ "identifier": "DRUM_BEATING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T173941Z"
+ },
+ "record": {
+  "ability": "DRUM_BEATING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare DRUM_BEATING: Grookey (1 star), Thwackey (2 stars), Rillaboom (3 stars), all with the DRUMMER passive and maxPP 60. Units not listed are not covered. The DRUMMER passive (PP for adjacent allies when drumming instead of attacking) is a different mechanism and is not covered here.",
+  "appliesTo": [
+   {
+    "key": "GROOKEY",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "DRUM_BEATING",
+    "declaredPassive": "DRUMMER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RILLABOOM",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "DRUM_BEATING",
+    "declaredPassive": "DRUMMER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "THWACKEY",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "DRUM_BEATING",
+    "declaredPassive": "DRUMMER",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GROOKEY": {
+    "evidence": [
+     "unit-grookey"
+    ]
+   },
+   "RILLABOOM": {
+    "evidence": [
+     "unit-rillaboom"
+    ]
+   },
+   "THWACKEY": {
+    "evidence": [
+     "unit-thwackey"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRUM_BEATING] = new DrumBeatingStrategy()",
+   "strategy": "DrumBeatingStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base-ult",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ds-class",
+    "ds-super"
+   ]
+  },
+  "summary": "Cycles through three modes by the caster's cast counter. count.ult is incremented in the base process BEFORE the switch reads it, so with count.ult starting at 0 the 1st cast (ult=1) is the shield mode, the 2nd (ult=2) the damage mode, the 3rd (ult=3, 3%3=0) the speed mode, then repeating. Speed: +10/20/40 speed (requested) to every ally on the board including the caster. Shield: 10/20/40 (requested) shield to every ally including the caster. Damage: 10/20/40 (requested) SPECIAL damage to every enemy on the board. The 80 column is the 4-star / fallback value.",
+  "targeting": {
+   "who": "speed and shield modes: all entities whose team equals the caster's, found by scanning the whole board (caster included, no range limit); damage mode: all entities whose team differs from the caster's",
+   "needsTarget": true,
+   "note": "requiresTarget is true by default so the caster must reach a target to cast, but the cast target itself is not used by the strategy; effects are board-wide.",
+   "evidence": [
+    "ds-speed-team",
+    "ds-shield-team",
+    "ds-damage-team",
+    "board-foreach",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "whole board; no area, range or line",
+   "evidence": [
+    "board-foreach",
+    "ds-speed-team",
+    "ds-shield-team",
+    "ds-damage-team"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "speed buff",
+    "mode": "count.ult % 3 == 0 (3rd, 6th, ... cast)",
+    "target": "every ally on the board, caster included",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested speed gain (raw)"
+    },
+    "perUnitRaw": {
+     "GROOKEY": 10,
+     "RILLABOOM": 40,
+     "THWACKEY": 20
+    },
+    "scaling": "PokemonEntity.addSpeed (apBoost 1): Big Eater Belt x1.25 rounded down on the holder (positive value), Twist Band irrelevant (positive), then x (1 + AP/100) x critPower if the cast crit, with no rounding. A Melmetal-passive ally instead receives value x0.5 as an attack gain (addAttack).",
+    "resolution": "applied = value added to the ally's current speed, clamped to 0..300 (MAX_SPEED); requested and applied differ for allies near the cap, with Big Eater Belt, and for Melmetal. Not permanent. The caster's AP/crit are used for every ally.",
+    "evidence": [
+     "ds-switch",
+     "ds-speed-table",
+     "ds-speed-team",
+     "addspeed",
+     "addspeed-melmetal",
+     "max-speed",
+     "belt",
+     "twist",
+     "base-ult"
+    ]
+   },
+   {
+    "kind": "shield",
+    "mode": "count.ult % 3 == 1 (1st, 4th, ... cast)",
+    "target": "every ally on the board, caster included",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested shield (raw)"
+    },
+    "perUnitRaw": {
+     "GROOKEY": 10,
+     "RILLABOOM": 40,
+     "THWACKEY": 20
+    },
+    "scaling": "PokemonEntity.addShield: Big Eater Belt on the receiving ally's positive value (x1.25 rounded down); PokemonState.addShield with apBoost 1: x (1 + caster AP/100); x critPower only if the cast crit; x0.5 if that ally is enraged; Math.round.",
+    "resolution": "applied = rounded result added to that ally's shield, only if its hp > 0; stacks additively. Per-ally figures can differ (belt, enraged).",
+    "evidence": [
+     "ds-switch",
+     "ds-shield-table",
+     "ds-shield-team",
+     "addshield-entity",
+     "belt",
+     "addshield-state",
+     "addshield-crit",
+     "addshield-enraged",
+     "addshield-add",
+     "base-ult"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "mode": "count.ult % 3 == 2 (2nd, 5th, ... cast; also the default branch)",
+    "target": "every enemy on the board",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested damage per enemy (raw)"
+    },
+    "perUnitRaw": {
+     "GROOKEY": 10,
+     "RILLABOOM": 40,
+     "THWACKEY": 20
+    },
+    "scaling": "Per enemy: handleSpecialDamage with apBoost default true: x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, needs ABILITY_CRIT); other multipliers as in sibling single-target records.",
+    "resolution": "applied = figure handed to PokemonState.handleDamage per enemy; there it is divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and the enemy's shield absorbs first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for an enemy with protect / skydiving / magicBounce. Each enemy resolves separately.",
+    "evidence": [
+     "ds-switch",
+     "ds-damage-table",
+     "ds-damage-team",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   "mode 0 (every third cast, the 3rd first): team speed +10/20/40 (requested, raw)"
+  ],
+  "shields": [
+   "mode 1 (the 1st cast and every third after): team shield 10/20/40 (requested, raw)"
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GROOKEY": 1,
+    "RILLABOOM": 3,
+    "THWACKEY": 2
+   },
+   "declaredRawPerMode": {
+    "GROOKEY": 10,
+    "RILLABOOM": 40,
+    "THWACKEY": 20
+   },
+   "note": "All three tables are indexed by the caster's stars; the 4-star column (80, also the ?? fallback) is not reachable by the bare factory star counts of these units.",
+   "evidence": [
+    "passive-drummer",
+    "ds-speed-table",
+    "ds-shield-table",
+    "ds-damage-table",
+    "unit-grookey",
+    "unit-rillaboom",
+    "unit-thwackey"
+   ]
+  },
+  "positionalConditions": "None: board-wide, team membership only.",
+  "repeatedCastsAndModes": "Stateful through pokemon.count.ult, incremented by the base process on every cast of any ability handler that calls super.process. Starting at 0, casts go shield (ult=1), damage (ult=2), speed (ult=3), shield (4) ... The only reset of count.ult found in pokemon-entity.ts is for VOLT_SURGE, so it is not reset for DRUM_BEATING by that code; whether the counter is zero at fight start was not traced.",
+  "rawVsResolved": "Requested: 10/20/40 per mode for 1/2/3 stars. Speed applied = requested x belt x (1 + AP/100) x crit, clamped to 300 (Melmetal gets half as attack). Shield applied = requested x belt, x (1 + AP/100), x crit, x0.5 if enraged, rounded. Damage applied = requested x (1 + AP/100) x crit etc., then reduced by each enemy's SPE_DEF with a minimum of 1 and absorbed by shield first. Final values depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "speed",
+    "file": "app/core/abilities/drum-beating.ts",
+    "pattern": "const speed = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "shield",
+    "file": "app/core/abilities/drum-beating.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   },
+   {
+    "id": "damage",
+    "file": "app/core/abilities/drum-beating.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read",
+   "Whether the board contains entities of a third team or dead entities: forEach only filters by team equality / inequality"
+  ],
+  "unresolved": [
+   "Helpers consulted: addSpeed, addShield (entity and state), applyBigEaterBeltStatBuff and applyTwistBandBuff in pokemon-entity.ts / pokemon-state.ts, handleSpecialDamage and handleDamage were read (see evidence); no routing uncertainties are listed for this record",
+   "The count.ult initial value and any reset outside pokemon-entity.ts (e.g. at fight start, evolution or clone) were not traced; the shield/damage/speed order assumes it starts at 0",
+   "The DRUMMER passive that all three units declare gives PP to adjacent allies and is not part of this record; it can change how often the cast fires",
+   "Whether a Melmetal-passive ally is ever on the board with these units was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-grookey",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18163,
+     18177
+    ],
+    "symbol": "class Grookey",
+    "expect": "skill = Ability.DRUM_BEATING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-rillaboom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18195,
+     18208
+    ],
+    "symbol": "class Rillaboom",
+    "expect": "skill = Ability.DRUM_BEATING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-thwackey",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18179,
+     18193
+    ],
+    "symbol": "class Thwackey",
+    "expect": "skill = Ability.DRUM_BEATING",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "addshield-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     504,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt applied to the requested value before the state call"
+   },
+   {
+    "id": "addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling (apBoost factor), crit, enraged, rounding"
+   },
+   {
+    "id": "addshield-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": ""
+   },
+   {
+    "id": "addshield-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": ""
+   },
+   {
+    "id": "addshield-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     395,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "applied only if hp > 0; Math.round before adding"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down on positive values when the holder has Big Eater Belt"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     850,
+     850
+    ],
+    "symbol": "AbilityStrategies[Ability.DRUM_BEATING]",
+    "expect": "[Ability.DRUM_BEATING]: new DrumBeatingStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-ult",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.count.ult += 1",
+    "note": "spends maxPP and increments count.ult BEFORE the subclass reads it"
+   },
+   {
+    "id": "ds-class",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "DrumBeatingStrategy",
+    "expect": "export class DrumBeatingStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ds-super",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "DrumBeatingStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: PP spent, count.ult incremented, animation"
+   },
+   {
+    "id": "ds-switch",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "DrumBeatingStrategy.process",
+    "expect": "switch (pokemon.count.ult % 3) {",
+    "note": "mode chosen by the caster's ult counter modulo 3"
+   },
+   {
+    "id": "ds-speed-table",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "DrumBeatingStrategy.process case 0",
+    "expect": "const speed = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "speed table"
+   },
+   {
+    "id": "ds-speed-team",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "DrumBeatingStrategy.process case 0",
+    "expect": "entity.addSpeed(speed, pokemon, 1, crit)",
+    "note": "every same-team entity on the board, caster included"
+   },
+   {
+    "id": "ds-shield-table",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "DrumBeatingStrategy.process case 1",
+    "expect": "const shield = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "shield table"
+   },
+   {
+    "id": "ds-shield-team",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     29,
+     30
+    ],
+    "symbol": "DrumBeatingStrategy.process case 1",
+    "expect": "entity.addShield(shield, pokemon, 1, crit)",
+    "note": "every same-team entity on the board, caster included"
+   },
+   {
+    "id": "ds-damage-table",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "DrumBeatingStrategy.process case 2/default",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage table"
+   },
+   {
+    "id": "ds-damage-team",
+    "file": "app/core/abilities/drum-beating.ts",
+    "lines": [
+     40,
+     47
+    ],
+    "symbol": "DrumBeatingStrategy.process case 2/default",
+    "expect": "entity.handleSpecialDamage(",
+    "note": "SPECIAL damage to every entity whose team differs from the caster's"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "callback(x, y, this.cells[this.columns * y + x])",
+    "note": "iterates every cell; the callbacks skip empty cells"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "Big Eater Belt/Twist Band first, then AP and crit scaling (no rounding), then speed clamped to 0..MAX_SPEED; a MELMETAL passive holder gets half the value as attack instead"
+   },
+   {
+    "id": "addspeed-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     763
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "this.passive === Passive.MELMETAL",
+    "note": "Melmetal receives value x0.5 as addAttack instead of speed"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 &&",
+    "note": "Twist Band acts only on negative values, so cannot change these positive team buffs"
+   },
+   {
+    "id": "passive-drummer",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18176,
+     18176
+    ],
+    "symbol": "Grookey.passive",
+    "expect": "passive = Passive.DRUMMER",
+    "note": "the listed units also declare the DRUMMER passive (PP to adjacent allies); that passive is a separate mechanism and is not described by this record"
+   }
+  ]
+ }
+}
