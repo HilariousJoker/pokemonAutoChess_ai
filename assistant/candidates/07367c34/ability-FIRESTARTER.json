@@ -1,0 +1,830 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FIRESTARTER",
+ "kind": "ability",
+ "identifier": "FIRESTARTER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T234005Z"
+ },
+ "record": {
+  "ability": "FIRESTARTER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare FIRESTARTER: Fletchling (1 star), Fletchinder (2) and Talonflame (3); maxPP 85, range 2 and passive GALE_WINGS for all in the catalog. GALE_WINGS is referenced by the flyAway helper this ability uses but its passive is otherwise not covered here. The strategy is shared; unit differences are the star count (both tables).",
+  "appliesTo": [
+   {
+    "key": "FLETCHLING",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FLETCHINDER",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TALONFLAME",
+    "stars": 3,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FLETCHLING": {
+    "evidence": [
+     "unit-fletchling"
+    ]
+   },
+   "FLETCHINDER": {
+    "evidence": [
+     "unit-fletchinder"
+    ]
+   },
+   "TALONFLAME": {
+    "evidence": [
+     "unit-talonflame"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FIRESTARTER] = new FirestarterStrategy()",
+   "strategy": "FirestarterStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-fs",
+    "fs-class",
+    "base-flags",
+    "base-pp",
+    "fs-super",
+    "base-anim",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "By source reading: the caster first jumps (flyAway with shouldSkydive false, a plain moveTo swap, not forced displacement) to a free cell beyond its own range from which at least one enemy is within range, chosen as the one with the fewest enemies able to hit it, then the farthest from its current cell, random among ties (fallback: a safe place away from its target; null if no enemies or no cell). The jump happens immediately and, because the caster has GALE_WINGS, lays an Ember board effect on every cell of the line between its old and new position (endpoints included) before it moves. The strategy then reads the caster's position AFTER the jump, so its getCellsBetween call runs from the destination to the destination and returns only the destination cell; the per-cell Ember and line-damage branch (applies only to non-destination cells) therefore has no cell to act on, and the only strategy-applied effects are (a) a speed gain on the caster 500 ms later and (b) SPECIAL damage (raw 20/40/80/160 by stars) to the cast target. Because the `targetsHit.size === 0` check runs synchronously, before any delayed command executes, the cast target is hit immediately in every case, even when a line branch exists, and damage is dealt at the moment of the cast, not after the jump animation. If getFlyAwayCell returns null, the caster stays and only the target damage applies (no speed gain). This is source reading, not a probe: the claim that the line contains only the destination rests on moveTo / swapCells / setEntityOnCell updating the caster's position synchronously.",
+  "targeting": {
+   "who": "damage: the cast target (the strategy-level fallback), plus any enemy on a non-destination line cell if such cells existed; speed: the caster; movement: the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true. The destination is chosen by getFlyAwayCell from the board, not from the cast target (it requires an enemy within the caster's range of the destination; that enemy is the lowest HP% one there and is returned as flyAwayCell.target, which this strategy does not use).",
+   "evidence": [
+    "fs-class",
+    "base-flags",
+    "fs-fly",
+    "flycell-fn",
+    "fs-fallback-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "movement along a supercover line from the old to the new position (Ember laid on that line by the GALE_WINGS branch of flyAway); strategy damage geometry: single target (the cast target); the strategy's own line-damage branch is empty as written (see summary)",
+   "evidence": [
+    "fly-gale",
+    "between",
+    "fs-cells",
+    "fs-line",
+    "fs-fallback-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target (always, immediately)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "FLETCHLING": 20,
+     "FLETCHINDER": 40,
+     "TALONFLAME": 80
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "requested amount = raw x AP factor [x crit]; then the target's SPE_DEF division (ceil, min 1) and untraced later modifiers, so it is an intermediate calculation, not the final HP loss; takenDamage (not used, the return value is discarded) would count HP removed plus shield damage. Blocked entirely by protect / skydiving / magicBounce on the target (takes 0); a magicBounce target also queues a delayed SPECIAL bounce at the caster unless it holds Protective Pads. The same amount would apply to an enemy on a line cell in the unreachable branch.",
+    "evidence": [
+     "fs-tables",
+     "fs-fallback",
+     "fs-fallback-hit",
+     "fs-line",
+     "hd-protect",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "declaredRaw": {
+     "action": "flyAway(board, false): moveTo the chosen free cell (not forced)"
+    },
+    "scaling": "none",
+    "resolution": "immediate. The destination is the unoccupied cell beyond the caster's range with an enemy in range, with the fewest enemies able to attack it, then the largest Manhattan distance from the caster, random among ties (pickRandomIn); if none, getSafePlaceAwayFrom fallback; if there are no enemies or no cell the caster does not move. Aggro: every unit targeting the caster loses its target. The caster also gains a 2000 ms protect from triggerProtect if it has the FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM effect (default of the shouldProtect parameter). GALE_WINGS: Ember board effect on every cell of the old-to-new line, endpoints included, before the move.",
+    "evidence": [
+     "fs-fly",
+     "fly-sig",
+     "fly-cell",
+     "fly-gale",
+     "fly-protect",
+     "fly-move",
+     "fly-aggro",
+     "move-to",
+     "swap",
+     "setcell",
+     "flycell-fn",
+     "flycell-random",
+     "between",
+     "ember-add"
+    ]
+   },
+   {
+    "kind": "speed_gain",
+    "target": "the caster (itself, as caster and receiver)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "FLETCHLING": 10,
+     "FLETCHINDER": 20,
+     "TALONFLAME": 40
+    },
+    "scaling": "requested speedBuff -> addSpeed(speedBuff, pokemon, 1, crit): x1.25 rounded down when the caster holds Big Eater Belt (applyBigEaterBeltStatBuff, positive value), Twist Band does not change a positive value, then x (1 + 1 x AP/100) x (critPower if the cast crit); the result is added to the current speed and clamped to 0..300 (MAX_SPEED)",
+    "resolution": "applied 500 ms after the cast through a DelayedCommand, and only when the fly-away produced a destination (the delayed callback is created for the cell that equals the destination); not permanent. Requested = the table value; applied = after Big Eater Belt, AP, crit and the 300 clamp. The delayed command was not checked for what happens if the caster has died in between.",
+    "evidence": [
+     "fs-tables",
+     "fs-cells",
+     "fs-speed",
+     "dc-class",
+     "add-speed",
+     "add-speed-scale",
+     "add-speed-clamp",
+     "max-speed",
+     "beb",
+     "tb"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "Ember board effect",
+    "target": "cells and units on the line between the caster's old and new position (laid by the GALE_WINGS branch of flyAway before the move)",
+    "declaredRaw": {
+     "action": "addBoardEffect(EMBER) on each line cell, endpoints included"
+    },
+    "scaling": "none",
+    "applicationOrder": "before the caster moves",
+    "guards": "the Ember effect is placed on a unit standing on the cell only if it does not hold Heavy Duty Boots; the per-second tick skips Fire and Flying types and Heavy Duty Boots holders",
+    "combatEffect": "each second a unit carrying the effect takes 10 SPECIAL damage (no attacker) and a 2200 burn. How long a board effect stays on a cell and what clears it were not traced (only one clearBoardEffect call in simulation.ts was seen); the strategy's own Ember additions are in the empty line branch.",
+    "evidence": [
+     "fly-gale",
+     "ember-add",
+     "ember-tick"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "FLETCHLING": 1,
+    "FLETCHINDER": 2,
+    "TALONFLAME": 3
+   },
+   "declaredRawDamage": {
+    "FLETCHLING": 20,
+    "FLETCHINDER": 40,
+    "TALONFLAME": 80
+   },
+   "declaredRawSpeedBuff": {
+    "FLETCHLING": 10,
+    "FLETCHINDER": 20,
+    "TALONFLAME": 40
+   },
+   "note": "both tables are indexed by the casting entity's stars; the three listed units are 1-3 stars, so their bare values are 20/40/80 damage and 10/20/40 speed. The 4th column (160 / 80, also the fallbacks) is not reachable by their bare star counts. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "fs-tables",
+    "unit-fletchling",
+    "unit-fletchinder",
+    "unit-talonflame"
+   ]
+  },
+  "positionalConditions": "The jump needs at least one enemy and a free cell beyond the caster's range that has an enemy within range (otherwise the fallback getSafePlaceAwayFrom, otherwise no move). The destination is random among equally safe, equally far cells. The cast target is not required to be near the destination; it is damaged wherever it stands. The line cells used by the strategy are computed from the caster's position after the jump (see summary).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast jumps again, schedules another speed gain (additive, clamped to 300) and damages the target again.",
+  "rawVsResolved": "Declared raw: damage 20/40/80 (1/2/3 stars) to the cast target; speed gain 10/20/40 to the caster. Damage = raw x (1 + AP/100) [x crit] then the SPE_DEF division (ceil, min 1) and untraced modifiers (intermediate calculation). Speed gain requested = table value; applied = after Big Eater Belt (x1.25 down), AP, crit and the 300 clamp, 500 ms after the cast and only if the caster jumped. Movement is immediate.",
+  "sourceTables": [
+   {
+    "id": "firestarterDamage",
+    "file": "app/core/abilities/firestarter.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "firestarterSpeed",
+    "file": "app/core/abilities/firestarter.ts",
+    "pattern": "const speedBuff = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier",
+   "Ember board-effect lifetime and what clears it; isTargettableBy (used by getFlyAwayCell) and getSafePlaceAwayFrom's details were not read in full",
+   "Magic-bounce bounce amount (not traced beyond the trigger condition)"
+  ],
+  "unresolved": [
+   "Passive GALE_WINGS is not covered beyond its use inside flyAway",
+   "The conclusion that the strategy's line branch has no non-destination cell depends on the caster's position having been updated by the move before getCellsBetween is called; this is read from moveTo -> swapCells -> setEntityOnCell, not probed",
+   "Whether the speed DelayedCommand still runs if the caster dies before 500 ms was not traced",
+   "Whether any item or synergy effect changes FIRESTARTER beyond what is listed",
+   "Mechanics consulted: core-mechanics.md section A via the cited handleDamage lines; addSpeed, applyBigEaterBeltStatBuff and applyTwistBandBuff were read at their definitions in pokemon-entity.ts"
+  ],
+  "evidence": [
+   {
+    "id": "unit-fletchling",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17021,
+     17035
+    ],
+    "symbol": "class Fletchling",
+    "expect": "skill = Ability.FIRESTARTER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-fletchinder",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17037,
+     17051
+    ],
+    "symbol": "class Fletchinder",
+    "expect": "skill = Ability.FIRESTARTER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-talonflame",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17053,
+     17066
+    ],
+    "symbol": "class Talonflame",
+    "expect": "skill = Ability.FIRESTARTER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-fs",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     884,
+     884
+    ],
+    "symbol": "AbilityStrategies[Ability.FIRESTARTER]",
+    "expect": "[Ability.FIRESTARTER]: new FirestarterStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fs-class",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "FirestarterStrategy",
+    "expect": "class FirestarterStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "fs-super",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the default cast animation broadcast is skipped"
+   },
+   {
+    "id": "base-anim",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "if (!preventDefaultAnim) {",
+    "note": "the default broadcast is inside this guard"
+   },
+   {
+    "id": "fs-tables",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "const speedBuff = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage table on line 16, speed table on line 17, both by caster stars"
+   },
+   {
+    "id": "fs-fly",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "const flyAwayCell = pokemon.flyAway(board, false)",
+    "note": "the caster moves (immediately) before anything below is read"
+   },
+   {
+    "id": "fs-cells",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells between the caster's CURRENT position (read after flyAway returned) and the fly-away destination"
+   },
+   {
+    "id": "fs-speed",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     30,
+     35
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "pokemon.addSpeed(speedBuff, pokemon, 1, crit)",
+    "note": "on the destination cell only: speed buff after a 500 ms DelayedCommand, caster as its own source, apBoost 1, crit passed"
+   },
+   {
+    "id": "fs-line",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     36,
+     58
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "for every non-destination cell: Ember board effect and, delayed by i x 50 ms, SPECIAL damage to an enemy found on the cell"
+   },
+   {
+    "id": "fs-fallback",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     76,
+     85
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "if (targetsHit.size === 0) {",
+    "note": "evaluated synchronously, before any DelayedCommand has run, so targetsHit is still empty and the cast target is hit immediately"
+   },
+   {
+    "id": "fs-fallback-hit",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     78,
+     84
+    ],
+    "symbol": "FirestarterStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage to the cast target, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "dc-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "a DelayedCommand runs on the first update after its delay has elapsed (delay < 0), so even a delay of 0 does not run during the cast call itself"
+   },
+   {
+    "id": "fly-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1323,
+     1329
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "shouldProtect = this.effects.has(EffectEnum.FEATHER_DANCE) ||",
+    "note": "the strategy passes shouldSkydive false; shouldProtect keeps its default (FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM effect)"
+   },
+   {
+    "id": "fly-cell",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1330,
+     1330
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "const flyAwayCell = board.getFlyAwayCell(this)",
+    "note": ""
+   },
+   {
+    "id": "fly-gale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1332,
+     1348
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "if (flyAwayCell && this.passive === Passive.GALE_WINGS) {",
+    "note": "for GALE_WINGS units (all three), before moving: Ember board effect on every cell of the line between the old position and the destination, endpoints included"
+   },
+   {
+    "id": "fly-protect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1350,
+     1350
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "if (shouldProtect) this.status.triggerProtect(2000)",
+    "note": ""
+   },
+   {
+    "id": "fly-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1384,
+     1386
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "this.moveTo(flyAwayCell.x, flyAwayCell.y, board, false)",
+    "note": "not forced displacement; shouldSkydive is false so the else-branch is the one taken"
+   },
+   {
+    "id": "fly-aggro",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1388,
+     1394
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "make enemies lose aggro after target flies away",
+    "note": "every unit targeting the caster loses its target"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": ""
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number)",
+    "note": ""
+   },
+   {
+    "id": "setcell",
+    "file": "app/core/board.ts",
+    "lines": [
+     43,
+     53
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.positionX = x",
+    "note": "positionX / positionY are updated synchronously when the entity is placed"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number)",
+    "note": "supercover line; the start cell is always pushed first, so identical start and end give exactly one cell"
+   },
+   {
+    "id": "flycell-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     383,
+     498
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "getFlyAwayCell(",
+    "note": "unoccupied cell beyond the caster's range with an enemy inside the range, fewest enemies able to hit it, farthest from the current cell, random among ties; fallback getSafePlaceAwayFrom; null without enemies or cells"
+   },
+   {
+    "id": "flycell-random",
+    "file": "app/core/board.ts",
+    "lines": [
+     491,
+     491
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "const selectedDestination = pickRandomIn(farthestSafestCells)",
+    "note": "random tie-break among equally safe, equally distant cells"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     775
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "big eater belt, twist band, then (non-MELMETAL) AP/crit scaling and the clamp"
+   },
+   {
+    "id": "add-speed-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     765,
+     770
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "speed x (1 + apBoost x AP / 100) x (crit ? critPower : 1)"
+   },
+   {
+    "id": "add-speed-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": ""
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain function; positive speed gains x1.25 rounded down (0 digits) when the receiver holds Big Eater Belt"
+   },
+   {
+    "id": "tb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only flips negative values; the FIRESTARTER speed gain is positive so it is unchanged"
+   },
+   {
+    "id": "ember-tick",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1087,
+     1100
+    ],
+    "symbol": "PokemonState.updateEachSecond",
+    "expect": "pokemon.effects.has(EffectEnum.EMBER) &&",
+    "note": "once a second: 10 SPECIAL damage (no attacker) and a 2200 burn on a unit carrying the Ember effect unless it is Fire or Flying type or holds Heavy Duty Boots"
+   },
+   {
+    "id": "ember-add",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     642
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "if (entityOnCell && entityOnCell.items.has(Item.HEAVY_DUTY_BOOTS) === false) {",
+    "note": "the Ember effect is put on the unit standing on the cell (not with Heavy Duty Boots)"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect or skydiving: no damage taken"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "canCritByDefault = false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   }
+  ]
+ }
+}
