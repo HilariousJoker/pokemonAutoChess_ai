@@ -1,0 +1,662 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FLAMETHROWER",
+ "kind": "ability",
+ "identifier": "FLAMETHROWER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T234005Z"
+ },
+ "record": {
+  "ability": "FLAMETHROWER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare FLAMETHROWER: Magby (1 star), Magmar (2) and Magmortar (3); maxPP 80, range 2 and passive NONE for all in the catalog. The strategy is shared; unit differences are the star count (damage table index). The registered class is FlameThrowerStrategy in flame-thrower.ts (the identifier is FLAMETHROWER).",
+  "appliesTo": [
+   {
+    "key": "MAGBY",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "FLAMETHROWER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAGMAR",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "FLAMETHROWER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAGMORTAR",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "FLAMETHROWER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MAGBY": {
+    "evidence": [
+     "unit-magby"
+    ]
+   },
+   "MAGMAR": {
+    "evidence": [
+     "unit-magmar"
+    ]
+   },
+   "MAGMORTAR": {
+    "evidence": [
+     "unit-magmortar"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FLAMETHROWER] = new FlameThrowerStrategy()",
+   "strategy": "FlameThrowerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ft",
+    "ft-class",
+    "base-flags",
+    "base-pp",
+    "ft-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "A ray in the direction of the cast target (one of 8 directions chosen by the signs of the caster-to-target offset, so any off-axis target becomes a diagonal) that reaches at most 3 cells from the caster (Chebyshev distance). Every enemy unit standing on those cells takes SPECIAL damage (raw 30/60/120 by the caster's stars, AP-scaled, crit only with ABILITY_CRIT) and then a 4000 ms burn with the caster as origin. Allies on the ray are skipped and do not block it; empty cells are visited but do nothing. If no enemy was found on the ray (for example the target is off the ray because of the direction rounding or farther than 3 cells), the effect is applied once to the cast target's own cell, so the target is damaged and burned regardless of range and direction. In the RIGHT direction the loop bound is board.rows (read as written), which with the 3-cell limit does not shorten the ray unless the caster stands in column 3 or beyond on the 8 x 6 board.",
+  "targeting": {
+   "who": "every enemy unit on the ray cells within 3 cells of the caster; otherwise the cast target",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; the direction comes from the cast target's position relative to the caster.",
+   "evidence": [
+    "ft-class",
+    "base-flags",
+    "ft-eio",
+    "eio-orient",
+    "orient",
+    "eio-fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "straight ray (UP, DOWN, LEFT, RIGHT or one of four diagonals) from the cell next to the caster, limited to Chebyshev distance 3, board edges end it; the RIGHT direction uses board.rows as its bound",
+   "evidence": [
+    "ft-eio",
+    "ft-range",
+    "eio-orient",
+    "eio-up",
+    "eio-right",
+    "eio-maxrange",
+    "eio-apply",
+    "distc",
+    "orient"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy unit on the ray within range 3 (or the cast target if none was found)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "MAGBY": 30,
+     "MAGMAR": 60,
+     "MAGMORTAR": 120
+    },
+    "scaling": "AP: damage x (1 + AP/100) per enemy (apBoost default true); the cast's crit flag multiplies by critPower (reduced by each target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "requested amount per enemy = raw x AP factor [x crit]; then the enemy's SPE_DEF division (ceil, min 1) and untraced later modifiers, so it is an intermediate calculation, not the final HP loss; takenDamage (not used, the return value is discarded) would count HP removed plus shield damage. Blocked entirely by protect / skydiving / magicBounce on that enemy (takes 0, the burn is still attempted); a magicBounce enemy also queues a delayed SPECIAL bounce at the caster unless it holds Protective Pads. Each enemy is hit once per cast.",
+    "evidence": [
+     "ft-dmg",
+     "ft-team",
+     "ft-hit",
+     "hd-protect",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "burn",
+    "target": "each enemy hit (same set as the damage)",
+    "declaredRaw": {
+     "duration": 4000,
+     "unit": "ms (requested)"
+    },
+    "perUnitDuration": {
+     "MAGBY": 4000,
+     "MAGMAR": 4000,
+     "MAGMORTAR": 4000
+    },
+    "scaling": "none from AP or crit, none from stars",
+    "applicationOrder": "right after that enemy's damage call",
+    "guards": "not applied if the enemy has IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive. When applied, the duration goes through applyStatusDurationReductions with the burning enemy as the entity (the supplied pkm is cell.value): the target-side reductions apply, not the caster's. A new duration replaces the timer and the origin only if it is longer than the remaining burn. Burn is applied even if protect / skydiving / magicBounce made the damage 0.",
+    "combatEffect": "each second the burning unit takes TRUE damage of 5% of its max HP (rounded), reduced by weather (rain x0.7; drought x1.3 with Heat Rock reduction), Assault Vest x0.5, Swift Swim / Hydration / Water Veil / Surge Surfer, and set to 0 with WELL_BAKED or Magmarizer; the damage is attributed to the burn origin (the caster). Only the tick function was cited; other readers of the burn flag were not searched.",
+    "evidence": [
+     "ft-burn",
+     "burn-trig",
+     "burn-set",
+     "burn-red",
+     "burn-tick",
+     "burn-true"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MAGBY": 1,
+    "MAGMAR": 2,
+    "MAGMORTAR": 3
+   },
+   "declaredRawDamage": {
+    "MAGBY": 30,
+    "MAGMAR": 60,
+    "MAGMORTAR": 120
+   },
+   "note": "indexed by the casting entity's stars; the three listed units are 1-3 stars, so their bare values are 30/60/120. The 240 value (4th column and fallback) is not reachable by their bare star counts. The 4000 ms burn does not vary with stars.",
+   "evidence": [
+    "ft-dmg",
+    "unit-magby",
+    "unit-magmar",
+    "unit-magmortar"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates: the 8-way direction (sign-based), the ray within 3 cells (Chebyshev), and the RIGHT bound quirk. With no enemy on the ray the cast target is hit anyway. Allies on the ray are ignored.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast repeats the damage and renews the burn only if the new 4000 ms is longer than what remains.",
+  "rawVsResolved": "Declared raw: damage 30/60/120 (1/2/3 stars) per enemy on the ray; burn 4000 ms (requested). Requested damage = raw x (1 + AP/100) [x crit factor]; then the SPE_DEF division (ceil, min 1) and untraced modifiers (intermediate, not final HP loss). Burn: requested 4000 ms, applied after the target-side duration reductions; its later per-second damage is 5% of the burning unit's max HP (true damage, modified as listed) and is not part of the cast's damage.",
+  "sourceTables": [
+   {
+    "id": "flameThrowerDamage",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage per enemy after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier",
+   "Burn tick details beyond updateBurn (other weather / item / passive interactions); applyStatusDurationReductions was cited in the siblings' evidence but its Odd Keystone part was not re-read here",
+   "Magic-bounce bounce amount (not traced beyond the trigger condition)"
+  ],
+  "unresolved": [
+   "Whether the 3-cell limit and the RIGHT bound interact for casters in columns 3-7 was derived from the loop bounds (8 x 6 board assumed from the sibling BLAZE_KICK record), not probed",
+   "Whether any item or synergy effect changes FLAMETHROWER beyond what is listed",
+   "The 4000 ms burn is a literal in the call, not a table, so no source table covers it",
+   "Mechanics consulted: core-mechanics.md section A via the cited handleDamage lines; the shared effectInOrientation / orientation helpers and the BLAZE_KICK / AURORA_BEAM candidates; no PP or stat adder is called by this strategy"
+  ],
+  "evidence": [
+   {
+    "id": "unit-magby",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2286,
+     2299
+    ],
+    "symbol": "class Magby",
+    "expect": "skill = Ability.FLAMETHROWER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-magmar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2301,
+     2314
+    ],
+    "symbol": "class Magmar",
+    "expect": "skill = Ability.FLAMETHROWER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-magmortar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2316,
+     2328
+    ],
+    "symbol": "class Magmortar",
+    "expect": "skill = Ability.FLAMETHROWER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-ft",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     889,
+     889
+    ],
+    "symbol": "AbilityStrategies[Ability.FLAMETHROWER]",
+    "expect": "[Ability.FLAMETHROWER]: new FlameThrowerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ft-class",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "FlameThrowerStrategy",
+    "expect": "class FlameThrowerStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "ft-super",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ft-dmg",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "[30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table by caster stars"
+   },
+   {
+    "id": "ft-eio",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     18,
+     35
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "effectInOrientation(",
+    "note": "ray from the caster toward the cast target, maxRange argument 3 on line 34"
+   },
+   {
+    "id": "ft-range",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "3",
+    "note": "maxRange = 3 (the only argument on that line)"
+   },
+   {
+    "id": "ft-team",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team != pokemon.team) {",
+    "note": "only occupied cells holding a unit of another team"
+   },
+   {
+    "id": "ft-hit",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     24,
+     30
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "ft-burn",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "FlameThrowerStrategy.process",
+    "expect": "cell.value.status.triggerBurn(4000, cell.value, pokemon)",
+    "note": "burn 4000 ms requested on the hit unit, origin = caster, after the damage call"
+   },
+   {
+    "id": "eio-maxrange",
+    "file": "app/core/board.ts",
+    "lines": [
+     832,
+     837
+    ],
+    "symbol": "effectInOrientation.applyEffect",
+    "expect": "const distance = distanceC(x, y, pokemon.positionX, pokemon.positionY)",
+    "note": "cells farther than maxRange (Chebyshev distance from the caster) are skipped"
+   },
+   {
+    "id": "distc",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "eio-apply",
+    "file": "app/core/board.ts",
+    "lines": [
+     831,
+     843
+    ],
+    "symbol": "effectInOrientation.applyEffect",
+    "expect": "effect({ x, y, value })",
+    "note": "the effect callback runs for every in-range cell of the ray, occupied or not"
+   },
+   {
+    "id": "eio-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     810,
+     827
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "export function effectInOrientation(",
+    "note": "direction = board.orientation(caster, target) (8 sectors by sign of dx/dy), no maxRange passed here"
+   },
+   {
+    "id": "eio-up",
+    "file": "app/core/board.ts",
+    "lines": [
+     847,
+     847
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let y = pokemon.positionY + 1; y < board.rows; y++) {",
+    "note": "UP: walks y upward from the cell after the caster to the board edge"
+   },
+   {
+    "id": "eio-right",
+    "file": "app/core/board.ts",
+    "lines": [
+     863,
+     863
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX + 1; x < board.rows; x++) {",
+    "note": "RIGHT bound uses board.rows (not columns); recorded as read"
+   },
+   {
+    "id": "eio-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     911,
+     917
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "if (isEntity(target) && targetsHit.size === 0) {",
+    "note": "when no enemy was visited the effect is called once on the target's own (occupied) cell"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx>0 RIGHT/UPRIGHT/DOWNRIGHT, dx<0 LEFT/..., dx==0 UP/DOWN; sign-based, so any non-axis offset becomes a diagonal"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and origin; a shorter one keeps the existing"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second as TRUE damage (weather / items / passives modify it)"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": ""
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   }
+  ]
+ }
+}
