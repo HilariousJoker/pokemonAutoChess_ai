@@ -1,0 +1,881 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DARK_HARVEST",
+ "kind": "ability",
+ "identifier": "DARK_HARVEST",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T053926Z"
+ },
+ "record": {
+  "ability": "DARK_HARVEST",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "DEINO, ZWEILOUS and HYDREIGON (the queued units; none has a passive in the catalog). The strategy is shared; the units differ in stars and stats only.",
+  "appliesTo": [
+   {
+    "key": "DEINO",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DARK_HARVEST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HYDREIGON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DARK_HARVEST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ZWEILOUS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "DARK_HARVEST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DEINO": {
+    "evidence": [
+     "unit-deino"
+    ]
+   },
+   "ZWEILOUS": {
+    "evidence": [
+     "unit-zweilous"
+    ]
+   },
+   "HYDREIGON": {
+    "evidence": [
+     "unit-hydreigon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DARK_HARVEST] = new DarkHarvestStrategy()",
+   "strategy": "DarkHarvestStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dh",
+    "dh-class",
+    "dh-notarget",
+    "base-flags",
+    "cast",
+    "move-cast",
+    "can-cast",
+    "dh-super",
+    "dh-add",
+    "state-update",
+    "eff-class"
+   ]
+  },
+  "summary": "The caster swaps to the empty cell that has the most opponent units next to it, gains a 3000 ms self-silence, and for about 3 one-second ticks deals SPECIAL damage (5/10/20 raw at 1/2/3 stars) to every adjacent entity of another team, healing itself for 30% (rounded) of the damage each hit took. If there is no empty cell on the board nothing happens beyond spending PP.",
+  "targeting": {
+   "who": "no cast target (requiresTarget false; process receives null). The destination is chosen from the board: the empty cell with the most adjacent opponent-team units; each tick then hits whatever other-team entities are adjacent to the caster's current position.",
+   "needsTarget": false,
+   "note": "a requiresTarget=false ability is cast from the moving state as soon as pp >= maxPP and canCast, so the caster does not need an opponent in range.",
+   "evidence": [
+    "dh-notarget",
+    "move-cast",
+    "dh-opp",
+    "dh-find",
+    "find-impl",
+    "find-sort",
+    "eff-adj",
+    "eff-enemy"
+   ]
+  },
+  "geometry": {
+   "shape": "relocation to one empty cell, then the 8 cells around the caster (centre excluded) at each tick",
+   "destination": "empty cell maximising the number of adjacent units of the opponent team; ties keep the sorted order (board.forEach order, not further traced); a cell with 0 neighbours is possible",
+   "evidence": [
+    "find-impl",
+    "find-sort",
+    "adjacent",
+    "eff-adj",
+    "dh-move",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "move (self)",
+    "declaredRaw": {
+     "destination": "most surrounded empty cell"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false): forcedDisplacement false so canBeMoved is not consulted; swaps with the empty cell; cooldown set to 100. If no empty cell exists the strategy does nothing further (no move, no effect, no silence) but PP was already spent.",
+    "evidence": [
+     "dh-find",
+     "dh-guard",
+     "dh-move",
+     "moveto",
+     "find-impl",
+     "base-pp"
+    ]
+   },
+   {
+    "kind": "damage (periodic)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 40,
+      "fallback": 40
+     },
+     "interval": "1000 ms per tick",
+     "ticks": "3 by the source comment (duration 3000 + 200 ms; see rawVsResolved)"
+    },
+    "perUnitRaw": {
+     "DEINO": 5,
+     "ZWEILOUS": 10,
+     "HYDREIGON": 20
+    },
+    "scaling": "requested amount per enemy per tick: AP: damage x (1 + AP/100) (apBoost true); crit multiplier only if that tick's crit roll succeeded, which needs the ABILITY_CRIT effect (canCritByDefault is false and the cast's own crit flag is not used)",
+    "resolution": "applied amount: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers, per adjacent enemy; blocked by protect / skydiving / magicBounce (takenDamage 0). No stat helper is called.",
+    "evidence": [
+     "eff-dmg",
+     "eff-crit",
+     "eff-hit",
+     "eff-enemy",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "periodic",
+     "eff-interval",
+     "eff-tick",
+     "eff-skip",
+     "eff-timer"
+    ]
+   },
+   {
+    "kind": "heal (self)",
+    "declaredRaw": {
+     "fractionOfTakenDamage": 0.3
+    },
+    "scaling": "requested amount: Math.round(0.3 x takenDamage) for EACH enemy hit on each tick, where takenDamage is what handleSpecialDamage reports (includes shield damage, rounded); apBoost 0 and crit false are passed, so neither AP nor crit scales it",
+    "resolution": "applied amount: handleHeal gives nothing if the caster is wounded, at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded again and capped at the caster's missing HP. A blocked hit (takenDamage 0) heals 0.",
+    "evidence": [
+     "eff-heal-factor",
+     "eff-heal",
+     "taken-shield",
+     "taken-hp",
+     "taken-ret",
+     "heal-wound",
+     "heal-mods",
+     "special-block"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "silence",
+    "target": "the caster",
+    "declaredRaw": {
+     "value": 3000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the move and after the effect is added; only when an empty cell was found",
+    "guards": "not applied if runeProtect or tree; MURKY weather x1.3; duration passes through applyStatusDurationReductions; a longer duration replaces the remaining time. The periodic effect itself does not check silence, so ticks continue while silenced.",
+    "combatEffect": "canCast is false while silenced, so the caster cannot cast another ability during it. Silence (3000 ms) ends 200 ms before the effect's 3200 ms duration unless modified.",
+    "evidence": [
+     "dh-silence",
+     "silence",
+     "can-cast",
+     "eff-duration",
+     "dh-dur"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DEINO": 1,
+    "ZWEILOUS": 2,
+    "HYDREIGON": 3
+   },
+   "declaredRawDamage": {
+    "DEINO": 5,
+    "ZWEILOUS": 10,
+    "HYDREIGON": 20
+   },
+   "note": "indexed by the casting entity's stars at each tick (pokemon.stars - 1); the 4-star value (40, also the fallback) is not reached by these units' bare star counts (1, 2, 3). maxPP 100 and range 2 for all three.",
+   "evidence": [
+    "eff-dmg",
+    "unit-deino",
+    "unit-zweilous",
+    "unit-hydreigon"
+   ]
+  },
+  "positionalConditions": "The destination is the empty cell with the most adjacent opponent-team units (possibly 0). Damage and healing apply to every adjacent entity whose team differs from the caster's, evaluated at each tick from the caster's current position; if the caster is displaced during the effect, later ticks use the new position.",
+  "repeatedCastsAndModes": "No modes. The effect is identified by EffectEnum.DARK_HARVEST. As read, the constructor's merge branch (extend an existing instance's duration to the max and reset its timer) runs before the strategy adds the new instance to effectsSet, and the constructor's effectsSet.delete(this) cannot remove an instance that is not yet in the set, so a second cast during an active effect appears to leave two instances ticking. Reaching this in a fight is doubtful because the caster is silenced for 3000 ms and needs PP again (not traced).",
+  "repeatedCastsEvidence": {
+   "evidence": [
+    "eff-merge",
+    "eff-merge-delete",
+    "eff-expire",
+    "effect-enum"
+   ]
+  },
+  "rawVsResolved": "Requested (raw) damage per enemy per tick: 5 (DEINO) / 10 (ZWEILOUS) / 20 (HYDREIGON). Applied damage = raw x (1 + AP/100) [x crit factor if ABILITY_CRIT and the tick rolls a crit], then the SPE_DEF division (ceil, at least 1) and later handleDamage modifiers. takenDamage (rounded, includes shield damage) feeds the heal: requested round(0.3 x takenDamage) per hit, received after handleHeal modifiers and the missing-HP cap. Ticks: duration 3200 ms, timer starts at 0, interval 1000 ms, each tick subtracts 1000 before acting: ticks at about 0/1/2 s deal damage (duration 2200/1200/200 after them), the fourth tick takes duration to -800 and removes the effect without damage; a tick skipped for resurrecting/freeze/sleep still consumes duration.",
+  "sourceTables": [
+   {
+    "id": "darkHarvestDamage",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "pattern": "const darkHarvestDamage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division, the minimum of 1 and the takenDamage accumulation were read",
+   "When the cast fires in a real fight (PP gain, silence, movement) - only the moving-state gate for requiresTarget=false abilities was read",
+   "Board.forEach iteration order, which decides ties between equally surrounded empty cells",
+   "applyStatusDurationReductions (what shortens the 3000 ms silence)",
+   "The exact update cadence of state.update (dt per call), which decides how closely the ticks match 1000 ms"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: Ability.DARK_HARVEST (this strategy) and EffectEnum.DARK_HARVEST (tag of the periodic effect inside the same file) share a name. git grep at the pinned commit finds EffectEnum.DARK_HARVEST only in dark-harvest.ts (and its enum definition); no separate synergy or item effect called DARK_HARVEST was found, so this record covers only the ability and its own periodic effect.",
+   "Whether a second cast during an active effect is reachable and really double-ticks (see repeatedCastsAndModes)",
+   "Whether any item or synergy effect changes the ability beyond what is listed",
+   "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dh",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     817,
+     817
+    ],
+    "symbol": "AbilityStrategies[Ability.DARK_HARVEST]",
+    "expect": "[Ability.DARK_HARVEST]: new DarkHarvestStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dh-class",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     79,
+     79
+    ],
+    "symbol": "DarkHarvestStrategy",
+    "expect": "export class DarkHarvestStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "dh-notarget",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     80,
+     80
+    ],
+    "symbol": "DarkHarvestStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed; process receives target null"
+   },
+   {
+    "id": "dh-super",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     82,
+     82
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: no default cast animation; the effect broadcasts per tick"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and ult count raised before the cell search, so a cast with no empty cell still spends PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "default flags; requiresTarget overridden to false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the rolled crit is not used by DarkHarvestStrategy"
+   },
+   {
+    "id": "move-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     41,
+     43
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "a requiresTarget=false ability is cast from the moving state when pp >= maxPP and canCast, without a target"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     245,
+     250
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "get canCast(): boolean",
+    "note": "not while silenced, with NULLIFY_BANDANNA, or with TELEPORT_NEXT_ATTACK"
+   },
+   {
+    "id": "dh-opp",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     84,
+     85
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "pokemon.team === Team.BLUE_TEAM ? Team.RED_TEAM : Team.BLUE_TEAM",
+    "note": "opponent team = the other of blue/red"
+   },
+   {
+    "id": "dh-find",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     84,
+     87
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "getMostSurroundedCoordinateAvailablePlace(",
+    "note": "cell search"
+   },
+   {
+    "id": "dh-dur",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     91,
+     91
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "const effectDuration = 3000",
+    "note": ""
+   },
+   {
+    "id": "dh-guard",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     93,
+     93
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "if (mostSurroundedCoordinate) {",
+    "note": "everything below happens only if an empty cell was found"
+   },
+   {
+    "id": "dh-move",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     89,
+     94
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "pokemon.moveTo(",
+    "note": "move to the chosen cell, forcedDisplacement false"
+   },
+   {
+    "id": "dh-add",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     100,
+     100
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "pokemon.effectsSet.add(new DarkHarvestEffect(effectDuration, pokemon))",
+    "note": ""
+   },
+   {
+    "id": "dh-silence",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     101,
+     101
+    ],
+    "symbol": "DarkHarvestStrategy.process",
+    "expect": "pokemon.status.triggerSilence(effectDuration, pokemon, pokemon)",
+    "note": "self-silence for 3000 ms before duration reductions"
+   },
+   {
+    "id": "find-impl",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1206,
+     1241
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "getMostSurroundedCoordinateAvailablePlace(",
+    "note": "counts opponent-team units adjacent to each EMPTY cell; sorts by that count descending; takes the first; undefined when no empty cell"
+   },
+   {
+    "id": "find-sort",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1262,
+     1262
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "return b.neighbour - a.neighbour",
+    "note": "a cell with 0 opponents can still be chosen if it is the only/first empty cell"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     882,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "forcedDisplacement=false skips canBeMoved checks; swaps with the (empty) destination; cooldown 100"
+   },
+   {
+    "id": "silence",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     505,
+     520
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "triggerSilence(duration: number, pkm: PokemonEntity, origin?: PokemonEntity)",
+    "note": "not applied with runeProtect or tree; MURKY weather x1.3; applyStatusDurationReductions; longer duration replaces"
+   },
+   {
+    "id": "eff-class",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "class DarkHarvestEffect extends PeriodicEffect",
+    "note": ""
+   },
+   {
+    "id": "eff-tick",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     10,
+     15
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "this.duration -= this.intervalMs",
+    "note": "duration decreases by the interval every tick, even when the tick is skipped below"
+   },
+   {
+    "id": "eff-skip",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "pokemon.status.resurrecting ||",
+    "note": "tick skipped while resurrecting / frozen / asleep (duration still consumed)"
+   },
+   {
+    "id": "eff-crit",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     29,
+     31
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "pokemon.effects.has(EffectEnum.ABILITY_CRIT)",
+    "note": "crit rolled per tick, only with ABILITY_CRIT"
+   },
+   {
+    "id": "eff-dmg",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "const darkHarvestDamage = [5, 10, 20, 40][pokemon.stars - 1] ?? 40",
+    "note": ""
+   },
+   {
+    "id": "eff-heal-factor",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "const healFactor = 0.3",
+    "note": ""
+   },
+   {
+    "id": "eff-adj",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     36,
+     37
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": ".getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the 8 cells around the caster's CURRENT position at the tick"
+   },
+   {
+    "id": "eff-enemy",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": "every adjacent entity of another team is hit, not only the opponent's units chosen during the move"
+   },
+   {
+    "id": "eff-hit",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     33,
+     40
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, apBoost true"
+   },
+   {
+    "id": "eff-heal",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     49,
+     49
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "Math.round(takenDamage * healFactor)",
+    "note": "per enemy hit: heal = round(0.3 x takenDamage); apBoost 0, crit false"
+   },
+   {
+    "id": "eff-timer",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     61,
+     61
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "this.timer = 0 // delay the first tick",
+    "note": "timer starts at 0: the first tick happens on the next effect update"
+   },
+   {
+    "id": "eff-duration",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     62,
+     62
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "this.duration = duration + 200",
+    "note": "3000 + 200 ms; with a 1000 ms interval the comment says exactly 3 ticks"
+   },
+   {
+    "id": "eff-interval",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     56,
+     57
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "EffectEnum.DARK_HARVEST,",
+    "note": "interval 1000 ms"
+   },
+   {
+    "id": "eff-merge",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     53,
+     64
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "if (pokemon.effects.has(EffectEnum.DARK_HARVEST)) {",
+    "note": "re-cast while the effect id is present: extends an existing instance's duration (max) and resets its timer"
+   },
+   {
+    "id": "eff-merge-delete",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "pokemon.effectsSet.delete(this)",
+    "note": "this runs inside the constructor, i.e. before the new instance is added by the strategy's effectsSet.add(new ...)"
+   },
+   {
+    "id": "eff-expire",
+    "file": "app/core/abilities/dark-harvest.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "DarkHarvestEffect",
+    "expect": "pokemon.effects.delete(EffectEnum.DARK_HARVEST)",
+    "note": "on expiry the effect id is removed (also when another instance is still running)"
+   },
+   {
+    "id": "effect-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     165,
+     165
+    ],
+    "symbol": "EffectEnum.DARK_HARVEST",
+    "expect": "DARK_HARVEST = \"DARK_HARVEST\"",
+    "note": "same name as the ability; used only to tag the periodic effect (no other reference in app/core or app/models found by git grep)"
+   },
+   {
+    "id": "periodic",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     240,
+     261
+    ],
+    "symbol": "PeriodicEffect",
+    "expect": "export class PeriodicEffect extends Effect",
+    "note": "update(dt): timer -= dt; at <= 0 apply and reset timer to intervalMs"
+   },
+   {
+    "id": "state-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     894,
+     896
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "if (effect instanceof PeriodicEffect) {",
+    "note": "periodic effects are updated with the entity's state update (every state)"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, centre excluded, on-board only"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     345,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     351,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the hit (takenDamage 0, so heal 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes damage absorbed by the shield"
+   },
+   {
+    "id": "taken-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "plus residual damage capped at current hp"
+   },
+   {
+    "id": "taken-ret",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     806
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "rounded before being returned"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded caster receives 0 healing"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     353
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2, rounded, capped at missing HP"
+   },
+   {
+    "id": "unit-deino",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2149,
+     2162
+    ],
+    "symbol": "class Deino",
+    "expect": "skill = Ability.DARK_HARVEST",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-zweilous",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2164,
+     2177
+    ],
+    "symbol": "class Zweilous",
+    "expect": "skill = Ability.DARK_HARVEST",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-hydreigon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2179,
+     2191
+    ],
+    "symbol": "class Hydreigon",
+    "expect": "skill = Ability.DARK_HARVEST",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
