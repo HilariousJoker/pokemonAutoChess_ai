@@ -90,11 +90,11 @@
     "cast-crit"
    ]
   },
-  "summary": "The caster teleports to a free cell next to the farthest targettable enemy and, before moving, collects every enemy standing on the straight (supercover) line between its start and that destination; each of those enemies takes SPECIAL damage (raw 25/50/100/200 by stars). If nobody stood on the line, or no destination exists, the cast target is hit instead. The crit flag is the cast's crit, rolled only with the ABILITY_CRIT effect.",
+  "summary": "The caster moves to the destination returned by Board.getFarthestTargetCoordinateAvailablePlace, which is NOT guaranteed to be next to the farthest targettable enemy: a cell selected for an earlier, nearer enemy survives when a later, farther enemy has no free neighbour, and the fallback to the free cell closest to the farthest enemy runs only if no cell was ever selected. Before moving, every enemy standing on the straight (supercover) line between the caster's start cell and that destination is collected; each takes SPECIAL damage (raw 25/50/100/200 by stars) after the move. If the hit set is empty (nobody on the line, or no destination) the cast target is hit instead. The crit flag is the cast's crit, rolled only with ABILITY_CRIT.",
   "targeting": {
    "who": "enemies (units of another team) found on the cells between the caster and the chosen destination cell; fallback: the cast target",
    "needsTarget": true,
-   "note": "The destination is chosen by getFarthestTargetCoordinateAvailablePlace: the farthest targettable enemy by Manhattan distance (first in row-then-column scan order on ties), then the free adjacent cell of that enemy that is farthest from the caster; if that enemy has no free neighbour, the free cell closest to it. The cell variable is not reset when a farther enemy has no free neighbour, so an earlier (nearer) enemy's cell can stay selected - see unresolved.",
+   "note": "Destination, from board.ts:568-630 (the helper shared with FLAME_CHARGE, NUZZLE and AQUA_JET): board.forEach scans row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered (ties keep the first scanned); for such an enemy the running cell maximum is reset to 0 and its free adjacent cells are compared by distance from the caster. selectedCell is replaced only when that enemy has a free adjacent cell and is never cleared, so if a later farther enemy has none, the cell selected for an earlier nearer enemy remains the result. The fallback (the free cell closest to the farthest enemy found, anywhere on the board) runs only if selectedCell is still null. The farthest enemy is therefore not guaranteed to be the one the caster ends up next to.",
    "evidence": [
     "cls",
     "base-flags",
@@ -113,17 +113,21 @@
     "adj",
     "closest-free",
     "targ",
-    "merciless"
+    "merciless",
+    "far-reset",
+    "far-select"
    ]
   },
   "geometry": {
-   "shape": "line from the caster's cell to the destination cell (supercover line, includes cells the line only touches); destination is a free cell adjacent to the farthest enemy",
+   "shape": "line (supercover) from the caster's start cell to the destination cell chosen by the helper, collected BEFORE the move; the destination is a free cell, not necessarily adjacent to the farthest enemy (see targeting.note)",
    "evidence": [
     "between",
     "between-def",
     "between-start",
     "far-free",
-    "far-cell"
+    "far-cell",
+    "far-reset",
+    "far-select"
    ]
   },
   "effects": [
@@ -146,7 +150,7 @@
      "SHINX": 25
     },
     "scaling": "requested amount = raw table value, per enemy hit (not divided among them). handleSpecialDamage applies AP: damage x (1 + AP/100) (apBoost defaults true); the cast's crit flag multiplies by 1 + (critPower - 1) x critReductionFactor per target (0 with a Rocky Helmet on that target, minus 0.1 per Black Augurite of its player, not below 0).",
-    "resolution": "applied change per enemy: handleDamage divides by (1 + 0.05 x that enemy's SPE_DEF), rounds up, minimum 1 (other modifiers not traced in full). Blocked (takenDamage 0) per enemy by protect / skydiving / magicBounce. Return values are unused. Damage is dealt after the caster has moved.",
+    "resolution": "handleDamage then computes an intermediate value damage / (1 + 0.05 x that enemy's SPE_DEF), rounded up, minimum 1, with other modifiers and shields not traced in full; this is not guaranteed final HP damage. Blocked (takenDamage 0) per enemy by protect / skydiving / magicBounce. Return values are unused. Damage is dealt after the caster has moved, to the set collected before the move.",
     "evidence": [
      "dmg",
      "hit",
@@ -166,17 +170,20 @@
    {
     "kind": "movement (caster)",
     "declaredRaw": {
-     "destination": "free cell next to the farthest targettable enemy"
+     "description": "non-forced moveTo to the destination returned by getFarthestTargetCoordinateAvailablePlace (not guaranteed next to the farthest enemy)"
     },
     "scaling": "none from AP or crit",
-    "resolution": "moveTo(x, y, board, false): not a forced displacement, so canBeMoved is not checked; the caster is switched to the moving state, swaps cells with the destination and its cooldown is set to 100. Executes whenever a destination exists, even if the damage is blocked.",
+    "resolution": "moveTo(x, y, board, false): not a forced displacement, so canBeMoved is not checked; the caster is switched to the moving state, swaps cells with the destination and its cooldown is set to 100. It is requested whenever the helper returns a destination, even if the damage is blocked. Pinned-helper probe (6 rows x 8 columns, caster (0,0), 1 star): near enemy (2,0), far enemy (7,5) boxed in by three allies -> move requested to (3,1), next to the NEAR enemy; the line (0,0)-(1,0)-(2,1)-(3,1) crosses no enemy, so the empty hit set falls back to the cast target (the far enemy in that probe); far enemy with a free neighbour -> (7,4); no targettable enemy -> no move and the cast target is hit; a line that misses every enemy -> moved, then the cast target is hit.",
     "evidence": [
      "far",
      "move",
      "moveto",
      "moveto-state",
      "far-def",
-     "far-null"
+     "far-null",
+     "far-reset",
+     "far-select",
+     "moveto-forced"
     ]
    }
   ],
@@ -205,7 +212,7 @@
     "unit-shinx"
    ]
   },
-  "positionalConditions": "The destination depends on the positions of all targettable enemies and free cells; the hit set depends on the line from the caster's start cell to the destination. If no free cell exists on the board no move happens and only the cast target is hit.",
+  "positionalConditions": "The destination depends on the positions of all targettable enemies and free cells (see targeting.note), not simply on the farthest enemy; the hit set depends on the line from the caster's start cell to that destination and falls back to the cast target when empty. If the helper returns null (no targettable enemy or no free cell) no move happens and only the cast target is hit.",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes destination and hit set.",
   "rawVsResolved": "Requested: 25/50/100 raw SPECIAL damage per enemy on the line (or the cast target alone). Applied: x (1 + AP/100) [x crit factor], divided by (1 + 0.05 x SPE_DEF) of that enemy, rounded up, at least 1, plus untraced modifiers; 0 for enemies blocked by protect / skydiving / magicBounce. takenDamage is not used by VOLT_SWITCH.",
   "sourceTables": [
@@ -224,7 +231,7 @@
    "What the moving state does after the swap (path-finding, retargeting) was not traced; only moveTo itself was read"
   ],
   "unresolved": [
-   "In getFarthestTargetCoordinateAvailablePlace selectedCell is only assigned when a free neighbour exists and is not cleared when a later, farther enemy has none, so the returned cell/target pair can belong to a nearer enemy than 'the farthest'; whether this occurs in real boards was not analysed",
+   "How often the retained-selection case (a farther enemy with no free neighbour) occurs on real boards was not analysed; the mechanism itself is traced (board.ts:568-630) and shared with FLAME_CHARGE, NUZZLE and AQUA_JET",
    "Whether the line passes through allied or dead units' cells matters only for the hit set (cells with a unit of another team are hit, without an hp check); the effect of dead-but-not-removed units was not traced",
    "Whether any item or synergy effect changes VOLT_SWITCH beyond what is listed",
    "Units sharing the identifier but not listed in appliesTo are not covered"
@@ -713,7 +720,54 @@
     "symbol": "PokemonEntity.moveTo",
     "expect": "this.cooldown = 100",
     "note": "cooldown set to 100 for retargeting"
+   },
+   {
+    "id": "far-reset",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "maxCellDistance = 0",
+    "note": "a strictly farther enemy resets only the cell maximum; selectedCell is not cleared"
+   },
+   {
+    "id": "far-select",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "selectedCell is replaced only inside the loop over that enemy's free adjacent cells"
+   },
+   {
+    "id": "moveto-forced",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     891,
+     893
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "the canBeMoved checks apply only when forcedDisplacement is true; VOLT_SWITCH passes false"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "VOLT_SWITCH",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261025T050434Z",
+   "reason": "summary, geometry and movement promised a cell next to the farthest enemy; apply the corrected shared-helper explanation (retained selectedCell, fallback only when selectedCell stays null); keep line collection before movement and the empty-hit-set fallback",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "VOLT_SWITCH",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

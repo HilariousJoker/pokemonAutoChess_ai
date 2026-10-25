@@ -76,11 +76,11 @@
     "bk-super"
    ]
   },
-  "summary": "Burns the cast target for a base 2000 ms, deals SPECIAL damage (raw 30/60/120/240 by stars, x1.3 if the target was already burning before the cast), then knocks the target to the farthest empty cell along the board line from the caster in the target's direction. If no empty cell lies on that line, the target stays.",
+  "summary": "Burns the cast target for a base 2000 ms, deals SPECIAL damage (raw 30/60/120/240 by stars, x1.3 if the target was already burning before the cast), then requests a forced displacement of the target to the last empty cell visited by effectInOrientation along the 8-way direction from the caster toward the target. As written, the RIGHT direction loops `x < board.rows` (6) although the production board has 8 columns and 6 rows, so columns 6 and 7 are never visited going RIGHT; if no empty cell is visited, no move is requested and the target stays (the damage and burn happen regardless).",
   "targeting": {
    "who": "the cast target only",
    "needsTarget": true,
-   "note": "effectInOrientation walks all cells in the target's 8-way direction from the caster to the board edge (including empty cells before the target) and the last empty cell visited is chosen. The direction is sign-based (dx, dy), not an exact line to the target, so a target at a non-diagonal offset is pushed along the nearest of the 8 directions that matches the signs of its offset, which may not pass through its own cell.",
+   "note": "effectInOrientation (board.ts:810-918) walks the cells in the direction given by board.orientation(caster, target) (sign of dx, dy, so a target at a non-diagonal offset is pushed along the nearest of the 8 directions), and BLAZE_KICK keeps the last cell whose value is empty. The RIGHT case uses `x < board.rows`; on the 8-column x 6-row production board (simulation.ts:104, config/game/board.ts) that excludes columns 6 and 7. The final fallback of effectInOrientation (board.ts:913-917) calls the effect once on the target's own cell when no enemy was visited; that cell is occupied, so BLAZE_KICK's callback ignores it and it does not provide a free destination. Pinned-helper probe (strategy and helper text, 6 x 8 board): caster (5,2), target (6,2), (7,2) empty, RIGHT -> no move requested; caster (2,2), target (3,2) -> move to (5,2), never (7,2); caster (4,2), target (5,2) -> no move; LEFT from (5,2) with target (4,2) -> (0,2), not truncated. Behaviour is described as written; the game is not patched.",
    "evidence": [
     "bk-orient",
     "bk-empty",
@@ -89,11 +89,13 @@
     "eio-right",
     "eio-fallback",
     "orient",
-    "base-flags"
+    "base-flags",
+    "board-dims",
+    "eio-fallback"
    ]
   },
   "geometry": {
-   "shape": "displacement along one of 8 board directions to the farthest empty cell; no area damage",
+   "shape": "displacement along one of 8 board directions to the last empty cell visited; the RIGHT direction only visits columns up to x = 5 (loop bound board.rows = 6) on the 8 x 6 board; no area damage",
    "evidence": [
     "bk-orient",
     "bk-empty",
@@ -149,14 +151,16 @@
      "description": "moveTo(farthest empty cell along the target's 8-way direction from the caster), forcedDisplacement true"
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "nothing happens if no empty cell was found, or if moveTo refuses (the target, or the unit on the destination, cannot be moved). Otherwise the cells are swapped, the target goes to the moving state and its cooldown is set to 100. The displacement happens even if the damage was blocked by protect / magicBounce (it is not conditioned on the damage result).",
+    "resolution": "a forced moveTo(x, y, board, true) is requested only if the scan found an empty cell; nothing happens if none was found (for example a RIGHT-facing cast with the caster at x >= 5 or the target adjacent to the last scanned column), or if moveTo refuses (the target, or the unit on the destination, cannot be moved). Otherwise the cells are swapped, the target goes to the moving state and its cooldown is set to 100. The displacement is not conditioned on the damage result.",
     "evidence": [
      "bk-orient",
      "bk-empty",
      "bk-move",
      "moveto",
      "moveto-block",
-     "moveto-swap"
+     "moveto-swap",
+     "board-dims",
+     "eio-fallback"
     ]
    }
   ],
@@ -209,7 +213,7 @@
     "unit-torchic"
    ]
   },
-  "positionalConditions": "The knock-back destination depends on the caster's and target's coordinates and on which cells in that direction are empty; with no empty cell there is no movement.",
+  "positionalConditions": "The displacement destination depends on the caster's and target's coordinates and on which cells in that direction are empty; with no empty cell visited there is no movement. RIGHT-facing casts never see columns 6 and 7 (loop bound board.rows).",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. A second cast on a target that is still burning gets the x1.3 damage bonus; the burn timer is only extended if the new 2000 ms exceeds the remaining time.",
   "rawVsResolved": "Requested: damage 30/60/120 (1/2/3 stars), x1.3 rounded if already burning; burn 2000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied burn duration = requested after the target's reductions.",
   "sourceTables": [
@@ -230,10 +234,11 @@
    "Board.swapCells side effects beyond the cell swap and the unit state change set by moveTo"
   ],
   "unresolved": [
-   "Whether the board's rows/columns mismatch in the RIGHT branch of effectInOrientation (x < board.rows) changes which cells are visited on the production board dimensions",
+   "Resolved by trace: the RIGHT loop bound board.rows (6) excludes columns 6 and 7 on the 8-column x 6-row board (see targeting.note and the probe); what the developers intended is not asserted and the game was not patched",
    "Whether the direction-by-sign rule can push the target along a line that does not contain it (recorded as read, not exercised)",
    "Whether the three units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The probe builds the pinned Board.orientation / effectInOrientation text on a toy layout, not a real fight"
   ],
   "evidence": [
    {
@@ -592,12 +597,12 @@
     "id": "eio-fallback",
     "file": "app/core/board.ts",
     "lines": [
-     916,
-     916
+     911,
+     917
     ],
     "symbol": "effectInOrientation",
-    "expect": "effect({ x: target.positionX, y: target.positionY, value: target })",
-    "note": "if no enemy was on the walked cells the original target's cell is passed once"
+    "expect": "if (isEntity(target) && targetsHit.size === 0) {",
+    "note": "when no enemy was visited the effect is called once on the target's own (occupied) cell"
    },
    {
     "id": "orient",
@@ -697,7 +702,32 @@
     "symbol": "Status.updateBurn",
     "expect": "attackType: AttackType.TRUE,",
     "note": ""
+   },
+   {
+    "id": "board-dims",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "BOARD_WIDTH = 8, BOARD_HEIGHT = 6; simulation.ts:104 builds `new Board(BOARD_HEIGHT, BOARD_WIDTH)`, i.e. rows 6, columns 8"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "BLAZE_KICK",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261025T050434Z",
+   "reason": "resolve the RIGHT-ray discrepancy using the 8-column x 6-row board: effectInOrientation RIGHT uses x < board.rows; describe as written",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "BLAZE_KICK",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

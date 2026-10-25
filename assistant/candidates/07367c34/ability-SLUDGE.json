@@ -90,7 +90,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Applies poison to every enemy standing in the three cells directly in front of the caster (towards its target): the strategy requests 2/3/4/8 poison stacks by stars with a duration of 3000/3000/3000/10000 ms scaled by AP (and crit power only if the cast crit). Each request is one triggerPoison call that adds one stack up to a cap of 3 (4 with VENOMOUS, 5 with TOXIC on the caster), so the requested stack count is higher than what can be applied for 1- and 2-star casters. No direct damage; the poison then deals TRUE damage each second.",
+  "summary": "Applies poison to every enemy standing in the three cells directly in front of the caster (towards its target). For each such enemy the strategy makes nbStacks successive triggerPoison calls (2/3/4/8 by stars: 1 star = 2, 2 stars = 3) with a duration of 3000/3000/3000/10000 ms scaled by AP (and critPower only if the cast crit). Each call adds one stack up to a cap of 3 (4 if the caster has VENOMOUS, 5 with TOXIC). So from zero stacks and without reactions a 1-star cast requests and applies 2 stacks and a 2-star cast requests and applies 3; only a 3-star cast (4 requested) exceeds the base cap of 3 (it applies 3, or 4 with VENOMOUS). The calls are not one atomic addition: immunity, Rune Protect and berry reactions are evaluated in each call (a Pecha Berry holder eats the berry during the first call, which clears the stacks and grants poison immunity, so the later calls do nothing). No direct damage. The poison then ticks about every 1000 ms: a negative computed amount requests a heal on the poisoned unit itself (reachable through the Gliscor formula), zero makes no call, a positive amount requests TRUE damage attributed to the poison origin; these are handler requests, not guaranteed HP changes.",
   "targeting": {
    "who": "enemy units in the cells returned by board.getCellsInFront(caster, target): up to three adjacent cells (the cast target's direction and its two neighbouring orientations, range 1). The target itself need not be hit unless it stands in one of those cells.",
    "needsTarget": true,
@@ -130,14 +130,16 @@
      }
     },
     "scaling": "the strategy deals no damage itself; see statusEffects.0 for the requested vs applied stacks and duration, and for the per-second tick",
-    "resolution": "applied stacks are capped by triggerPoison (3 / 4 VENOMOUS / 5 TOXIC); tick damage = round(5% maxHP x stacks) with listed reductions, TRUE damage, at least 1",
+    "resolution": "applied stacks come from the successive triggerPoison calls, capped at 3 (4 VENOMOUS, 5 TOXIC); each tick then computes round(5 % maxHP x stacks) (GLISCOR: stacks - 2) with the listed reductions and makes a heal request (negative), no call (zero) or a TRUE damage request of at least 1 (positive) on the poisoned unit; the final HP change is decided by handleHeal / handleDamage.",
     "evidence": [
      "stacks",
      "trigger",
      "poison-max",
      "poison-add",
      "tick",
-     "tick-true"
+     "tick-true",
+     "tick-sign",
+     "tick-gliscor"
     ]
    }
   ],
@@ -185,8 +187,8 @@
     },
     "scaling": "requested duration = round(raw x (1 + AP/100) x (critPower if the cast crit)); the crit flag is rolled only if the caster has the ABILITY_CRIT effect (SLUDGE is not canCritByDefault). The stack count is not scaled by AP or crit.",
     "applicationOrder": "after super.process, per cell in the order returned (a Set of coordinates), per enemy: nbStacks successive triggerPoison calls",
-    "guards": "no stack at all if the target has IMMUNITY_POISON or runeProtect. Each call adds one stack with max(maxStacks) where maxStacks is 3, or 4 if the caster has VENOMOUS, or 5 if the caster has TOXIC; so requested stacks beyond the cap change nothing (applied stacks = min(existing + requested, cap)). Each call passes the duration through applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then -10% per ODD_KEYSTONE in the target player's items, rounded) and the timer is replaced only if longer. Each call also sets poisonOrigin to the caster. GUTS / TOXIC_BOOST passives on the target gain attack on first stack; a PECHA_BERRY holder eats the berry.",
-    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms: damage = round(maxHP x 5% x stacks), reduced by RAIN weather (x0.7), ASSAULT_VEST (x0.5), TOXIC_BOOST passive (x0.5) and SWIFT_SWIM (x0.7) / HYDRATION (x0.5) / WATER_VEIL or SURGE_SURFER (x0.3); GLISCOR counts stacks - 2 (and heals if negative). It is dealt as TRUE damage through handleDamage with at least 1, attacker = the last poisonOrigin, no mana gain. When the timer runs out all stacks are removed.",
+    "guards": "each triggerPoison call is evaluated on its own. A call does nothing (no stack, no origin update, no passive or berry reaction) if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect; that check is the same in every call, so the whole sequence then has no effect. When a call applies: poisonOrigin = the caster; stacks + 1 up to maxStacks 3 (4 with VENOMOUS, 5 with TOXIC on the origin); the duration passes through the TARGET's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE in the target player's items, rounded) and the timer is replaced only if longer; a target with the GUTS passive gains +5 attack once and with TOXIC_BOOST +10 once; a PECHA_BERRY holder eats the berry in the same call (eatBerry: heal, poisonOrigin = null, poisonStacks = 0, poisonDamageCooldown = 0, IMMUNITY_POISON added, the berry removed), so the remaining calls of the loop find IMMUNITY_POISON and do nothing: the holder ends with 0 stacks although the timer set by the first call remains. Pinned-helper probe (AP 0, no crit, from zero stacks, no other reactions): 1 star 2 calls -> 2 stacks, 2 stars 3 calls -> 3 stacks, 3 stars 4 calls -> 3 stacks (4 with VENOMOUS on the caster); Rune Protect and IMMUNITY_POISON -> 0 stacks and no timer; Pecha Berry holder -> 0 stacks, IMMUNITY_POISON set, berry gone; target HYDRATION halves 3000 to 1500.",
+    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms (poisonDamageCooldown): poisonDamage = maxHP x 0.05 x stacks (GLISCOR: stacks - 2), x0.7 in RAIN, x0.5 with ASSAULT_VEST, x0.5 with the TOXIC_BOOST passive, then x0.7 SWIFT_SWIM, else x0.5 HYDRATION, else x0.3 WATER_VEIL / SURGE_SURFER, then Math.round. Negative: pkm.handleHeal(round(-x), pkm, 0, false), a heal REQUEST on the poisoned unit; zero: no call at all; positive: pkm.handleDamage with damage min(1)(round(x)), attackType TRUE, attacker = poisonOrigin or null, no mana gain. These are handler requests, not guaranteed HP changes (same reading as the repaired LEECH_SEED candidate). When poisonCooldown runs out the stacks and origin are cleared and the GUTS / TOXIC_BOOST attack bonuses are removed.",
     "evidence": [
      "stacks",
      "dur",
@@ -209,7 +211,13 @@
      "tick-end",
      "status-update",
      "loop",
-     "cast-crit"
+     "cast-crit",
+     "tick-sign",
+     "tick-gliscor",
+     "poison-guts",
+     "poison-berry",
+     "pecha-case",
+     "berry-remove"
     ]
    }
   ],
@@ -240,7 +248,7 @@
   },
   "positionalConditions": "The affected cells depend on the caster-to-target direction; only enemies standing in those three cells are poisoned. The unit must be in range of its target to cast (requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast adds more stacks (up to the cap) and refreshes the duration only if longer; poisonOrigin becomes the latest caster.",
-  "rawVsResolved": "Requested: 2 (1 star) or 3 (2 stars) poison stacks with 3000 ms raw duration. Applied: duration x (1 + AP/100) [x critPower on crit], rounded, then reduced by target-side status duration reductions; stacks per target = min(existing stacks + requested, 3 / 4 VENOMOUS / 5 TOXIC), none against poison immunity or rune protection. The damage is the later poison tick: round(5% maxHP x stacks) TRUE damage per second with the listed reductions, at least 1.",
+  "rawVsResolved": "Requested: 2 (1 star) or 3 (2 stars) successive poison applications with 3000 ms raw duration. Applied from zero stacks without reactions: 2 and 3 stacks (inside the cap of 3); duration x (1 + AP/100) [x critPower on crit], rounded, then the target's reductions; nothing against poison immunity or Rune Protect; a Pecha Berry holder ends with no stacks. Each tick is a handler request (heal on the poisoned unit, nothing, or TRUE damage), not a guaranteed HP change.",
   "sourceTables": [
    {
     "id": "sludgeStacks",
@@ -264,7 +272,8 @@
   "unresolved": [
    "Whether the target (the unit the caster is aiming at) always stands in one of the three front cells: getCellsInFront derives them from the orientation only, so a target at range 1 is covered but a target farther away is not necessarily covered",
    "Whether any item or synergy effect changes SLUDGE beyond what is listed",
-   "Units sharing the identifier but not listed in appliesTo are not covered"
+   "Units sharing the identifier but not listed in appliesTo are not covered",
+   "Berries other than Pecha and passives other than GUTS / TOXIC_BOOST that react to poison were not enumerated; which tick requests reach HP is decided by handleHeal / handleDamage (not traced here)"
   ],
   "evidence": [
    {
@@ -502,12 +511,12 @@
     "id": "poison-trig",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     174,
-     174
+     572,
+     576
     ],
     "symbol": "Status.triggerPoison",
     "expect": "triggerPoison(",
-    "note": "guard, stacks, duration"
+    "note": "Status.triggerPoison definition (the candidate cited line 174, a status-transfer call)"
    },
    {
     "id": "poison-guard",
@@ -568,12 +577,12 @@
     "id": "poison-dur",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     346,
-     346
+     590,
+     590
     ],
     "symbol": "Status.triggerPoison",
     "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
-    "note": ""
+    "note": "triggerPoison passes the duration through the reductions (the candidate cited line 346, which is triggerArmorReduction)"
    },
    {
     "id": "poison-longer",
@@ -634,23 +643,23 @@
     "id": "tick-true",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     486,
-     486
+     651,
+     657
     ],
     "symbol": "Status.updatePoison",
     "expect": "attackType: AttackType.TRUE",
-    "note": "tick is TRUE damage through handleDamage, attacker = poisonOrigin"
+    "note": "positive tick: handleDamage TRUE with the poison origin as attacker (the candidate cited line 486, which belongs to the burn tick)"
    },
    {
     "id": "tick-mods",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     451,
-     451
+     625,
+     645
     ],
     "symbol": "Status.updatePoison",
     "expect": "if (pkm.simulation.weather === Weather.RAIN) {",
-    "note": "tick modifiers: RAIN x0.7, ASSAULT_VEST x0.5, TOXIC_BOOST passive x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, GLISCOR -2 stacks"
+    "note": "tick multipliers: rain, Assault Vest, TOXIC_BOOST, Swift Swim / Hydration / Water Veil / Surge Surfer (the candidate cited line 451, which belongs to the burn tick)"
    },
    {
     "id": "tick-period",
@@ -668,11 +677,11 @@
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
      673,
-     673
+     684
     ],
     "symbol": "Status.updatePoison",
     "expect": "if (this.poisonCooldown - dt <= 0) {",
-    "note": "when the timer ends all stacks are removed"
+    "note": "when the poison timer runs out stacks and origin are cleared and the GUTS / TOXIC_BOOST bonuses removed"
    },
    {
     "id": "status-update",
@@ -684,7 +693,87 @@
     "symbol": "Status.update",
     "expect": "this.updatePoison(dt, pokemon, board)",
     "note": "ticked while poisonStacks > 0"
+   },
+   {
+    "id": "tick-sign",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     646,
+     658
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (poisonDamage < 0) {",
+    "note": "negative -> handleHeal(round(-x), pkm, 0, false); positive -> handleDamage TRUE min(1)(round(x)); zero -> no call"
+   },
+   {
+    "id": "tick-gliscor",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     621,
+     623
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "pkm.maxHP * 0.05 * (this.poisonStacks - 2)",
+    "note": "Gliscor uses stacks - 2, negative at 1 stack and zero at 2"
+   },
+   {
+    "id": "poison-guts",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     609
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.addAttack(5, pkm, 0, false)",
+    "note": "GUTS +5 attack once, TOXIC_BOOST +10 attack once"
+   },
+   {
+    "id": "poison-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     611,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "a Pecha Berry holder eats it inside the call that applies poison"
+   },
+   {
+    "id": "pecha-case",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1641,
+     1647
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.status.poisonStacks = 0",
+    "note": "Pecha Berry: heal, poisonOrigin null, stacks 0, poisonDamageCooldown 0, IMMUNITY_POISON added"
+   },
+   {
+    "id": "berry-remove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1710,
+     1714
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.removeItem(berry, true)",
+    "note": "the eaten berry is removed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SLUDGE",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261025T050434Z",
+   "reason": "requested stack counts do not exceed the cap for 1- and 2-star casters; poison tick wording consistent with the repaired LEECH_SEED (heal request / no call / TRUE damage request); successive triggerPoison calls with immunity, Rune Protect and berry reactions",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SLUDGE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

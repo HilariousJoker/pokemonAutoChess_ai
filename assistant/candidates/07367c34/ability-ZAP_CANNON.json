@@ -90,7 +90,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Single-target: the target is first given armor reduction and paralysis for the same duration (1000/2000/4000/8000 ms raw by stars), then takes SPECIAL damage (raw 25/50/100/200 by stars). Because armor reduction is applied before the damage, the damage of the same cast already meets the halved SPE_DEF. The crit flag is the cast's crit, rolled only with the ABILITY_CRIT effect.",
+  "summary": "Single-target: the strategy calls triggerArmorReduction(duration, target) and then triggerParalysis(duration, target, caster) with the same raw duration (1000/2000/4000/8000 ms by stars), then unconditionally requests SPECIAL damage (raw 25/50/100/200 by stars, apBoost true). Both statuses are applied only if the target's status has no Rune Protect (paralysis also needs no IMMUNITY_PARALYSIS); Rune Protect does not stop the damage request. When the armor reduction took hold, handleDamage in the same cast uses the halved SPE_DEF for its intermediate division; when Rune Protect prevented it, the full SPE_DEF is used, so the halved-SPE_DEF effect is conditional. Each timer keeps the larger of its existing remaining duration and the new request after the target's duration reductions. The crit flag is the cast's crit, rolled only with ABILITY_CRIT.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -127,7 +127,7 @@
      "VIKAVOLT": 100
     },
     "scaling": "requested amount = raw table value. handleSpecialDamage applies AP: damage x (1 + AP/100) (apBoost passed as true); the cast's crit flag multiplies by 1 + (critPower - 1) x critReductionFactor (0 with a Rocky Helmet on the target, minus 0.1 per Black Augurite of its player, not below 0).",
-    "resolution": "applied change: handleDamage divides by (1 + 0.05 x SPE_DEF) where SPE_DEF is Math.round(speDef / 2) when the target has armorReduction - and ZAP_CANNON has just set it, unless runeProtect blocked it - then rounds up, minimum 1 (other modifiers not traced in full). Blocked (takenDamage 0) by protect / skydiving / magicBounce; those do not stop the two statuses, which are applied before the damage call. takenDamage includes shield damage; the return value is unused.",
+    "resolution": "the damage request is made after the two status calls and does not depend on them. handleDamage then computes an intermediate value damage / (1 + 0.05 x SPE_DEF), where SPE_DEF is Math.round(speDef / 2) only if the armor reduction was applied (not under Rune Protect), rounds up with a minimum of 1 and applies other modifiers and shields not traced in full; this is not guaranteed final HP damage. Blocked (takenDamage 0) by protect / skydiving / magicBounce; those do not stop the two statuses, which are applied before the damage call. takenDamage includes shield damage; the return value is unused. Pinned-helper probe (1 star, AP 0, no crit): with Rune Protect on the target there is no armor reduction and no paralysis, but a request of 25 SPECIAL (apBoost true) still occurs.",
     "evidence": [
      "dmg",
      "hit",
@@ -165,7 +165,7 @@
     },
     "scaling": "none from AP or crit (the strategy passes the raw duration)",
     "applicationOrder": "first, before the paralysis and the damage",
-    "guards": "not applied with runeProtect; duration passes through applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then -10% per ODD_KEYSTONE of the target's player, rounded); the timer is replaced only if the new duration is longer",
+    "guards": "not applied at all if the target's status has runeProtect (checked on the status the method is called on); the strategy supplies the TARGET as the entity argument, so the duration reductions read the target (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE of the target's player, rounded). Timer rule: `if (duration > armorReductionCooldown) armorReductionCooldown = round(duration)`, so the timer keeps the larger of the existing remaining time and the new reduced request (probe: a 1000 ms request against 5000 ms remaining leaves 5000; against 400 ms remaining it sets 1000; target HYDRATION turns 1000 into 500).",
     "combatEffect": "while armorReduction is set, DEF and SPE_DEF are halved (Math.round(value / 2)) when handleDamage resolves damage on the target; the Power Lens retaliation computation in handleSpecialDamage also halves SPE_DEF. Other users of status.armorReduction (items.ts:165) were seen but not read.",
     "evidence": [
      "dur",
@@ -201,7 +201,7 @@
     },
     "scaling": "none from AP or crit: the strategy leaves apBoost at its default false, so triggerParalysis does not multiply by (1 + AP/100)",
     "applicationOrder": "second, after armor reduction and before the damage",
-    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then applyStatusDurationReductions as above; the timer is replaced only if longer; a CHERI_BERRY holder eats the berry",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS (probe: IMMUNITY_PARALYSIS alone blocks only the paralysis); STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then the target's applyStatusDurationReductions as above. Timer rule: `if (duration > paralysisCooldown) paralysisCooldown = round(duration)`, the larger of the existing remaining time and the new reduced request. A CHERI_BERRY holder eats the berry after a successful application (it heals the paralysis and grants IMMUNITY_PARALYSIS).",
     "combatEffect": "a paralysed unit uses half speed for its attack cooldown (attacking-state) and its movement speed (move-speed), and cannot dodge basic attacks (handleAttack dodge check). Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies.ts, passives.ts) were seen but not read.",
     "evidence": [
      "dur",
@@ -254,8 +254,8 @@
    ]
   },
   "positionalConditions": "None read beyond needing a target (range 3 for all four units, so the cast fires from range).",
-  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-applies both statuses; a shorter new duration does not shorten an existing timer.",
-  "rawVsResolved": "Requested: 25/50/100 raw SPECIAL damage and 1000/2000/4000 ms of armor reduction and paralysis. Applied: damage x (1 + AP/100) [x crit factor], divided by (1 + 0.05 x halved SPE_DEF) when armor reduction took hold, rounded up, at least 1, plus untraced modifiers; status durations pass through target-side reductions (and STORM for paralysis) and never extend a longer existing timer; nothing is applied against runeProtect (and no paralysis against IMMUNITY_PARALYSIS).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-applies both statuses where allowed; a shorter new request does not shorten an existing timer.",
+  "rawVsResolved": "Requested: 25/50/100 raw SPECIAL damage and 1000/2000/4000 ms of armor reduction and paralysis. Applied: both statuses only without Rune Protect (paralysis also without IMMUNITY_PARALYSIS), durations after the target-side reductions (and STORM for paralysis), each timer the larger of the remaining time and the new request; damage request x (1 + AP/100) [x crit factor], then an intermediate division by (1 + 0.05 x SPE_DEF) (halved only if the armor reduction took hold), rounded up, at least 1, plus untraced modifiers; not guaranteed final HP damage.",
   "sourceTables": [
    {
     "id": "zapDamage",
@@ -282,7 +282,8 @@
    "Passives HATCH (Charjabug, Grubbin) and ALIEN_DNA (Deoxys Attack) were not traced; see candidates/07367c34/review-followups.md for the HATCH finding",
    "Whether the target's weather, items or synergies change the final durations beyond the listed reductions",
    "Whether any item or synergy effect changes ZAP_CANNON beyond what is listed",
-   "Units sharing the identifier but not listed in appliesTo are not covered"
+   "Units sharing the identifier but not listed in appliesTo are not covered",
+   "The probe uses minimal stubs and exercises the pinned strategy, triggerArmorReduction, triggerParalysis and applyStatusDurationReductions text, not handleDamage"
   ],
   "evidence": [
    {
@@ -609,11 +610,11 @@
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
      348,
-     348
+     350
     ],
     "symbol": "Status.triggerArmorReduction",
     "expect": "if (duration > this.armorReductionCooldown) {",
-    "note": "timer replaced only if longer"
+    "note": "timer rule: replaced only when the new duration is larger"
    },
    {
     "id": "arm-end",
@@ -652,12 +653,12 @@
     "id": "para-trig",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     181,
-     181
+     908,
+     913
     ],
     "symbol": "Status.triggerParalysis",
     "expect": "triggerParalysis(",
-    "note": ""
+    "note": "Status.triggerParalysis definition (the candidate cited line 181, a status-transfer call)"
    },
    {
     "id": "para-guard",
@@ -674,12 +675,12 @@
     "id": "para-ap",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     554,
-     554
+     918,
+     918
     ],
     "symbol": "Status.triggerParalysis",
     "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
-    "note": "apBoost defaults false, so the duration is not AP-scaled here"
+    "note": "apBoost defaults to false, so ZAP_CANNON's paralysis duration is not AP-scaled (the candidate cited line 554, which belongs to another status)"
    },
    {
     "id": "para-storm",
@@ -696,12 +697,12 @@
     "id": "para-red",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     346,
-     346
+     929,
+     929
     ],
     "symbol": "Status.triggerParalysis",
     "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
-    "note": ""
+    "note": "paralysis duration reductions (the candidate cited line 346, which is triggerArmorReduction)"
    },
    {
     "id": "para-longer",
@@ -791,6 +792,20 @@
     "expect": "!target.status.paralysis &&",
     "note": "a paralysed target cannot dodge"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "ZAP_CANNON",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261025T050434Z",
+   "reason": "Rune Protect blocks the two status applications, not the unconditional damage request; qualify the halved SPE_DEF claim; describe the larger-of-remaining-and-new timer rule",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "ZAP_CANNON",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

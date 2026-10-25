@@ -27,11 +27,11 @@
     "as-super"
    ]
   },
-  "summary": "The caster steps one cell toward the cast target (to the empty cell closest to the cell one sign-step away), then 300 ms later deals SPECIAL damage (raw 25/50/100/200 by stars) to the cast target and gains raw speed 10/15/20/25 (by stars; AP-scaled).",
+  "summary": "The strategy computes a reference coordinate one sign-step from the caster toward the cast target (caster.x + sign(dx), caster.y + sign(dy)), asks board.getClosestAvailablePlace for the free cell closest (Manhattan) to that reference anywhere on the board, and requests a non-forced moveTo there. Because the search covers ALL free cells, the movement is not limited to one cell: it is the free cell nearest the reference, which can be far away on a crowded board (probe: caster (0,0), target (1,0), only free cell (7,5) -> move requested to (7,5)). With no free cell no move is requested. In every case a DelayedCommand with nominal delay 300 is queued; when it runs it requests SPECIAL damage on the cast target (raw 25/50/100/200 by stars) and adds speed to the caster (raw 10/15/20/25 by stars; AP-scaled). The 300 is a nominal delay consumed by update(dt) (the command runs on the first update that takes the delay below 0), not a guaranteed execution time.",
   "targeting": {
    "who": "the cast target (damage); caster itself (step and speed gain)",
    "needsTarget": true,
-   "note": "The step uses the cast target's position at cast time; the delayed damage uses the target's entity (its position is read again for the broadcast only). The damage is queued whether or not a step cell was found.",
+   "note": "The reference coordinate uses the cast target's position at cast time; the delayed damage uses the target entity (its position is read again for the broadcast only). The damage and speed command is queued whether or not a destination cell was found.",
    "evidence": [
     "as-dir",
     "as-stepcell",
@@ -43,7 +43,7 @@
    ]
   },
   "geometry": {
-   "shape": "one-cell step: destination = closest empty cell (Manhattan) to (caster.x + sign(dx), caster.y + sign(dy)); single-target damage afterwards",
+   "shape": "destination = the free cell closest (Manhattan) to (caster.x + sign(dx), caster.y + sign(dy)) among ALL free cells of the board (not limited to one cell); single-target damage afterwards",
    "evidence": [
     "as-dir",
     "as-stepcell",
@@ -56,7 +56,7 @@
    {
     "kind": "damage",
     "damageType": "SPECIAL",
-    "target": "cast target (after 300 ms)",
+    "target": "cast target (after a nominal delay of 300)",
     "declaredRaw": {
      "byStars": {
       "1": 25,
@@ -72,7 +72,7 @@
      "QUAXWELL": 50
     },
     "scaling": "requested = table value. applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default); x critPower (adjusted by target items) if the cast crit.",
-    "resolution": "then PokemonState.handleDamage: divided by 1 + ARMOR_FACTOR x SPE_DEF, at least 1, shield absorbs before HP; protect / skydiving / magicBounce on the target at the time the command fires block the hit entirely. takenDamage includes shield damage.",
+    "resolution": "after the delay, PokemonState.handleDamage computes an intermediate value damage / (1 + ARMOR_FACTOR x SPE_DEF), rounded up with a minimum of 1, and the shield absorbs before HP; this is not guaranteed final HP damage. protect / skydiving / magicBounce on the target at the time the command fires block the hit entirely. takenDamage includes shield damage. The command is queued even when no destination cell exists. Probe: the queued command has delay 300, has not run after update(300) and has run after a further update(1) (damage 25 SPECIAL requested, speed gain 10 with apBoost 1); this shows the delay is consumed by update(dt), not that 300 is a guaranteed timing.",
     "evidence": [
      "as-dmg-table",
      "as-delay",
@@ -126,17 +126,18 @@
     "kind": "movement",
     "target": "caster",
     "declaredRaw": {
-     "step": "one cell toward the target"
+     "description": "non-forced moveTo to the free cell closest to the one-sign-step reference coordinate; not limited to one cell"
     },
     "scaling": "none",
-    "resolution": "moveTo(x, y, board, false) when a free cell exists: swap with the empty cell, cooldown set to 100.",
+    "resolution": "moveTo(x, y, board, false) when getClosestAvailablePlace returns a cell: swap with that empty cell, cooldown set to 100. getClosestAvailablePlace sorts every free cell by Manhattan distance to the reference coordinate (first in scan order on ties), so the cell can be anywhere on the board. Probe: caster (0,0), target (1,0), only free cell (7,5) -> move requested to (7,5); no free cell -> no move.",
     "evidence": [
      "as-dir",
      "as-stepcell",
      "as-move",
      "closest",
      "closest-sort",
-     "moveto"
+     "moveto",
+     "closest-all"
     ]
    }
   ],
@@ -178,9 +179,9 @@
     "unit-quaxwell"
    ]
   },
-  "positionalConditions": "The step needs an empty cell on the board; with none, the caster stays. A target already adjacent still triggers a step toward it, ending on the closest empty cell to the sign-step cell (which may be the target's own cell, so the nearest free neighbour is used).",
+  "positionalConditions": "The step needs a free cell somewhere on the board; with none, the caster stays (the delayed command is still queued). A target already adjacent still triggers a move request toward the free cell closest to the sign-step reference, which may be far from the caster when nearby cells are occupied.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast queues its own delayed command, and the speed gain stacks additively across casts (up to MAX_SPEED).",
-  "rawVsResolved": "Declared raw: damage 25/50/100 and speed +10/15/20 (1/2/3 stars). Damage dealt = raw x (1 + AP/100) (x crit factor), then SPE_DEF division, minimum 1; shield damage is included in takenDamage. Speed applied = floor(raw x 1.25) with a Big Eater Belt, then x (1 + AP/100) x crit factor, then clamped to 0..300. None is computed here for a specific target or caster.",
+  "rawVsResolved": "Declared raw: damage 25/50/100 and speed +10/15/20 (1/2/3 stars). Damage after the delay = requested x (1 + AP/100) (x crit factor), then an intermediate SPE_DEF division, minimum 1 (not guaranteed final HP damage); shield damage is included in takenDamage. Speed applied = floor(raw x 1.25) with a Big Eater Belt, then x (1 + AP/100) x crit factor, then clamped to 0..300. The 300 delay is nominal, not a guaranteed execution time.",
   "sourceTables": [
    {
     "id": "damage",
@@ -209,7 +210,8 @@
    "Tie order among equally close empty cells depends on board.forEach order and the stability of Array.prototype.sort (not verified beyond reading)",
    "Whether the three units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The nominal delay 300 is consumed by update(dt) of the entity's commands; how often and when the simulation calls update (and whether a dead or removed entity's commands still run) was not traced, so no execution time is claimed"
   ],
   "ability": "AQUA_STEP",
   "label": "production-branch reference; deployment unverified",
@@ -496,23 +498,23 @@
     "id": "as-dir",
     "file": "app/core/abilities/aqua-step.ts",
     "lines": [
-     17,
-     18
+     18,
+     19
     ],
     "symbol": "direction",
     "expect": "const dx = target.positionX - pokemon.positionX",
-    "note": "sign of the offset to the cast target on each axis"
+    "note": "dx and dy of the target relative to the caster"
    },
    {
     "id": "as-stepcell",
     "file": "app/core/abilities/aqua-step.ts",
     "lines": [
-     17,
-     20
+     20,
+     23
     ],
     "symbol": "stepCell",
     "expect": "const stepCell = board.getClosestAvailablePlace(",
-    "note": "empty cell closest (Manhattan) to the cell one step (sign of dx, sign of dy) from the caster toward the target"
+    "note": "reference coordinate = caster position + sign(dx), sign(dy); the closest free cell to it is searched among all free cells"
    },
    {
     "id": "as-move",
@@ -551,8 +553,8 @@
     "id": "as-hit",
     "file": "app/core/abilities/aqua-step.ts",
     "lines": [
-     29,
-     34
+     34,
+     40
     ],
     "symbol": "delayed damage",
     "expect": "target.handleSpecialDamage(",
@@ -573,8 +575,8 @@
     "id": "as-bcast",
     "file": "app/core/abilities/aqua-step.ts",
     "lines": [
-     27,
-     30
+     30,
+     33
     ],
     "symbol": "delayed broadcast",
     "expect": "pokemon.broadcastAbility({",
@@ -584,12 +586,12 @@
     "id": "closest",
     "file": "app/core/board.ts",
     "lines": [
-     541,
-     544
+     544,
+     547
     ],
     "symbol": "Board.getClosestAvailablePlace",
-    "expect": "  getClosestAvailablePlace(",
-    "note": "candidate = every empty cell; sorted by Manhattan distance; first returned"
+    "expect": "getClosestAvailablePlace(",
+    "note": "getClosestAvailablePlace definition"
    },
    {
     "id": "closest-sort",
@@ -711,7 +713,32 @@
     "symbol": "applyBigEaterBeltStatBuff",
     "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
     "note": "x1.25 rounded down (0 digits) for buffs on a BIG_EATER_BELT holder"
+   },
+   {
+    "id": "closest-all",
+    "file": "app/core/board.ts",
+    "lines": [
+     554,
+     562
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "if (value === undefined) {",
+    "note": "every free cell of the board becomes a candidate; there is no distance limit"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "AQUA_STEP",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261025T050434Z",
+   "reason": "movement is not limited to one cell (getClosestAvailablePlace searches all free cells); the delayed command is queued even with no free cell; nominal delay 300 is not a guaranteed timing",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "AQUA_STEP",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
