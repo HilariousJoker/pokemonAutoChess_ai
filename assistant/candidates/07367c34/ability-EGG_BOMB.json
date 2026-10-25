@@ -1,0 +1,687 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/EGG_BOMB",
+ "kind": "ability",
+ "identifier": "EGG_BOMB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T173941Z"
+ },
+ "record": {
+  "ability": "EGG_BOMB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare EGG_BOMB: Exeggcute (1 star, range 3), Exeggutor and Alolan Exeggutor (2 stars, range 1), all maxPP 100. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ALOLAN_EXEGGUTOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EGG_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EXEGGCUTE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "EGG_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EXEGGUTOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EGG_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ALOLAN_EXEGGUTOR": {
+    "evidence": [
+     "unit-alolan_exeggutor"
+    ]
+   },
+   "EXEGGCUTE": {
+    "evidence": [
+     "unit-exeggcute"
+    ]
+   },
+   "EXEGGUTOR": {
+    "evidence": [
+     "unit-exeggutor"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.EGG_BOMB] = new EggBombStrategy()",
+   "strategy": "EggBombStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "eb-class",
+    "eb-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by the caster's stars) to the cast target and to every unit in the 3x3 block around it that is on the target's team, then applies armor reduction for 4000 ms to each of those units. Each such unit that dies from the hit gives a 25% (luck-adjusted) chance, only for a caster belonging to a player and not a ghost opponent, to add a random egg to that player's bench with hatch stacks already at requirement minus 1.",
+  "targeting": {
+   "who": "the cast target and every unit standing in the 3x3 cells around the target (target's own cell included) whose team equals the target's team",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true). Since the filter is the target's team, the caster's allies are not hit in the normal case. Which unit is chosen as cast target is decided by generic targeting code, which was not read.",
+   "evidence": [
+    "eb-cells",
+    "adj",
+    "cell-type",
+    "eb-hit",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square centred on the cast target, clipped to the board (Board.getAdjacentCells with includesCenter true); only cells holding a unit on the target's team are used",
+   "evidence": [
+    "eb-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target and same-team units in the 3x3 block around it",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage per unit (raw)"
+    },
+    "perUnitRaw": {
+     "ALOLAN_EXEGGUTOR": 50,
+     "EXEGGCUTE": 25,
+     "EXEGGUTOR": 50
+    },
+    "scaling": "requested = table[stars-1] per selected unit. handleSpecialDamage with default apBoost true: x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); other multipliers (DOUBLE_DAMAGE, steam board effect) as in sibling single-target records.",
+    "resolution": "applied = figure handed to PokemonState.handleDamage for each unit; there it is divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and the unit's shield absorbs first. takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for protect / skydiving / magicBounce. Each unit is resolved separately and in board-cell order (y then x). Armor reduction is applied AFTER the damage of that same unit, so it does not lower the speDef used for that hit.",
+    "evidence": [
+     "eb-table",
+     "eb-cells",
+     "eb-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "armorReduction",
+    "duration_ms": 4000,
+    "target": "each unit selected above",
+    "scaling": "Fixed 4000 ms requested. Status.triggerArmorReduction: skipped if the unit has Rune Protect; otherwise duration is run through applyStatusDurationReductions on the unit itself (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystones x(1 - 0.1n)), and replaces the remaining cooldown only if longer.",
+    "resolution": "applied = rounded reduced duration (0 effect with Rune Protect). While armorReduction is set, handleDamage halves def and speDef (Math.round) for hits on that unit; the flag clears when its cooldown runs out. Not tied to whether the damage was blocked or the unit died.",
+    "evidence": [
+     "eb-ar",
+     "ar-trig",
+     "ar-rune",
+     "ar-upd",
+     "ar-dur",
+     "ar-def",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "egg reward",
+    "target": "the caster's player (bench)",
+    "chance": "0.25 base, per unit killed by this cast",
+    "scaling": "chance(0.25, caster): Math.random() < 0.25^(1 - luck/100), so caster luck raises it.",
+    "resolution": "Needs kill.death true for the unit, caster not a ghost opponent, caster.player set. giveRandomEgg adds a random 1-star HATCH egg on the first free bench slot (nothing if the bench is full); its stacks are set to getHatchTime - 1 (EGG_HATCH 5, or 4 with BREEDER / GOLDEN_EGGS), so it is one stack from hatching. Rolled separately for every unit killed.",
+    "evidence": [
+     "eb-egg",
+     "eb-giveegg",
+     "egg-give",
+     "egg-create",
+     "hatch",
+     "hatch-const",
+     "chance",
+     "ghost",
+     "hd-death"
+    ]
+   }
+  ],
+  "statusEffects": [
+   "armorReduction 4000 ms (requested) on each hit unit"
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ALOLAN_EXEGGUTOR": 2,
+    "EXEGGCUTE": 1,
+    "EXEGGUTOR": 2
+   },
+   "declaredRawDamage": {
+    "ALOLAN_EXEGGUTOR": 50,
+    "EXEGGCUTE": 25,
+    "EXEGGUTOR": 50
+   },
+   "note": "Table indexed by the caster's stars; the 4-star column (200, also the ?? fallback) is not reachable by the bare factory star counts of these units. Range differs: Exeggcute 3, the two Exeggutors 1.",
+   "evidence": [
+    "eb-table",
+    "unit-alolan_exeggutor",
+    "unit-exeggcute",
+    "unit-exeggutor"
+   ]
+  },
+  "positionalConditions": "The 3x3 block is centred on the cast target (not on the caster) and clipped by the board edges; only units sharing the target's team are included.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0); armor reduction does not stack (longer duration wins); a new egg roll happens per kill on every cast.",
+  "rawVsResolved": "Requested: damage 25/50/100 per unit for 1/2/3 stars (listed units use 25/50/50 - Exeggcute 25, both 2-star Exeggutors 50) and armor reduction 4000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by each unit's SPE_DEF (halved only if it already had armor reduction) with a minimum of 1; takenDamage includes shield damage. Applied duration = 4000 ms after status duration reductions, or none with Rune Protect. Final values depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1, shield absorption and the death flag were read"
+  ],
+  "unresolved": [
+   "Helpers consulted: getAdjacentCells, Status.triggerArmorReduction, applyStatusDurationReductions, giveRandomEgg, getHatchTime, chance, handleSpecialDamage and handleDamage were read (see evidence); no routing uncertainties are listed for this record",
+   "Which team the target belongs to when the caster is charmed or the target is an ally was not examined; the filter is the target's team, not the enemy team",
+   "What egg.stacks - 1 means for hatching (when the egg evolves) was not traced beyond the value set",
+   "Whether the extra ghost-battle or non-player paths give anything other than the skipped egg was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-alolan_exeggutor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12747,
+     12772
+    ],
+    "symbol": "class AlolanExeggutor",
+    "expect": "skill = Ability.EGG_BOMB",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-exeggcute",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12707,
+     12730
+    ],
+    "symbol": "class Exeggcute",
+    "expect": "skill = Ability.EGG_BOMB",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-exeggutor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12732,
+     12745
+    ],
+    "symbol": "class Exeggutor",
+    "expect": "skill = Ability.EGG_BOMB",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     856,
+     856
+    ],
+    "symbol": "AbilityStrategies[Ability.EGG_BOMB]",
+    "expect": "[Ability.EGG_BOMB]: new EggBombStrategy()",
+    "note": ""
+   },
+   {
+    "id": "eb-class",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "EggBombStrategy",
+    "expect": "export class EggBombStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "eb-super",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, increments count.ult, broadcasts the animation"
+   },
+   {
+    "id": "eb-table",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "eb-cells",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     18,
+     21
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "board\n      .getAdjacentCells(target.positionX, target.positionY, true)",
+    "note": "3x3 around the cast target including the target's cell; then only entities on the TARGET's team"
+   },
+   {
+    "id": "eb-hit",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     24,
+     30
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "const kill = v.handleSpecialDamage(",
+    "note": "SPECIAL damage to each selected unit; the {death, takenDamage} result is kept in `kill`"
+   },
+   {
+    "id": "eb-egg",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     31,
+     41
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "chance(0.25, pokemon)",
+    "note": "egg reward only if that unit died, the caster is not a ghost opponent, the caster has a player, and a 25% roll (luck-adjusted) succeeds"
+   },
+   {
+    "id": "eb-giveegg",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     37,
+     40
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "egg.stacks = getHatchTime(egg, pokemon.player) - 1",
+    "note": "the egg, if a bench slot was free, is created with hatch stacks one short of the requirement"
+   },
+   {
+    "id": "eb-ar",
+    "file": "app/core/abilities/egg-bomb.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "EggBombStrategy.process",
+    "expect": "v.status.triggerArmorReduction(4000, v)",
+    "note": "armor reduction 4000 ms on every selected unit (regardless of whether it died or damage was blocked); the second argument is the unit itself"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 neighbourhood clipped to the board; includesCenter true keeps the centre cell; value is the entity or undefined"
+   },
+   {
+    "id": "cell-type",
+    "file": "app/core/board.ts",
+    "lines": [
+     11,
+     15
+    ],
+    "symbol": "type Cell",
+    "expect": "value: PokemonEntity | undefined",
+    "note": ""
+   },
+   {
+    "id": "egg-give",
+    "file": "app/core/eggs.ts",
+    "lines": [
+     35,
+     46
+    ],
+    "symbol": "giveRandomEgg",
+    "expect": "const x = getFirstAvailablePositionInBench(player.board)",
+    "note": "creates a random egg and places it on the first free bench slot; returns undefined if the bench is full"
+   },
+   {
+    "id": "egg-create",
+    "file": "app/core/eggs.ts",
+    "lines": [
+     12,
+     33
+    ],
+    "symbol": "createRandomEgg",
+    "expect": "egg.stacksRequired = getHatchTime(egg, player)",
+    "note": "egg of a random rarity-HATCH 1-star evolution, not yet-given first"
+   },
+   {
+    "id": "hatch",
+    "file": "app/core/evolution-logic/hatch-time.ts",
+    "lines": [
+     7,
+     15
+    ],
+    "symbol": "getHatchTime",
+    "expect": "? EvolutionTime.EGG_HATCH - 1",
+    "note": "EGG_HATCH, or one less with BREEDER / GOLDEN_EGGS"
+   },
+   {
+    "id": "hatch-const",
+    "file": "app/config/game/pokemons.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "EvolutionTime.EGG_HATCH",
+    "expect": "EGG_HATCH: 5",
+    "note": "5 turns of stacks required"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability raised to 1 - luck/100, so luck raises the real chance above 25%"
+   },
+   {
+    "id": "ghost",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     270,
+     272
+    ],
+    "symbol": "PokemonEntity.isGhostOpponent",
+    "expect": "return this.simulation.isGhostBattle && this.team === Team.RED_TEAM",
+    "note": "ghost-battle opponents never give eggs"
+   },
+   {
+    "id": "ar-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     352
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity)",
+    "note": "not applied if the unit has runeProtect; duration passes through applyStatusDurationReductions; replaces the remaining time only if longer"
+   },
+   {
+    "id": "ar-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     343,
+     343
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect on the unit receiving the status blocks armor reduction"
+   },
+   {
+    "id": "ar-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     354,
+     360
+    ],
+    "symbol": "Status.updateArmorReduction",
+    "expect": "updateArmorReduction(dt: number) {",
+    "note": "flag cleared when the cooldown runs out"
+   },
+   {
+    "id": "ar-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.3)",
+    "note": "duration cut for SWIFT_SWIM (x0.7), HYDRATION (x0.5), WATER_VEIL / SURGE_SURFER (x0.3) and Odd Keystones (x(1-0.1n)) on the unit passed as pkm - here the unit itself"
+   },
+   {
+    "id": "ar-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     519
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "while armorReduction is set def and speDef are halved (Math.round) before use"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "hd-death",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     797,
+     797
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "death = true",
+    "note": "death is true only when the unit is finally killed (a resurrection path leaves it false)"
+   }
+  ]
+ }
+}
