@@ -1,0 +1,611 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FAKE_TEARS",
+ "kind": "ability",
+ "identifier": "FAKE_TEARS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T234005Z"
+ },
+ "record": {
+  "ability": "FAKE_TEARS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo (Gothita 1 star, Gothorita 2, Gothitelle 3) declare FAKE_TEARS; maxPP 80 and range 3 for all. Gothita and Gothorita declare passive HATCH in the catalog and Gothitelle none; HATCH is not covered here. The strategy is shared; unit differences are the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "GOTHITA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "FAKE_TEARS",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOTHORITA",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "FAKE_TEARS",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOTHITELLE",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "FAKE_TEARS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOTHITA": {
+    "evidence": [
+     "unit-gothita"
+    ]
+   },
+   "GOTHORITA": {
+    "evidence": [
+     "unit-gothorita"
+    ]
+   },
+   "GOTHITELLE": {
+    "evidence": [
+     "unit-gothitelle"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FAKE_TEARS] = new FakeTearsStrategy()",
+   "strategy": "FakeTearsStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ft",
+    "ft-class",
+    "base-flags",
+    "base-pp",
+    "ft-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Hits EVERY enemy unit on the board (every occupied cell whose unit is not on the caster's team; no range or target limit), not just the cast target. For each enemy, in board-iteration order, it first calls triggerArmorReduction(3000 ms for 1-3 stars) on that enemy and then requests SPECIAL damage (raw 5/10/15 by the caster's stars) from it. Rune Protect on an enemy's own status prevents the armor reduction on that enemy (its damage is then divided by its full SPE_DEF); otherwise the halved SPE_DEF applies to this same hit because the status is set before the damage. The duration reductions (Swift Swim, Hydration, Water Veil / Surge Surfer, Odd Keystone) read the enemy that was passed as the entity argument, i.e. the TARGET of each application, not the caster. Protect, skydiving and magicBounce on an enemy are not cleared and block that enemy's damage (the armor reduction is still applied); a magicBounce enemy also queues a delayed SPECIAL bounce at the caster unless the caster holds Protective Pads.",
+  "targeting": {
+   "who": "all enemy units on the board (units whose team differs from the caster's); the cast target parameter is only forwarded to super.process",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true, so the caster needs a target at range to reach the cast gate (only the pp >= maxPP && canCast gate was read); once cast, the loop ignores that target and reaches the whole board.",
+   "evidence": [
+    "ft-class",
+    "base-flags",
+    "ft-super",
+    "ft-loop",
+    "ft-bc",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "whole board, enemy team (no range, line or area)",
+   "evidence": [
+    "ft-loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy unit on the board",
+    "declaredRaw": {
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 15,
+      "4": 30,
+      "fallback": 30
+     }
+    },
+    "perUnitRaw": {
+     "GOTHITA": 5,
+     "GOTHORITA": 10,
+     "GOTHITELLE": 15
+    },
+    "scaling": "AP: damage x (1 + AP/100) per enemy (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by each target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
+    "resolution": "requested amount per enemy = raw x AP factor [x crit]. Per enemy, if the armor reduction was applied (that enemy has no Rune Protect) handleDamage uses Math.round(speDef / 2) while it lasts, so the division is by that halved SPE_DEF; if Rune Protect prevented it the full SPE_DEF is used. The division is an intermediate calculation (ceil, min 1) and later untraced modifiers follow, so it is not the final HP loss; takenDamage (not used by this strategy, the return value is discarded) would count HP removed plus shield damage. An enemy with protect, skydiving or magicBounce takes 0 from the hit (the armor reduction on it is still applied first). The hit applies once per enemy, so the total across the board scales with the number of enemies.",
+    "evidence": [
+     "ft-dmg",
+     "ft-hit",
+     "ft-loop",
+     "hd-protect",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "ar-def",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "taken-damage",
+     "taken-shield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armorReduction",
+    "target": "each enemy unit on the board",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 3000,
+      "4": 6000,
+      "fallback": 6000
+     },
+     "unit": "ms (requested)"
+    },
+    "perUnitDuration": {
+     "GOTHITA": 3000,
+     "GOTHORITA": 3000,
+     "GOTHITELLE": 3000
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "per enemy: armor reduction first, then that enemy's damage",
+    "guards": "not applied to an enemy whose status has runeProtect (checked on the status the method is called on, i.e. that enemy's). When applied, the duration goes through applyStatusDurationReductions(duration, pkm) where pkm is the ENEMY itself (value, supplied as the entity argument): if that enemy has SWIFT_SWIM the duration is x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), and each Odd Keystone in that enemy's player's items takes a further 10 % off. So, unlike RAGING_BULL (which passes the caster), the reductions come from the enemy being hit and the caster's own abilities/items do not shorten it. A new application replaces the remaining time only if longer. These reductions were read in the source; the pinned helper was not executed in this run.",
+    "combatEffect": "while set, handleDamage uses Math.round(def / 2) and Math.round(speDef / 2) for the damage division (WONDER_ROOM swaps them afterwards). Only the handleDamage use of the flag was cited; other readers were not searched.",
+    "evidence": [
+     "ft-dur",
+     "ft-ar",
+     "ar-trig",
+     "ar-red",
+     "ar-upd",
+     "ar-def",
+     "ar-runeprotect",
+     "ar-supplied-entity",
+     "ar-odd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GOTHITA": 1,
+    "GOTHORITA": 2,
+    "GOTHITELLE": 3
+   },
+   "declaredRawDamage": {
+    "GOTHITA": 5,
+    "GOTHORITA": 10,
+    "GOTHITELLE": 15
+   },
+   "declaredRawArmorReductionMs": {
+    "GOTHITA": 3000,
+    "GOTHORITA": 3000,
+    "GOTHITELLE": 3000
+   },
+   "note": "both tables are indexed by the casting entity's stars; all three listed units are 1-3 stars in the catalog, so their bare values are 5/10/15 damage and 3000 ms. The 4-star column (30 damage, 6000 ms; also the fallback) is not reachable by their bare star counts. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "ft-dmg",
+    "ft-dur",
+    "unit-gothita",
+    "unit-gothorita",
+    "unit-gothitelle"
+   ]
+  },
+  "positionalConditions": "None read: the loop covers every occupied cell regardless of distance. The caster needs a target at range to cast (cast gate).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast reapplies the armor reduction to every enemy without Rune Protect (the remaining time is replaced only if the new duration is longer) and repeats the damage.",
+  "rawVsResolved": "Declared raw: 5/10/15 SPECIAL damage (1/2/3 stars) and a requested 3000 ms armor reduction on each enemy. Requested damage per enemy = raw x (1 + AP/100) [x crit factor]; the SPE_DEF division uses the halved value for an enemy only if the armor reduction was actually applied to it (no Rune Protect), then ceil, minimum 1 and untraced later modifiers; this is an intermediate calculation, not the final HP loss or takenDamage. Armor reduction duration: requested 3000 ms, applied after reductions that read the enemy being hit (not the caster).",
+  "sourceTables": [
+   {
+    "id": "fakeTearsDamage",
+    "file": "app/core/abilities/fake-tears.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "fakeTearsDuration",
+    "file": "app/core/abilities/fake-tears.ts",
+    "pattern": "const duration = \\[([0-9, ]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitDuration"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage per enemy after the later handleDamage modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, the armor-reduction halving, the minimum of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier",
+   "Magic-bounce bounce amount and its further effects (the delayed command in handleSpecialDamage was not traced beyond its trigger condition)"
+  ],
+  "unresolved": [
+   "Passive HATCH on Gothita and Gothorita is not covered by this record",
+   "Whether any item or synergy effect changes FAKE_TEARS beyond what is listed",
+   "Order of board.forEach iteration across cells and whether an enemy dying mid-loop affects later enemies were not traced (the loop itself is cited)",
+   "The target argument passed to the strategy is unused after super.process; how the caster's target is chosen before the cast was not traced",
+   "Mechanics consulted: core-mechanics.md section A (damage, SPE_DEF, minimum of 1) via the cited handleDamage lines; no item helper (Twist Band, Big Eater Belt) is involved because no PP or stat adder is called by this strategy"
+  ],
+  "evidence": [
+   {
+    "id": "unit-gothita",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10831,
+     10846
+    ],
+    "symbol": "class Gothita",
+    "expect": "skill = Ability.FAKE_TEARS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gothorita",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10848,
+     10863
+    ],
+    "symbol": "class Gothorita",
+    "expect": "skill = Ability.FAKE_TEARS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gothitelle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10865,
+     10877
+    ],
+    "symbol": "class Gothitelle",
+    "expect": "skill = Ability.FAKE_TEARS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-ft",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     873,
+     873
+    ],
+    "symbol": "AbilityStrategies[Ability.FAKE_TEARS]",
+    "expect": "[Ability.FAKE_TEARS]: new FakeTearsStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ft-class",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "FakeTearsStrategy",
+    "expect": "class FakeTearsStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "ft-super",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "the passed target is used only here; the loop below ignores it"
+   },
+   {
+    "id": "ft-dmg",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "[5, 10, 15, 30][pokemon.stars - 1] ?? 30",
+    "note": "damage table by caster stars"
+   },
+   {
+    "id": "ft-loop",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "if (value && pokemon.team != value.team)",
+    "note": "every occupied board cell whose unit is not on the caster's team; no range, no line of sight, no cap on count"
+   },
+   {
+    "id": "ft-dur",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "[3000, 3000, 3000, 6000][pokemon.stars - 1] ?? 6000",
+    "note": "armor reduction duration table by caster stars"
+   },
+   {
+    "id": "ft-ar",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "value.status.triggerArmorReduction(duration, value)",
+    "note": "the entity argument is the ENEMY (value), not the caster"
+   },
+   {
+    "id": "ft-bc",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "pokemon.broadcastAbility({ positionX: x, positionY: y })",
+    "note": "animation only, once per enemy"
+   },
+   {
+    "id": "ft-hit",
+    "file": "app/core/abilities/fake-tears.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "FakeTearsStrategy.process",
+    "expect": "value.handleSpecialDamage(",
+    "note": "SPECIAL damage to each enemy, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "ar-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     351
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity)",
+    "note": "not applied with runeProtect; duration passes through applyStatusDurationReductions; a new application only replaces the remaining time if longer"
+   },
+   {
+    "id": "ar-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "ar-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     354,
+     360
+    ],
+    "symbol": "Status.updateArmorReduction",
+    "expect": "updateArmorReduction(dt: number) {",
+    "note": "flag cleared when the cooldown runs out"
+   },
+   {
+    "id": "ar-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     519
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "while armorReduction is set def and speDef are halved (Math.round) before use; WONDER_ROOM then swaps them"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect or skydiving: no damage taken"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "canCritByDefault = false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "taken-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage counts HP actually removed (capped at current hp); shield damage is added separately at the shield step"
+   },
+   {
+    "id": "taken-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield is included in takenDamage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   },
+   {
+    "id": "ar-runeprotect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     346
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect is read from the status the method is called on (the target's)"
+   },
+   {
+    "id": "ar-supplied-entity",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1295
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "the duration reductions read the entity passed as pkm (for RAGING_BULL the caster)"
+   },
+   {
+    "id": "ar-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1297,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "count(pkm.player.items, Item.ODD_KEYSTONE)",
+    "note": "Odd Keystone count comes from the supplied entity's player"
+   }
+  ]
+ }
+}
