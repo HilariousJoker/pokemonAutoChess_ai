@@ -1,0 +1,583 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRAGON_CLAW",
+ "kind": "ability",
+ "identifier": "DRAGON_CLAW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T113934Z"
+ },
+ "record": {
+  "ability": "DRAGON_CLAW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Bagon (1 star), Shelgon (2 stars) and Salamence (3 stars), regional, maxPP 100, range 1, no passive, declare ABILITY DRAGON_CLAW.",
+  "appliesTo": [
+   {
+    "key": "BAGON",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SALAMENCE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHELGON",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRAGON_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BAGON": {
+    "evidence": [
+     "unit-bagon"
+    ]
+   },
+   "SHELGON": {
+    "evidence": [
+     "unit-shelgon"
+    ]
+   },
+   "SALAMENCE": {
+    "evidence": [
+     "unit-salamence"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRAGON_CLAW] = new DragonClawStrategy()",
+   "strategy": "DragonClawStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dc",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "dc-class"
+   ]
+  },
+  "summary": "Single-target claw with wound. Picks one adjacent enemy: among the 8 cells around the caster it takes the enemy with the smallest maxHP (strictly smaller wins, so the first one in scan order keeps ties; the source comment says 'lowest health' but the code compares maxHP, not current hp). If no enemy is adjacent it falls back to the cast target. That unit takes flat special damage (30/60/120 by stars for the catalog units, requested), then is wounded for a requested 4000 ms, and the caster's target is set to it.",
+  "targeting": {
+   "who": "one unit: the adjacent enemy with the lowest maxHP, else the cast target",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true. Scan order of getAdjacentCells is rows y-1..y+1, within each row x-1..x+1 (centre excluded), and the test is `cell.value.maxHP < lowestHp` starting from 9999, so ties keep the earlier cell and a unit with maxHP >= 9999 is never chosen (fallback applies). The enemy test is team !== caster team; dead-unit state is not tested here.",
+   "evidence": [
+    "dc-select",
+    "dc-fallback",
+    "adj-fn"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells adjacent to the caster (selection only); single-target effect",
+   "evidence": [
+    "dc-select",
+    "adj-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the selected unit",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "BAGON": 30,
+     "SALAMENCE": 120,
+     "SHELGON": 60
+    },
+    "scaling": "Requested amount = table value. handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault false). One instance.",
+    "resolution": "Requested 30/60/120 is pre-defence. The target's special defence reduces it (damage / (1 + 0.05 x speDef), rounded up, minimum 1); shield damage counts in takenDamage (core-mechanics.md section A). Blocked by protect, skydiving, magicBounce (magicBounce reflects).",
+    "evidence": [
+     "dc-table",
+     "dc-damage",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "shield-take",
+     "hp-take"
+    ]
+   },
+   {
+    "kind": "retarget",
+    "target": "the caster",
+    "declaredRaw": {
+     "note": "pokemon.setTarget(lowestHpTarget)"
+    },
+    "scaling": "none",
+    "resolution": "setTarget stores the selected unit's id and position as the caster's target; it is called after the damage and the wound even if the selected unit has died (death handling not read).",
+    "evidence": [
+     "dc-settarget",
+     "settarget"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "wound",
+    "target": "the selected unit",
+    "declaredRaw": {
+     "durationMs": 4000
+    },
+    "scaling": "none from AP or crit: triggerWound takes the raw 4000 ms (no apBoost parameter).",
+    "applicationOrder": "after the damage, before the retarget",
+    "guards": "not applied if the selected unit's status has runeProtect. Applied duration: BLOODMOON weather multiplies the requested 4000 by 1.3; then applyStatusDurationReductions on the selected unit (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE of that unit's player, per the shared status helper recorded in ZAP_CANNON); the timer is replaced only if the new duration is longer than woundCooldown, and woundOrigin is then set to the caster. Note the status is set (wound = true) before the duration check, even if the timer is not extended.",
+    "combatEffect": "a wounded unit receives no healing: handleHeal returns healReceived 0 and overheal 0 (with the Blood Moon + Blood Stone exception that converts 30 % of the heal into a shield for that unit's player). With Blood Moon, a Blood Stone owner's attack on a wounded target heals the attacker for 20 % of the damage per stone. Other users of status.wound (passives.ts, slashing-claw.ts) were seen but not read.",
+    "evidence": [
+     "dc-wound",
+     "wound-fn",
+     "wound-rune",
+     "wound-moon",
+     "wound-red",
+     "wound-longer",
+     "wound-end",
+     "heal-wound",
+     "bloodmoon-attack"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "BAGON": 1,
+    "SALAMENCE": 3,
+    "SHELGON": 2
+   },
+   "declaredRawDamage": {
+    "BAGON": 30,
+    "SALAMENCE": 120,
+    "SHELGON": 60
+   },
+   "note": "Caster stars index the damage table (1-4, fallback 240). The wound duration does not depend on stars.",
+   "evidence": [
+    "dc-table"
+   ]
+  },
+  "positionalConditions": "The preferred victim must stand in one of the 8 cells adjacent to the caster; otherwise the original cast target (which can be at range 1 or, if casting happens with the target not adjacent, elsewhere) takes the hit.",
+  "repeatedCastsAndModes": "No stored state. A repeat wound leaves the longer remaining timer; woundOrigin changes only when the timer is extended.",
+  "rawVsResolved": "Requested: 30/60/120 special damage and a 4000 ms wound. Damage applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit raise it before special defence and shield; taken damage includes shield-absorbed damage, minimum 1. Wound applied: x1.3 under Blood Moon, then the target's duration reductions, kept only if longer than the existing timer, and not at all with runeProtect.",
+  "sourceTables": [
+   {
+    "id": "dcDamage",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight and whether the cast target is adjacent when it fires (range 1 gate)",
+   "Death handling when the selected unit dies from the damage before the wound and the retarget"
+  ],
+  "unresolved": [
+   "The in-code comment 'lowest health' contradicts the maxHP comparison; the record follows the code (maxHP)",
+   "applyStatusDurationReductions body was taken from the shared record ZAP_CANNON / status.ts, not re-read line by line here",
+   "Other users of status.wound (passives.ts, slashing-claw.ts) not read",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     840,
+     840
+    ],
+    "symbol": "AbilityStrategies[Ability.DRAGON_CLAW]",
+    "expect": "[Ability.DRAGON_CLAW]: new DragonClawStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "dc-class",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "comment says lowest health"
+   },
+   {
+    "id": "dc-table",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": ""
+   },
+   {
+    "id": "dc-select",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     16,
+     30
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "if (cell.value.maxHP < lowestHp) {",
+    "note": "compares maxHP, starting from 9999"
+   },
+   {
+    "id": "dc-fallback",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     31,
+     33
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "lowestHpTarget = target",
+    "note": ""
+   },
+   {
+    "id": "dc-damage",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     34,
+     40
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "lowestHpTarget.handleSpecialDamage(",
+    "note": ""
+   },
+   {
+    "id": "dc-wound",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "lowestHpTarget.status.triggerWound(4000, lowestHpTarget, pokemon)",
+    "note": ""
+   },
+   {
+    "id": "dc-settarget",
+    "file": "app/core/abilities/dragon-claw.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "DragonClawStrategy.process",
+    "expect": "pokemon.setTarget(lowestHpTarget)",
+    "note": ""
+   },
+   {
+    "id": "adj-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "settarget",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     323,
+     333
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "this.targetEntityId = target.id",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n this.status.skydiving ||\n this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "shield-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield-absorbed damage counts"
+   },
+   {
+    "id": "hp-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": ""
+   },
+   {
+    "id": "wound-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     877,
+     883
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "triggerWound(",
+    "note": "wound = true set inside the runeProtect guard"
+   },
+   {
+    "id": "wound-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     882,
+     882
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (!this.runeProtect) {",
+    "note": ""
+   },
+   {
+    "id": "wound-moon",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     884,
+     886
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (pkm.simulation.weather === Weather.BLOODMOON) {",
+    "note": "x1.3"
+   },
+   {
+    "id": "wound-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     888,
+     888
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "wound-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     890,
+     895
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (duration > this.woundCooldown) {",
+    "note": "timer and origin replaced only if longer"
+   },
+   {
+    "id": "wound-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     905
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "if (this.woundCooldown - dt <= 0) {",
+    "note": "wound ends when the timer runs out"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     332
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wounded units receive no healing (Blood Moon + Blood Stone exception)"
+   },
+   {
+    "id": "bloodmoon-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1172,
+     1182
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "target.status.wound &&",
+    "note": "Blood Moon + Blood Stone attacker heal on a wounded target"
+   },
+   {
+    "id": "unit-bagon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1324,
+     1338
+    ],
+    "symbol": "class Bagon",
+    "expect": "skill = Ability.DRAGON_CLAW",
+    "note": ""
+   },
+   {
+    "id": "unit-shelgon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1340,
+     1354
+    ],
+    "symbol": "class Shelgon",
+    "expect": "skill = Ability.DRAGON_CLAW",
+    "note": ""
+   },
+   {
+    "id": "unit-salamence",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1356,
+     1374
+    ],
+    "symbol": "class Salamence",
+    "expect": "skill = Ability.DRAGON_CLAW",
+    "note": ""
+   }
+  ]
+ }
+}
