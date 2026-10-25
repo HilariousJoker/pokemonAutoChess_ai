@@ -1,0 +1,574 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DOUBLE_SHOCK",
+ "kind": "ability",
+ "identifier": "DOUBLE_SHOCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261025T113934Z"
+ },
+ "record": {
+  "ability": "DOUBLE_SHOCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Pawmi (1 star), Pawmo (2 stars) and Pawmot (3 stars), all Electric/Fighting, maxPP 100, range 1, no passive, declare ABILITY DOUBLE_SHOCK.",
+  "appliesTo": [
+   {
+    "key": "PAWMI",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DOUBLE_SHOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PAWMO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DOUBLE_SHOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PAWMOT",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DOUBLE_SHOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PAWMI": {
+    "evidence": [
+     "unit-pawmi"
+    ]
+   },
+   "PAWMO": {
+    "evidence": [
+     "unit-pawmo"
+    ]
+   },
+   "PAWMOT": {
+    "evidence": [
+     "unit-pawmot"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DOUBLE_SHOCK] = new DoubleShockStrategy()",
+   "strategy": "DoubleShockStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ds",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "ds-class"
+   ]
+  },
+  "summary": "Self-paralysis for single-target burst. The caster first paralyses itself (triggerParalysis with a requested 3000 ms, called on its own status with itself as both victim and origin), then deals flat special damage (50/100/200/400 by stars, requested) to the cast target. While paralysed the caster has half speed and cannot dodge basic attacks. The self-paralysis is skipped if the caster has runeProtect or IMMUNITY_PARALYSIS, but the damage is dealt regardless.",
+  "targeting": {
+   "who": "the caster (paralysis); the cast target (damage)",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true; the damage target is the one passed to the cast.",
+   "evidence": [
+    "base-flags",
+    "ds-para",
+    "ds-damage"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "detail": "No area; the paralysis is on the caster itself.",
+   "evidence": [
+    "ds-damage"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     }
+    },
+    "perUnitRaw": {
+     "PAWMI": 50,
+     "PAWMO": 100,
+     "PAWMOT": 200
+    },
+    "scaling": "Requested amount = table value. handleSpecialDamage(damage, board, SPECIAL, caster, crit) with the default apBoost = true: damage + damage x AP/100, then x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault false). One instance.",
+    "resolution": "Requested 50/100/200 is pre-defence. The target's special defence reduces it (damage / (1 + 0.05 x speDef), rounded up, minimum 1); shield damage counts in takenDamage (core-mechanics.md section A; the strategy's own call passes no flat-damage exceptions). Blocked by protect, skydiving, magicBounce (magicBounce reflects).",
+    "evidence": [
+     "ds-table",
+     "ds-damage",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "shield-take",
+     "hp-take"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "paralysis",
+    "target": "the caster itself (pokemon.status.triggerParalysis(3000, pokemon, pokemon))",
+    "declaredRaw": {
+     "durationMs": 3000
+    },
+    "scaling": "none from AP: the apBoost parameter is left at its default false, so the 3000 ms is not multiplied by (1 + AP/100). Duration is the same for every star level.",
+    "applicationOrder": "first, before the damage",
+    "guards": "checked on the caster's own status and effects: not applied with runeProtect or IMMUNITY_PARALYSIS. Applied duration: STORM weather multiplies the requested 3000 by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the caster's player) if any; then applyStatusDurationReductions on the caster (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE of the caster's player, rounded). Timer rule: if (duration > paralysisCooldown) paralysisCooldown = round(duration), so a longer existing timer is kept. A CHERI_BERRY on the caster is eaten after a successful application; eatBerry's effect follows the sibling record ZAP_CANNON (heals the paralysis and grants IMMUNITY_PARALYSIS), not re-read here.",
+    "combatEffect": "a paralysed unit uses half speed for its attack cooldown and its movement speed, and cannot dodge basic attacks. The status clears when paralysisCooldown runs out (healParalysis). Other users of status.paralysis were seen in sibling records but not read here.",
+    "evidence": [
+     "ds-para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "reductions",
+     "odd",
+     "para-atk",
+     "para-move",
+     "para-dodge"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "PAWMI": 1,
+    "PAWMO": 2,
+    "PAWMOT": 3
+   },
+   "declaredRawDamage": {
+    "PAWMI": 50,
+    "PAWMO": 100,
+    "PAWMOT": 200
+   },
+   "note": "Caster stars index the damage table (1-4, fallback 400). The paralysis duration does not depend on stars.",
+   "evidence": [
+    "ds-table"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target in range 1 to cast.",
+  "repeatedCastsAndModes": "No stored state. A second cast while still paralysed leaves the longer of the remaining and the new timer.",
+  "rawVsResolved": "Requested: 3000 ms self-paralysis (applied after storm weather, quartz and duration reductions, kept only if longer than the remaining timer) and special damage 50/100/200. Damage applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit raise it before the target's special defence and shield; taken damage includes shield-absorbed damage, minimum 1 per hit.",
+  "sourceTables": [
+   {
+    "id": "dsDamage",
+    "file": "app/core/abilities/double-shock.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "eatBerry body (Cheri Berry) read only through the sibling ZAP_CANNON record",
+   "When the cast fires in a real fight (range 1 gate and target acquisition)"
+  ],
+  "unresolved": [
+   "Whether a paralysis-immune caster (IMMUNITY_PARALYSIS from an earlier Cheri Berry) is common is gameplay, not traced",
+   "Other uses of status.paralysis (items, synergies, passives) were not read",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ds",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     837,
+     837
+    ],
+    "symbol": "AbilityStrategies[Ability.DOUBLE_SHOCK]",
+    "expect": "[Ability.DOUBLE_SHOCK]: new DoubleShockStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ds-class",
+    "file": "app/core/abilities/double-shock.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "DoubleShockStrategy",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ds-para",
+    "file": "app/core/abilities/double-shock.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "DoubleShockStrategy.process",
+    "expect": "pokemon.status.triggerParalysis(3000, pokemon, pokemon)",
+    "note": "self-targeted; apBoost left default"
+   },
+   {
+    "id": "ds-table",
+    "file": "app/core/abilities/double-shock.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "DoubleShockStrategy.process",
+    "expect": "const damage = [50,100,200,400][pokemon.stars - 1] ?? 400",
+    "note": ""
+   },
+   {
+    "id": "ds-damage",
+    "file": "app/core/abilities/double-shock.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "DoubleShockStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n this.status.skydiving ||\n this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "shield-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield-absorbed damage counts"
+   },
+   {
+    "id": "hp-take",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": ""
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     913
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": ""
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": ""
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     918,
+     918
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": ""
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": ""
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": ""
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     935,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": ""
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     943,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": ""
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": ""
+   },
+   {
+    "id": "odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": ""
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": ""
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": ""
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": ""
+   },
+   {
+    "id": "unit-pawmi",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15937,
+     15950
+    ],
+    "symbol": "class Pawmi",
+    "expect": "skill = Ability.DOUBLE_SHOCK",
+    "note": ""
+   },
+   {
+    "id": "unit-pawmo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15952,
+     15965
+    ],
+    "symbol": "class Pawmo",
+    "expect": "skill = Ability.DOUBLE_SHOCK",
+    "note": ""
+   },
+   {
+    "id": "unit-pawmot",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15967,
+     15980
+    ],
+    "symbol": "class Pawmot",
+    "expect": "skill = Ability.DOUBLE_SHOCK",
+    "note": ""
+   }
+  ]
+ }
+}
