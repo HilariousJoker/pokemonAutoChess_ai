@@ -1,0 +1,688 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ICICLE_MISSILE",
+ "kind": "ability",
+ "identifier": "ICICLE_MISSILE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T234040Z"
+ },
+ "record": {
+  "ability": "ICICLE_MISSILE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ICICLE_MISSILE: Vanilluxe (3 stars), Vanillish (2 stars), Vanillite (1 star). The strategy is shared; unit differences are the star count. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "VANILLISH",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ICICLE_MISSILE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VANILLITE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ICICLE_MISSILE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VANILLUXE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "ICICLE_MISSILE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "VANILLITE": {
+    "evidence": [
+     "unit-vanillite"
+    ]
+   },
+   "VANILLISH": {
+    "evidence": [
+     "unit-vanillish"
+    ]
+   },
+   "VANILLUXE": {
+    "evidence": [
+     "unit-vanilluxe"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ICICLE_MISSILE] = new IcicleMissileStrategy()",
+   "strategy": "IcicleMissileStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Picks the first 1/2/3 (by stars; 5 as fallback) enemy units after sorting all enemies by board row, then 1000 ms later hits each of them (if a live enemy still stands on the remembered cell) with an attempted 2000 ms freeze followed by 50 raw SPECIAL damage. The freeze is attempted before the damage and has no probability roll.",
+  "targeting": {
+   "who": "all enemy-team units on the board, ordered by row (rows read via board.forEach, then sorted by positionY: ascending when the enemies are the BLUE team, descending when they are the RED team; the sort is stable so equal rows keep forEach order, y then x); the first `count` are selected, one missile each. The cast target is not used.",
+   "needsTarget": false,
+   "note": "The cast target is not used, so the ability fires without a target in range (requiresTarget false). The selection records the cell at cast time. At execution time the unit standing on that cell (possibly a different one if units moved) is hit if it has hp > 0 and is on the other team; if the original unit moved away and nobody else stands there, that missile does nothing. If the caster dies before the delay, whether its queued commands still run was not examined.",
+   "evidence": [
+    "ab-collect",
+    "ab-sort",
+    "ab-loop",
+    "ab-recheck",
+    "cell-get",
+    "board-each"
+   ]
+  },
+  "geometry": {
+   "shape": "no area; up to `count` single cells chosen from the enemy units' rows, independent of the caster's position and range",
+   "evidence": [
+    "ab-collect",
+    "ab-sort",
+    "ab-loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the unit on each selected cell 1000 ms after the cast, if alive and an enemy",
+    "delayMs": 1000,
+    "declaredRaw": {
+     "flat": 50,
+     "label": "requested damage (raw), same for every star level"
+    },
+    "perUnitRaw": {
+     "VANILLITE": 50,
+     "VANILLISH": 50,
+     "VANILLUXE": 50
+    },
+    "scaling": "requested = 50 per missile, not scaled by stars (stars only change the missile count 1/2/3). handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the hit unit) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT. The same crit flag from the cast applies to every missile. Several missiles may land on one unit only if it occupies several selected cells, which cannot happen (one unit, one cell).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. See knowledge/07367c34/core-mechanics.md section A.",
+    "evidence": [
+     "ab-damage",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "ab-delay",
+     "ab-recheck",
+     "ab-1000",
+     "cmd-class",
+     "cmd-run",
+     "cmd-call"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FREEZE",
+    "target": "the unit hit by each missile",
+    "durationMs": 2000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "probability": 1,
+     "label": "requested base duration; attempted on every hit, no chance roll"
+    },
+    "scaling": "none from stars, AP or crit; no luck roll.",
+    "resolution": "applied only if the unit's status is not already frozen, has no rune protect or skydiving, and its ccCooldown is 0. Because the call is `entityHit.status.triggerFreeze(2000, tg, pokemon)`, the immunity check, weather (SNOW x1.3, DROUGHT x0.7), enraged halving and duration reductions are evaluated against `tg`, the unit originally selected at cast time (the second argument), not against entityHit when that is a different unit; only the freeze/runeProtect/skydiving/ccCooldown checks read the frozen unit. Freeze then lasts Math.round(duration) and wears off faster if the unit is also burning. The freeze call comes before the damage call, so the damage resolves against an already frozen unit.",
+    "evidence": [
+     "ab-freeze",
+     "fr-trig",
+     "fr-immune",
+     "fr-snow",
+     "fr-red",
+     "fr-set",
+     "fr-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "VANILLITE": 1,
+    "VANILLISH": 2,
+    "VANILLUXE": 3
+   },
+   "missileCount": {
+    "VANILLITE": 1,
+    "VANILLISH": 2,
+    "VANILLUXE": 3
+   },
+   "missileCountTable": {
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 5,
+    "fallback": 5
+   },
+   "declaredRawDamage": {
+    "VANILLITE": 50,
+    "VANILLISH": 50,
+    "VANILLUXE": 50
+   },
+   "note": "Stars only change the number of missiles (1/2/3/(5 for 4 stars and as the ?? fallback)); the 4-star count 5 is not reachable by the bare factory star counts. Damage and freeze do not depend on stars. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "ab-count",
+    "ab-damage",
+    "unit-vanillite",
+    "unit-vanillish",
+    "unit-vanilluxe"
+   ]
+  },
+  "positionalConditions": "Selection is by board row only: enemies in the rows farthest toward the enemy side of the sorted order come first; the caster's position and range play no part. If fewer enemies than `count` exist, only that many missiles are fired.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and queues new delayed commands, so casts closer than 1000 ms apart overlap; a unit already frozen is not re-frozen and the freeze timer is not extended, and a unit that just ended a freeze has a crowd-control cooldown (ccCooldown) that blocks a new freeze (the damage still lands).",
+  "rawVsResolved": "Requested: 50 raw SPECIAL damage per missile, 1/2/3 missiles (1/2/3 stars), freeze 2000 ms on every hit. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 for protected units. Applied freeze duration depends on weather, the enraged state, duration reductions of the originally selected unit, and is 0 (not applied) if the hit unit is already frozen, protected or in its crowd-control cooldown. Big Eater Belt and Twist Band only change the caster's own stat changes and do not touch this.",
+  "sourceTables": [
+   {
+    "id": "count",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "pattern": "const count = \\[([^\\]]+)\\]",
+    "recordPath": "starBehavior.missileCountTable"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and the effects of the frozen status on a unit's actions (the status flag and timer were read, not what a frozen unit is prevented from doing)",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "What a frozen unit is prevented from doing (canMove / canAttack read, the full state machine not)"
+  ],
+  "unresolved": [
+   "Whether the sort comparison (it reads `a.team`, the enemy team, for both operands) puts the enemies nearest or farthest from the caster's side first was not tied to the board orientation; recorded as ascending positionY for BLUE enemies and descending for RED enemies",
+   "Whether queued commands still run if the caster dies during the 1000 ms delay",
+   "Which unit is the freeze's `pkm` argument when the selected unit moved and another stands on the cell (recorded as read: the original selection)",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "fr-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     696,
+     696
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.freeze && // freeze cannot be stacked",
+    "note": "not applied if already frozen, rune protect, skydiving, IMMUNITY_FREEZE on pkm, or ccCooldown > 0"
+   },
+   {
+    "id": "fr-immune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     699,
+     699
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_FREEZE) &&",
+    "note": ""
+   },
+   {
+    "id": "fr-snow",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     702,
+     716
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.simulation.weather === Weather.SNOW) {",
+    "note": "SNOW x1.3 (Icy Rock reduces), DROUGHT x0.7, enraged pkm /2"
+   },
+   {
+    "id": "fr-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     717,
+     717
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "fr-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     720,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "this.freezeCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "fr-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     740,
+     740
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.freezeCooldown -= dt * (this.burn ? 2 : 1)",
+    "note": "burn halves the remaining freeze faster; when it ends ccCooldown is set to CC_COOLDOWN"
+   },
+   {
+    "id": "unit-vanillite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3099,
+     3116
+    ],
+    "symbol": "class Vanillite",
+    "expect": "skill = Ability.ICICLE_MISSILE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-vanillish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3118,
+     3135
+    ],
+    "symbol": "class Vanillish",
+    "expect": "skill = Ability.ICICLE_MISSILE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-vanilluxe",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3137,
+     3153
+    ],
+    "symbol": "class Vanilluxe",
+    "expect": "skill = Ability.ICICLE_MISSILE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     985,
+     985
+    ],
+    "symbol": "AbilityStrategies[Ability.ICICLE_MISSILE]",
+    "expect": "[Ability.ICICLE_MISSILE]: new IcicleMissileStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "IcicleMissileStrategy",
+    "expect": "requiresTarget = false",
+    "note": "requiresTarget false: cast without a target in range"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim"
+   },
+   {
+    "id": "ab-damage",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "const damage = 50",
+    "note": "flat requested damage per missile"
+   },
+   {
+    "id": "ab-count",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "const count = [1, 2, 3, 5][pokemon.stars - 1] ?? 5",
+    "note": "missile count by stars"
+   },
+   {
+    "id": "ab-collect",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     14,
+     18
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "if (tg && pokemon.team != tg.team)",
+    "note": "every enemy-team unit on the board is collected in board.forEach order (row by row, y then x)"
+   },
+   {
+    "id": "ab-sort",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "return a.positionY - b.positionY",
+    "note": "sorted by row: when the enemies are the BLUE team ascending positionY, otherwise descending"
+   },
+   {
+    "id": "ab-loop",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     26,
+     28
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "const tg = rank[i]",
+    "note": "first count entries of the sorted list; each entry targeted once"
+   },
+   {
+    "id": "ab-delay",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     37,
+     38
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "hit is queued on the caster's command list"
+   },
+   {
+    "id": "ab-recheck",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     39,
+     44
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "entityHit.team !== pokemon.team",
+    "note": "at execution the unit standing on the remembered cell must be alive and on the other team"
+   },
+   {
+    "id": "ab-freeze",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "entityHit.status.triggerFreeze(2000, tg, pokemon)",
+    "note": "freeze for a base 2000 ms, always attempted, called before the damage"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     46,
+     52
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "entityHit.handleSpecialDamage(",
+    "note": "SPECIAL damage after the freeze call, caster as attacker, crit flag passed through"
+   },
+   {
+    "id": "ab-1000",
+    "file": "app/core/abilities/icicle-missile.ts",
+    "lines": [
+     54,
+     54
+    ],
+    "symbol": "IcicleMissileStrategy.process",
+    "expect": "}, 1000)",
+    "note": "execution delay 1000 ms"
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "delay counts down by dt and the command runs once it is below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the entity's own commands are advanced from its update"
+   },
+   {
+    "id": "cmd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called from the state's update"
+   },
+   {
+    "id": "cell-get",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "return this.cells[this.columns * y + x]",
+    "note": "unit currently on the remembered cell"
+   },
+   {
+    "id": "board-each",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "callback(x, y, this.cells[this.columns * y + x])",
+    "note": "row by row, y outer, x inner"
+   }
+  ]
+ }
+}
