@@ -1,0 +1,634 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/GEAR_GRIND",
+ "kind": "ability",
+ "identifier": "GEAR_GRIND",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T054054Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare GEAR_GRIND: Klink (1 star, range 3), Klang (2 stars, range 3) and Klinklang (3 stars, range 3); all three have base speed 35, maxPP 100 and passive GEARS. The strategy is shared; unit differences are the star count (factor table index). The GEARS passive is not covered, but it changes the caster speed that this ability reads.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.GEAR_GRIND] = new GearGrindStrategy()",
+   "strategy": "GearGrindStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "x-class",
+    "x-super",
+    "gg-comment"
+   ]
+  },
+  "summary": "The caster launches two gears at the cast target: two delayed SPECIAL hits, the first at 0 ms and the second at 250 ms. Each hit's requested damage is round(caster speed x factor) with factor 0.25 / 0.5 / 1 for 1 / 2 / 3 stars (2 at 4 stars or fallback), where speed is read once at cast time, not per gear. AP and the cast crit flag apply inside handleSpecialDamage. Nothing else: no movement, status or buff.",
+  "targeting": {
+   "who": "the cast target, captured by reference for both gears",
+   "needsTarget": true,
+   "note": "Single target; no retarget. The strategy has no hp check, so a gear that fires after the target died is simply absorbed by handleDamage's hp <= 0 guard (no damage).",
+   "evidence": [
+    "gg-hit",
+    "base-flags",
+    "hd-dead"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "gg-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "cast target (two hits)",
+    "declaredRaw": {
+     "factorOfSpeed": {
+      "byStars": {
+       "1": 0.25,
+       "2": 0.5,
+       "3": 1,
+       "4": 2,
+       "fallback": 2
+      }
+     },
+     "hits": 2,
+     "delayMs": [
+      0,
+      250
+     ]
+    },
+    "perUnitRaw": {
+     "KLANG": 0.5,
+     "KLINK": 0.25,
+     "KLINKLANG": 1
+    },
+    "scaling": "requested per gear = Math.round(pokemon.speed x factor), speed taken when the cast starts (one value for both gears; with base speed 35 the declared factors give 9 / 18 / 35 before rounding effects of speed changes, an arithmetic illustration of the table and not a combat result). Speed itself is a stat that addSpeed changes (clamped to 0..300) and the GEARS passive raises periodically. Applied by handleSpecialDamage: x (1 + AP/100) (apBoost true by default); if the cast crit, x 1 + (critPower - 1) x critReductionFactor (Rocky Helmet cancels, Black Augurite reduces).",
+    "resolution": "then PokemonState.handleDamage: an hp <= 0 or resurrecting target takes nothing; attacker-state multipliers (enraged x2, electric / psychic / grass / fairy field x1.2, matching weather x1.2) apply first; SPECIAL damage is divided by 1 + ARMOR_FACTOR x speDef; non-TRUE flat reductions; at least 1 per gear; shield before HP; protect / skydiving / magicBounce on the target block a gear entirely. takenDamage includes shield damage.",
+    "evidence": [
+     "gg-factor",
+     "gg-dmg",
+     "gg-loop",
+     "gg-cmd",
+     "gg-hit",
+     "gg-delay",
+     "addspeed",
+     "max-speed",
+     "gears-pas",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-dead",
+     "hd-mult",
+     "hd-protect",
+     "hd-div",
+     "hd-flat",
+     "hd-min",
+     "hd-recv",
+     "cmd-update",
+     "cmd-class",
+     "cmd-upd2"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KLINK": 1,
+    "KLANG": 2,
+    "KLINKLANG": 3
+   },
+   "declaredSpeedFactor": {
+    "KLINK": 0.25,
+    "KLANG": 0.5,
+    "KLINKLANG": 1
+   },
+   "note": "Indexed by the casting entity's stars; the 4-star factor 2 is not used by these units at factory values. All three declare the same base speed 35, so the star difference is only the factor. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "gg-factor",
+    "unit-klink",
+    "unit-klang",
+    "unit-klinklang"
+   ]
+  },
+  "positionalConditions": "None in the strategy beyond having a cast target.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast queues two independent commands and recomputes the speed-based damage.",
+  "rawVsResolved": "Declared raw: two hits of 0.25 / 0.5 / 1 x caster speed (rounded). Requested = round(speed x factor) using the speed at cast time; applied = requested x (1 + AP/100) (x crit factor if the cast crit), after attacker-state multipliers and divided by 1 + ARMOR_FACTOR x speDef, minus flat reductions, minimum 1, per gear; takenDamage includes shield damage. Not computed for a specific target.",
+  "sourceTables": [
+   {
+    "id": "speedFactor",
+    "file": "app/core/abilities/gear-grind.ts",
+    "pattern": "const speedFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.factorOfSpeed.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, resurrection, other field multipliers); the attacker-state multiplier block, SPECIAL defence division, non-TRUE flat reductions and the minimum of 1 were located but not every modifier was traced",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage multiplier",
+   "Whether a caster that dies mid-delay still runs the second queued gear (only the updateCommands loop was read, not every call site)"
+  ],
+  "unresolved": [
+   "The GEARS passive (class blocks in pokemon.ts, PassiveEffects entry in passives.ts) raises ally speed by 1 per interval after simulation start: how that, held items or other speed changes alter the cast-time speed was not traced beyond addSpeed",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "GEAR_GRIND",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "KLANG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KLINK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KLINKLANG",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KLANG": {
+    "evidence": [
+     "unit-klang",
+     "pas-klang"
+    ]
+   },
+   "KLINK": {
+    "evidence": [
+     "unit-klink",
+     "pas-klink"
+    ]
+   },
+   "KLINKLANG": {
+    "evidence": [
+     "unit-klinklang",
+     "pas-klinklang"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     908,
+     908
+    ],
+    "symbol": "AbilityStrategies[Ability.GEAR_GRIND]",
+    "expect": "[Ability.GEAR_GRIND]: new GearGrindStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "x-class",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "GearGrindStrategy",
+    "expect": "export class GearGrindStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "x-super",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n      this.status.skydiving ||\n      this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the target block the hit (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef (speDef halved under armorReduction, swapped with def under WONDER_ROOM)"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     570
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat/item reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard) apply"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": ""
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "cmd-upd2",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "fires on the first update where the remaining delay is below 0"
+   },
+   {
+    "id": "unit-klink",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19482,
+     19496
+    ],
+    "symbol": "class Klink",
+    "expect": "skill = Ability.GEAR_GRIND",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-klang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19498,
+     19512
+    ],
+    "symbol": "class Klang",
+    "expect": "skill = Ability.GEAR_GRIND",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-klinklang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19514,
+     19527
+    ],
+    "symbol": "class Klinklang",
+    "expect": "skill = Ability.GEAR_GRIND",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "gg-factor",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "factor table",
+    "expect": "const speedFactor = [0.25, 0.5, 1, 2][pokemon.stars - 1] ?? 2",
+    "note": "speed multiplier by caster stars, 2 fallback"
+   },
+   {
+    "id": "gg-dmg",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "damage",
+    "expect": "const damage = Math.round(pokemon.speed * speedFactor)",
+    "note": "requested damage = round(caster speed at cast time x factor), computed once before the loop"
+   },
+   {
+    "id": "gg-loop",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "process",
+    "expect": "for (let i = 0; i < 2; i++) {",
+    "note": "two gears"
+   },
+   {
+    "id": "gg-cmd",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "process",
+    "expect": "pokemon.commands.push(",
+    "note": "one delayed command per gear, on the caster"
+   },
+   {
+    "id": "gg-hit",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "delayed hit",
+    "expect": "target.handleSpecialDamage(\n            damage,\n            board,\n            AttackType.SPECIAL,\n            pokemon,\n            crit\n          )",
+    "note": "SPECIAL damage on the original cast target, crit flag of the cast, apBoost default true; no hp check in the strategy"
+   },
+   {
+    "id": "gg-delay",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "delayed hit",
+    "expect": "}, i * 250)",
+    "note": "gear 0 at 0 ms, gear 1 at 250 ms"
+   },
+   {
+    "id": "gg-comment",
+    "file": "app/core/abilities/gear-grind.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "comment",
+    "expect": "// Launches two gears at the target, each dealing [25,50,100,200,SP]% of SPEED as SPECIAL",
+    "note": "source comment: two gears, percent of SPEED as SPECIAL"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "a target with hp <= 0 or resurrecting takes nothing (takenDamage 0)"
+   },
+   {
+    "id": "hd-mult",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker-state damage multipliers (enraged x2, then electric / psychic / grass / fairy field x1.2, weather x1.2 for matching type) are applied before the defence division"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving on the target block damage in handleDamage as well"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "speed changes are clamped to 0..MAX_SPEED (300); the damage reads pokemon.speed after such changes"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "gears-pas",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     627,
+     627
+    ],
+    "symbol": "Passive.GEARS",
+    "expect": "pokemon.addSpeed(1, pokemon, 0, false)",
+    "note": "the unit passive GEARS adds +1 speed to allies on a periodic timer, so speed at cast time can exceed the declared value; the passive is not covered by this record"
+   },
+   {
+    "id": "pas-klink",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19495,
+     19495
+    ],
+    "symbol": "class Klink",
+    "expect": "passive = Passive.GEARS",
+    "note": "Klink declares the GEARS passive"
+   },
+   {
+    "id": "pas-klang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19511,
+     19511
+    ],
+    "symbol": "class Klang",
+    "expect": "passive = Passive.GEARS",
+    "note": "Klang declares the GEARS passive"
+   },
+   {
+    "id": "pas-klinklang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19526,
+     19526
+    ],
+    "symbol": "class Klinklang",
+    "expect": "passive = Passive.GEARS",
+    "note": "Klinklang declares the GEARS passive"
+   }
+  ]
+ }
+}
