@@ -1,0 +1,608 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HORN_ATTACK",
+ "kind": "ability",
+ "identifier": "HORN_ATTACK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T174015Z"
+ },
+ "record": {
+  "ability": "HORN_ATTACK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare HORN_ATTACK (passive NONE in the catalog). The strategy is shared; the units differ in stars and base atk. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "NIDOKING",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "HORN_ATTACK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NIDORANM",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "HORN_ATTACK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NIDORINO",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "HORN_ATTACK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NIDOKING": {
+    "evidence": [
+     "unit-nidoking"
+    ]
+   },
+   "NIDORANM": {
+    "evidence": [
+     "unit-nidoranm"
+    ]
+   },
+   "NIDORINO": {
+    "evidence": [
+     "unit-nidorino"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HORN_ATTACK] = new HornAttackStrategy()",
+   "strategy": "HornAttackStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ha",
+    "ha-class",
+    "base-flags",
+    "base-pp",
+    "ha-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage equal to a star multiplier (x3 / x4 / x5; x10 is the 4-star value and fallback, not reachable by the three listed units) times the caster's current atk, then (after the damage call) the target gets armor reduction with a requested duration of 8000 ms. The armor reduction is applied after the hit, so it does not halve SPE_DEF for this hit (only for later hits); it is refused by Rune Protect on the target, and its duration reductions read the target, not the caster.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the pp >= maxPP && canCast gate.",
+   "evidence": [
+    "ha-class",
+    "base-flags",
+    "ha-hit",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "ha-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "multiplierByStars": {
+      "1": 3,
+      "2": 4,
+      "3": 5,
+      "4": 10,
+      "fallback": 10
+     },
+     "base": "pokemon.atk (the caster's current atk, not the base atk of the class)"
+    },
+    "perUnitRaw": {
+     "NIDORANM": "3 x atk",
+     "NIDORINO": "4 x atk",
+     "NIDOKING": "5 x atk"
+    },
+    "perUnitMultiplier": {
+     "NIDORANM": 3,
+     "NIDORINO": 4,
+     "NIDOKING": 5
+    },
+    "numericExampleAtBaseAtk": {
+     "NIDORANM": 15,
+     "NIDORINO": 36,
+     "NIDOKING": 100
+    },
+    "scaling": "requested amount = multiplier x pokemon.atk at the moment of the cast (atk includes bonuses already applied to the entity; the catalog base atk is 5 / 9 / 20). In handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x2 if the caster has DOUBLE_DAMAGE (consumed); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet target and by 0.1 per Black Augurite of the target's player (floor 0)",
+    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read as a list), SPE_DEF division damage / (1 + 0.05 x speDef) where speDef is halved (rounded) only if the target ALREADY has armorReduction when this hit resolves (HORN_ATTACK applies it after the damage, so a fresh application does not help this hit but a previous one, e.g. from an earlier HORN_ATTACK, does), Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. takenDamage (shield damage included) is returned but discarded by HORN_ATTACK; the armor reduction is applied regardless of what the damage did (including when the hit was blocked, and when the target died or a Cover Band ally took the hit - then the armor reduction still goes to the original target object).",
+    "evidence": [
+     "ha-dmg",
+     "ha-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-mult",
+     "special-crit",
+     "special-handle",
+     "special-lens",
+     "dmg-guard",
+     "dmg-field",
+     "dmg-protect",
+     "dmg-spedef",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "dmg-shield",
+     "dmg-cover"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armorReduction",
+    "target": "the target (the cast target object)",
+    "declaredRaw": {
+     "duration": 8000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the damage call (last action of the strategy)",
+    "guards": "not applied at all if the target's status has runeProtect (checked on the status the method is called on). When applied, the duration goes through applyStatusDurationReductions(duration, pkm) where pkm is the entity argument HORN_ATTACK supplies, the TARGET: if the target has SWIFT_SWIM the duration is x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), and each Odd Keystone in the TARGET's player's items takes a further 10% off. This differs from RAGING_BULL, which passes the caster. A new application only replaces the remaining time if the reduced duration is longer than the current cooldown; the armorReduction flag itself is set true on every non-Rune-Protect application. Requested 8000 ms; applied duration = 8000 after those reductions (rounded).",
+    "combatEffect": "while set, handleDamage uses Math.round(def / 2) and Math.round(speDef / 2) for the damage division (and WONDER_ROOM swaps them afterwards); the same halving appears in the POWER_LENS retaliation computation in handleSpecialDamage. The flag is cleared by updateArmorReduction when the cooldown runs out. Other readers of the flag were not searched beyond the files cited.",
+    "evidence": [
+     "ha-ar",
+     "ar-trig",
+     "ar-runeprotect",
+     "ar-red",
+     "ar-odd",
+     "ar-upd",
+     "ar-def"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NIDOKING": 3,
+    "NIDORANM": 1,
+    "NIDORINO": 2
+   },
+   "multiplier": {
+    "NIDORANM": 3,
+    "NIDORINO": 4,
+    "NIDOKING": 5
+   },
+   "baseAtk": {
+    "NIDOKING": 20,
+    "NIDORANM": 5,
+    "NIDORINO": 9
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (10, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP 90 and range 1 for all three. The armor reduction duration (8000) does not depend on stars.",
+   "evidence": [
+    "ha-dmg",
+    "unit-nidoking",
+    "unit-nidoranm",
+    "unit-nidorino"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. A repeated cast re-applies armor reduction: the flag stays true and the remaining time is replaced only by a longer duration; while the first application is active, the later hit's SPE_DEF division already uses the halved value.",
+  "rawVsResolved": "Requested: damage = multiplier (3/4/5) x current atk; armor reduction 8000 ms. Applied: damage x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather], then SPE_DEF division (halved only if armor reduction was already on), ceil, at least 1, and the other reductions; armor reduction is skipped under Rune Protect, otherwise its duration is the 8000 ms after the target-side duration reductions. takenDamage (shield included) is discarded.",
+  "sourceTables": [
+   {
+    "id": "hornAttackMultiplier",
+    "file": "app/core/abilities/horn-attack.ts",
+    "pattern": "const damage = \\(\\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.multiplierByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Field, weather and Poke Doll / Guts-type multipliers in handleDamage were read as a list (lines 455-595), not each traced",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution before the call: only the damage-side multiplier in handleSpecialDamage was read",
+   "What other stat effects change pokemon.atk before the cast (items, synergies, buffs): not traced; the record uses the entity's live atk"
+  ],
+  "unresolved": [
+   "Whether any other code reads armorReduction beyond the files cited",
+   "Whether any item or synergy effect other than those listed changes HORN_ATTACK damage",
+   "No routing uncertainty was recorded for HORN_ATTACK in the queue; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-nidoking",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3821,
+     3837
+    ],
+    "symbol": "class Nidoking",
+    "expect": "skill = Ability.HORN_ATTACK",
+    "note": "unit class block: skill / passive / stars / stats (base atk 20)"
+   },
+   {
+    "id": "unit-nidoranm",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3783,
+     3800
+    ],
+    "symbol": "class NidoranM",
+    "expect": "skill = Ability.HORN_ATTACK",
+    "note": "unit class block: skill / passive / stars / stats (base atk 5)"
+   },
+   {
+    "id": "unit-nidorino",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3802,
+     3819
+    ],
+    "symbol": "class Nidorino",
+    "expect": "skill = Ability.HORN_ATTACK",
+    "note": "unit class block: skill / passive / stars / stats (base atk 9)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ha",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     969,
+     969
+    ],
+    "symbol": "AbilityStrategies[Ability.HORN_ATTACK]",
+    "expect": "[Ability.HORN_ATTACK]: new HornAttackStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ha-class",
+    "file": "app/core/abilities/horn-attack.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "HornAttackStrategy",
+    "expect": "class HornAttackStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden (defaults true / false)"
+   },
+   {
+    "id": "ha-super",
+    "file": "app/core/abilities/horn-attack.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "HornAttackStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ha-dmg",
+    "file": "app/core/abilities/horn-attack.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HornAttackStrategy.process",
+    "expect": "([3, 4, 5, 10][pokemon.stars - 1] ?? 10) * pokemon.atk",
+    "note": "raw damage = multiplier by stars x the caster's CURRENT atk"
+   },
+   {
+    "id": "ha-hit",
+    "file": "app/core/abilities/horn-attack.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HornAttackStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage; return value discarded"
+   },
+   {
+    "id": "ha-ar",
+    "file": "app/core/abilities/horn-attack.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HornAttackStrategy.process",
+    "expect": "target.status.triggerArmorReduction(8000, target)",
+    "note": "armor reduction 8000 ms requested, AFTER the damage call; the second argument is the TARGET"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true (HORN_ATTACK does not pass it)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "blocks ability damage (takenDamage 0); magicBounce also queues reflected damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-mult",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE (consumed) and STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "special-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     464
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "Item.POWER_LENS",
+    "note": "Power Lens on the target reflects the blocked part to the caster"
+   },
+   {
+    "id": "dmg-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": ""
+   },
+   {
+    "id": "dmg-field",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.status.enraged",
+    "note": "attacker/target multipliers (enraged, fields, weather) precede the defense step"
+   },
+   {
+    "id": "dmg-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "dmg-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.armorReduction",
+    "note": "halved SPE_DEF only if armorReduction is already set when the hit resolves"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "dmg-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "dmg-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "ally.items.has(Item.COVER_BAND)",
+    "note": "Cover Band ally can take the hit instead"
+   },
+   {
+    "id": "ar-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     351
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity)",
+    "note": "not applied with runeProtect; duration passes through applyStatusDurationReductions; a new application only replaces the remaining time if longer"
+   },
+   {
+    "id": "ar-runeprotect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     346
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect read from the status the method is called on (the target's)"
+   },
+   {
+    "id": "ar-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "if (pkm.effects.has(EffectEnum.SWIFT_SWIM))",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "ar-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1297,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "count(pkm.player.items, Item.ODD_KEYSTONE)",
+    "note": "Odd Keystone count comes from the supplied entity's player"
+   },
+   {
+    "id": "ar-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     354,
+     360
+    ],
+    "symbol": "Status.updateArmorReduction",
+    "expect": "updateArmorReduction(dt: number) {",
+    "note": "flag cleared when the cooldown runs out"
+   },
+   {
+    "id": "ar-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     519
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "while set, def and speDef are halved (Math.round); WONDER_ROOM then swaps them"
+   }
+  ]
+ }
+}
