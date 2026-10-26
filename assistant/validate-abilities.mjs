@@ -88,7 +88,7 @@ for (const [row, skill, range] of [[1, "ATTACK_ORDER", 3], [2, "HEAL_ORDER", 2],
 }
 // registry
 for (const [id, cls] of [["BLAST_BURN", "BlastBurnStrategy"], ["CRUNCH", "CrunchStrategy"], ["VESPIQUEN_ORDERS", "AbilityStrategy"], ["ATTACK_ORDER", "AttackOrderStrategy"], ["HEAL_ORDER", "HealOrderStrategy"], ["DEFEND_ORDER", "DefendOrderStrategy"]]) {
-  if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`))) bad(`registry entry ${id} -> ${cls} not found`)
+  if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`) || (id === "EXPLOSION" && l.includes("[Ability.EXPLOSION]: explosionStrategy")))) bad(`registry entry ${id} -> ${cls} not found`)
 }
 const rage = src("app/models/colyseus-models/status.ts").join(" ")
 if (!/pokemon\.addSpeed\(80, pokemon, 0, false\)/.test(rage) || !/status\.triggerRage\(3000, p\)/.test(src("app/core/abilities/attack-order.ts").join(" "))) bad("rage 3000 ms / +80 speed not confirmed")
@@ -107,7 +107,7 @@ for (const row of ["| 1 | ATTACK_ORDER | 3 |", "| 2 | HEAL_ORDER | 2 |", "| 3 | 
 for (const [k, v] of [["Charmander (1★) 30", 1], ["Charmeleon (2★) 60", 1], ["Charizard (3★) 120", 1], ["Totodile is 1★ → 40", 1]]) if (!md.includes(k)) bad(`Markdown lacks "${k}"`)
 
 
-// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT / IRON_DEFENSE / MACH_PUNCH / ROCK_SLIDE / SLASH / VENOSHOCK / AERIAL_ACE / AQUA_TAIL / CLANGOROUS_SOUL / CRABHAMMER / DISCHARGE / DIVE / DOUBLE_SHOCK / DRAGON_TAIL / FAKE_TEARS / FIRE_LASH / KING_SHIELD / LEECH_SEED / FLAME_CHARGE / SLUDGE / VOLT_SWITCH / FLOWER_TRICK / DARKEST_LARIAT / DRAGON_BREATH / DRUM_BEATING / EXPANDING_FORCE ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
+// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT / IRON_DEFENSE / MACH_PUNCH / ROCK_SLIDE / SLASH / VENOSHOCK / AERIAL_ACE / AQUA_TAIL / CLANGOROUS_SOUL / CRABHAMMER / DISCHARGE / DIVE / DOUBLE_SHOCK / DRAGON_TAIL / FAKE_TEARS / FIRE_LASH / KING_SHIELD / LEECH_SEED / FLAME_CHARGE / SLUDGE / VOLT_SWITCH / FLOWER_TRICK / DARKEST_LARIAT / DRAGON_BREATH / DRUM_BEATING / EXPANDING_FORCE / RAGING_BULL / ZAP_CANNON / EXPLOSION / BLAZE_KICK / AQUA_STEP ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
 const reuse = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
 const catalog = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/catalog-units.json"), "utf8"))
 const reuseMd = readFileSync(resolve(HERE, "knowledge/07367c34/reusable-abilities.md"), "utf8")
@@ -161,14 +161,14 @@ for (const [name, rec] of allRecs) {
 }
 // coverage completeness against the catalog: every catalog unit with these skills/passives is bound, no others
 const boundBy = (field, id) => Object.entries(catalog.pokemon).filter(([, v]) => v.stats[field] === id).map(([k]) => k).sort()
-const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", LEAF_BLADE: "LeafBladeStrategy", SOAK: "SoakStrategy", TORMENT: "TormentStrategy", IRON_DEFENSE: "IronDefenseStrategy", MACH_PUNCH: "MachPunchStrategy", ROCK_SLIDE: "RockSlideStrategy", SLASH: "SlashStrategy", VENOSHOCK: "VenoshockStrategy", AERIAL_ACE: "AerialAceStrategy", AQUA_TAIL: "AquaTailStrategy", CLANGOROUS_SOUL: "ClangorousSoulStrategy", CRABHAMMER: "CrabHammerStrategy", DISCHARGE: "DischargeStrategy", DIVE: "DiveStrategy", DOUBLE_SHOCK: "DoubleShockStrategy", DRAGON_TAIL: "DragonTailStrategy", FAKE_TEARS: "FakeTearsStrategy", FIRE_LASH: "FireLashStrategy", KING_SHIELD: "KingShieldStrategy", LEECH_SEED: "LeechSeedStrategy", FLAME_CHARGE: "FlameChargeStrategy", SLUDGE: "SludgeStrategy", VOLT_SWITCH: "VoltSwitchStrategy", FLOWER_TRICK: "FlowerTrickStrategy", DARKEST_LARIAT: "DarkestLariatStrategy", DRAGON_BREATH: "DragonBreathStrategy", DRUM_BEATING: "DrumBeatingStrategy", EXPANDING_FORCE: "ExpandingForceStrategy" } // imported from candidates after a source recheck
+const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", LEAF_BLADE: "LeafBladeStrategy", SOAK: "SoakStrategy", TORMENT: "TormentStrategy", IRON_DEFENSE: "IronDefenseStrategy", MACH_PUNCH: "MachPunchStrategy", ROCK_SLIDE: "RockSlideStrategy", SLASH: "SlashStrategy", VENOSHOCK: "VenoshockStrategy", AERIAL_ACE: "AerialAceStrategy", AQUA_TAIL: "AquaTailStrategy", CLANGOROUS_SOUL: "ClangorousSoulStrategy", CRABHAMMER: "CrabHammerStrategy", DISCHARGE: "DischargeStrategy", DIVE: "DiveStrategy", DOUBLE_SHOCK: "DoubleShockStrategy", DRAGON_TAIL: "DragonTailStrategy", FAKE_TEARS: "FakeTearsStrategy", FIRE_LASH: "FireLashStrategy", KING_SHIELD: "KingShieldStrategy", LEECH_SEED: "LeechSeedStrategy", FLAME_CHARGE: "FlameChargeStrategy", SLUDGE: "SludgeStrategy", VOLT_SWITCH: "VoltSwitchStrategy", FLOWER_TRICK: "FlowerTrickStrategy", DARKEST_LARIAT: "DarkestLariatStrategy", DRAGON_BREATH: "DragonBreathStrategy", DRUM_BEATING: "DrumBeatingStrategy", EXPANDING_FORCE: "ExpandingForceStrategy", RAGING_BULL: "RagingBullStrategy", ZAP_CANNON: "ZapCannonStrategy", EXPLOSION: "ExplosionStrategy", BLAZE_KICK: "BlazeKickStrategy", AQUA_STEP: "AquaStepStrategy" } // imported from candidates after a source recheck
 for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH", ...Object.keys(IMPORTED)]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
 eq(RP.SURGE_SURFER.appliesTo.map((u) => u.key).sort(), boundBy("passive", "SURGE_SURFER"), "SURGE_SURFER appliesTo vs catalog")
 eq(RP.PRIMEAPE.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PRIMEAPE"), "PRIMEAPE appliesTo vs catalog")
 eq(RG.PACHIRISU.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PACHIRISU"), "PACHIRISU gap appliesTo vs catalog")
 // registry bindings
 for (const [id, cls] of [["NUZZLE", "NuzzleStrategy"], ["DRAGON_RAGE", "DragonRageStrategy"], ["THRASH", "ThrashStrategy"], ...Object.entries(IMPORTED)]) {
-  if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`))) bad(`registry entry ${id} -> ${cls} not found`)
+  if (!src("app/core/abilities/abilities.ts").some((l) => l.includes(`[Ability.${id}]: new ${cls}()`) || (id === "EXPLOSION" && l.includes("[Ability.EXPLOSION]: explosionStrategy")))) bad(`registry entry ${id} -> ${cls} not found`)
 }
 // imported records: the recheck is recorded, and the review metadata never claims owner review or gameplay testing
 const reviewStatus = JSON.parse(readFileSync(resolve(HERE, "automation/review-status.json"), "utf8"))

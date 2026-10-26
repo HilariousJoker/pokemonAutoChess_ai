@@ -117,7 +117,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Relocates the caster to a free cell chosen by Board.getFlyAwayCell and, if a cell was found, marks the caster with TELEPORT_NEXT_ATTACK; its next attack then deals extra special damage (15/30/60/120 raw by stars) and clears the mark. The cast itself deals no damage. While the mark is set, the caster cannot cast again.",
+  "summary": "Relocates the caster to a free cell chosen by Board.getFlyAwayCell and, if a cell was found, marks the caster with TELEPORT_NEXT_ATTACK. The next execution of PokemonState.attack on a living target consumes the mark whatever happens to that basic attack: the bonus special damage (15/30/60/120 raw by stars, AP-scaled, rounded up) is added to the attack's special part and the mark deleted before any damage call, so a DODGED attack (basic damage 0) still requests the bonus, a protected or skydiving target blocks the bonus request, and a Magic Bounce target blocks it and queues a bounce. The cast itself deals no damage. While the mark is set the caster cannot cast (canCast is false), and if the unit never attacks the mark simply stays set.",
   "targeting": {
    "who": "none at cast time (requiresTarget false: castable without walking up to a target). The destination cell is chosen by getFlyAwayCell from enemies/cells on the board.",
    "needsTarget": false,
@@ -164,14 +164,17 @@
      "COSMOG": 15,
      "COSMOEM": 30
     },
-    "scaling": "added to the caster's next attack as specialDamage: raw x (1 + AP/100), rounded up; times 1 + (critPower - 1) x critReductionFactor only if the caster has ABILITY_CRIT and that attack crit. The array has no fallback for stars above 4 (unit-star index only).",
-    "resolution": "enters the attack's special damage, so later target-side processing (SPE_DEF, shields, protect/skydiving blocking, dodge) was not traced here. Applies only if a cell was found and the unit then makes an attack.",
+    "scaling": "added to the caster's next basic attack as specialDamage: ceil(raw x (1 + AP/100) x (abilityCrit ? 1 + (critPower - 1) x critReductionFactor : 1)) where abilityCrit = the caster has ABILITY_CRIT AND that BASIC attack's own crit roll succeeded (the cast passes crit false to super.process). It is handed to handleSpecialDamage with crit false and apBoost false, so AP and crit are not applied twice. The array has no fallback for stars above 4 (unit-star index only).",
+    "resolution": "the mark is checked and deleted at pokemon-state.ts:163-174, after the dodge roll (100-112) and the protect / skydiving test (114-117) have only zeroed the basic damage and cleared isAttackSuccessful, and before the damage calls (244-282); it lives inside the branch that requires the target to be alive. The bonus is then requested through handleSpecialDamage (257-269): blocked (takenDamage 0) when the target has protect or skydiving; with Magic Bounce it is blocked and a delayed bounce at the attacker is queued unless the attacker holds Protective Pads; the target's SPE_DEF division and shields are the intermediate steps of handleDamage and not guaranteed final HP damage. Pinned-helper probe (1 star, ATK 30, AP 0, target HP 500): normal hit 455 (30 physical + 15 bonus); dodged 485 (bonus lands, dodgeCount 1); protected target 500; Magic Bounce target 470 (physical lands, bonus blocked, bounce queued); crit roll with ABILITY_CRIT 410 (bonus 30), without it 425; every case consumes the mark. A marked unit that never attacks keeps the mark, and canCast stays false (pokemon-entity.ts:250-256).",
     "evidence": [
      "nextatk",
      "nextatk-crit",
      "critred",
      "tp-move",
-     "cancast"
+     "cancast",
+     "atk-succ",
+     "atk-special-call",
+     "atk-damage-calls"
     ]
    }
   ],
@@ -208,7 +211,7 @@
   },
   "positionalConditions": "Needs a living enemy for any destination; a free cell beyond the caster's range that lies within its range of a targettable enemy (preferred), else the getSafePlaceAwayFrom fallback; with no cell the cast does nothing visible beyond spending PP and no mark is set.",
   "repeatedCastsAndModes": "The mark is a set member (not stacked). canCast is false while the mark is set, so a second cast cannot happen before the marked attack. No modes. Each cast re-runs the destination search.",
-  "rawVsResolved": "Declared raw: 15/30/60 (1/2/3 stars) special damage on the next attack. Dealt amount = ceil(raw x (1 + AP/100) [x crit factor]) before target-side modifiers that were not traced.",
+  "rawVsResolved": "Declared raw: 15/30/60 (1/2/3 stars) special damage on the next attack. Requested bonus = ceil(raw x (1 + AP/100) [x crit factor when ABILITY_CRIT and the attack's own crit roll succeeded]); it is consumed by the first attack on a living target (dodged, protected or not) and is delivered or blocked by handleSpecialDamage as described; target-side SPE_DEF division and shields are intermediate steps, not guaranteed final HP damage.",
   "sourceTables": [
    {
     "id": "nextAttackDamage",
@@ -221,15 +224,15 @@
   "dependsOnUnverifiedGenericCombat": [
    "Final damage of the bonus after handleDamage's later modifiers (shields, items, SPE_DEF, reduction effects) - only the added special damage amount was read",
    "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
-   "Whether the next attack succeeds (dodge, protect/skydiving block basic attacks; whether the bonus is still dealt then was not traced)",
-   "distanceC / distanceM metrics, isTargettableBy semantics and getSafePlaceAwayFrom internals"
+   "distanceC / distanceM metrics, isTargettableBy semantics and getSafePlaceAwayFrom internals",
+   "Whether the attack function is entered at all for a marked unit in a real fight (target acquisition, range, state changes); only the attack function itself was read and probed"
   ],
   "unresolved": [
    "Passives of Mew (SYNCHRO), Cosmog (COSMOG) and Cosmoem (COSMOEM) are not investigated: they may alter the cast or stats",
-   "The bonus is added inside PokemonState.attack's branch for successful-or-not attacks; whether the line sits in a block skipped when the attack misses/is blocked was not traced past the lines cited",
    "Destination is chosen at random among tied cells, so no deterministic cell can be stated",
-   "Whether the flag can remain set if the unit never attacks (e.g. no target, death, end of fight) or is removed elsewhere: only the three uses found by search (teleport.ts, pokemon-entity.ts canCast, pokemon-state.ts attack) were read",
-   "Whether any item or synergy effect changes TELEPORT beyond what is listed"
+   "If the unit never attacks (no target, death, end of fight) the mark stays set and blocks casting (canCast false); the only three uses of TELEPORT_NEXT_ATTACK are teleport.ts, the canCast getter and PokemonState.attack, and removal at the end of a fight or on entity disposal was not traced",
+   "Whether any item or synergy effect changes TELEPORT beyond what is listed",
+   "The consumption and delivery of the bonus were checked with a pinned-helper probe (the real PokemonState.attack lines 29-306 and handleSpecialDamage on stub units), not in a fight; triple attacks and other callers of attack were not enumerated"
   ],
   "evidence": [
    {
@@ -525,7 +528,7 @@
      250,
      256
     ],
-    "symbol": "PokemonEntity.canCast",
+    "symbol": "PokemonEntity.canCast (getter)",
     "expect": "!this.effects.has(EffectEnum.TELEPORT_NEXT_ATTACK)",
     "note": "while the flag is set the unit cannot cast again"
    },
@@ -572,7 +575,54 @@
     "symbol": "AttackingState.update",
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
+   },
+   {
+    "id": "atk-succ",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     100,
+     117
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "isAttackSuccessful = false",
+    "note": "dodge and protect only set isAttackSuccessful false and damage 0; the TELEPORT block below is not conditioned on them"
+   },
+   {
+    "id": "atk-special-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     257,
+     269
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "target.handleSpecialDamage(",
+    "note": "the bonus is delivered through handleSpecialDamage with crit false and apBoost false"
+   },
+   {
+    "id": "atk-damage-calls",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     244,
+     282
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "const { takenDamage, death } = target.handleDamage({",
+    "note": "physical, special and true parts are requested separately after the mark was consumed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "TELEPORT",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T212757Z",
+   "reason": "flag consumption and bonus special damage traced through dodged, protected and Magic Bounce basic attacks (the bonus is still requested after a dodge) and through no attack at all (the mark stays and blocks casting)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "TELEPORT",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

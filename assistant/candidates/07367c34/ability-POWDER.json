@@ -341,7 +341,7 @@
     "pw-super"
    ]
   },
-  "summary": "Picks the enemy with the highest current SPEED among enemies within the caster's range (the cast target if none is in range), then for every cell on the straight (supercover) line from the caster to that enemy, each enemy standing on the line takes special damage and has its SPEED lowered; the SPEED is given back after 5000 ms. Allies on the line are untouched.",
+  "summary": "Picks the enemy with the highest current SPEED among enemies within the caster's range (the cast target if none is in range), then for every cell on the straight (supercover) line from the caster to that enemy, each enemy standing on the line takes special damage and has its SPEED lowered; the SPEED is given back after 5000 ms. Allies on the line are untouched. The speed change is a REQUEST: addSpeed passes the value through the holder's item helpers and the 0..300 clamp, so the applied change and the later restoration can differ from the requested amount (Twist Band flips the enemy debuff into a gain, Big Eater Belt scales only the positive restoration, a MELMETAL victim changes Attack instead). Pinned-helper probe: victim speed 100, requested nerf 30 -> plain 70 then 100; Big Eater Belt 70 then 107; Twist Band 130 then 160.",
   "targeting": {
    "who": "the enemy with the highest speed in range (range from the caster's own stat, Chebyshev distance, centre excluded; no targettable/visibility filter is applied in this function); ties keep the stable sort order of the board scan. The effect then hits EVERY enemy on the line to that enemy, not only that enemy.",
    "needsTarget": true,
@@ -457,9 +457,9 @@
      "VIVILLON_SUN": 30,
      "VIVILLON_TUNDRA": 30
     },
-    "scaling": "nerf = min(victim's current speed, rawFactor x (1 + AP/100) x (crit ? critPower : 1)); crit uses the cast's crit flag (needs ABILITY_CRIT). addSpeed is then called with apBoost 0 and crit false, so no second AP scaling there.",
+    "scaling": "nerf = min(victim's current speed, rawFactor x (1 + AP/100) x (crit ? critPower : 1)); crit uses the cast's crit flag (needs ABILITY_CRIT). addSpeed is then called with apBoost 0 and crit false, so no second AP scaling there. The request is capped at the victim's CURRENT speed (it is a plain min, not rounded).",
     "duration": "5000 ms, then the same nerf amount is added back (DelayedCommand stored on the victim's commands)",
-    "resolution": "addSpeed clamps speed to 0..MAX_SPEED (300) after item adjustments of the value; for a MELMETAL victim addSpeed changes attack (value x 0.5) instead of speed.",
+    "resolution": "applied change per holder item (addSpeed lines 752-780; probe: 3 stars, AP 0, victim speed 100, requested nerf 30): plain 100 -> 70 -> 100. Big Eater Belt does NOT scale the enemy debuff (a negative value from another team) but scales the positive restoration x1.25 rounded down (30 -> 37): 70 -> 107. Twist Band flips the enemy debuff into a speed GAIN (100 -> 130) and the restoration adds the amount again (-> 160), so the holder gains speed twice; results clamp to 0..MAX_SPEED (290 -> 300 -> 300). The nerf is capped at the victim's current speed (20 -> 0 -> 20). MELMETAL victim: no speed change; addSpeed runs the item helpers, then addAttack(value x 0.5) which rounds and runs the helpers a second time (Attack 40 -> 25 -> 40; with a Belt the restoration is belted twice, +23, -> 48), with an Attack floor of 1. The restoration is a separate +amount queued on the victim after a nominal 5000 ms (the command runs on the first update after the delay goes below 0); it re-adds the REQUESTED amount through the helpers, not the previous speed, and other speed changes in between stay.",
     "evidence": [
      "pw-table-speed",
      "pw-nerf",
@@ -472,7 +472,10 @@
      "max-speed",
      "cmd-class",
      "cmd-update",
-     "cmd-run"
+     "cmd-run",
+     "belt-fn",
+     "twist-fn",
+     "add-attack"
     ]
    }
   ],
@@ -554,8 +557,8 @@
    ]
   },
   "positionalConditions": "Needs a cast target (requiresTarget true). The line goes from the caster's cell to the chosen enemy's cell; only enemies on it are hit. With no enemy within range the line goes to the cast target.",
-  "repeatedCastsAndModes": "No stored state beyond the delayed restore commands. Each cast re-reads current speeds, so a second cast reduces speed again (nerf capped at remaining speed) and each cast's restore is a separate +amount after 5000 ms. Because the restore adds back the amount actually removed it does not re-clamp to the victim's previous speed if other speed changes happened in between (clamped only to 0..300). No modes.",
-  "rawVsResolved": "Declared raw: damage 10/20/30 and speed factor 10/20/30 for 1/2/3 stars. Damage dealt is raw x (1 + AP/100) (x critPower on crit), then the SPE_DEF division (ceil, at least 1) and untraced modifiers. Speed lowered is raw x (1 + AP/100) (x critPower on crit), capped at the victim's current speed, then item adjustments and clamping inside addSpeed.",
+  "repeatedCastsAndModes": "No stored state beyond the delayed restore commands. Each cast re-reads current speeds, so a second cast reduces speed again (nerf capped at remaining speed) and each cast's restore is a separate +amount after 5000 ms. The restore re-adds the REQUESTED nerf amount through addSpeed's helpers (not the amount actually removed and not the previous speed), so it can differ from the nerf (Belt, Twist Band, clamps) and does not undo other speed changes in between. No modes.",
+  "rawVsResolved": "Declared raw: damage 10/20/30 and speed factor 10/20/30 for 1/2/3 stars. Damage dealt is raw x (1 + AP/100) (x critPower on crit), then the SPE_DEF division (ceil, at least 1) and untraced modifiers. Speed nerf REQUESTED = min(current speed, raw x (1 + AP/100) x critPower on crit); the applied change goes through addSpeed's item helpers and the 0..300 clamp (Twist Band turns it into a gain; the restoration is belted for a Big Eater Belt holder), so applied and restored amounts can differ from the request; MELMETAL victims change Attack instead.",
   "sourceTables": [
    {
     "id": "damage",
@@ -618,13 +621,13 @@
    "Whether a victim that dies before the 5000 ms restore matters (the command lives on the victim's own command list)"
   ],
   "unresolved": [
-   "The bodies of applyBigEaterBeltStatBuff and applyTwistBandBuff (called in addSpeed) were not located by a search of the pinned tree, so how held items change the speed value is not stated",
    "Scatterbug's passive HATCH and Spewpa's passive SPEWPA are not investigated: whether they change the cast, stats or evolution timing is unknown",
    "Vivillon forms differ in other stats and possibly in other mechanics; only skill, stars, maxPP and range were bound to the catalog and class blocks",
    "Whether the enemy list can include entities that should not be targettable (no isTargettableBy filter in this strategy): not examined",
    "Board scan order effect on speed ties and the exact set of cells for diagonal lines were derived from the loop text, not executed",
    "Whether the 5000 ms restore uses simulation time exactly (dt units of the command update were not traced)",
-   "No gameplay evidence: no probe or executed fight"
+   "No gameplay evidence: no probe or executed fight",
+   "The nerf/restoration behaviour was checked with a pinned-helper probe (the real addSpeed / addAttack and item helpers on a stub victim), not in a fight; how a speed change feeds into attack interval and movement elsewhere is not traced here"
   ],
   "evidence": [
    {
@@ -1275,7 +1278,54 @@
     "symbol": "class VivillonTundra",
     "expect": "skill = Ability.POWDER",
     "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "scales positive values, and negative values only from the holder's own team (an enemy Powder debuff is not scaled)"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "a Twist Band holder turns a negative value from an enemy or the environment into a positive one"
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "the MELMETAL delegate: Math.round, then the item helpers a second time, then atk = max(1, atk + value)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "POWDER",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T212757Z",
+   "reason": "requested speed nerf versus the applied change and the later restoration under Twist Band, Big Eater Belt, the speed cap and clamps, and MELMETAL victims; helper bodies read (the 'not located' item removed)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "POWDER",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

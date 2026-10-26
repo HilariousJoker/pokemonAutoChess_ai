@@ -1,4 +1,4 @@
-// Narrow reproduction of fifteen repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE) using the TEXT of the
+// Narrow reproduction of twenty repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT) using the TEXT of the
 // pinned functions (production-branch reference 07367c341fe928763da2b565c2eee010433e4fc1; deployment unverified).
 // Each function body is read with `git show <sha>:<path>` by line range (the first line is asserted), types are stripped with
 // node:module stripTypeScriptTypes, and the code is run against minimal stubs (enums answer with their own name). Nothing is installed,
@@ -378,6 +378,130 @@ expect("EXPANDING_FORCE second cast: the caster already has the field, so the ne
 expect("EXPANDING_FORCE no field-less ally left: nothing is granted (no additional source) but the damage still radiates around every field-bearing ally", out.EXPANDING_FORCE.noFieldlessAllyLeft, { fields: ["caster", "a"], hits: ["e1:1", "e2:1"], speedRequests: [] })
 expect("EXPANDING_FORCE overlapping hits are kept: an enemy adjacent to two field-bearing allies is hit twice in one cast", out.EXPANDING_FORCE.overlappingHitsOnOneEnemy.hits, ["between:2"])
 expect("EXPANDING_FORCE SURGE_SURFER: gaining the field makes a raw addSpeed(30, itself, 0, false) request (not a guaranteed final speed); an existing field makes none", [out.EXPANDING_FORCE.surgeSurferCasterGainsField.speedRequests, out.EXPANDING_FORCE.surgeSurferAlreadyHasField.speedRequests], [[[30, true, 0, false]], []])
+
+// 5b. EXPLOSION (run 6): bounceCrit = incoming crit OR a fresh successful ABILITY_CRIT roll made when the callback runs
+const E2 = build({ Item: enums(), EffectEnum: enums(), AttackType: enums(), DelayedCommand, chance: () => true, ARMOR_FACTOR: 0.05, min, count, DOUBLE: 0 }, hsd, "E")
+const selfBounce = (Cls, effects) => {
+  const requests = []
+  const e = Object.assign(new Cls(), { status: { magicBounce: true, protect: false, skydiving: false }, items: new Set(), effects: new Set(effects), stars: 1, ap: 0, critPower: 2, critChance: 50, skill: "EXPLOSION", positionX: 3, positionY: 3, commands: [], count: { spellBlockedCount: 0, crit: 0 }, player: null, broadcastAbility() {}, handleDamage(p) { requests.push(p.damage) } })
+  const ret = e.handleSpecialDamage(50, {}, "SPECIAL", e, false)
+  e.commands.forEach((c) => c.update(501))
+  return { immediate: ret, callbackRequests: requests }
+}
+out.EXPLOSION.bounceCrit = { noAbilityCrit_successfulRollIrrelevant: selfBounce(E2, []), abilityCritWithSuccessfulRoll: selfBounce(E2, ["ABILITY_CRIT"]), abilityCritWithFailedRoll: selfBounce(E, ["ABILITY_CRIT"]) }
+expect("EXPLOSION bounceCrit: incoming crit false, 1 star, AP 0, critPower 2, raw 50: no ABILITY_CRIT -> callback requests 25; ABILITY_CRIT with a successful roll -> 50; ABILITY_CRIT with a failed roll -> 25; the immediate takenDamage is 0 in all cases", [out.EXPLOSION.bounceCrit.noAbilityCrit_successfulRollIrrelevant, out.EXPLOSION.bounceCrit.abilityCritWithSuccessfulRoll, out.EXPLOSION.bounceCrit.abilityCritWithFailedRoll], [{ immediate: { death: false, takenDamage: 0 }, callbackRequests: [25] }, { immediate: { death: false, takenDamage: 0 }, callbackRequests: [50] }, { immediate: { death: false, takenDamage: 0 }, callbackRequests: [25] }])
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Sections 16-20 (run 6): POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT. Real strategy text; real PokemonState.handleDamage / handleHeal /
+// addShield (lines 308-420, 422-808) and PokemonEntity.handleDamage / handleSpecialDamage / handleHeal / addShield on a stub Unit; real
+// addSpeed / addAttack / addSpecialDefense; the real PokemonState.attack (29-306) for TELEPORT. Stubs for everything else.
+const FullState = build({ Item: enums(), Passive: enums(), Weather: enums(), EffectEnum: enums(), Synergy: enums(), AttackType: enums(), Transfer: enums(), HealType: enums(), min, max, count, ARMOR_FACTOR: 0.05, logger, chance: () => false, humanHealEffect: { apply() {} }, SynergyTiers: new Proxy({}, { get: () => [] }), OnShieldDepletedEffect: class {}, OnResurrectingEffect: class {}, FIGHTING_PHASE_DURATION: 0 },
+  js(`class FS {\n${cut(PS, 308, 380, "handleHeal(")}\n${cut(PS, 382, 420, "addShield(")}\n${cut(PS, 422, 808, "handleDamage(")}\n triggerDeath() {}\n}`), "FS")
+const FullUnitSrc = `${helpers}\nclass FU {\n${js(`class _ {\n${[cut(PE, 335, 344, "handleDamage("), cut(PE, 346, 467, "handleSpecialDamage("), cut(PE, 469, 476, "handleHeal("), cut(PE, 498, 506, "addShield(")].join("\n")}\n}`).replace(/^class _ \{\n/, "").replace(/\n\}\s*$/, "")}\n}`
+const FU = build({ Item: enums(), EffectEnum: enums(), AttackType: enums(), DelayedCommand, chance: () => false, ARMOR_FACTOR: 0.05, min, count, roundToNDigits }, FullUnitSrc, "FU")
+const mkFU = (over = {}) => {
+  const u = Object.assign(new FU(), mkCaster({ team: "RED", hp: 500, maxHP: 1000, shield: 0, def: 0, speDef: 0, id: Math.random().toString(36).slice(2), ap: 0, stars: 1, atk: 50, pp: 0, status: { protect: false, skydiving: false, magicBounce: false, flinch: false, wound: false, burn: false, enraged: false, armorReduction: false, reflect: false, resurrecting: false, resurrection: false, possessedCooldown: 0, triggerProtect() {}, electricField: false, psychicField: false, grassField: false, fairyField: false }, count: { crit: 0, spellBlockedCount: 0, fightingBlockCount: 0, ult: 0 }, physicalDamageReduced: 0, specialDamageReduced: 0, shieldDamageTaken: 0, shieldDone: 0, healDone: 0, physicalDamage: 0, specialDamage: 0, trueDamage: 0, simulation: { weather: "NONE", room: { state: { time: 1 } }, broadcastToSpectators() {}, id: "s", blueAbilitiesCast: [], redAbilitiesCast: [] }, hasSynergyEffect: () => false, getEffects: () => [], addPP() {}, onDamageReceived() {}, onDamageDealt() {}, removeItem(i) { this.items.delete(i) }, addAttack() {}, resetCooldown() {}, toMovingState() {}, addMaxHP() {}, positionX: 1, positionY: 1 }), over)
+  u.state = new FullState()
+  return u
+}
+const take = (r) => ({ death: r.death, takenDamage: r.takenDamage })
+const dmgCase = ({ shield = 0, hp = 500, maxHP = 1000, flinch = false, pads = false, protect = false, shiny = false, fossil = false, cover = null, dmg = 100 } = {}) => {
+  const t = mkFU({ hp, maxHP, shield, items: new Set(shiny ? ["SHINY_CHARM"] : []) })
+  t.status.flinch = flinch; t.status.protect = protect
+  if (fossil) t.hasSynergyEffect = () => true
+  const board = { getAdjacentCells: () => (cover ? [{ value: cover }] : []) }
+  const a = mkFU({ team: "BLUE", items: new Set(pads ? ["PROTECTIVE_PADS"] : []) })
+  const r = t.handleSpecialDamage(dmg, board, "SPECIAL", a, false)
+  return { ...take(r), targetHp: t.hp, targetShield: t.shield }
+}
+const coverAlly = (hp = 500) => mkFU({ hp, maxHP: 1000, items: new Set(["COVER_BAND"]), id: "cover" })
+out.TAKEN_DAMAGE = {
+  plain: dmgCase(), shield40: dmgCase({ shield: 40 }), shield200: dmgCase({ shield: 200 }), shield200Flinch: dmgCase({ shield: 200, flinch: true }),
+  shield30Pads: dmgCase({ shield: 30, pads: true }), overkillCap: dmgCase({ hp: 40 }), protect: dmgCase({ protect: true }),
+  shinyCharm: dmgCase({ hp: 500, maxHP: 1000, dmg: 300, shiny: true }), fossil: dmgCase({ hp: 500, maxHP: 1000, dmg: 300, fossil: true }),
+  coverBand: dmgCase({ hp: 50, shield: 20, cover: coverAlly() })
+}
+const TD = out.TAKEN_DAMAGE
+// 18. BITE / HORN_LEECH: heal and flinch inputs come from the REAL handleDamage result (shield part + HP part, exceptions, Cover Band)
+const Bite = stratReal("app/core/abilities/bite.ts", "BiteStrategy")
+const HornLeech = stratReal("app/core/abilities/horn-leech.ts", "HornLeechStrategy", { min })
+const leechRun = (Strat, { shield = 0, hp = 500, protect = false, shiny = false, cover = null, maxHP = 1000, casterHp = 500, wound = false, burn = false, casterProtect = false, bloodMoon = false, casterMaxHP = 1000, dmgHp = null } = {}) => {
+  const flinch = []
+  const t = mkFU({ hp, maxHP, shield, items: new Set(shiny ? ["SHINY_CHARM"] : []) })
+  t.status.protect = protect; t.status.triggerFlinch = (...a) => flinch.push(a[0])
+  if (dmgHp) t.hp = dmgHp
+  const c = mkFU({ team: "BLUE", hp: casterHp, maxHP: casterMaxHP, atk: 50, stars: 1, player: bloodMoon ? { items: ["BLOOD_STONE"] } : null })
+  c.status.wound = wound; c.status.burn = burn; c.status.protect = casterProtect
+  if (bloodMoon) c.simulation.weather = "BLOODMOON"
+  const board = { getAdjacentCells: () => (cover ? [{ value: cover }] : []) }
+  new Strat().process(c, board, t, false)
+  return { casterHp: c.hp, casterShield: c.shield, flinchRequests: flinch, targetHp: t.hp, targetShield: t.shield, coverHp: cover?.hp }
+}
+out.BITE = {
+  plain: leechRun(Bite), shieldAbsorbsAll: leechRun(Bite, { shield: 100 }), protectedTarget: leechRun(Bite, { protect: true }), shinyCharmTarget: leechRun(Bite, { hp: 320, maxHP: 1000, shiny: true }),
+  coverBandRedirect: leechRun(Bite, { hp: 20, cover: coverAlly() }), woundedCaster: leechRun(Bite, { wound: true }), woundedCasterBloodMoon: leechRun(Bite, { wound: true, bloodMoon: true })
+}
+out.HORN_LEECH = {
+  fullHpCaster_noMissing: leechRun(HornLeech, { casterHp: 1000 }), nearFull_overhealShield: leechRun(HornLeech, { casterHp: 990 }), wounded_nearFull: leechRun(HornLeech, { casterHp: 990, wound: true }),
+  protectedCaster_nearFull: leechRun(HornLeech, { casterHp: 990, casterProtect: true }), burned_nearFull: leechRun(HornLeech, { casterHp: 990, burn: true }),
+  coverBandRedirect: leechRun(HornLeech, { hp: 20, cover: coverAlly(), casterHp: 500 }), shieldAbsorbsAll: leechRun(HornLeech, { shield: 500, casterHp: 500 })
+}
+expect("TAKEN_DAMAGE (real handleSpecialDamage + handleDamage, SPECIAL 100, SPE_DEF 0, HP 500): plain 100; shield 40 -> 40 on the shield + 60 HP = 100; shield 200 -> 100 all on the shield; flinch + shield 200 -> ceil(50) + ceil(50) = 100; overkill is capped at current HP (40); protect 0; Shiny Charm 0", [TD.plain.takenDamage, TD.shield40.takenDamage, TD.shield40.targetHp, TD.shield200.takenDamage, TD.shield200.targetHp, TD.shield200Flinch.takenDamage, TD.shield200Flinch.targetShield, TD.shield200Flinch.targetHp, TD.overkillCap.takenDamage, TD.protect.takenDamage, TD.shinyCharm.takenDamage], [100, 100, 440, 100, 500, 100, 150, 450, 40, 0, 0])
+expect("TAKEN_DAMAGE Protective Pads on the attacker double the part that hits a shield (shield 30: 30 absorbed, 170 residual, taken 200); the Fossil branch ADDS shield damage on top of the HP part (damage 300 -> taken 500, HP unchanged); a Cover Band redirect returns the COVER ALLY's result (taken 100 although the original target lost no HP and only its shield)", [TD.shield30Pads.takenDamage, TD.shield30Pads.targetHp, TD.fossil.takenDamage, TD.fossil.targetHp, TD.coverBand.takenDamage, TD.coverBand.targetHp, TD.coverBand.targetShield], [200, 330, 500, 500, 100, 50, 0])
+expect("BITE (1 star: raw 40, caster HP 500/1000): heal ceil(0.3 x taken) = 12 and flinch 5000 on takenDamage > 0, also when the shield absorbed everything; protect -> no heal, no flinch; Shiny Charm (takenDamage 0) -> no heal, no flinch; Cover Band redirect -> heal and flinch follow the cover ally's takenDamage while the original target keeps its HP", [out.BITE.plain.casterHp, out.BITE.plain.flinchRequests, out.BITE.shieldAbsorbsAll.casterHp, out.BITE.shieldAbsorbsAll.flinchRequests, out.BITE.protectedTarget.casterHp, out.BITE.protectedTarget.flinchRequests, out.BITE.shinyCharmTarget.casterHp, out.BITE.shinyCharmTarget.flinchRequests, out.BITE.coverBandRedirect.casterHp, out.BITE.coverBandRedirect.flinchRequests, out.BITE.coverBandRedirect.targetHp, out.BITE.coverBandRedirect.coverHp], [512, [5000], 512, [5000], 500, [], 500, [], 512, [5000], 20, 460])
+expect("BITE wounded caster: no HP heal; with BLOODMOON weather and a Blood Stone the same handleHeal call first requests a shield of round(0.3 x 1 x 12) = 4", [out.BITE.woundedCaster.casterHp, out.BITE.woundedCaster.casterShield, out.BITE.woundedCasterBloodMoon.casterHp, out.BITE.woundedCasterBloodMoon.casterShield], [500, 0, 500, 4])
+expect("HORN_LEECH (raw 2 x ATK 50 = 100, taken 100, heal 50): overheal = heal - missing HP from the UNMODIFIED heal and the pre-heal HP -> shield round(overheal / 2): full-HP caster 25, 10 missing 20; a wounded or protected caster gets no heal but still the shield (20); a burned caster's heal is halved by handleHeal while the shield input stays 20; Cover Band redirect heals from the cover ally's takenDamage; a target shield that absorbs everything still counts", [out.HORN_LEECH.fullHpCaster_noMissing.casterShield, out.HORN_LEECH.nearFull_overhealShield.casterHp, out.HORN_LEECH.nearFull_overhealShield.casterShield, out.HORN_LEECH.wounded_nearFull.casterHp, out.HORN_LEECH.wounded_nearFull.casterShield, out.HORN_LEECH.protectedCaster_nearFull.casterHp, out.HORN_LEECH.protectedCaster_nearFull.casterShield, out.HORN_LEECH.burned_nearFull.casterHp, out.HORN_LEECH.burned_nearFull.casterShield, out.HORN_LEECH.coverBandRedirect.casterHp, out.HORN_LEECH.shieldAbsorbsAll.casterHp, out.HORN_LEECH.shieldAbsorbsAll.targetShield], [25, 1000, 20, 990, 20, 990, 20, 1000, 20, 550, 550, 400])
+
+// 16. POWDER: requested nerf vs the applied change and the later restoration (real addSpeed / addAttack with the Belt and Twist helpers)
+const Powder = stratReal("app/core/abilities/powder.ts", "PowderStrategy", { max })
+const powder = ({ items = [], passive = "NONE", speed = 100, atk = 40, ap = 0, crit = false } = {}) => {
+  const victim = Object.assign(new EntSpeed(), mkCaster({ team: "RED", name: "victim", items: new Set(items), passive, speed, atk, commands: [], positionX: 3, positionY: 3 }), { handleSpecialDamage() { return { death: false, takenDamage: 0 } } })
+  const caster = mkCaster({ stars: 3, ap, critPower: 2, range: 2, team: "BLUE" })
+  const board = { getCellsInRange: () => [{ value: victim }], getCellsBetween: () => [{ x: 3, y: 3, value: victim }] }
+  new Powder().process(caster, board, victim, crit)
+  const afterNerf = { speed: victim.speed, atk: victim.atk }
+  victim.commands.forEach((c) => c.update(5001))
+  return { afterNerf, afterRestore: { speed: victim.speed, atk: victim.atk } }
+}
+out.POWDER = { plain: powder(), bigEaterBelt: powder({ items: ["BIG_EATER_BELT"] }), twistBand: powder({ items: ["TWIST_BAND"] }), twistBandNearCap: powder({ items: ["TWIST_BAND"], speed: 290 }), nerfCappedBySpeed: powder({ speed: 20 }), apAndCrit: powder({ ap: 100, crit: true }), melmetal: powder({ passive: "MELMETAL" }), melmetalBelt: powder({ passive: "MELMETAL", items: ["BIG_EATER_BELT"] }) }
+expect("POWDER (3 stars: requested speed nerf 30, AP 0): plain victim 100 -> 70 -> 100; Big Eater Belt does NOT scale the enemy debuff but scales the restoration (30 -> 37): 70 -> 107", [out.POWDER.plain, out.POWDER.bigEaterBelt], [{ afterNerf: { speed: 70, atk: 40 }, afterRestore: { speed: 100, atk: 40 } }, { afterNerf: { speed: 70, atk: 40 }, afterRestore: { speed: 107, atk: 40 } }])
+expect("POWDER Twist Band victim: the nerf is flipped into a speed GAIN (100 -> 130) and the restoration adds again (-> 160); both clamp at MAX_SPEED (290 -> 300 -> 300)", [out.POWDER.twistBand.afterNerf.speed, out.POWDER.twistBand.afterRestore.speed, out.POWDER.twistBandNearCap.afterNerf.speed, out.POWDER.twistBandNearCap.afterRestore.speed], [130, 160, 300, 300])
+expect("POWDER nerf is capped at the victim's current speed (20 -> 0 -> 20); AP 100 + crit (critPower 2) requests 120, capped at 100: 100 -> 0 -> 100", [out.POWDER.nerfCappedBySpeed.afterNerf.speed, out.POWDER.nerfCappedBySpeed.afterRestore.speed, out.POWDER.apAndCrit.afterNerf.speed, out.POWDER.apAndCrit.afterRestore.speed], [0, 20, 0, 100])
+expect("POWDER MELMETAL victim: speed untouched, ATK changes by the delegated half (-15, restoration +15); with Big Eater Belt the restoration is belted twice (+23): ATK 25 -> 48", [out.POWDER.melmetal, out.POWDER.melmetalBelt.afterNerf.atk, out.POWDER.melmetalBelt.afterRestore.atk, out.POWDER.melmetalBelt.afterRestore.speed], [{ afterNerf: { speed: 100, atk: 25 }, afterRestore: { speed: 100, atk: 40 } }, 25, 48, 100])
+
+// 17. ICE_BALL: the +10 SPE_DEF is a request (Belt: +12) and the damage reads the modified stat
+const IceBall = stratReal("app/core/abilities/ice-ball.ts", "IceBallStrategy")
+const iceBall = ({ items = [], speDef = 20, stars = 1 } = {}) => {
+  const caster = Object.assign(new EntAtk(), mkCaster({ stars, items: new Set(items), speDef, def: 5 })), target = mkEnemy({}), reqs = []
+  target.handleSpecialDamage = (...a) => { reqs.push(a[0]); return { death: false, takenDamage: 0 } }
+  new IceBall().process(caster, {}, target, false)
+  return { speDefAfter: caster.speDef, damageRequested: reqs }
+}
+out.ICE_BALL = { plain: iceBall(), bigEaterBelt: iceBall({ items: ["BIG_EATER_BELT"] }), twistBand: iceBall({ items: ["TWIST_BAND"] }), walrein: iceBall({ stars: 3 }) }
+expect("ICE_BALL (1 star, SPE_DEF 20): +10 -> 30 and damage 10 + 0.5 x 30 = 25; Big Eater Belt +12 -> 32 and 26; Twist Band does not touch a positive self gain (25); 3 stars: 30 + 1.5 x 30 = 75", [out.ICE_BALL.plain, out.ICE_BALL.bigEaterBelt, out.ICE_BALL.twistBand, out.ICE_BALL.walrein], [{ speDefAfter: 30, damageRequested: [25] }, { speDefAfter: 32, damageRequested: [26] }, { speDefAfter: 30, damageRequested: [25] }, { speDefAfter: 30, damageRequested: [75] }])
+
+// 19. TELEPORT: the real PokemonState.attack (lines 29-306) consumes the flag whatever the outcome of the basic attack
+const AttackFn = build({ Item: enums(), Synergy: enums(), EffectEnum: enums(), AttackType: enums(), Passive: enums(), Pkm: enums(), distanceM, count, min, chance: () => chanceQueue.shift() ?? false, applyWandEffects: () => ({}) }, js(`class PS2 {\n${cut(PS, 29, 306, "attack(")}\n}`), "PS2")
+const CanCast = build({ Item: enums(), EffectEnum: enums() }, js(`class C {\n${cut(PE, 250, 256, "get canCast")}\n}`), "C")
+const teleportHit = ({ rolls, targetProtect = false, bounce = false, abilityCrit = false, flag = true } = {}) => {
+  const t = mkFU({ hp: 500, maxHP: 1000, dodge: 0.5, items: new Set(), effects: new Set() })
+  Object.assign(t.status, { protect: targetProtect, magicBounce: bounce, paralysis: false, sleep: false, freeze: false, locked: false, confusion: false }); t.count.dodgeCount = 0
+  const a = mkFU({ team: "BLUE", stars: 1, atk: 30, critChance: 100, effects: new Set([...(flag ? ["TELEPORT_NEXT_ATTACK"] : []), ...(abilityCrit ? ["ABILITY_CRIT"] : [])]), onAttack() {}, onHit() {}, types: new Set() })
+  a.status.blinded = false
+  chanceQueue = [...rolls]
+  new AttackFn().attack(a, { cells: [], getAdjacentCells: () => [] }, t)
+  return { targetHp: t.hp, flagLeft: a.effects.has("TELEPORT_NEXT_ATTACK"), dodgeCount: t.count.dodgeCount, bounceCommandsQueued: t.commands.length }
+}
+const noAttack = (flag) => { const c = Object.assign(new CanCast(), { status: { silence: false }, items: new Set(), effects: new Set(flag ? ["TELEPORT_NEXT_ATTACK"] : []) }); return c.canCast }
+out.TELEPORT = {
+  hit: teleportHit({ rolls: [false, false] }), dodged: teleportHit({ rolls: [false, true] }), protectedTarget: teleportHit({ rolls: [false, false], targetProtect: true }), magicBounceTarget: teleportHit({ rolls: [false, false], bounce: true }),
+  critWithAbilityCrit: teleportHit({ rolls: [true, false], abilityCrit: true }), critWithoutAbilityCrit: teleportHit({ rolls: [true, false] }), noFlagControl: teleportHit({ rolls: [false, false], flag: false }),
+  canCastWhileMarked: noAttack(true), canCastUnmarked: noAttack(false)
+}
+expect("TELEPORT (1 star, ATK 30, AP 0): a normal attack adds the 15 bonus as SPECIAL (HP 500 -> 455) and consumes the flag; a DODGED attack (basic damage 0) still delivers the bonus (HP 485) and consumes the flag", [out.TELEPORT.hit, out.TELEPORT.dodged, out.TELEPORT.noFlagControl.targetHp], [{ targetHp: 455, flagLeft: false, dodgeCount: 0, bounceCommandsQueued: 0 }, { targetHp: 485, flagLeft: false, dodgeCount: 1, bounceCommandsQueued: 0 }, 470])
+expect("TELEPORT against a protected target: the flag is consumed and the bonus request is blocked by handleSpecialDamage (HP unchanged); against Magic Bounce the SPECIAL bonus is blocked and a delayed bounce is queued on the target while the 30 PHYSICAL basic hit still lands (HP 470)", [out.TELEPORT.protectedTarget, out.TELEPORT.magicBounceTarget], [{ targetHp: 500, flagLeft: false, dodgeCount: 0, bounceCommandsQueued: 0 }, { targetHp: 470, flagLeft: false, dodgeCount: 0, bounceCommandsQueued: 1 }])
+expect("TELEPORT bonus crit comes from the BASIC attack's crit roll and needs ABILITY_CRIT: with it a crit roll doubles the bonus (15 -> 30, plus the doubled basic hit), without it the bonus stays 15", [out.TELEPORT.critWithAbilityCrit.targetHp, out.TELEPORT.critWithoutAbilityCrit.targetHp], [410, 425])
+expect("TELEPORT canCast is false while the flag is set (pokemon-entity.ts:250-256), so a marked unit that never attacks cannot cast again; it is true again once unmarked", [out.TELEPORT.canCastWhileMarked, out.TELEPORT.canCastUnmarked], [false, true])
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))

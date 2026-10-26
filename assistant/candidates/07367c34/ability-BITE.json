@@ -103,7 +103,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target special damage (40/80/120 raw by stars); the caster then heals for 30% (rounded up) of the damage the target actually took, and the target is flinched for 5000 ms if it took more than 0 damage.",
+  "summary": "Single-target special damage (40/80/120 raw by stars); the caster then requests a heal of ceil(30 %) of the takenDamage value returned by that damage call, and flinches the cast target for 5000 ms if that value is above 0. takenDamage is the shield-absorbed part plus the HP lost (capped at current HP), 0 when the hit is blocked, and the Cover Band cover ally's result when a lethal hit is redirected, so the heal and the flinch follow it (not the pre-defence amount, and not necessarily the original target's loss). The heal request then passes handleHeal: a wounded caster receives no HP heal, but the shared Blood Moon / Blood Stone branch can still request a compensating shield.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -141,7 +141,7 @@
      "TYRANITAR": 120
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked entirely by protect / skydiving / magicBounce (takenDamage 0, so no heal and no flinch)",
+    "resolution": "intermediate, not guaranteed final HP damage: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. takenDamage returned by handleSpecialDamage -> PokemonState.handleDamage: 0 when the target is dead or resurrecting, protected or skydiving (handleSpecialDamage also returns 0 for magicBounce); otherwise the part absorbed by the shield (with flinch both the shield part and the residual are ceil(0.5 x reduced); Protective Pads on the attacker double the shield part before it is capped at the shield, the excess moving to the residual) plus min(residual, current HP), rounded; the Shiny Charm branch resets it to 0; the Fossil branch ADDS min(0.5 x shield, residual) on top of the HP part; a Cover Band redirect returns the cover ally's own result (its defenses, shield and HP), while the original target keeps no HP loss but has already lost the shield part. Blocked entirely by protect / skydiving / magicBounce (takenDamage 0, so no heal and no flinch). Pinned-helper probe (SPECIAL 100, HP 500): plain 100; shield 40 -> 40 + 60 = 100; shield 200 -> 100 on the shield; shield 200 with flinch -> 50 + 50; overkill capped at HP 40; Protective Pads shield 30 -> 200; Fossil branch 300 -> 500; Cover Band redirect -> the cover ally's 100.",
     "evidence": [
      "bite-dmg",
      "bite-hit",
@@ -151,7 +151,13 @@
      "special-crit",
      "def-step",
      "def-min",
-     "armor-factor"
+     "armor-factor",
+     "td-dead",
+     "td-shield",
+     "td-shiny",
+     "td-fossil",
+     "td-cover",
+     "td-return"
     ]
    },
    {
@@ -160,11 +166,12 @@
      "fractionOfTakenDamage": 0.3
     },
     "scaling": "ceil(0.3 x takenDamage) where takenDamage is the value returned by handleSpecialDamage; apBoost 0 and crit false are passed, so neither AP nor crit scales it",
-    "resolution": "handleHeal then applies: nothing if the caster is wounded (status.wound) or at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP",
+    "resolution": "handleHeal then applies: a wounded caster (status.wound) receives no HP heal (healReceived 0), but when the weather is BLOODMOON and the caster's player holds BLOOD_STONE the same call first requests a shield of round(0.3 x stones x heal) through addShield (pokemon-state.ts:315-331); nothing for a caster at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP; overheal on a GRASS-synergy unit adds max HP. Probe (raw 40, caster 500/1000): heal 12 (HP 512); wounded: HP 500, with Blood Moon + one Blood Stone a shield of 4.",
     "evidence": [
      "bite-heal",
      "heal-wound",
-     "heal-mods"
+     "heal-mods",
+     "td-dead"
     ]
    }
   ],
@@ -173,13 +180,13 @@
     "status": "flinch",
     "target": "the target",
     "declaredRaw": {
-     "value": 5000,
-     "unit": "ms"
+     "duration": 5000,
+     "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit",
-    "applicationOrder": "after damage and heal; only if takenDamage > 0",
+    "applicationOrder": "after the damage and the heal request; only if takenDamage > 0, which includes damage absorbed by the target's shield and a Cover Band cover ally's result (the flinch is requested on the ORIGINAL target in both cases)",
     "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
-    "combatEffect": "while flinched, damage that would hit a shield is split: half is dealt to the shield and half is residual damage to HP. This is the only use of status.flinch found in app/core and app/models outside status.ts; other directories were not searched.",
+    "combatEffect": "while flinched and while the target's shield is above 0, handleDamage splits the reduced damage with ceil operations: damageOnShield = ceil(0.5 x reduced) and residual = ceil(0.5 x reduced), so an odd amount puts one more in total than reduced (5 -> 3 + 3). This is the only use of status.flinch found in app/core and app/models outside status.ts; other directories were not searched.",
     "evidence": [
      "bite-flinch",
      "flinch-trig",
@@ -216,7 +223,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage, heal and flinch; a second flinch only extends the timer if longer.",
-  "rawVsResolved": "Declared raw: damage 40/80/120 (1/2/3 stars). Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) and untraced modifiers; the heal is ceil(30% x that dealt amount) before the handleHeal modifiers; flinch is 5000 ms before status duration reductions.",
+  "rawVsResolved": "Declared raw: damage 40/80/120 (1/2/3 stars). Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) and untraced modifiers; the heal request is ceil(30% x takenDamage) before the handleHeal modifiers, where takenDamage is the shield part plus the HP part, 0 when blocked or reset by Shiny Charm, plus the Fossil addition, or the cover ally's result under Cover Band (see the damage resolution); flinch is requested for 5000 ms (before status duration reductions) when that value is above 0.",
   "sourceTables": [
    {
     "id": "biteDamage",
@@ -227,16 +234,17 @@
    }
   ],
   "dependsOnUnverifiedGenericCombat": [
-   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers) - only the SPECIAL speDef division and the minimum of 1 were read; takenDamage may therefore differ from the damage after SPE_DEF if shields absorb it (what takenDamage counts was not traced)",
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - the SPECIAL speDef division, the shield and HP accounting of takenDamage, the Shiny Charm, Fossil and Cover Band branches were read and probed",
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
    "applyStatusDurationReductions (what shortens the 5000 ms)"
   ],
   "unresolved": [
-   "What 'takenDamage' returned by handleSpecialDamage counts when the target has a shield (the heal and flinch depend on it); the relevant tail of handleDamage was not fully read",
+   "Resurrection paths other than the cited branches and other death-cancelling effects on the target were not enumerated; they would change the returned takenDamage",
    "Whether the flinch has other combat effects in files outside app/core and app/models that were searched",
    "Whether any item or synergy effect changes BITE beyond what is listed",
-   "Tyranitar / Pupitar / Larvitar and Carvanha / Sharpedo have no passive in the catalog; no other unit sharing the identifier exists in the queue"
+   "Tyranitar / Pupitar / Larvitar and Carvanha / Sharpedo have no passive in the catalog; no other unit sharing the identifier exists in the queue",
+   "The takenDamage inputs and the heal / flinch behaviour were checked with a pinned-helper probe (the real handleDamage, handleSpecialDamage and handleHeal on stub units), not in a fight"
   ],
   "evidence": [
    {
@@ -486,7 +494,7 @@
     "file": "app/core/pokemon-state.ts",
     "lines": [
      315,
-     316
+     331
     ],
     "symbol": "PokemonState.handleHeal",
     "expect": "if (pokemon.status.wound)",
@@ -518,8 +526,8 @@
     "id": "flinch-shield",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     622,
-     625
+     620,
+     628
     ],
     "symbol": "PokemonState.handleDamage",
     "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
@@ -535,7 +543,87 @@
     "symbol": "AttackingState.update",
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "a dead or resurrecting target returns takenDamage 0"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let residualDamage = reducedDamage",
+    "note": "shield part (flinch ceil split, Protective Pads doubling, cap at the shield and overflow to residual) plus min(residual, hp)"
+   },
+   {
+    "id": "td-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm: takenDamage and residual set to 0, the charm removed"
+   },
+   {
+    "id": "td-fossil",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     663,
+     696
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hasSynergyEffect(Synergy.FOSSIL) &&",
+    "note": "Fossil branch: adds shield damage to takenDamage and zeroes the residual"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band: the lethal hit is redirected and the cover ally's result is returned"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     807
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "the returned takenDamage is rounded"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "BITE",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T212757Z",
+   "reason": "exact takenDamage inputs (shield part, HP part capped at current HP, protect/Shiny Charm/Fossil/Cover Band exceptions); heal and flinch wording corrected (flinch on the original target when the value is above 0); wound-blocked healing with the Blood Moon / Blood Stone exception",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "BITE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

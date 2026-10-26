@@ -146,7 +146,7 @@
     "hl-super"
    ]
   },
-  "summary": "Deals SPECIAL damage to the cast target equal to a star multiplier (2 / 2 / 3 / 5 for 1 / 2 / 3 / 4 stars) times the caster's current attack, then heals the caster for 50% of the damage actually taken by the target (rounded). If that heal exceeds the caster's missing HP, half of the surplus (rounded) is added as shield. Deerling (1 star) uses x2 and Sawsbuck (2 stars) also x2.",
+  "summary": "Deals SPECIAL damage to the cast target equal to a star multiplier (2 / 2 / 3 / 5 for 1 / 2 / 3 / 4 stars; the listed units are 1 and 2 stars, so x2) times the caster's current attack, then requests a heal of round(50 %) of the takenDamage value returned by that call (the shield-absorbed part plus the HP lost, capped at current HP; 0 when blocked; the Cover Band cover ally's result when a lethal hit is redirected). Separately it requests a shield of round(50 %) of an 'overheal' computed from the UNMODIFIED heal and the caster's HP before healing, whether or not the heal request had any effect. A wounded caster receives no HP heal, but the shared Blood Moon / Blood Stone branch of handleHeal can still request a compensating shield.",
   "targeting": {
    "who": "the cast target chosen before the cast (the strategy never changes it); requiresTarget is true",
    "needsTarget": true,
@@ -187,7 +187,7 @@
      "SAWSBUCK_WINTER": 2
     },
     "scaling": "raw damage = multiplier x pokemon.atk at the moment of the cast (atk buffs count); then AP: x (1 + AP/100) (apBoost true by default); the cast's crit flag multiplies by critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "then the target's SPE_DEF division and later untraced modifiers; blocked entirely by protect / skydiving / magicBounce (takenDamage 0). takenDamage is the amount handleDamage reports, which is used for the heal.",
+    "resolution": "intermediate, not guaranteed final HP damage: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. takenDamage returned by handleSpecialDamage -> PokemonState.handleDamage: 0 when the target is dead or resurrecting, protected or skydiving (handleSpecialDamage also returns 0 for magicBounce); otherwise the part absorbed by the shield (with flinch both the shield part and the residual are ceil(0.5 x reduced); Protective Pads on the attacker double the shield part before it is capped at the shield, the excess moving to the residual) plus min(residual, current HP), rounded; the Shiny Charm branch resets it to 0; the Fossil branch ADDS min(0.5 x shield, residual) on top of the HP part; a Cover Band redirect returns the cover ally's own result (its defenses, shield and HP), while the original target keeps no HP loss but has already lost the shield part. Blocked entirely by protect / skydiving / magicBounce (takenDamage 0). The heal and the shield input below follow this value.",
     "evidence": [
      "hl-table",
      "hl-hit",
@@ -196,7 +196,13 @@
      "special-blocked-ret",
      "special-ap",
      "special-crit",
-     "special-ret"
+     "special-ret",
+     "td-dead",
+     "td-shield",
+     "td-shiny",
+     "td-fossil",
+     "td-cover",
+     "td-return"
     ]
    },
    {
@@ -206,7 +212,7 @@
      "fractionOfTakenDamage": 0.5
     },
     "scaling": "Math.round(0.5 x takenDamage); handleHeal is called with apBoost 0 and crit false, so no AP or crit scaling, but the heal then passes handleHeal's modifiers: none if the caster is wounded or protected, x1.3 with BUFF_HEAL_RECEIVED, x0.5 burned, x0.5 enraged, x1.2 under ZENITH weather, rounded, capped at missing HP",
-    "resolution": "the Grass-synergy max-HP conversion of overheal inside handleHeal was seen but its effect on this cast was not examined",
+    "resolution": "handleHeal passes the heal through its modifiers: a wounded caster receives no HP heal (healReceived 0), but under BLOODMOON weather with a Blood Stone the same call first requests a shield of round(0.3 x stones x heal); nothing for a protected or dead caster; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH, rounded, capped at missing HP; overheal inside handleHeal (modified heal minus missing HP) on a GRASS-synergy unit adds max HP (pokemon-state.ts:373-375), a separate path from the strategy's shield. Pinned-helper probe (raw 100, taken 100, heal 50): caster 990/1000 -> HP 1000 and shield 20; wounded or protected -> HP stays 990 and shield 20; burned -> heal halved, shield still 20; full-HP caster -> shield 25.",
     "evidence": [
      "hl-heal",
      "hl-apply",
@@ -226,7 +232,7 @@
     "declaredRaw": {
      "fractionOfOverheal": 0.5
     },
-    "scaling": "overheal = max(0, round(0.5 x takenDamage) - (maxHP - hp)) using the UNMODIFIED heal and the HP before healing; shield = Math.round(0.5 x overheal) via addShield(\u2026, 0, false): no AP or crit scaling; halved if the caster is enraged; passes the entity's held-item hook",
+    "scaling": "overheal = max(0, round(0.5 x takenDamage) - (maxHP - hp)) using the UNMODIFIED heal and the HP before healing; shield = Math.round(0.5 x overheal) via addShield(…, 0, false): no AP or crit scaling; halved if the caster is enraged; passes the entity's Big Eater Belt hook (x1.25 rounded down for a holder) before the enraged halving and rounding in PokemonState.addShield",
     "condition": "only when overheal > 0, i.e. when the unmodified heal exceeds the caster's missing HP",
     "note": "because overheal ignores handleHeal's modifiers (wound, burn, enraged, ZENITH), a wounded caster still gets the shield computed from the unmodified heal even though it received no heal",
     "evidence": [
@@ -273,7 +279,7 @@
   },
   "positionalConditions": "None in the strategy. The cast needs a target (requiresTarget true).",
   "repeatedCastsAndModes": "No stored state or modes. Each cast reads the caster's current atk and HP.",
-  "rawVsResolved": "Declared raw: multiplier 2 (1 and 2 stars) x atk. The damage dealt is raw x (1 + AP/100), then SPE_DEF division and untraced modifiers; the heal is 50% of the damage the target actually took (rounded) after handleHeal's modifiers; the shield is 50% of the unmodified overheal.",
+  "rawVsResolved": "Declared raw: multiplier 2 (1 and 2 stars) x atk. The damage dealt is raw x (1 + AP/100), then an intermediate SPE_DEF division and untraced modifiers; the heal request is round(50 % x takenDamage) (shield part + HP part, or the cover ally's result under Cover Band) before handleHeal's modifiers; the shield request is round(50 % x overheal) with overheal = max(0, unmodified heal - missing HP), independent of whether the heal took effect (wound, protect, burn).",
   "sourceTables": [
    {
     "id": "multiplier",
@@ -285,18 +291,16 @@
   ],
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
-   "Final damage and takenDamage after handleDamage's modifiers (shields, items, damage reduction, resurrection, field multipliers) - handleDamage was not read in detail; the heal depends on that takenDamage",
    "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were located",
-   "Whether a target's shield absorbs damage before takenDamage is counted (affecting the heal) was not traced"
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection paths other than those cited, field multipliers) - the shield and HP accounting of takenDamage and the Shiny Charm, Fossil and Cover Band branches were read and probed"
   ],
   "unresolved": [
    "Passive SEASONAL is declared by all eight units but has no PassiveEffects entry according to the queue routing; how it changes the unit (if anything beyond the unit definition) is not covered",
-   "Whether takenDamage returned by handleDamage excludes damage absorbed by a shield or overkill was not read",
-   "The Grass-synergy max HP conversion of overheal in handleHeal was not examined",
-   "Whether applyBigEaterBeltStatBuff alters the shield value was not read",
+   "The Grass-synergy conversion of handleHeal's own overheal into max HP (pokemon-state.ts:373-375) was located but its effect on this cast was not traced further",
    "Whether the eight units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The takenDamage inputs, the heal and the overheal shield were checked with a pinned-helper probe (the real handleDamage, handleSpecialDamage, handleHeal and addShield on stub units), not in a fight"
   ],
   "evidence": [
    {
@@ -490,8 +494,8 @@
     "id": "hl-hit",
     "file": "app/core/abilities/horn-leech.ts",
     "lines": [
-     10,
-     16
+     16,
+     22
     ],
     "symbol": "HornLeechStrategy.process",
     "expect": "const { takenDamage } = target.handleSpecialDamage(",
@@ -534,8 +538,8 @@
     "id": "hl-shield",
     "file": "app/core/abilities/horn-leech.ts",
     "lines": [
-     26,
-     28
+     27,
+     29
     ],
     "symbol": "HornLeechStrategy.process",
     "expect": "pokemon.addShield(Math.round(overheal * 0.5), pokemon, 0, false)",
@@ -545,8 +549,8 @@
     "id": "special",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     345,
-     352
+     346,
+     353
     ],
     "symbol": "PokemonEntity.handleSpecialDamage",
     "expect": "apBoost = true",
@@ -556,8 +560,8 @@
     "id": "special-block",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     353,
-     357
+     354,
+     358
     ],
     "symbol": "handleSpecialDamage",
     "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
@@ -611,8 +615,8 @@
     "id": "heal-fn",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     301,
-     355
+     308,
+     380
     ],
     "symbol": "PokemonState.handleHeal",
     "expect": "handleHeal(",
@@ -622,10 +626,10 @@
     "id": "heal-wound",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     314,
-     315
+     315,
+     331
     ],
-    "symbol": "handleHeal",
+    "symbol": "PokemonState.handleHeal",
     "expect": "if (pokemon.status.wound)",
     "note": "wounded targets receive no heal (returns 0)"
    },
@@ -633,8 +637,8 @@
     "id": "heal-mods",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     322,
-     341
+     333,
+     353
     ],
     "symbol": "handleHeal",
     "expect": "heal *= 1.3",
@@ -655,8 +659,8 @@
     "id": "shield-add",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     381,
-     390
+     382,
+     395
     ],
     "symbol": "PokemonState.addShield",
     "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
@@ -672,7 +676,87 @@
     "symbol": "PokemonEntity.addShield",
     "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
     "note": "entity addShield wraps the state call with a held-item hook"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "a dead or resurrecting target returns takenDamage 0"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let residualDamage = reducedDamage",
+    "note": "shield part (flinch ceil split, Protective Pads doubling, cap at the shield and overflow to residual) plus min(residual, hp)"
+   },
+   {
+    "id": "td-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm: takenDamage and residual set to 0, the charm removed"
+   },
+   {
+    "id": "td-fossil",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     663,
+     696
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hasSynergyEffect(Synergy.FOSSIL) &&",
+    "note": "Fossil branch: adds shield damage to takenDamage and zeroes the residual"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band: the lethal hit is redirected and the cover ally's result is returned"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     807
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "the returned takenDamage is rounded"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "HORN_LEECH",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T212757Z",
+   "reason": "exact takenDamage inputs (shield part, HP part, exceptions, Cover Band redirect); heal and overheal-shield wording corrected (the shield input is the unmodified overheal and ignores wound/protect/burn); Blood Moon / Blood Stone exception for wound-blocked healing; stale citations fixed",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "HORN_LEECH",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

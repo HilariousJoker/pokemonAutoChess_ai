@@ -101,7 +101,7 @@
     "ib-class"
    ]
   },
-  "summary": "The caster first gains +10 special defense (for the fight), then deals one hit of special damage to the cast target equal to a star-indexed flat amount plus a star-indexed multiplier times the caster's SPE_DEF read after the +10. No movement and no status.",
+  "summary": "The caster first requests +10 special defense on itself (a Big Eater Belt holder gets +12; Twist Band does not change a positive self gain; the gain lasts for the fight), then deals one hit of special damage to the cast target equal to a star-indexed flat amount plus a star-indexed multiplier times the caster's SPE_DEF field read AFTER that modified gain. No movement and no status.",
   "targeting": {
    "who": "the cast target passed to process (the unit's current attack target); no retargeting or area",
    "needsTarget": true,
@@ -161,7 +161,7 @@
       "multiplier": 1.5
      }
     },
-    "scaling": "raw = base + multiplier x caster SPE_DEF (including the +10 just gained); then AP: damage x (1 + caster AP/100) (apBoost defaults to true); the cast crit flag multiplies by critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "scaling": "raw = base + multiplier x caster SPE_DEF (including the gain just applied: +10, or +12 with Big Eater Belt); then AP: damage x (1 + caster AP/100) (apBoost defaults to true); the cast crit flag multiplies by critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
     "resolution": "then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked entirely by protect / skydiving / magicBounce",
     "evidence": [
      "ib-base",
@@ -183,14 +183,17 @@
     "stat": "SPE_DEF",
     "target": "the caster",
     "declaredRaw": {
-     "amount": 10
+     "amount": 10,
+     "label": "requested raw; +12 with Big Eater Belt"
     },
-    "scaling": "addSpecialDefense called with apBoost 0 and crit false, so the 10 is not scaled by AP or crit; item hooks applyBigEaterBeltStatBuff / applyTwistBandBuff may still modify it (not read)",
+    "scaling": "addSpecialDefense called with apBoost 0 and crit false, so the 10 is not scaled by AP or crit (Math.round keeps 10); applyBigEaterBeltStatBuff then makes it 12 for a Big Eater Belt holder (10 x 1.25 = 12.5 rounded down) and applyTwistBandBuff does nothing to a positive value; speDef = max(0, speDef + value). Pinned-helper probe (1 star, SPE_DEF 20): 30 and damage 25 plain, 32 and 26 with the Belt.",
     "duration": "not temporary-timed in this call: speDef is raised for the rest of the fight (permanent false means the board Pokemon is not changed)",
-    "stacking": "each cast adds another +10 (no cap read here); the boost is applied before the damage, so the first cast already benefits",
+    "stacking": "each cast adds another +10 (+12 with the Belt); addSpecialDefense has only a floor at 0 and no cap; the boost is applied before the damage, so the first cast already benefits",
     "evidence": [
      "ib-boost",
-     "addspedef"
+     "addspedef",
+     "belt-fn",
+     "twist-fn"
     ]
    }
   ],
@@ -229,7 +232,7 @@
   },
   "positionalConditions": "None in the strategy; it only needs a target.",
   "repeatedCastsAndModes": "No modes. Each cast adds another +10 SPE_DEF to the caster (stacking cap, if any, not read) and deals damage computed from the then-current SPE_DEF, so later casts hit harder.",
-  "rawVsResolved": "Declared raw: flat 10/20/30 plus 0.5/1/1.5 x caster SPE_DEF (1-3 stars). The speDef used already includes this cast's +10. Damage dealt is raw x (1 + AP/100), then the target's SPE_DEF division (ceil, at least 1) and untraced modifiers.",
+  "rawVsResolved": "Declared raw: flat 10/20/30 plus 0.5/1/1.5 x caster SPE_DEF (1-3 stars). The speDef used already includes this cast's gain (+10, or +12 with a Big Eater Belt). Damage dealt is raw x (1 + AP/100), then the target's SPE_DEF division (ceil, at least 1) and untraced modifiers.",
   "sourceTables": [
    {
     "id": "base",
@@ -251,10 +254,10 @@
    "How the caster's speDef is otherwise modified in a fight (items, synergies, statuses) - the field is read as it stands at cast time"
   ],
   "unresolved": [
-   "Whether applyBigEaterBeltStatBuff / applyTwistBandBuff change the +10 (functions not read)",
-   "Whether the +10 SPE_DEF has any stacking cap or reset (not read)",
+   "addSpecialDefense has no stacking cap (only a floor at 0); other resets or changes of the caster's speDef during the fight were not searched",
    "Whether any item or synergy effect changes ICE_BALL damage beyond the generic path read",
-   "Target selection before the cast was not read"
+   "Target selection before the cast was not read",
+   "The +10 / +12 and the damage inputs were checked with a pinned-helper probe (the real addSpecialDefense and item helpers on a stub caster), not in a fight"
   ],
   "evidence": [
    {
@@ -305,7 +308,7 @@
     "id": "ib-class",
     "file": "app/core/abilities/ice-ball.ts",
     "lines": [
-     6,
+     8,
      13
     ],
     "symbol": "IceBallStrategy.process",
@@ -498,7 +501,43 @@
     "symbol": "class Walrein",
     "expect": "skill = Ability.ICE_BALL",
     "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "10 x 1.25 = 12.5 rounded down -> 12 for a Big Eater Belt holder"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only negative values are flipped; the +10 is unchanged"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "ICE_BALL",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T212757Z",
+   "reason": "the +10 SPE_DEF is a request: +12 with Big Eater Belt, Twist Band does not change it; the damage reads the modified stat; the 'functions not read' and stacking-cap items resolved",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "ICE_BALL",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
