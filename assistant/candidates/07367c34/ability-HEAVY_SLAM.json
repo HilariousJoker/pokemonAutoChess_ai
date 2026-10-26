@@ -1,0 +1,332 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HEAVY_SLAM",
+ "kind": "ability",
+ "identifier": "HEAVY_SLAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T114202Z"
+ },
+ "record": {
+  "ability": "HEAVY_SLAM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Aron (1 star), Lairon (2 stars) and Aggron (3 stars) declare ABILITY HEAVY_SLAM (maxPP 100, range 1, no passive).",
+  "appliesTo": [
+   {
+    "key": "AGGRON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAVY_SLAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ARON",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAVY_SLAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LAIRON",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAVY_SLAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "AGGRON": {
+    "evidence": [
+     "unit-aggron"
+    ]
+   },
+   "ARON": {
+    "evidence": [
+     "unit-aron"
+    ]
+   },
+   "LAIRON": {
+    "evidence": [
+     "unit-lairon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HEAVY_SLAM] = new HeavySlamStrategy()",
+   "strategy": "HeavySlamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hv",
+    "base",
+    "cast",
+    "hv-class"
+   ]
+  },
+  "summary": "Adjacent-area SPECIAL slam scaled by the HP gap to the cast target. The requested damage is the star-indexed base (15/30/60/120); when the caster's maxHP is greater than the cast target's maxHP it is multiplied by 1 + 0.5 x (casterMaxHP - targetMaxHP) / targetMaxHP and rounded. That single figure is then dealt as SPECIAL damage to every enemy in the up-to-8 cells adjacent to the caster, whatever their own maxHP. The cast target only supplies the maxHP comparison. No movement and no status. requiresTarget is the default true.",
+  "targeting": {
+   "who": "every enemy unit in the cells adjacent to the caster",
+   "needsTarget": true,
+   "note": "The cast target is required to cast and is used only for the maxHP comparison; it takes damage only if it stands in an adjacent cell (likely for range 1, but not enforced by the code).",
+   "evidence": [
+    "hv-class",
+    "hv-scale",
+    "hv-area"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around the caster (centre excluded)",
+   "detail": "Board.getAdjacentCells(caster x, caster y, false); cells off the board are skipped; allies and empty cells are ignored. The damage is the same for each enemy hit.",
+   "evidence": [
+    "hv-area",
+    "adj-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "each enemy in the cells adjacent to the caster",
+    "declaredRaw": {
+     "byStars": [
+      15,
+      30,
+      60,
+      120
+     ],
+     "maxHPBonus": "damage = round(base x (1 + 0.5 x (casterMaxHP - targetMaxHP) / targetMaxHP)) when casterMaxHP > targetMaxHP, else base"
+    },
+    "perUnitRaw": {
+     "AGGRON": 60,
+     "ARON": 15,
+     "LAIRON": 30
+    },
+    "scaling": "Requested amount = table base, multiplied (and rounded) only when pokemon.maxHP > target.maxHP, using the current maxHP of the caster and of the cast target. The figure is computed once before the loop, so it does not use each victim's own maxHP. Per victim: handleSpecialDamage(requested, board, SPECIAL, caster, crit) with the default apBoost: + requested x caster AP/100, x2 if the caster has DOUBLE_DAMAGE (consumed by the first hit only), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false).",
+    "resolution": "The per-unit raw value is only the table base (15/30/60 for Aron/Lairon/Aggron); the maxHP bonus depends on the cast target. A victim with protect, skydiving or magicBounce takes none (magicBounce reflects if the caster lacks Protective Pads). Otherwise state.handleDamage applies its Special Defense, shields and the minimum of 1 (core-mechanics.md section A); the applied/taken amount per victim is what handleDamage reports as takenDamage.",
+    "evidence": [
+     "hv-table",
+     "hv-scale",
+     "hv-area",
+     "adj-fn",
+     "spdmg",
+     "spdmg-calc",
+     "state-min"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "AGGRON": 3,
+    "ARON": 1,
+    "LAIRON": 2
+   },
+   "declaredRawBase": {
+    "AGGRON": 60,
+    "ARON": 15,
+    "LAIRON": 30
+   },
+   "note": "Caster stars index the base table (1-4, fallback 120). The listed units are 1, 2 and 3 stars, so the 120 entry is not used by any listed unit. The maxHP multiplier does not depend on stars.",
+   "evidence": [
+    "hv-table"
+   ]
+  },
+  "positionalConditions": "Only enemies standing in the 8 cells around the caster at the moment of the cast are hit. The maxHP bonus does not depend on position.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast re-reads the current maxHP of the caster and of the cast target.",
+  "rawVsResolved": "Requested: 15/30/60 (Aron/Lairon/Aggron) x the rounded maxHP factor when the caster has more maxHP than the cast target. Applied: AP percentage, DOUBLE_DAMAGE (only the first victim processed, since the effect is consumed), strange steam and crit scale the requested figure before handleDamage. Taken: each victim's Special Defense, shields and the minimum of 1 decide takenDamage separately.",
+  "sourceTables": [
+   {
+    "id": "heavySlamDamage",
+    "file": "app/core/abilities/heavy-slam.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defences, shield absorption, minimum of 1) only through the shared reference core-mechanics.md section A and the cited line",
+   "The order in which the adjacent cells are visited decides which victim consumes DOUBLE_DAMAGE; it follows getAdjacentCells (row by row from the upper-left offset) and was not tested"
+  ],
+  "unresolved": [
+   "Whether the cast target is always adjacent (range 1) was not traced; the code does not require it",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-hv",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     936,
+     936
+    ],
+    "symbol": "AbilityStrategies[Ability.HEAVY_SLAM]",
+    "expect": "[Ability.HEAVY_SLAM]: new HeavySlamStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and plays the default animation; requiresTarget defaults to true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "hv-class",
+    "file": "app/core/abilities/heavy-slam.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "HeavySlamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hv-table",
+    "file": "app/core/abilities/heavy-slam.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HeavySlamStrategy.process",
+    "expect": "let damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": ""
+   },
+   {
+    "id": "hv-scale",
+    "file": "app/core/abilities/heavy-slam.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "HeavySlamStrategy.process",
+    "expect": "if (pokemon.maxHP > target.maxHP) {",
+    "note": "bonus only when the caster maxHP exceeds the cast target's maxHP; computed once from the cast target"
+   },
+   {
+    "id": "hv-area",
+    "file": "app/core/abilities/heavy-slam.ts",
+    "lines": [
+     20,
+     32
+    ],
+    "symbol": "HeavySlamStrategy.process",
+    "expect": "pokemon.team != cell.value.team",
+    "note": "every enemy in the adjacent cells, same damage for each"
+   },
+   {
+    "id": "adj-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "8-neighbourhood, centre excluded, off-board cells skipped"
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "spdmg-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, DOUBLE_DAMAGE, strange steam, crit"
+   },
+   {
+    "id": "state-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     594,
+     598
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum of 1 after defences (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-aggron",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2906,
+     2917
+    ],
+    "symbol": "class Aggron",
+    "expect": "skill = Ability.HEAVY_SLAM",
+    "note": ""
+   },
+   {
+    "id": "unit-aron",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2876,
+     2888
+    ],
+    "symbol": "class Aron",
+    "expect": "skill = Ability.HEAVY_SLAM",
+    "note": ""
+   },
+   {
+    "id": "unit-lairon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2891,
+     2903
+    ],
+    "symbol": "class Lairon",
+    "expect": "skill = Ability.HEAVY_SLAM",
+    "note": ""
+   }
+  ]
+ }
+}
