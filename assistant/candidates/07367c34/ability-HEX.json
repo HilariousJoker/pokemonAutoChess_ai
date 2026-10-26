@@ -1,0 +1,551 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HEX",
+ "kind": "ability",
+ "identifier": "HEX",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T174015Z"
+ },
+ "record": {
+  "ability": "HEX",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare HEX (passive NONE in the catalog). The strategy is shared; the units differ in stars (and stats). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "LITWICK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HEX",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LAMPENT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HEX",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHANDELURE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HEX",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LITWICK": {
+    "evidence": [
+     "unit-litwick"
+    ]
+   },
+   "LAMPENT": {
+    "evidence": [
+     "unit-lampent"
+    ]
+   },
+   "CHANDELURE": {
+    "evidence": [
+     "unit-chandelure"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HEX] = new HexStrategy()",
+   "strategy": "HexStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hex",
+    "hex-class",
+    "base-flags",
+    "base-pp",
+    "hex-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage: raw 20/40/80 by the caster's stars (160 is the 4-star value and the fallback, not reachable by the three listed units). The raw amount is doubled (40/80/160) when the target has any negative status at the moment of the cast; the damage then goes through handleSpecialDamage (AP scaling, crit only if the cast crit, multipliers) and the target's SPE_DEF division. No status is applied and no heal/shield/buff is made.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the pp >= maxPP && canCast gate.",
+   "evidence": [
+    "hex-class",
+    "base-flags",
+    "hex-hit",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "hex-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "doubledWhen": "target.status.hasNegativeStatus() at cast time (x2)"
+    },
+    "perUnitRaw": {
+     "LITWICK": 20,
+     "LAMPENT": 40,
+     "CHANDELURE": 80
+    },
+    "perUnitRawIfNegativeStatus": {
+     "LITWICK": 40,
+     "LAMPENT": 80,
+     "CHANDELURE": 160
+    },
+    "scaling": "requested amount = raw (x2 if the target has a negative status). In handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true and HEX does not pass it); x2 if the caster has DOUBLE_DAMAGE (effect is consumed); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor 1 + (critPower - 1) x critReductionFactor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet target and by 0.1 per Black Augurite of the target's player (floor 0)",
+    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read only as a list), SPE_DEF division damage / (1 + 0.05 x speDef) with speDef halved (rounded) while the target has armorReduction, Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard flat or percentage reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0, no damage) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit to the caster unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. Requested amount = the raw (doubled or not) value; applied damage = what remains after these steps; takenDamage (returned, but discarded by HEX) = shield damage + HP lost, with the flinch half/half split on a shield. A Cover Band ally adjacent to a target that would die takes the hit instead.",
+    "conditionalMultiplier": {
+     "condition": "target.status.hasNegativeStatus()",
+     "factor": 2,
+     "evaluatedAt": "after super.process and before the damage call, so it reflects the target's status at cast time only; HEX applies no status itself",
+     "statuses": [
+      "burn",
+      "silence",
+      "fatigue",
+      "poisonStacks > 0",
+      "freeze",
+      "sleep",
+      "confusion",
+      "wound",
+      "paralysis",
+      "charm",
+      "flinch",
+      "armorReduction",
+      "curse",
+      "locked",
+      "blinded",
+      "possessed"
+     ]
+    },
+    "evidence": [
+     "hex-dmg",
+     "hex-double",
+     "neg-status",
+     "hex-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-mult",
+     "special-crit",
+     "special-handle",
+     "special-lens",
+     "dmg-guard",
+     "dmg-protect",
+     "dmg-field",
+     "dmg-spedef",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "dmg-shield",
+     "dmg-cover"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "LITWICK": 1,
+    "LAMPENT": 2,
+    "CHANDELURE": 3
+   },
+   "declaredRawDamage": {
+    "LITWICK": 20,
+    "LAMPENT": 40,
+    "CHANDELURE": 80
+   },
+   "declaredRawDamageWithNegativeStatus": {
+    "LITWICK": 40,
+    "LAMPENT": 80,
+    "CHANDELURE": 160
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (160, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP is 100 and range 3 for all three.",
+   "evidence": [
+    "hex-dmg",
+    "unit-litwick",
+    "unit-lampent",
+    "unit-chandelure"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-evaluates hasNegativeStatus() on the target; the doubling is not remembered between casts.",
+  "rawVsResolved": "Requested: raw 20/40/80 by stars (x2 with a negative status on the target). Applied: requested x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather multipliers], then SPE_DEF division (ceil, at least 1) and the reductions listed in resolution. takenDamage (shield damage included) is returned by handleSpecialDamage but HEX discards it, so nothing downstream in HEX depends on it.",
+  "sourceTables": [
+   {
+    "id": "hexDamage",
+    "file": "app/core/abilities/hex.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Field, weather and Poke Doll / Guts-type multipliers in handleDamage were read only as a list (lines 455-595), not each traced",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution before the call: only the damage-side multiplier in handleSpecialDamage was read; the ABILITY_CRIT roll that produces the crit argument was not traced"
+  ],
+  "unresolved": [
+   "How statuses become set on the target before the cast (not part of HEX); the doubling depends on the status at the exact moment of the cast",
+   "Whether any item or synergy effect other than those listed changes HEX damage",
+   "No routing uncertainty was recorded for HEX in the queue; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-litwick",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1958,
+     1971
+    ],
+    "symbol": "class Litwick",
+    "expect": "skill = Ability.HEX",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lampent",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1973,
+     1986
+    ],
+    "symbol": "class Lampent",
+    "expect": "skill = Ability.HEX",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-chandelure",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1988,
+     2000
+    ],
+    "symbol": "class Chandelure",
+    "expect": "skill = Ability.HEX",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-hex",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     938,
+     938
+    ],
+    "symbol": "AbilityStrategies[Ability.HEX]",
+    "expect": "[Ability.HEX]: new HexStrategy()",
+    "note": ""
+   },
+   {
+    "id": "hex-class",
+    "file": "app/core/abilities/hex.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "HexStrategy",
+    "expect": "class HexStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden (defaults true / false)"
+   },
+   {
+    "id": "hex-super",
+    "file": "app/core/abilities/hex.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "HexStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hex-dmg",
+    "file": "app/core/abilities/hex.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HexStrategy.process",
+    "expect": "[20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "hex-double",
+    "file": "app/core/abilities/hex.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "HexStrategy.process",
+    "expect": "target.status.hasNegativeStatus()",
+    "note": "raw damage doubled when the target has a negative status at cast time"
+   },
+   {
+    "id": "hex-hit",
+    "file": "app/core/abilities/hex.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HexStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage; return value (death / takenDamage) is discarded"
+   },
+   {
+    "id": "neg-status",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     148,
+     167
+    ],
+    "symbol": "Status.hasNegativeStatus",
+    "expect": "this.poisonStacks > 0",
+    "note": "list of statuses counted as negative"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true (HEX does not pass it)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "blocks ability damage; returns takenDamage 0 (magicBounce also queues reflected damage)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-mult",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE effect (consumed) and STRANGE_STEAM_BOARD_EFFECT x1.2 modify the damage after the HEX doubling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "special-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     464
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "Item.POWER_LENS",
+    "note": "Power Lens holder on the target reflects the blocked part back to the caster as a retaliation SPECIAL hit"
+   },
+   {
+    "id": "dmg-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "returns takenDamage 0"
+   },
+   {
+    "id": "dmg-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "dmg-field",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.status.enraged",
+    "note": "attacker-side and target-side multipliers (enraged, electric/psychic/grass/fairy field, weather, ...) precede the defense step"
+   },
+   {
+    "id": "dmg-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.armorReduction",
+    "note": "armorReduction halves the SPE_DEF used (rounded)"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "dmg-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes shield damage; flinch splits the hit half to shield / half residual"
+   },
+   {
+    "id": "dmg-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "ally.items.has(Item.COVER_BAND)",
+    "note": "Cover Band ally can take the hit instead"
+   }
+  ]
+ }
+}
