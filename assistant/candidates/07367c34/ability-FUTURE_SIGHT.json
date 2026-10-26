@@ -1,0 +1,695 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FUTURE_SIGHT",
+ "kind": "ability",
+ "identifier": "FUTURE_SIGHT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T054054Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare FUTURE_SIGHT: Ralts (1 star, range 3, no passive), Kirlia (2 stars, range 3, passive KIRLIA) and Gardevoir (3 stars, range 3, no passive). The strategy is shared; unit differences are the star count (both tables) and Kirlia's passive, which is not covered.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FUTURE_SIGHT] = new FutureSightStrategy()",
+   "strategy": "FutureSightStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "x-class",
+    "x-super",
+    "fs-req",
+    "fs-super2"
+   ]
+  },
+  "summary": "On cast the caster picks up to 3/4/5 (by stars 1/2/3; 6 at 4 stars or fallback) distinct random enemies anywhere on the board and, after a 2000 ms delay, deals SPECIAL damage 20/30/50 (80 at 4 stars or fallback) to each one still alive. In the same delayed step every enemy in the 8 cells adjacent to each chosen target's position (whether or not that enemy was itself picked) takes SPECIAL damage equal to round(0.2 x raw damage). AP and the cast crit flag apply to both parts. The base process still spends maxPP of PP.",
+  "targeting": {
+   "who": "up to N random distinct enemies from every enemy entity on the board (no range or visibility check), chosen at cast time; at impact each target's current position is used for the adjacency splash",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast does not need an attack target; if no enemy exists nothing is chosen and the delayed command does nothing.",
+   "evidence": [
+    "fs-req",
+    "fs-enemies",
+    "fs-cells",
+    "fs-pick",
+    "pick-def",
+    "fs-count"
+   ]
+  },
+  "geometry": {
+   "shape": "up to N single targets plus the 8 adjacent cells around each target's position at impact time (centre excluded)",
+   "evidence": [
+    "fs-adj",
+    "adj-def",
+    "adj-skip",
+    "fs-adjteam",
+    "cells"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each chosen enemy still alive at impact",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 30,
+      "3": 50,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "GARDEVOIR": 50,
+     "KIRLIA": 30,
+     "RALTS": 20
+    },
+    "scaling": "requested = table value. applied by handleSpecialDamage: damage x (1 + AP/100) (apBoost true by default); if the cast crit (only with ABILITY_CRIT since canCritByDefault is false) x 1 + (critPower - 1) x critReductionFactor, with Rocky Helmet cancelling and Black Augurite reducing the bonus.",
+    "resolution": "then PokemonState.handleDamage: SPECIAL damage divided by 1 + ARMOR_FACTOR x speDef, non-TRUE flat reductions, at least 1, shield before HP; protect / skydiving / magicBounce on the target block the hit. takenDamage includes shield damage. The primary hit is skipped if the target has hp <= 0 when the command fires, 2000 ms after the cast.",
+    "evidence": [
+     "fs-cmd",
+     "fs-dmg",
+     "fs-guard",
+     "fs-main",
+     "fs-delay",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-div",
+     "hd-flat",
+     "hd-min",
+     "hd-recv",
+     "cmd-update",
+     "cmd-class",
+     "cmd-upd2"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "every enemy-team entity in a cell adjacent to a chosen target's position (splash)",
+    "declaredRaw": {
+     "factor": 0.2,
+     "note": "round(0.2 x table damage)"
+    },
+    "perUnitRaw": {
+     "GARDEVOIR": 10,
+     "KIRLIA": 6,
+     "RALTS": 4
+    },
+    "scaling": "requested = Math.round(damage x 0.2) = 4 / 6 / 10 for 20 / 30 / 50; then the same AP multiplier and crit factor as the primary hit are applied inside handleSpecialDamage (apBoost default true).",
+    "resolution": "same handleDamage resolution as the primary hit. The splash is applied per chosen target, with no check that the adjacent entity is alive other than the cell holding it; an enemy adjacent to several chosen targets is hit once per adjacency, and an enemy that is itself chosen can also be hit by the splash of neighbouring chosen targets. A dead primary target does not stop its splash.",
+    "evidence": [
+     "fs-adj",
+     "fs-adjteam",
+     "fs-splash",
+     "adj-def",
+     "adj-skip",
+     "special",
+     "special-ap",
+     "special-crit",
+     "hd-div",
+     "hd-min"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "RALTS": 1,
+    "KIRLIA": 2,
+    "GARDEVOIR": 3
+   },
+   "declaredRawDamage": {
+    "RALTS": 20,
+    "KIRLIA": 30,
+    "GARDEVOIR": 50
+   },
+   "declaredTargetCount": {
+    "RALTS": 3,
+    "KIRLIA": 4,
+    "GARDEVOIR": 5
+   },
+   "note": "Both tables are indexed by the casting entity's stars. The 4-star values (80 damage, 6 targets) are not used by these units at their factory values. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "fs-dmg",
+    "fs-count",
+    "unit-ralts",
+    "unit-kirlia",
+    "unit-gardevoir"
+   ]
+  },
+  "positionalConditions": "Targets are enemies anywhere on the board; the splash uses the target's board position when the delayed command fires, so a target that has moved takes its splash at the new position.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast creates its own target list and one delayed command; overlapping casts are independent.",
+  "rawVsResolved": "Declared raw: damage 20 / 30 / 50 per chosen target and round(0.2 x damage) = 4 / 6 / 10 splash. Requested = raw; applied = raw x (1 + AP/100) (x crit factor if the cast crit), divided by 1 + ARMOR_FACTOR x speDef, minus flat reductions, minimum 1; takenDamage includes shield damage. The sum over a volley is not computed here for a specific board.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/future-sight.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, resurrection, field multipliers); only the SPECIAL defence division, the non-TRUE flat reductions block and the minimum of 1 were read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage multiplier",
+   "Whether a caster that dies mid-delay still runs its queued command (only the updateCommands loop was read, not every call site)",
+   "Whether dead entities are removed from board cells before the splash reads them (only Board.getAdjacentCells and the cell filter were read)"
+  ],
+  "unresolved": [
+   "Kirlia's KIRLIA passive and whether it changes this cast: not investigated here",
+   "Whether the splash can hit an entity that has died but still occupies a cell",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "FUTURE_SIGHT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GARDEVOIR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "FUTURE_SIGHT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KIRLIA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "FUTURE_SIGHT",
+    "declaredPassive": "KIRLIA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RALTS",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "FUTURE_SIGHT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GARDEVOIR": {
+    "evidence": [
+     "unit-gardevoir"
+    ]
+   },
+   "KIRLIA": {
+    "evidence": [
+     "unit-kirlia",
+     "kirlia-passive"
+    ]
+   },
+   "RALTS": {
+    "evidence": [
+     "unit-ralts"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     907,
+     907
+    ],
+    "symbol": "AbilityStrategies[Ability.FUTURE_SIGHT]",
+    "expect": "[Ability.FUTURE_SIGHT]: new FutureSightStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "x-class",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "FutureSightStrategy",
+    "expect": "export class FutureSightStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "x-super",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n      this.status.skydiving ||\n      this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the target block the hit (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef (speDef halved under armorReduction, swapped with def under WONDER_ROOM)"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     570
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat/item reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard) apply"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": ""
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "cmd-upd2",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "fires on the first update where the remaining delay is below 0"
+   },
+   {
+    "id": "unit-ralts",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1375,
+     1392
+    ],
+    "symbol": "class Ralts",
+    "expect": "skill = Ability.FUTURE_SIGHT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-kirlia",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1394,
+     1421
+    ],
+    "symbol": "class Kirlia",
+    "expect": "skill = Ability.FUTURE_SIGHT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gardevoir",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1423,
+     1439
+    ],
+    "symbol": "class Gardevoir",
+    "expect": "skill = Ability.FUTURE_SIGHT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "kirlia-passive",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1420,
+     1420
+    ],
+    "symbol": "class Kirlia",
+    "expect": "passive = Passive.KIRLIA",
+    "note": "Kirlia declares the KIRLIA passive"
+   },
+   {
+    "id": "fs-req",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "FutureSightStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without walking up to a target"
+   },
+   {
+    "id": "fs-super2",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: no default broadcast; the strategy broadcasts its own animation"
+   },
+   {
+    "id": "fs-dmg",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [20, 30, 50, 80][pokemon.stars - 1] ?? 80",
+    "note": "raw damage by caster stars, 80 fallback"
+   },
+   {
+    "id": "fs-count",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "target-count table",
+    "expect": "const count = [3, 4, 5, 6][pokemon.stars - 1] ?? 6",
+    "note": "number of enemies chosen by caster stars, 6 fallback"
+   },
+   {
+    "id": "fs-enemies",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "enemy filter",
+    "expect": "(p): p is PokemonEntity => p !== undefined && p.team !== pokemon.team",
+    "note": "all board entities of a different team; targeting is not limited by range"
+   },
+   {
+    "id": "fs-cells",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "enemy list",
+    "expect": "const enemies = board.cells.filter<PokemonEntity>(",
+    "note": ""
+   },
+   {
+    "id": "fs-pick",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "target pick",
+    "expect": "const targets: PokemonEntity[] = pickNRandomIn(enemies, count)",
+    "note": "random distinct enemies, fewer if fewer exist"
+   },
+   {
+    "id": "pick-def",
+    "file": "app/utils/random.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "pickNRandomIn",
+    "expect": "export function pickNRandomIn<T>(",
+    "note": "shuffles a copy and takes up to N distinct elements"
+   },
+   {
+    "id": "fs-cmd",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "process",
+    "expect": "pokemon.commands.push(",
+    "note": "one delayed command on the caster for the whole volley"
+   },
+   {
+    "id": "fs-guard",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "delayed hit",
+    "expect": "if (tg.hp > 0) {",
+    "note": "primary hit skipped when that target is already dead at impact time"
+   },
+   {
+    "id": "fs-main",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     37,
+     41
+    ],
+    "symbol": "delayed primary hit",
+    "expect": "damage,\n              board,\n              AttackType.SPECIAL,\n              pokemon,\n              crit",
+    "note": "SPECIAL damage, crit flag from the cast, apBoost default true"
+   },
+   {
+    "id": "fs-adj",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "delayed splash",
+    "expect": "board.getAdjacentCells(tg.positionX, tg.positionY).forEach((cell) => {",
+    "note": "adjacent cells of the target position at impact time (current position)"
+   },
+   {
+    "id": "fs-adjteam",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "delayed splash",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "any enemy-team entity in an adjacent cell, whether or not it was picked, and whether or not the primary target is alive"
+   },
+   {
+    "id": "fs-splash",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     47,
+     47
+    ],
+    "symbol": "delayed splash",
+    "expect": "Math.round(damage * 0.2),",
+    "note": "requested splash = round(0.2 x raw damage), before AP"
+   },
+   {
+    "id": "fs-delay",
+    "file": "app/core/abilities/future-sight.ts",
+    "lines": [
+     56,
+     56
+    ],
+    "symbol": "delayed volley",
+    "expect": "}, 2000)",
+    "note": "impact 2000 ms after the cast"
+   },
+   {
+    "id": "adj-def",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "the 8 surrounding on-board cells; the centre is excluded"
+   },
+   {
+    "id": "adj-skip",
+    "file": "app/core/board.ts",
+    "lines": [
+     156,
+     156
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "Board.cells",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": ""
+   }
+  ]
+ }
+}
