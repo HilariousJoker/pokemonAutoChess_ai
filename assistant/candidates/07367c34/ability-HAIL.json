@@ -1,0 +1,506 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HAIL",
+ "kind": "ability",
+ "identifier": "HAIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T114202Z"
+ },
+ "record": {
+  "ability": "HAIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Amaura (1 star), Aurorus (2 stars) and Regice (3 stars) declare ABILITY HAIL (maxPP 100, range 1, no passive). Routing: the name HAIL is shared by the ability (Ability.HAIL, routed to HailStrategy) and the board/entity effect EffectEnum.HAIL that this strategy creates; they are separate identifiers and only the strategy's own use of the effect is described here.",
+  "appliesTo": [
+   {
+    "key": "AMAURA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HAIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "AURORUS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HAIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "REGICE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HAIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "AMAURA": {
+    "evidence": [
+     "unit-amaura"
+    ]
+   },
+   "AURORUS": {
+    "evidence": [
+     "unit-aurorus"
+    ]
+   },
+   "REGICE": {
+    "evidence": [
+     "unit-regice"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HAIL] = new HailStrategy()",
+   "strategy": "HailStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hl",
+    "base",
+    "cast",
+    "hl-class",
+    "eff-enum"
+   ]
+  },
+  "summary": "Random hail volley on one half of the board. The caster fires a star-indexed number of projectiles (8/15/30/45, requested), each at an independent random cell: any of the 8 columns, and rows 3 to 5 when the cast target stands on row 3 or lower, otherwise rows 0 to 3 (row 3 belongs to both). If an enemy stands on the cell it takes flat SPECIAL damage (50/50/50/80, requested), gets the HAIL effect and a 1000 ms freeze. Every projectile, hit or not, also places the HAIL board effect on that cell, which gives the HAIL effect to any unit currently on the cell (allies included, unless they hold Heavy Duty Boots) and to any unit that later moves onto it. A unit carrying the HAIL effect that is not Ice type and has no Heavy Duty Boots takes 10 SPECIAL damage and a 1000 ms freeze once, and then loses the effect. The caster does not move.",
+  "targeting": {
+   "who": "random cells; enemies on those cells take the direct damage and freeze; any unit on or entering a hailed cell can later take the effect damage",
+   "needsTarget": true,
+   "note": "The cast target only decides which half of the board is used (its row). The cast needs a target in range (requiresTarget default true).",
+   "evidence": [
+    "hl-cell",
+    "hl-hit",
+    "hl-board"
+   ]
+  },
+  "geometry": {
+   "shape": "per projectile, one random cell of the board",
+   "detail": "x = randomBetween(0, 7) (inclusive, 8 columns). y = randomBetween(3, 5) if target.positionY >= 3, else randomBetween(0, 3) (inclusive, so row 3 is eligible in both cases). The same cell can be drawn more than once, and every draw is independent, so one enemy can take several hits and several freeze attempts in one cast.",
+   "evidence": [
+    "hl-cell",
+    "rand",
+    "board-size"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "an enemy unit standing on a randomly drawn cell (once per projectile landing on it)",
+    "declaredRaw": {
+     "byStars": [
+      50,
+      50,
+      50,
+      80
+     ]
+    },
+    "perUnitRaw": {
+     "AMAURA": 50,
+     "AURORUS": 50,
+     "REGICE": 50
+    },
+    "scaling": "Requested amount = table value per projectile. handleSpecialDamage(requested, board, SPECIAL, caster, crit) with the default apBoost: + requested x caster AP/100, x2 if the caster has DOUBLE_DAMAGE (consumed by the first hit only), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false). The cast crit flag is shared by every projectile.",
+    "resolution": "Requested amount is pre-defence per hit. A unit with protect, skydiving or magicBounce takes none from that projectile (the HAIL effect and the freeze attempt below still run). Otherwise state.handleDamage applies Special Defense, shields and the minimum of 1 (core-mechanics.md section A); takenDamage per hit is what handleDamage reports.",
+    "evidence": [
+     "hl-dmg-table",
+     "hl-hit",
+     "spdmg",
+     "spdmg-calc",
+     "state-min"
+    ]
+   },
+   {
+    "kind": "projectile-count",
+    "target": "the whole volley",
+    "declaredRaw": {
+     "byStars": [
+      8,
+      15,
+      30,
+      45
+     ]
+    },
+    "perUnitRaw": {
+     "AMAURA": 8,
+     "AURORUS": 15,
+     "REGICE": 30
+    },
+    "scaling": "Requested number of projectiles = table value. Each iteration draws a cell independently; no limit on repeats of a cell.",
+    "resolution": "Expected hits depend on where enemies stand; the number of landing projectiles on enemies is not fixed by the source.",
+    "evidence": [
+     "hl-proj-table",
+     "hl-cell",
+     "rand",
+     "board-size"
+    ]
+   },
+   {
+    "kind": "board-effect",
+    "target": "the drawn cell and whoever is on it or moves onto it",
+    "declaredRaw": {
+     "effect": "EffectEnum.HAIL",
+     "perProjectile": true,
+     "effectDamage": 10,
+     "effectFreezeMs": 1000
+    },
+    "scaling": "addBoardEffect puts EffectEnum.HAIL on the cell (a set, so repeated draws on a cell do not stack) and adds it to the entity currently on the cell unless that entity holds Heavy Duty Boots. Entities moving onto the cell gain it unless they have IMMUNITY_BOARD_EFFECTS; entities leaving it lose it. The effect handler gives a unit with the effect, not of Ice type and without Heavy Duty Boots, 10 SPECIAL damage (attacker null, so no AP scaling, no crit) and a 1000 ms freeze attempt, and deletes the effect from the unit (the cell keeps it).",
+    "resolution": "The 10 effect damage is a requested amount; the applied/taken amount comes from handleDamage (Special Defense, shields, minimum of 1). The effect applies to allies of the caster standing on a drawn cell as well as to enemies (the board effect is not team-filtered).",
+    "evidence": [
+     "hl-board",
+     "board-add",
+     "board-enter",
+     "eff-hail",
+     "eff-board",
+     "eff-enum"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "freeze",
+    "target": "each enemy hit by a projectile (and any non-Ice unit with the HAIL effect when the effect handler fires)",
+    "declaredRaw": {
+     "durationMs": 1000
+    },
+    "scaling": "Requested duration 1000 ms. triggerFreeze changes it: x1.3 in SNOW weather (reduced by 20% per Icy Rock the owner holds), x0.7 in DROUGHT weather, halved if the target is enraged, then applyStatusDurationReductions.",
+    "resolution": "Does nothing if the target is already frozen (no stacking), has Rune Protect, is skydiving, has IMMUNITY_FREEZE or an active crowd-control cooldown. Aspear Berry and Eiscue effects are triggered on a successful freeze. The ability freeze also runs on a target whose damage was blocked by protect, because the call does not depend on the damage result.",
+    "evidence": [
+     "hl-hit",
+     "freeze",
+     "eff-hail"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "AMAURA": 1,
+    "AURORUS": 2,
+    "REGICE": 3
+   },
+   "declaredRawDamage": {
+    "AMAURA": 50,
+    "AURORUS": 50,
+    "REGICE": 50
+   },
+   "declaredRawProjectiles": {
+    "AMAURA": 8,
+    "AURORUS": 15,
+    "REGICE": 30
+   },
+   "note": "Caster stars index both tables (1-4, fallbacks 80 and 45). The listed units are 1, 2 and 3 stars, so the 4-star entries (80 damage, 45 projectiles) are not used by any listed unit.",
+   "evidence": [
+    "hl-dmg-table",
+    "hl-proj-table"
+   ]
+  },
+  "positionalConditions": "The drawn half of the board depends on the cast target's row (>= 3 selects rows 3 to 5, otherwise rows 0 to 3). Only units on a drawn cell are affected directly; Ice-type units and Heavy Duty Boots holders are exempt from the effect handler.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Board effects persist on the cells for the rest of the simulation (no clearing was found in this ability), so repeated casts accumulate hailed cells; a unit entering a hailed cell gets the effect again after having lost it.",
+  "rawVsResolved": "Requested: 8/15/30 projectiles (Amaura/Aurorus/Regice), 50 SPECIAL damage each, 1000 ms freeze each, plus a 10-damage / 1000 ms effect on units carrying the HAIL effect. Applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit scale the projectile damage (not the 10 effect damage, which has no attacker); freeze duration is changed by weather, enrage and duration reductions and can be refused. Taken: Special Defense, shields and the minimum of 1 per hit.",
+  "sourceTables": [
+   {
+    "id": "hailDamage",
+    "file": "app/core/abilities/hail.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "hailProjectiles",
+    "file": "app/core/abilities/hail.ts",
+    "pattern": "const numberOfProjectiles = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defences, shield absorption, minimum of 1) only through the shared reference core-mechanics.md section A and the cited line",
+   "applyStatusDurationReductions and the ccCooldown rules of triggerFreeze were not traced beyond the quoted conditions",
+   "Where in the update loop the HAIL effect handler runs (the quoted block is in PokemonState near updateEachSecond, which starts at line 972; the enclosing method boundary was not traced) and therefore how soon after landing the effect damage happens"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: resolved for the ability (Ability.HAIL -> HailStrategy) and for the effect (EffectEnum.HAIL is added only by this strategy; the one consumer found is the handler cited). Other consumers of the enum value (client animation, synergy tables, localisation) were not searched beyond a repository-wide name search of app/ for source files",
+   "Whether board effects are cleared between rounds or inside the simulation was not traced",
+   "Whether the effect also reaches allies on a drawn cell in practice is read from addBoardEffect (not team-filtered); it was not tested",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-hl",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     926,
+     926
+    ],
+    "symbol": "AbilityStrategies[Ability.HAIL]",
+    "expect": "[Ability.HAIL]: new HailStrategy()",
+    "note": "the ABILITY named HAIL routes to HailStrategy"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and plays the default animation; requiresTarget defaults to true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "hl-class",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     9,
+     16
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hl-dmg-table",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "const damage = [50, 50, 50, 80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "hl-proj-table",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "const numberOfProjectiles = [8, 15, 30, 45][pokemon.stars - 1] ?? 45",
+    "note": ""
+   },
+   {
+    "id": "hl-cell",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     20,
+     26
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "target.positionY >= 3",
+    "note": "random cell: any column; rows 3 to 5 if the cast target is on row 3 or below, else rows 0 to 3"
+   },
+   {
+    "id": "hl-hit",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     26,
+     37
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "enemyHit.status.triggerFreeze(1000, enemyHit, pokemon)",
+    "note": "enemy on the cell: SPECIAL damage, the HAIL effect, freeze 1000"
+   },
+   {
+    "id": "hl-board",
+    "file": "app/core/abilities/hail.ts",
+    "lines": [
+     38,
+     43
+    ],
+    "symbol": "HailStrategy.process",
+    "expect": "board.addBoardEffect(x, y, EffectEnum.HAIL, pokemon.simulation)",
+    "note": "for every projectile, hit or not"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     39,
+     41
+    ],
+    "symbol": "randomBetween",
+    "expect": "return Math.floor(Math.random() * (max - min + 1) + min)",
+    "note": "inclusive on both ends"
+   },
+   {
+    "id": "board-size",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "8 columns, 6 rows"
+   },
+   {
+    "id": "board-add",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     650
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "any entity on the cell without Heavy Duty Boots receives the effect, whatever its team; the cell keeps the effect"
+   },
+   {
+    "id": "board-enter",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     69
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.add(effectOnNewCell)",
+    "note": "an entity moving onto a cell with a board effect gains it unless it has IMMUNITY_BOARD_EFFECTS; leaving removes it"
+   },
+   {
+    "id": "eff-hail",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1071,
+     1086
+    ],
+    "symbol": "PokemonState (HAIL effect handler)",
+    "expect": "pokemon.effects.has(EffectEnum.HAIL) &&",
+    "note": "non-Ice, no Heavy Duty Boots: 10 SPECIAL damage (no attacker), freeze 1000, then the effect is removed from the entity"
+   },
+   {
+    "id": "eff-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     142,
+     142
+    ],
+    "symbol": "EffectEnum.HAIL",
+    "expect": "HAIL = \"HAIL\"",
+    "note": "the effect name shared with the ability name"
+   },
+   {
+    "id": "eff-board",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     180,
+     193
+    ],
+    "symbol": "BoardEffects",
+    "expect": "EffectEnum.HAIL,",
+    "note": "HAIL is one of the board effects"
+   },
+   {
+    "id": "freeze",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     690,
+     730
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.freeze && // freeze cannot be stacked",
+    "note": "no stacking, blocked by Rune Protect, skydiving, IMMUNITY_FREEZE or an active ccCooldown; duration changed by weather and enrage"
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "spdmg-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, DOUBLE_DAMAGE, strange steam, crit"
+   },
+   {
+    "id": "state-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     594,
+     598
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum of 1 after defences (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-amaura",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7661,
+     7673
+    ],
+    "symbol": "class Amaura",
+    "expect": "skill = Ability.HAIL",
+    "note": ""
+   },
+   {
+    "id": "unit-aurorus",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7677,
+     7688
+    ],
+    "symbol": "class Aurorus",
+    "expect": "skill = Ability.HAIL",
+    "note": ""
+   },
+   {
+    "id": "unit-regice",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5824,
+     5835
+    ],
+    "symbol": "class Regice",
+    "expect": "skill = Ability.HAIL",
+    "note": ""
+   }
+  ]
+ }
+}
