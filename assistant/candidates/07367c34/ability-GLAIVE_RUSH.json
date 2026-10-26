@@ -1,0 +1,838 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/GLAIVE_RUSH",
+ "kind": "ability",
+ "identifier": "GLAIVE_RUSH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T054054Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare GLAIVE_RUSH: Frigibax (1 star), Arctibax (2 stars) and Baxcalibur (3 stars), all range 1, maxPP 100, no passive. The strategy is shared; unit differences are the star count (damage table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.GLAIVE_RUSH] = new GlaiveRushStrategy()",
+   "strategy": "GlaiveRushStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "x-class",
+    "x-super",
+    "gr-super2"
+   ]
+  },
+  "summary": "The caster halves its own def and speDef for 6000 ms (armor reduction), then dashes to the closest free cell in the opposite end row of the board, swapping position without a forced-displacement check. Every enemy standing on a cell of the straight (supercover) path is collected before the move; each collected enemy gets armor reduction for 6000 ms and then SPECIAL damage (raw 50/100/200 by stars 1/2/3; 400 at 4 stars or fallback). If no enemy was on the path, or no free destination cell existed, the cast target is hit instead (only if no enemy was collected). After the move the caster cooldown is set to 100 ms.",
+  "targeting": {
+   "who": "every enemy-team entity on the path cells from the caster's start cell to the destination; fallback: the cast target",
+   "needsTarget": true,
+   "note": "The cast target is hit only when the path contained no enemy (or there was no destination); an enemy path that does not include the original target leaves the target unhit.",
+   "evidence": [
+    "gr-enemy",
+    "gr-fallback",
+    "gr-between",
+    "gr-dest-null",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's cell to the destination cell; cells read before the move",
+   "destination": "closest empty cell (Manhattan distance, scan-order tie-break) to (caster column, destination row); destination row = last row for a RED_TEAM caster on rows 0-1 and for an other-team caster not on the last two rows, otherwise row 0 (BOARD_HEIGHT = 6)",
+   "evidence": [
+    "gr-row",
+    "gr-red",
+    "gr-blue",
+    "gr-dest",
+    "gcap",
+    "gcap-empty",
+    "gcap-sort",
+    "gcap-null",
+    "dist-m",
+    "gr-between",
+    "gcb",
+    "gcb-start",
+    "board-h",
+    "swap"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy collected on the path (else the cast target)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     }
+    },
+    "perUnitRaw": {
+     "ARCTIBAX": 100,
+     "BAXCALIBUR": 200,
+     "FRIGIBAX": 50
+    },
+    "scaling": "requested = table value. applied by handleSpecialDamage: x (1 + AP/100) (apBoost true by default); if the cast crit (only with ABILITY_CRIT since canCritByDefault is false) x 1 + (critPower - 1) x critReductionFactor (Rocky Helmet cancels, Black Augurite reduces).",
+    "resolution": "armor reduction is applied to that enemy first, so the SPECIAL division uses speDef halved with Math.round (and def/speDef swapped under WONDER_ROOM); then an hp <= 0 or resurrecting target takes nothing; attacker-state multipliers apply first; flat reductions; at least 1; shield before HP; protect / skydiving / magicBounce block the hit. takenDamage includes shield damage. Each enemy is hit once per cast (a Set), even if the path crosses it twice.",
+    "evidence": [
+     "gr-dmg",
+     "gr-hit",
+     "gr-armor",
+     "gr-fallback",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-ar",
+     "hd-dead",
+     "hd-mult",
+     "hd-div",
+     "hd-flat",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "destination": "closest free cell to (own column, far end row)"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(destination, forcedDisplacement false) swaps the caster with the (empty) destination cell, puts it in a moving state and sets its cooldown to 100 ms. If getClosestAvailablePlace returns null (no free cell) the caster does not move.",
+    "evidence": [
+     "gr-dest",
+     "gr-move",
+     "gr-dest-null",
+     "swap",
+     "moveto",
+     "moveto-cd"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armorReduction",
+    "target": "caster (self), before moving",
+    "durationMs": 6000,
+    "scaling": "requested 6000 ms; applied = after status duration reductions of the caster (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10% each) unless Rune Protect is active on the caster; an existing longer duration is kept",
+    "effect": "def and speDef halved (Math.round) in handleDamage while it lasts",
+    "evidence": [
+     "gr-self",
+     "ar-def",
+     "ar-rune",
+     "ar-red",
+     "ar-max",
+     "red-def",
+     "hd-ar"
+    ]
+   },
+   {
+    "status": "armorReduction",
+    "target": "each collected enemy, before it takes damage",
+    "durationMs": 6000,
+    "scaling": "requested 6000 ms; blocked if the enemy has Rune Protect; the duration reductions are read from the caster (second argument of the call), not from the enemy; an existing longer duration is kept",
+    "effect": "def and speDef halved (Math.round) in handleDamage while it lasts, including for this ability's own damage",
+    "evidence": [
+     "gr-armor",
+     "ar-def",
+     "ar-rune",
+     "ar-red",
+     "ar-max",
+     "red-def",
+     "hd-ar"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "FRIGIBAX": 1,
+    "ARCTIBAX": 2,
+    "BAXCALIBUR": 3
+   },
+   "declaredRawDamage": {
+    "FRIGIBAX": 50,
+    "ARCTIBAX": 100,
+    "BAXCALIBUR": 200
+   },
+   "note": "Indexed by the casting entity's stars; the 4-star value (400) is not used by these units at factory values. The armor-reduction duration, path and destination do not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "gr-dmg",
+    "unit-frigibax",
+    "unit-arctibax",
+    "unit-baxcalibur"
+   ]
+  },
+  "positionalConditions": "Destination depends on team and current row (see geometry); the path is read before the move, so entities that are on the line when the cast starts are the ones collected.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast recomputes destination and path from the current board. Repeated armor reduction only lengthens the existing duration.",
+  "rawVsResolved": "Declared raw: damage 50 / 100 / 200 SPECIAL per collected enemy; armor reduction 6000 ms on self and on each hit enemy. Requested damage = raw; applied = raw x (1 + AP/100) (x crit factor if the cast crit), divided by 1 + ARMOR_FACTOR x (halved speDef because the enemy was just armor-reduced), minus flat reductions, minimum 1; takenDamage includes shield damage. Requested armor-reduction duration = 6000 ms; applied after duration reductions and Rune Protect. Not computed for a specific board.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, resurrection, other field multipliers); the armor-reduction halving, attacker-state multiplier block, SPECIAL defence division, non-TRUE flat reductions and the minimum of 1 were located",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage multiplier",
+   "What the caster's moving state does after moveTo (toMovingState was not read) and how a 100 ms cooldown interacts with the next attack",
+   "Whether skydiving or otherwise untargetable entities appear as cell values on the path (only the team filter was read)"
+  ],
+  "unresolved": [
+   "Whether moving through cells occupied by allies or by entities that cannot be moved matters: the move is a swap with an empty destination only, path cells are only read",
+   "Tie-break among equally near free cells follows scan order (row by row, left to right) per the sort of the candidate list; the stability of that sort was not examined beyond the language guarantee",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "GLAIVE_RUSH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "ARCTIBAX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GLAIVE_RUSH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BAXCALIBUR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GLAIVE_RUSH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FRIGIBAX",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GLAIVE_RUSH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARCTIBAX": {
+    "evidence": [
+     "unit-arctibax"
+    ]
+   },
+   "BAXCALIBUR": {
+    "evidence": [
+     "unit-baxcalibur"
+    ]
+   },
+   "FRIGIBAX": {
+    "evidence": [
+     "unit-frigibax"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     913,
+     913
+    ],
+    "symbol": "AbilityStrategies[Ability.GLAIVE_RUSH]",
+    "expect": "[Ability.GLAIVE_RUSH]: new GlaiveRushStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "x-class",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "GlaiveRushStrategy",
+    "expect": "export class GlaiveRushStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "x-super",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n      this.status.skydiving ||\n      this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the target block the hit (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef (speDef halved under armorReduction, swapped with def under WONDER_ROOM)"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     570
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat/item reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard) apply"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "unit-frigibax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16230,
+     16243
+    ],
+    "symbol": "class Frigibax",
+    "expect": "skill = Ability.GLAIVE_RUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-arctibax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16245,
+     16258
+    ],
+    "symbol": "class Arctibax",
+    "expect": "skill = Ability.GLAIVE_RUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-baxcalibur",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16260,
+     16272
+    ],
+    "symbol": "class Baxcalibur",
+    "expect": "skill = Ability.GLAIVE_RUSH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "gr-super2",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the strategy broadcasts its own animation only when a destination exists"
+   },
+   {
+    "id": "gr-dmg",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "raw damage by caster stars, 400 fallback"
+   },
+   {
+    "id": "gr-self",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "process",
+    "expect": "pokemon.status.triggerArmorReduction(6000, pokemon)",
+    "note": "the caster halves its own def / speDef for 6000 ms before moving"
+   },
+   {
+    "id": "gr-row",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "destination row",
+    "expect": "const destinationRow =",
+    "note": "row choice depends on team and current row"
+   },
+   {
+    "id": "gr-red",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "destination row",
+    "expect": "pokemon.positionY <= 1",
+    "note": "RED_TEAM caster on row 0-1 goes to the last row (BOARD_HEIGHT - 1), otherwise to row 0"
+   },
+   {
+    "id": "gr-blue",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "destination row",
+    "expect": "pokemon.positionY >= BOARD_HEIGHT - 2",
+    "note": "other-team caster on the last two rows goes to row 0, otherwise to the last row"
+   },
+   {
+    "id": "gr-dest",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "destination",
+    "expect": "const destination = board.getClosestAvailablePlace(",
+    "note": "closest empty cell to (own column, destination row)"
+   },
+   {
+    "id": "gr-between",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "path cells",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells on the supercover line from the start cell to the destination, read BEFORE the move"
+   },
+   {
+    "id": "gr-move",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "move",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": "forcedDisplacement false: canBeMoved (locked, Heavy-Duty Boots, skydiving) is not checked"
+   },
+   {
+    "id": "gr-enemy",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     47,
+     47
+    ],
+    "symbol": "path cells",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "any enemy-team entity standing on a path cell is collected"
+   },
+   {
+    "id": "gr-fallback",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     53,
+     53
+    ],
+    "symbol": "fallback",
+    "expect": "if (enemiesHit.size === 0) enemiesHit.add(target)",
+    "note": "if no enemy was on the path (or there was no destination) the cast target is hit instead"
+   },
+   {
+    "id": "gr-armor",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     55,
+     55
+    ],
+    "symbol": "per enemy",
+    "expect": "enemy.status.triggerArmorReduction(6000, pokemon)",
+    "note": "armor reduction on each enemy, called before that enemy takes the damage; the second argument (used for duration reductions) is the caster"
+   },
+   {
+    "id": "gr-hit",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     56,
+     62
+    ],
+    "symbol": "per enemy",
+    "expect": "enemy.handleSpecialDamage(\n        damage,\n        board,\n        AttackType.SPECIAL,\n        pokemon,\n        crit\n      )",
+    "note": "SPECIAL damage, crit flag from the cast, apBoost default true"
+   },
+   {
+    "id": "gr-dest-null",
+    "file": "app/core/abilities/glaive-rush.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "destination",
+    "expect": "if (destination) {",
+    "note": "nothing happens to position when the board has no free cell"
+   },
+   {
+    "id": "gcap",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     544
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "getClosestAvailablePlace(",
+    "note": ""
+   },
+   {
+    "id": "gcap-empty",
+    "file": "app/core/board.ts",
+    "lines": [
+     415,
+     415
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "if (value === undefined) {",
+    "note": "only empty cells are candidates"
+   },
+   {
+    "id": "gcap-sort",
+    "file": "app/core/board.ts",
+    "lines": [
+     564,
+     564
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "candidateCells.sort((a, b) => a.distance - b.distance)",
+    "note": "nearest by Manhattan distance; ties keep scan order (row by row, left to right)"
+   },
+   {
+    "id": "gcap-null",
+    "file": "app/core/board.ts",
+    "lines": [
+     541,
+     541
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "return candidateCells[0] ?? null",
+    "note": "null when no empty cell exists"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "gcb",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     304
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line; includes the start cell and the destination cell"
+   },
+   {
+    "id": "gcb-start",
+    "file": "app/core/board.ts",
+    "lines": [
+     307,
+     307
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "if (this.isOnBoard(x0, y0)) {",
+    "note": ""
+   },
+   {
+    "id": "board-h",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     2,
+     2
+    ],
+    "symbol": "BOARD_HEIGHT",
+    "expect": "export const BOARD_HEIGHT = 6",
+    "note": ""
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     68
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "moveTo swaps the caster with the destination cell"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": ""
+   },
+   {
+    "id": "moveto-cd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     898,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "this.cooldown = 100 // for faster retargeting",
+    "note": "after the move the caster cooldown is set to 100 ms"
+   },
+   {
+    "id": "ar-def",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     342
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity) {",
+    "note": ""
+   },
+   {
+    "id": "ar-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     343,
+     343
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect on the afflicted entity blocks the armor reduction; the check is on `this` (the afflicted status)"
+   },
+   {
+    "id": "ar-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions read the effects / player items of `pkm`, the second argument"
+   },
+   {
+    "id": "ar-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     348,
+     348
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "if (duration > this.armorReductionCooldown) {",
+    "note": "only ever lengthens an existing armor reduction"
+   },
+   {
+    "id": "red-def",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone -10% each"
+   },
+   {
+    "id": "hd-ar",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     509
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "while armorReduction is set def and speDef are halved (Math.round) before use; WONDER_ROOM then swaps them"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "a target with hp <= 0 or resurrecting takes nothing"
+   },
+   {
+    "id": "hd-mult",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker-state damage multipliers (enraged x2, fields x1.2, matching weather x1.2) apply first"
+   }
+  ]
+ }
+}
