@@ -1,0 +1,602 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/GIGATON_HAMMER",
+ "kind": "ability",
+ "identifier": "GIGATON_HAMMER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T054054Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare GIGATON_HAMMER: Tinkatink (1 star, range 1, maxPP 120), Tinkatuff (2 stars, range 1, maxPP 120) and Tinkaton (3 stars, range 1, maxPP 120), none with a passive. The strategy is shared; unit differences are the star count (table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.GIGATON_HAMMER] = new GigatonHammerStrategy()",
+   "strategy": "GigatonHammerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "x-class",
+    "x-super"
+   ]
+  },
+  "summary": "The caster first fatigues itself for 6000 ms, then deals SPECIAL damage (raw 100/200/400 by stars 1/2/3; 800 at 4 stars or fallback) to the cast target. While fatigued the caster's positive PP gains are halved. No movement, other status or buff.",
+  "targeting": {
+   "who": "the cast target (damage); the caster itself (fatigue)",
+   "needsTarget": true,
+   "note": "Single target; the base default requiresTarget = true means the caster must reach its target before casting.",
+   "evidence": [
+    "gh-hit",
+    "gh-fat",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "gh-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 100,
+      "2": 200,
+      "3": 400,
+      "4": 800,
+      "fallback": 800
+     }
+    },
+    "perUnitRaw": {
+     "TINKATINK": 100,
+     "TINKATON": 400,
+     "TINKATUFF": 200
+    },
+    "scaling": "requested = table value (not tied to atk). applied by handleSpecialDamage: x (1 + AP/100) (apBoost true by default); if the cast crit (only with ABILITY_CRIT since canCritByDefault is false) x 1 + (critPower - 1) x critReductionFactor (Rocky Helmet cancels, Black Augurite reduces).",
+    "resolution": "then PokemonState.handleDamage: an hp <= 0 or resurrecting target takes nothing; attacker-state multipliers (enraged x2, fields x1.2, matching weather x1.2) apply first; SPECIAL damage divided by 1 + ARMOR_FACTOR x speDef; non-TRUE flat reductions; at least 1; shield before HP; protect / skydiving / magicBounce on the target block the hit. takenDamage includes shield damage. The damage is applied in the same call, after the self-fatigue has been set (fatigue does not change the damage).",
+    "evidence": [
+     "gh-dmg",
+     "gh-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-dead",
+     "hd-mult",
+     "hd-div",
+     "hd-flat",
+     "hd-min",
+     "hd-recv"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "fatigue",
+    "target": "caster (self)",
+    "declaredRaw": {
+     "durationMs": 6000
+    },
+    "scaling": "requested duration = 6000 ms; apBoost is not passed (defaults to false) so the caster's AP does not lengthen it. Applied duration = applyStatusDurationReductions(6000): SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (rounded), then Odd Keystone x(1 - 0.1 per stone held by the caster's player); Math.round at the end of storing.",
+    "resolution": "skipped entirely if the caster has Rune Protect (runeProtect) active. If the caster is already fatigued the remaining time is only raised, never shortened (the larger of the existing and the new duration is kept). The status ends when the remaining cooldown is used up. While fatigued, addPP halves positive PP gains (round(base x ... x 0.5)), including PP from basic attacks; negative PP changes are not halved.",
+    "evidence": [
+     "gh-fat",
+     "fat-def",
+     "fat-ap",
+     "fat-rune",
+     "fat-red",
+     "red-def",
+     "fat-set",
+     "fat-max",
+     "fat-upd",
+     "fat-pp",
+     "pp-attack"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "fatigue",
+    "target": "caster (self)",
+    "durationMs": 6000,
+    "evidence": [
+     "gh-fat",
+     "fat-def",
+     "fat-pp"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TINKATINK": 1,
+    "TINKATUFF": 2,
+    "TINKATON": 3
+   },
+   "declaredRawDamage": {
+    "TINKATINK": 100,
+    "TINKATUFF": 200,
+    "TINKATON": 400
+   },
+   "note": "Indexed by the casting entity's stars; the 4-star value (800) is not used by these units at factory values. The fatigue duration does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "gh-dmg",
+    "unit-tinkatink",
+    "unit-tinkatuff",
+    "unit-tinkaton"
+   ]
+  },
+  "positionalConditions": "None in the strategy beyond having a cast target.",
+  "repeatedCastsAndModes": "No stored state or modes. Casting again while fatigued keeps the longer of the remaining and new duration. Note that fatigue halves the PP gained toward the next cast (maxPP 120).",
+  "rawVsResolved": "Declared raw: damage 100 / 200 / 400; fatigue 6000 ms on self. Requested damage = raw; applied = raw x (1 + AP/100) (x crit factor if the cast crit), after attacker-state multipliers and divided by 1 + ARMOR_FACTOR x speDef, minus flat reductions, minimum 1; takenDamage includes shield damage. Requested fatigue = 6000 ms (no AP); applied = after status duration reductions and unless Rune Protect blocks it. Not computed for a specific target.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, resurrection, other field multipliers); the attacker-state multiplier block, SPECIAL defence division, non-TRUE flat reductions and the minimum of 1 were located but not every modifier was traced",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage multiplier",
+   "Other effects of the fatigue status: only the addPP halving was found by searching app/core for `fatigue` (status.ts also lists it among negative statuses and copies it between entities)"
+  ],
+  "unresolved": [
+   "What the status.ts hasNegativeStatus listing and the status copy (line ~172) mean for items, abilities or synergies that react to negative statuses on the caster: not traced",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "GIGATON_HAMMER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "TINKATINK",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "GIGATON_HAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TINKATON",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "GIGATON_HAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TINKATUFF",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "GIGATON_HAMMER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TINKATINK": {
+    "evidence": [
+     "unit-tinkatink"
+    ]
+   },
+   "TINKATON": {
+    "evidence": [
+     "unit-tinkaton"
+    ]
+   },
+   "TINKATUFF": {
+    "evidence": [
+     "unit-tinkatuff"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     910,
+     910
+    ],
+    "symbol": "AbilityStrategies[Ability.GIGATON_HAMMER]",
+    "expect": "[Ability.GIGATON_HAMMER]: new GigatonHammerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "x-class",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "GigatonHammerStrategy",
+    "expect": "export class GigatonHammerStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "x-super",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n      this.status.skydiving ||\n      this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the target block the hit (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applied to the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hd-div",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL: divided by 1 + ARMOR_FACTOR x speDef (speDef halved under armorReduction, swapped with def under WONDER_ROOM)"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     570
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat/item reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard) apply"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "unit-tinkatink",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12312,
+     12325
+    ],
+    "symbol": "class Tinkatink",
+    "expect": "skill = Ability.GIGATON_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tinkatuff",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12327,
+     12340
+    ],
+    "symbol": "class Tinkatuff",
+    "expect": "skill = Ability.GIGATON_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tinkaton",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12342,
+     12354
+    ],
+    "symbol": "class Tinkaton",
+    "expect": "skill = Ability.GIGATON_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "gh-dmg",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [100, 200, 400, 800][pokemon.stars - 1] ?? 800",
+    "note": "raw damage by caster stars, 800 fallback"
+   },
+   {
+    "id": "gh-fat",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "pokemon.status.triggerFatigue(6000, pokemon, pokemon)",
+    "note": "the caster fatigues itself for 6000 ms, before the damage call"
+   },
+   {
+    "id": "gh-hit",
+    "file": "app/core/abilities/gigaton-hammer.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "damage call",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target, crit flag passed, apBoost default true"
+   },
+   {
+    "id": "fat-def",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     172,
+     172
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "triggerFatigue(",
+    "note": "fatigue application: apBoost defaults to false"
+   },
+   {
+    "id": "fat-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     554,
+     554
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "duration is AP-scaled only when apBoost is true; this call does not pass it, so it is not"
+   },
+   {
+    "id": "fat-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     343,
+     343
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect on the target (here the caster itself) prevents the fatigue"
+   },
+   {
+    "id": "fat-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "status duration reductions of the afflicted entity apply"
+   },
+   {
+    "id": "fat-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     557,
+     557
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "this.fatigue = true",
+    "note": ""
+   },
+   {
+    "id": "fat-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     558,
+     558
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "if (duration > this.fatigueCooldown) {",
+    "note": "a shorter duration never shortens an existing fatigue; the cooldown is only raised"
+   },
+   {
+    "id": "fat-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     565,
+     565
+    ],
+    "symbol": "Status.updateFatigue",
+    "expect": "if (this.fatigueCooldown - dt <= 0) {",
+    "note": "fatigue ends once the remaining time is used up"
+   },
+   {
+    "id": "red-def",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone -10% each"
+   },
+   {
+    "id": "fat-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     518,
+     518
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "while fatigued, positive PP gains are halved (rounded); this is the only combat effect of fatigue found in app/core outside ability files"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "a target with hp <= 0 or resurrecting takes nothing (takenDamage 0)"
+   },
+   {
+    "id": "hd-mult",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker-state damage multipliers (enraged x2, then electric / psychic / grass / fairy field x1.2, matching weather x1.2) are applied before the defence division"
+   },
+   {
+    "id": "pp-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "PokemonEntity attack PP",
+    "expect": "this.addPP(ON_ATTACK_MANA, this, 0, false)",
+    "note": "PP from basic attacks goes through addPP, so fatigue halves it"
+   }
+  ]
+ }
+}
