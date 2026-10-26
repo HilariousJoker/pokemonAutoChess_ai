@@ -1,0 +1,580 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HORN_DRILL",
+ "kind": "ability",
+ "identifier": "HORN_DRILL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T174015Z"
+ },
+ "record": {
+  "ability": "HORN_DRILL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare HORN_DRILL (passive NONE in the catalog). The strategy is shared; the units differ in stars and base atk. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "RHYDON",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "HORN_DRILL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RHYHORN",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "HORN_DRILL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RHYPERIOR",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "HORN_DRILL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "RHYDON": {
+    "evidence": [
+     "unit-rhydon"
+    ]
+   },
+   "RHYHORN": {
+    "evidence": [
+     "unit-rhyhorn"
+    ]
+   },
+   "RHYPERIOR": {
+    "evidence": [
+     "unit-rhyperior"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HORN_DRILL] = new HornDrillStrategy()",
+   "strategy": "HornDrillStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hd",
+    "hd-class",
+    "base-flags",
+    "base-pp",
+    "hd-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage: normally a star factor (x3 / x4 / x5; x10 is the 4-star value and fallback, not reachable by the three listed units) times the caster's current atk. Each cast first rolls an 'execute' chance of 0.3 x (1 + max(0, (caster atk - target atk) / target atk)); on success the requested damage is replaced by 9999. The damage is still SPECIAL and goes through handleSpecialDamage and handleDamage (AP scaling, SPE_DEF division, protect/shield/Cover Band etc.), so 9999 is a very large requested amount, not a guaranteed kill or an instant removal.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the pp >= maxPP && canCast gate.",
+   "evidence": [
+    "hd-class",
+    "base-flags",
+    "hd-hit",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "hd-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "multiplierByStars": {
+      "1": 3,
+      "2": 4,
+      "3": 5,
+      "4": 10,
+      "fallback": 10
+     },
+     "base": "pokemon.atk (the caster's current atk, not the class base atk)",
+     "executeReplacement": 9999
+    },
+    "perUnitRaw": {
+     "RHYHORN": "3 x atk",
+     "RHYDON": "4 x atk",
+     "RHYPERIOR": "5 x atk"
+    },
+    "perUnitMultiplier": {
+     "RHYHORN": 3,
+     "RHYDON": 4,
+     "RHYPERIOR": 5
+    },
+    "numericExampleAtBaseAtk": {
+     "RHYHORN": 42,
+     "RHYDON": 92,
+     "RHYPERIOR": 180
+    },
+    "executeChance": {
+     "formula": "0.3 * (1 + max(0, (casterAtk - targetAtk) / targetAtk))",
+     "roll": "chance(executeChance, caster): Math.random() < min(1, executeChance ^ (1 - caster.luck/100)); a probability of exactly 0 is always false; with higher luck the exponent shrinks so a probability below 1 rises toward 1",
+     "examples": "caster atk <= target atk: 0.30 before luck; caster atk = 2 x target atk: 0.60; caster atk >= 3.33 x target atk: 1 (capped by the roll)",
+     "edgeCasesFromJSArithmetic": "target atk 0 with caster atk > 0 gives Infinity and the roll is certain; both atk 0 gives NaN and the roll never succeeds; these follow from Math.max / Math.pow semantics, not from a fight",
+     "evidence": [
+      "hd-chance",
+      "chance",
+      "min-max"
+     ]
+    },
+    "scaling": "requested amount = factor x current atk, or 9999 when the execute roll succeeds (decided before the damage call). In handleSpecialDamage: x (1 + AP/100) applies to 9999 as well (apBoost defaults to true); x2 if the caster has DOUBLE_DAMAGE (consumed); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet target and by 0.1 per Black Augurite of the target's player (floor 0)",
+    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read as a list), SPE_DEF division damage / (1 + 0.05 x speDef) (speDef halved, rounded, while the target has armorReduction), Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard reductions, then ceil with a minimum of 1. A shield absorbs the damage first (flinch splits it half/half); HP is reduced by the residual and floored at 0, so a 9999 request only kills if the damage left after these steps exceeds shield plus HP. Blocked entirely (takenDamage 0) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting; a Cover Band ally adjacent to a target that would die takes the hit instead. takenDamage (shield damage included) is returned but discarded by HORN_DRILL. Requested vs applied: the 9999 or factor x atk is the request; the applied change is HP/shield actually lost after the steps above.",
+    "evidence": [
+     "hd-dmg",
+     "hd-chance",
+     "hd-exec",
+     "hd-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-mult",
+     "special-crit",
+     "special-handle",
+     "special-lens",
+     "dmg-guard",
+     "dmg-field",
+     "dmg-protect",
+     "dmg-spedef",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "dmg-shield",
+     "dmg-cover",
+     "dmg-hp"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "RHYDON": 2,
+    "RHYHORN": 1,
+    "RHYPERIOR": 3
+   },
+   "multiplier": {
+    "RHYHORN": 3,
+    "RHYDON": 4,
+    "RHYPERIOR": 5
+   },
+   "baseAtk": {
+    "RHYDON": 23,
+    "RHYHORN": 14,
+    "RHYPERIOR": 36
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (10, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP 120 and range 1 for all three. The execute chance depends on the atk values, not on stars.",
+   "evidence": [
+    "hd-dmg",
+    "unit-rhydon",
+    "unit-rhyhorn",
+    "unit-rhyperior"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. The execute roll is made independently on every cast, using the current atk values at that moment.",
+  "rawVsResolved": "Requested: factor (3/4/5) x current atk, or 9999 on a successful execute roll (probability 0.3 x (1 + max(0, (casterAtk - targetAtk)/targetAtk)), luck-adjusted, capped at 1). Applied: requested x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather], then SPE_DEF division, ceil, at least 1, other reductions, then shield first and HP floored at 0. The 9999 case still obeys protect, magicBounce, Cover Band and shields.",
+  "sourceTables": [
+   {
+    "id": "hornDrillFactor",
+    "file": "app/core/abilities/horn-drill.ts",
+    "pattern": "damageFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.multiplierByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Field, weather and Poke Doll / Guts-type multipliers in handleDamage were read as a list (lines 455-595), not each traced",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution before the call: only the damage-side multiplier in handleSpecialDamage was read",
+   "What other stat effects change pokemon.atk and target.atk before the cast (items, synergies, buffs, status): not traced; the record uses the entities' live atk",
+   "How luck is gained (items, synergies): only its use inside chance() was read"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect other than those listed changes HORN_DRILL damage or the execute roll",
+   "Whether onDamageDealt / onDamageReceived hooks (called with takenDamage in handleDamage) change the outcome: not traced",
+   "No routing uncertainty was recorded for HORN_DRILL in the queue; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-rhydon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2839,
+     2856
+    ],
+    "symbol": "class Rhydon",
+    "expect": "skill = Ability.HORN_DRILL",
+    "note": "unit class block: skill / passive / stars / stats (base atk 23)"
+   },
+   {
+    "id": "unit-rhyhorn",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2820,
+     2837
+    ],
+    "symbol": "class Rhyhorn",
+    "expect": "skill = Ability.HORN_DRILL",
+    "note": "unit class block: skill / passive / stars / stats (base atk 14)"
+   },
+   {
+    "id": "unit-rhyperior",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2858,
+     2874
+    ],
+    "symbol": "class Rhyperior",
+    "expect": "skill = Ability.HORN_DRILL",
+    "note": "unit class block: skill / passive / stars / stats (base atk 36)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-hd",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     970,
+     970
+    ],
+    "symbol": "AbilityStrategies[Ability.HORN_DRILL]",
+    "expect": "[Ability.HORN_DRILL]: new HornDrillStrategy()",
+    "note": ""
+   },
+   {
+    "id": "hd-class",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "HornDrillStrategy",
+    "expect": "class HornDrillStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden (defaults true / false)"
+   },
+   {
+    "id": "hd-super",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HornDrillStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hd-dmg",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "HornDrillStrategy.process",
+    "expect": "[3, 4, 5, 10][pokemon.stars - 1] ?? 10",
+    "note": "factor by stars x the caster's current atk"
+   },
+   {
+    "id": "hd-chance",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     18,
+     19
+    ],
+    "symbol": "HornDrillStrategy.process",
+    "expect": "0.3 * (1 + min(0)((pokemon.atk - target.atk) / target.atk))",
+    "note": "execute probability from the atk comparison"
+   },
+   {
+    "id": "hd-exec",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "HornDrillStrategy.process",
+    "expect": "damage = 9999",
+    "note": "on a successful roll the requested damage becomes 9999 (replacing factor x atk)"
+   },
+   {
+    "id": "hd-hit",
+    "file": "app/core/abilities/horn-drill.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "HornDrillStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage through the normal pipeline; return value discarded"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "roll: Math.random() < min(cap=1, probability^(1 - luck/100)); probability 0 is always false"
+   },
+   {
+    "id": "min-max",
+    "file": "app/utils/number.ts",
+    "lines": [
+     1,
+     8
+    ],
+    "symbol": "min / max",
+    "expect": "Math.max(minimum, value)",
+    "note": "min(m)(v)=Math.max(m,v); max(m)(v)=Math.min(m,v)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true (HORN_DRILL does not pass it)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "blocks ability damage (takenDamage 0); magicBounce also queues reflected damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-mult",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE (consumed) and STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "special-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     464
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "Item.POWER_LENS",
+    "note": "Power Lens on the target reflects the blocked part to the caster"
+   },
+   {
+    "id": "dmg-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": ""
+   },
+   {
+    "id": "dmg-field",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.status.enraged",
+    "note": "attacker/target multipliers (enraged, fields, weather) precede the defense step"
+   },
+   {
+    "id": "dmg-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "dmg-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.armorReduction",
+    "note": "armorReduction halves the SPE_DEF used"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "dmg-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes shield damage; a shield absorbs damage first"
+   },
+   {
+    "id": "dmg-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "ally.items.has(Item.COVER_BAND)",
+    "note": "Cover Band ally can take the hit instead"
+   },
+   {
+    "id": "dmg-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     726,
+     726
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp = Math.max(0, pokemon.hp - residualDamage)",
+    "note": "HP is reduced by the residual damage, floored at 0"
+   }
+  ]
+ }
+}
