@@ -76,7 +76,7 @@
     "ef-super"
    ]
   },
-  "summary": "First gives the caster a Psychic Field if it has none; if it already has one, gives one to the nearest ally (by Manhattan distance) that lacks it. Then, for every ally of the caster's team that now has a Psychic Field (caster included), deals SPECIAL damage (raw 10/20/40 by stars) to every enemy in the 8 cells around that ally, with the caster as attacker. An enemy adjacent to several field allies is hit once per such ally. Because the caster always has the field after the first step (unless removed), its damage also gets the attacker-has-Psychic-Field x1.2 inside handleDamage.",
+  "summary": "First gives the caster a Psychic Field if it has none; if it already has one, gives one to the nearest ally (by Manhattan distance, ties in board-cell order) that lacks it, if any ally lacks it. Then, for EVERY ally of the caster's team that has a Psychic Field after that optional grant (caster included, and including allies that already held a field before this unit's first cast), deals SPECIAL damage (requested 10/20/40 by stars) to every enemy in the 8 cells around that ally, with the caster as attacker. An enemy adjacent to several field allies is hit once per such ally (overlapping hits are kept). The caster holds the field after the first step, so its damage also gets the attacker-has-Psychic-Field x1.2 inside handleDamage. Pinned-strategy probe: a caster without a field plus one already-field-bearing ally -> the first cast emits around both, not just the caster.",
   "targeting": {
    "who": "field grant: the caster, or the nearest field-less ally; damage: every enemy standing in a cell adjacent to any ally that has a Psychic Field",
    "needsTarget": false,
@@ -105,8 +105,8 @@
     "kind": "field grant",
     "status": "psychicField",
     "target": "the caster if it has none, otherwise the nearest ally without one",
-    "scaling": "No numbers. Status.addPsychicField sets the flag only if not already set; a SURGE_SURFER-passive unit also gains +30 speed (no AP, no crit). Nearest = lowest Manhattan distance to the caster, ties in board-cell order.",
-    "resolution": "At most one new unit gets the field per cast. The field has no timer in this code; it is removed by clearAllStatus or when a PSYCHIC_TERRAIN-passive unit dies (other callers of those paths not traced).",
+    "scaling": "No numbers. Status.addPsychicField sets the flag only if not already set; a SURGE_SURFER-passive unit that gains the field also makes a raw addSpeed(30, itself, 0, false) request (no AP, no crit; it goes through the addSpeed helper, with Big Eater Belt, Twist Band, the Melmetal branch and the 0..300 clamp), so +30 is a request, not a guaranteed final speed change. Nearest = lowest Manhattan distance to the caster, ties in board-cell order.",
+    "resolution": "At most one new unit gets the field per cast, and none when every ally already has it (no eligible ally may remain), so the number of damage sources does not necessarily grow by one per cast. The field has no timer in this code; it is removed by clearAllStatus or when a PSYCHIC_TERRAIN-passive unit dies (other callers of those paths not traced).",
     "evidence": [
      "ef-self",
      "ef-else",
@@ -115,7 +115,8 @@
      "ef-chosen",
      "add-field",
      "clear-all",
-     "remove-terrain"
+     "remove-terrain",
+     "surge-speed"
     ]
    },
    {
@@ -138,7 +139,7 @@
      "ORBEETLE": 40
     },
     "scaling": "requested = table[stars-1] per hit. handleSpecialDamage with default apBoost true: x (1 + AP/100) of the caster; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT). In handleDamage the attacker (caster) with a Psychic Field adds x1.2 and an enraged caster x2.",
-    "resolution": "applied = figure handed to PokemonState.handleDamage for each hit; there it is multiplied by the attacker-state factors above, divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and absorbed by shield first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for protect / skydiving / magicBounce. Each hit resolves separately, so one enemy can take several hits per cast.",
+    "resolution": "the figure handed to PokemonState.handleDamage for each hit (an intermediate input, not guaranteed final HP damage) is multiplied by the attacker-state factors above, divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and absorbed by shield first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for protect / skydiving / magicBounce. Each hit resolves separately, so one enemy can take several hits per cast.",
     "evidence": [
      "ef-table",
      "ef-field-allies",
@@ -184,8 +185,8 @@
    ]
   },
   "positionalConditions": "Damage position depends on where the Psychic-Field allies stand; the caster's own position matters only for who is nearest when spreading the field.",
-  "repeatedCastsAndModes": "Stateful through the field flags: the first cast gives the caster the field and damages around the caster; each later cast spreads the field to one more ally (nearest first) and every field ally then radiates damage, so the number of damage sources grows by one per cast until no field-less ally is left.",
-  "rawVsResolved": "Requested: damage 10/20/40 per hit for 1/2/3 stars. Applied per hit = requested x (1 + AP/100) x optional crit multiplier, x1.2 if the caster has a Psychic Field (normally yes), x2 if the caster is enraged, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. Number of hits per enemy = number of field allies adjacent to it. Final values depend on untraced item and field effects.",
+  "repeatedCastsAndModes": "Stateful through the field flags. Each cast first grants the field: to the caster if it lacks one, otherwise to the nearest field-less ally if any ally lacks it (none may remain, then nothing is granted). Then EVERY currently field-bearing ally radiates the damage, including allies that already had the field from other sources before this unit's first cast. The number of damage sources therefore grows by at most one per cast and not at all when no eligible ally remains; overlapping hits on one enemy are kept.",
+  "rawVsResolved": "Requested: damage 10/20/40 per hit for 1/2/3 stars. Applied per hit = requested x (1 + AP/100) x optional crit multiplier, x1.2 if the caster has a Psychic Field (normally yes), x2 if the caster is enraged, then an intermediate SPE_DEF division with a minimum of 1 (not guaranteed final HP damage); takenDamage includes shield damage. Number of hits per enemy = number of field allies adjacent to it. Final values depend on untraced item and field effects.",
   "sourceTables": [
    {
     "id": "damage",
@@ -202,11 +203,11 @@
    "Damage resolution after handleDamage's earlier branches (Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: attacker field and enraged multipliers, protect, SPE_DEF division, minimum 1 and shield absorption were read"
   ],
   "unresolved": [
-   "Helpers consulted: getAdjacentCells, Status.addPsychicField / removePsychicField / clearAllStatus, handleSpecialDamage and handleDamage's attacker-field branch were read (see evidence); no routing uncertainties are listed for this record",
    "Other sources of Psychic Field (the item effect at items.ts around line 917, terrain passives, TERRAIN_PULSE, MIST/PSYCHIC terrain synergies) change which allies already hold the field and were not traced; fields granted by them also count as damage sources here",
    "Callers of clearAllStatus (which removes the field) were not traced",
    "Sort ties and the order of enemy hits follow board.cells order; JavaScript sort stability was assumed from the language definition, not run",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "The first-cast, spread, no-eligible-ally and SURGE_SURFER behaviours were checked with a pinned-strategy probe (the real strategy text, Board.getAdjacentCells and Status.addPsychicField against stubs), not in a live fight"
   ],
   "evidence": [
    {
@@ -565,12 +566,12 @@
     "id": "clear-all",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     116,
-     117
+     106,
+     120
     ],
-    "symbol": "Status.clearAllStatus",
+    "symbol": "Status.clearPositiveStatus",
     "expect": "this.removePsychicField(entity)",
-    "note": "clearAllStatus removes the Psychic Field (not further traced who calls it)"
+    "note": "clearAllStatus calls clearPositiveStatus (101-104), which removes the Psychic Field (the candidate cited 116-117 under the wrong method name)"
    },
    {
     "id": "remove-terrain",
@@ -604,7 +605,32 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "if (attacker && attacker.status.enraged) {",
     "note": "x2 when the attacker (caster) is enraged"
+   },
+   {
+    "id": "surge-speed",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1310,
+     1312
+    ],
+    "symbol": "Status.addPsychicField",
+    "expect": "entity.addSpeed(30, entity, 0, false)",
+    "note": "a SURGE_SURFER-passive unit gaining the field requests +30 speed through addSpeed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "EXPANDING_FORCE",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T044811Z",
+   "reason": "existing fields count on the first cast: damage radiates around every currently field-bearing ally after the optional grant; one additional source per cast is not guaranteed; overlapping hits preserved; the SURGE_SURFER +30 speed is a raw helper request",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "EXPANDING_FORCE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

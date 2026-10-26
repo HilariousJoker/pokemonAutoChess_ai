@@ -118,8 +118,8 @@
      "RILLABOOM": 40,
      "THWACKEY": 20
     },
-    "scaling": "PokemonEntity.addSpeed (apBoost 1): Big Eater Belt x1.25 rounded down on the holder (positive value), Twist Band irrelevant (positive), then x (1 + AP/100) x critPower if the cast crit, with no rounding. A Melmetal-passive ally instead receives value x0.5 as an attack gain (addAttack).",
-    "resolution": "applied = value added to the ally's current speed, clamped to 0..300 (MAX_SPEED); requested and applied differ for allies near the cap, with Big Eater Belt, and for Melmetal. Not permanent. The caster's AP/crit are used for every ally.",
+    "scaling": "PokemonEntity.addSpeed (apBoost 1): first item-helper pass: Big Eater Belt x1.25 rounded down on the holder (positive value), Twist Band irrelevant (positive). Ordinary ally: then x (1 + AP/100) x critPower if the cast crit, with no rounding, added to speed and clamped to 0..300. MELMETAL-passive ally: instead addAttack(belted value x 0.5, caster, apBoost 1, crit); addAttack rounds Math.round(v x (1 + AP/100) x critPower if the cast crit), then applies Big Eater Belt a SECOND time and Twist Band, then atk = max(1, atk + v). Pinned-helper probe (raw 10, Melmetal with Big Eater Belt, AP 0, no crit): first pass 12, delegated Attack value 6, second pass 7; Attack rises by 7 and the stored speed is unchanged.",
+    "resolution": "applied = value added to the ally's current speed, clamped to 0..300 (MAX_SPEED); requested and applied differ for allies near the cap and with Big Eater Belt. For a Melmetal-passive ally nothing is added to speed: its Attack rises by the double-belted, rounded half (7 in the probe case) and its stored speed is unchanged. Not permanent. The caster's AP/crit are used for every ally.",
     "evidence": [
      "ds-switch",
      "ds-speed-table",
@@ -129,7 +129,13 @@
      "max-speed",
      "belt",
      "twist",
-     "base-ult"
+     "base-ult",
+     "addattack-entity",
+     "belt-twist-call",
+     "count-default",
+     "count-ctor",
+     "sim-add",
+     "ult-reset"
     ]
    },
    {
@@ -187,7 +193,7 @@
      "THWACKEY": 20
     },
     "scaling": "Per enemy: handleSpecialDamage with apBoost default true: x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault false, needs ABILITY_CRIT); other multipliers as in sibling single-target records.",
-    "resolution": "applied = figure handed to PokemonState.handleDamage per enemy; there it is divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and the enemy's shield absorbs first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for an enemy with protect / skydiving / magicBounce. Each enemy resolves separately.",
+    "resolution": "the figure handed to PokemonState.handleDamage per enemy (an intermediate input, not guaranteed final HP damage) is divided by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1, and the enemy's shield absorbs first; takenDamage = shield damage + HP damage (HP part capped at current hp); 0 for an enemy with protect / skydiving / magicBounce. Each enemy resolves separately.",
     "evidence": [
      "ds-switch",
      "ds-damage-table",
@@ -235,8 +241,8 @@
    ]
   },
   "positionalConditions": "None: board-wide, team membership only.",
-  "repeatedCastsAndModes": "Stateful through pokemon.count.ult, incremented by the base process on every cast of any ability handler that calls super.process. Starting at 0, casts go shield (ult=1), damage (ult=2), speed (ult=3), shield (4) ... The only reset of count.ult found in pokemon-entity.ts is for VOLT_SURGE, so it is not reset for DRUM_BEATING by that code; whether the counter is zero at fight start was not traced.",
-  "rawVsResolved": "Requested: 10/20/40 per mode for 1/2/3 stars. Speed applied = requested x belt x (1 + AP/100) x crit, clamped to 300 (Melmetal gets half as attack). Shield applied = requested x belt, x (1 + AP/100), x crit, x0.5 if enraged, rounded. Damage applied = requested x (1 + AP/100) x crit etc., then reduced by each enemy's SPE_DEF with a minimum of 1 and absorbed by shield first. Final values depend on untraced item and field effects.",
+  "repeatedCastsAndModes": "Stateful through pokemon.count.ult, incremented by the base process on every cast of any ability handler that calls super.process. Starting at 0, casts go shield (ult=1), damage (ult=2), speed (ult=3), shield (4) ... count.ult starts at 0: the Count class declares `ult = 0` (count.ts:6), PokemonEntity's constructor builds `new Count()` (pokemon-entity.ts:167) and Simulation.addPokemon constructs a fresh PokemonEntity for each unit placed in a fight (simulation.ts:346), so the first cast is the shield mode. The only reset of count.ult in pokemon-entity.ts is the VOLT_SURGE branch of resurrect() (lines 1552-1554), not DRUM_BEATING.",
+  "rawVsResolved": "Requested: 10/20/40 per mode for 1/2/3 stars. Speed applied = requested x belt x (1 + AP/100) x crit, clamped to 300 (a Melmetal-passive ally gets half of the belted value as an Attack gain, rounded and belted a second time, and no speed). Shield applied = requested x belt, x (1 + AP/100), x crit, x0.5 if enraged, rounded. Damage applied = requested x (1 + AP/100) x crit etc., then an intermediate SPE_DEF division with a minimum of 1 and shield absorption (not guaranteed final HP damage). Final values depend on untraced item and field effects.",
   "sourceTables": [
    {
     "id": "speed",
@@ -268,8 +274,7 @@
    "Whether the board contains entities of a third team or dead entities: forEach only filters by team equality / inequality"
   ],
   "unresolved": [
-   "Helpers consulted: addSpeed, addShield (entity and state), applyBigEaterBeltStatBuff and applyTwistBandBuff in pokemon-entity.ts / pokemon-state.ts, handleSpecialDamage and handleDamage were read (see evidence); no routing uncertainties are listed for this record",
-   "The count.ult initial value and any reset outside pokemon-entity.ts (e.g. at fight start, evolution or clone) were not traced; the shield/damage/speed order assumes it starts at 0",
+   "Another code path that constructs an entity with a non-zero count.ult was not found: a text search of app/ finds `new PokemonEntity` at simulation.ts:346 (Simulation.addPokemon, read as the fight path), pokemon-entity.ts:1441 and game-commands.ts:2226 (not read), and writes to count.ult only in the base process, swallow.ts and the VOLT_SURGE branch; evolution or clone paths were not traced further",
    "The DRUMMER passive that all three units declare gives PP to adjacent allies and is not part of this record; it can change how often the cast fires",
    "Whether a Melmetal-passive ally is ever on the board with these units was not examined",
    "No gameplay evidence; candidate is source reading plus mechanical checks only"
@@ -680,7 +685,7 @@
     ],
     "symbol": "PokemonEntity.addSpeed",
     "expect": "this.passive === Passive.MELMETAL",
-    "note": "Melmetal receives value x0.5 as addAttack instead of speed"
+    "note": "MELMETAL passive: addAttack(value x 0.5, ...) instead of a speed change"
    },
    {
     "id": "max-speed",
@@ -714,7 +719,87 @@
     "symbol": "Grookey.passive",
     "expect": "passive = Passive.DRUMMER",
     "note": "the listed units also declare the DRUMMER passive (PP to adjacent allies); that passive is a separate mechanism and is not described by this record"
+   },
+   {
+    "id": "addattack-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addAttack: Math.round with AP / crit, then Big Eater Belt and Twist Band, then atk = max(1, atk + value); this is the second item-helper pass for a delegated Melmetal gain"
+   },
+   {
+    "id": "belt-twist-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     759,
+     760
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addSpeed: the first item-helper pass happens before the MELMETAL branch"
+   },
+   {
+    "id": "count-default",
+    "file": "app/models/colyseus-models/count.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "Count",
+    "expect": "@type(\"uint8\") ult = 0",
+    "note": "count.ult defaults to 0"
+   },
+   {
+    "id": "count-ctor",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     167,
+     167
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.count = new Count()",
+    "note": "every entity gets a fresh Count"
+   },
+   {
+    "id": "sim-add",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "new PokemonEntity(pokemon, x, y, team, this)",
+    "note": "units placed in a fight are built here, with a fresh Count"
+   },
+   {
+    "id": "ult-reset",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1552,
+     1554
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "this.count.ult = 0",
+    "note": "the only reset of count.ult in pokemon-entity.ts is for VOLT_SURGE"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "DRUM_BEATING",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T044811Z",
+   "reason": "MELMETAL delegation traced through addAttack including its second item-helper pass (raw 10 with Belt: 12, 6, 7); count.ult is 0 for a freshly constructed entity (Count default, PokemonEntity constructor, Simulation.addPokemon), so the shield / damage / speed order stands",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "DRUM_BEATING",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

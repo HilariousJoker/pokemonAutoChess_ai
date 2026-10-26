@@ -76,7 +76,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Delayed area hit around the cast target. At cast time the strategy only records how many crits the cast target has received so far (its crit counter) and queues a command on the caster that runs 3000 ms later (on the first update after the delay has elapsed). When it runs it counts the crits the target received in between (from any source, not only the caster), takes the 3x3 block centred on the target's position AT THAT TIME (centre included) and gives every enemy unit in it SPECIAL damage of (raw 15/40/85 by the caster's stars + 15 per counted crit), AP-scaled and crit-multiplied only if the original cast crit. The crit bonus is added to the raw amount, so AP scaling applies to it too. The target is the unit fixed at cast time; it need not be alive or in the same cell, and the explosion is centred on its last known position. Nothing is dealt at cast time.",
+  "summary": "Delayed area hit around the cast target. At cast time the strategy only records how many crits the cast target has received so far (its crit counter) and queues a command on the caster that runs 3000 ms later (on the first update after the delay has elapsed). When it runs it takes the difference between the target's crit counter now and at cast time (the counter does NOT count only successful crit hits; its semantics follow below) and takes the 3x3 block centred on the target's position AT THAT TIME (centre included) and gives every enemy unit in it SPECIAL damage of (raw 15/40/85 by the caster's stars + 15 per counted crit), AP-scaled and crit-multiplied only if the original cast crit. The crit bonus is added to the raw amount, so AP scaling applies to it too. The target is the unit fixed at cast time; it need not be alive or in the same cell, and the explosion is centred on its last known position. Nothing is dealt at cast time. Crit counter semantics: PokemonState.attack increments target.count.crit whenever a basic attack's crit roll succeeds, unless the target holds Rocky Helmet, BEFORE the dodge and protect checks, so a dodged or protected crit roll still counts although the attack dealt nothing. PokemonEntity.handleSpecialDamage increments it for a crit ability hit only after the protect / skydiving / magicBounce block, and Rocky Helmet suppresses it for non-TRUE damage only, so a TRUE ability crit still increments it. Pinned-helper probe: a forced crit that is dodged leaves basic damage 0 and raises the counter by 1, and a one-star Flower Trick then requests raw 30 instead of 15; with a Rocky Helmet, raw 10, AP 0 and critPower 2, a TRUE crit increments the counter and hands 20 to the damage handler while a SPECIAL crit leaves the counter at 0 and hands 10.",
   "targeting": {
    "who": "all enemy units in the 3x3 block around the cast target's position at the moment the delayed command runs, the target included if it is still there",
    "needsTarget": true,
@@ -122,7 +122,7 @@
      "MEOWSCARADA": 85
     },
     "scaling": "requested raw = table value + 15 x numberOfCrits; AP: x (1 + AP/100) per enemy (apBoost default true) read from the caster when the command runs; the cast's crit flag (from cast time) multiplies by critPower (reduced by each enemy's critReductionFactor) only if that cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
-    "resolution": "numberOfCrits = target.count.crit at fire time minus its value at cast time; the counter rises when a crit lands on the target through handleSpecialDamage (ability) or handleAttack (basic attack), unless the target holds Rocky Helmet, so it counts every source and all crits on that target in the window. Per enemy: SPE_DEF division (ceil, min 1) and untraced later modifiers, so it is an intermediate calculation, not the final HP loss; takenDamage (not used, the return value is discarded) would count HP removed plus shield damage. Blocked entirely by protect / skydiving / magicBounce on that enemy at fire time (takes 0; the explosion animation is still broadcast); a magicBounce enemy also queues a delayed SPECIAL bounce at the caster unless it holds Protective Pads. Requested vs applied: the table value (15/40/85) is the minimum raw; the crit bonus can only raise it.",
+    "resolution": "numberOfCrits = target.count.crit at fire time minus its value at cast time. The counter rises (a) in PokemonState.attack whenever a basic attack's crit roll succeeds and the target has no Rocky Helmet, before the dodge and protect checks (so dodged or protected crit rolls count); (b) in PokemonEntity.handleSpecialDamage for a crit ability hit that passed the protect / skydiving / magicBounce block, except that Rocky Helmet suppresses it for non-TRUE damage only (a TRUE crit still counts). It counts every source and every such increment on that target in the window. Per enemy: SPE_DEF division (ceil, min 1) and untraced later modifiers, so it is an intermediate calculation, not the final HP loss; takenDamage (not used, the return value is discarded) would count HP removed plus shield damage. Blocked entirely by protect / skydiving / magicBounce on that enemy at fire time (takes 0; the explosion animation is still broadcast); a magicBounce enemy also queues a delayed SPECIAL bounce at the caster unless it holds Protective Pads. Requested vs applied: the table value (15/40/85) is the minimum raw; the crit bonus can only raise it.",
     "evidence": [
      "ft-dmg",
      "ft-count",
@@ -139,7 +139,8 @@
      "def-min",
      "armor-factor",
      "taken-damage",
-     "taken-shield"
+     "taken-shield",
+     "atk-dodge"
     ]
    }
   ],
@@ -167,7 +168,7 @@
   },
   "positionalConditions": "The blast centre is the cast target's position 3000 ms later, not its position at cast time. Cells off the board are clipped. Allies in the block are ignored.",
   "repeatedCastsAndModes": "No stored state or modes besides the pending command. Each cast queues its own command (several casts overlap, each with its own cast-time crit count and target).",
-  "rawVsResolved": "Declared raw: 15/40/85 (1/2/3 stars) plus 15 per crit counted on the target in the 3 s window, per enemy in the block. Requested damage = (raw + 15 x crits) x (1 + AP/100) [x crit factor]; then the SPE_DEF division (ceil, min 1) and untraced modifiers (intermediate, not final HP loss).",
+  "rawVsResolved": "Declared raw: 15/40/85 (1/2/3 stars) plus 15 per increment of the target's crit counter in the 3 s window (crit rolls of basic attacks, including dodged or protected ones, and crit ability hits; see the summary), per enemy in the block. Requested damage = (raw + 15 x crits) x (1 + AP/100) [x crit factor]; then the SPE_DEF division (ceil, min 1) and untraced modifiers (intermediate, not final HP loss).",
   "sourceTables": [
    {
     "id": "flowerTrickDamage",
@@ -188,7 +189,8 @@
    "Whether the delayed command still runs when the caster dies before 3000 ms: commands are advanced from PokemonState.update of the caster's own state, and whether a dead entity's state keeps updating was not traced",
    "Whether the crit counter is also changed by other code paths than the two cited (a repository-wide search showed only these two increments in app/, outside the client code)",
    "Whether any item or synergy effect changes FLOWER_TRICK beyond what is listed",
-   "Mechanics consulted: core-mechanics.md section A via the cited handleDamage lines; no PP or stat adder is called by this strategy"
+   "Mechanics consulted: core-mechanics.md section A via the cited handleDamage lines; no PP or stat adder is called by this strategy",
+   "The counter semantics were checked with a pinned-helper probe (the real PokemonState.attack lines 29-117 and handleSpecialDamage against stubs), not in a live fight; the nominal 3000 ms is the delay the command must exceed (it runs on the first update after the delay goes below 0), and whether the caster's command list keeps updating after its death stays unresolved as above"
   ],
   "evidence": [
    {
@@ -394,22 +396,22 @@
     "file": "app/core/pokemon-entity.ts",
     "lines": [
      412,
-     421
+     433
     ],
     "symbol": "PokemonEntity.handleSpecialDamage",
     "expect": "this.count.crit++",
-    "note": "a crit ability hit raises the receiver's crit counter unless it holds Rocky Helmet"
+    "note": "crit block of handleSpecialDamage: the counter is incremented at line 420 unless Rocky Helmet suppresses it for non-TRUE damage (hasCritNegation requires attackType !== TRUE); the block is only reached after the protect / skydiving / magicBounce early return"
    },
    {
     "id": "crit-atk",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     80,
-     82
+     66,
+     83
     ],
-    "symbol": "PokemonState.handleAttack",
+    "symbol": "PokemonState.attack",
     "expect": "target.count.crit++",
-    "note": "a critical basic attack raises the target's crit counter unless it holds Rocky Helmet"
+    "note": "basic attack: the crit roll succeeds at line 59/66 and the counter is incremented at line 81 unless Rocky Helmet negates it, BEFORE the dodge roll (100-112) and the protect test (114-117)"
    },
    {
     "id": "hd-protect",
@@ -575,7 +577,32 @@
     "symbol": "castAbility",
     "expect": "abilityStrategy.canCritByDefault",
     "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
+   },
+   {
+    "id": "atk-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     100,
+     117
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "target.count.dodgeCount += 1",
+    "note": "dodge and protect checks come after the counter increment: damage becomes 0 but the counter stays incremented"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "FLOWER_TRICK",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T044811Z",
+   "reason": "the crit counter does not mean only successful crit hits: basic attacks increment it before dodge and protect, Rocky Helmet suppresses it only for non-TRUE ability damage; nominal-delay and command-liveness limits preserved",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "FLOWER_TRICK",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

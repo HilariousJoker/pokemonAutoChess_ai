@@ -76,7 +76,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target multi-hit SPECIAL damage: the target is flinched for 1000 ms, and round((1 + 0.01 x speed) x 3) hits (speed read at cast time) are queued over about one second, each dealing 1 x the caster's ATK (read at that hit) at 1-3 stars (2 x at 4 stars). Fire-synergy effects add attack to the caster after each hit. The caster then moves to the empty cell closest to the point behind the target, if there is one.",
+  "summary": "Single-target multi-hit SPECIAL damage. The target is flinched for a requested 1000 ms, and round((1 + 0.01 x speed) x 3) hits (speed read at cast time) are queued as delayed commands at delays round(i x 1000 / hits) ms; each requests 1 x the caster's ATK (read at that hit; 2 x at 4 stars) as SPECIAL damage. Each callback tests the stored target's hp > 0 when it enters. Fire-synergy effects (WILDFIRE +1, BLAZE +2, DESOLATE_LAND +3, first match only) add attack to the caster AFTER the damage request of every callback that passed that hp test, even when the request was blocked (protect / skydiving / magicBounce, takenDamage 0) or dealt nothing, and even when it killed the target; a callback whose target already has hp 0 on entry makes neither request nor gain (pinned-strategy probe: WILDFIRE, ATK 30, blocked damage -> ATK 31 after the first callback). The caster then moves to the empty cell closest, by Manhattan distance and over the whole board, to the point target + (target - caster): the FULL vector from the caster to the target applied again from the target, not one sign-step past it; the point may lie off the board.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target); every queued hit goes to that same target",
    "needsTarget": true,
@@ -91,7 +91,7 @@
   },
   "geometry": {
    "shape": "single target; displacement of the caster to the empty cell nearest (target position + (target - caster))",
-   "destination": "Board.getClosestAvailablePlace of the point one step past the target in the caster -> target direction (the point may lie off the board; only empty cells are candidates; ties keep the sorted order of board.forEach, not traced)",
+   "destination": "Board.getClosestAvailablePlace(target.x + dx, target.y + dy) with dx = target.x - caster.x and dy = target.y - caster.y (the full vector, so a target two cells away gives a point two cells beyond it); the search covers every empty cell on the board, ordered by Manhattan distance (distanceM) with ties kept in board.forEach order after a stable sort; the point itself may lie off the board; null if no cell is empty",
    "evidence": [
     "dl-dir",
     "dl-behind",
@@ -123,7 +123,7 @@
      "TORRACAT": "1 x atk"
     },
     "scaling": "requested amount per hit: multiplier x atk (atk includes whatever the entity has at that moment, e.g. earlier attack gains from this cast, items per core-mechanics section I); then AP: x (1 + AP/100) (apBoost default true); the cast's single crit flag multiplies every hit if it is true (needs ABILITY_CRIT)",
-    "resolution": "applied amount per hit: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked by protect / skydiving / magicBounce. No hit is dealt once the target is dead. takenDamage is not used by this ability.",
+    "resolution": "intermediate, not guaranteed final HP damage: handleDamage includes the SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1), the shield handling (with the flinch split described under statusEffects) and later modifiers; protect / skydiving / magicBounce block the request (takenDamage 0). The hp > 0 test happens when each callback enters; once the target has hp 0 no further request or gain is made. takenDamage is not used by this ability.",
     "evidence": [
      "dl-hits",
      "dl-loop",
@@ -150,7 +150,7 @@
      "note": "flat attack added after each damaging hit; first matching effect only"
     },
     "scaling": "requested amount: addAttack(value, caster = self, apBoost 0, crit false), so neither AP nor crit scales it",
-    "resolution": "applied amount: applyBigEaterBeltStatBuff multiplies a positive value by 1.25 (rounded down, 0 digits) if the caster holds BIG_EATER_BELT; applyTwistBandBuff affects only negative values, so it does nothing here; atk = max(1, atk + value); not permanent. The gain raises atk for the NEXT hit(s) of this cast and for the basic attacks afterwards.",
+    "resolution": "Granted after the damage request of each callback that entered with target.hp > 0, whatever the request did (blocked, zero takenDamage, or lethal). applied amount: applyBigEaterBeltStatBuff multiplies a positive value by 1.25 (rounded down, 0 digits) if the caster holds BIG_EATER_BELT; applyTwistBandBuff affects only negative values, so it does nothing here; atk = max(1, atk + value); not permanent. The gain raises atk for the NEXT hit(s) of this cast and for the basic attacks afterwards.",
     "evidence": [
      "dl-fire",
      "add-attack",
@@ -163,7 +163,7 @@
    {
     "kind": "move (self)",
     "declaredRaw": {
-     "destination": "closest empty cell to the point behind the target"
+     "destination": "closest empty cell (whole board, Manhattan distance) to target + (target - caster)"
     },
     "scaling": "none",
     "resolution": "if a cell exists: moveTo(..., false) (forcedDisplacement false, canBeMoved not consulted) then resetCooldown(500), i.e. cooldown = round(500 / (0.4 + speed x 0.007)) with the caster's current speed, replacing the cooldown of 100 that moveTo sets. If no empty cell exists the caster stays and the cooldown is not reset.",
@@ -188,11 +188,12 @@
     "scaling": "none from AP or crit",
     "applicationOrder": "at cast time, before any hit and independent of whether damage is dealt",
     "guards": "not applied if runeProtect; duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
-    "combatEffect": "while flinched, damage that would hit a shield is split: half is dealt to the shield and half is residual damage to HP (the only use of status.flinch read in app/core and app/models besides status.ts; other directories not searched).",
+    "combatEffect": "while flinched and while the target's shield is above 0, handleDamage splits the reduced damage using ceil operations, not exact halves: damageOnShield = ceil(reduced x 0.5) and residualDamage = ceil(reduced x 0.5), so an odd reduced amount puts one more in total than reduced (reduced 5 -> 3 on the shield and 3 residual); if damageOnShield reaches the shield, the excess moves to the residual damage and the shield is emptied; takenDamage = shield part + min(residual, hp). Without a shield, or without flinch, the status changes nothing in this handler. This is the only use of status.flinch read in app/core and app/models besides status.ts; other directories not searched. Pinned-helper probe (lines 618-649): reduced 5 with shield 100 -> taken 6, residual 3, shield 97; without flinch taken 5; shield 1 -> residual 5, taken 6.",
     "evidence": [
      "dl-flinch",
      "flinch-trig",
-     "flinch-shield"
+     "flinch-shield",
+     "shield-overflow"
     ]
    }
   ],
@@ -229,7 +230,7 @@
   },
   "positionalConditions": "The caster needs the target in range to cast (requiresTarget true). Hits do not check range or position, so they still land after the caster has moved behind the target. The move needs at least one empty cell on the board.",
   "repeatedCastsAndModes": "No stored state and no modes. Queued hits are entries in the caster's commands list, each tied to the cast's target and crit flag; a later cast adds its own set. Permanent effects: none (the attack gains are not permanent).",
-  "rawVsResolved": "Requested (raw): damage per hit = 1 x atk (4-star: 2 x atk) at hit time, number of hits round((1 + 0.01 x speed) x 3), flinch 1000 ms, attack gain +1/+2/+3 per hit under WILDFIRE/BLAZE/DESOLATE_LAND. Applied: damage after AP/crit, then SPE_DEF division (ceil, min 1) and later handleDamage modifiers; attack gain after the Big Eater Belt helper (x1.25 rounded down) and the atk floor of 1; flinch after status duration reductions; cooldown reset per resetCooldown with the caster's speed.",
+  "rawVsResolved": "Requested (raw): damage per hit = 1 x atk (4-star: 2 x atk) at hit time, number of hits round((1 + 0.01 x speed) x 3), flinch 1000 ms, attack gain +1/+2/+3 per hit under WILDFIRE/BLAZE/DESOLATE_LAND. Applied: damage after AP/crit, then an intermediate SPE_DEF division (ceil, min 1), shield handling (flinch split with ceil) and later handleDamage modifiers (not guaranteed final HP damage); attack gain (granted after each damage request, whatever its result) after the Big Eater Belt helper (x1.25 rounded down) and the atk floor of 1; flinch after status duration reductions; cooldown reset per resetCooldown with the caster's speed.",
   "sourceTables": [
    {
     "id": "lariatMultiplier",
@@ -379,7 +380,7 @@
     "id": "dl-loop",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     19,
+     20,
      20
     ],
     "symbol": "DarkestLariatStrategy.process",
@@ -412,8 +413,8 @@
     "id": "dl-hit",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     21,
-     27
+     27,
+     33
     ],
     "symbol": "DarkestLariatStrategy.process",
     "expect": "target.handleSpecialDamage(",
@@ -423,8 +424,8 @@
     "id": "dl-fire",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     28,
-     34
+     34,
+     40
     ],
     "symbol": "DarkestLariatStrategy.process",
     "expect": "if (pokemon.effects.has(EffectEnum.WILDFIRE)) {",
@@ -445,8 +446,8 @@
     "id": "dl-dir",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     46,
-     47
+     47,
+     48
     ],
     "symbol": "DarkestLariatStrategy.process",
     "expect": "const dx = target.positionX - pokemon.positionX",
@@ -456,8 +457,8 @@
     "id": "dl-behind",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     46,
-     49
+     49,
+     52
     ],
     "symbol": "DarkestLariatStrategy.process",
     "expect": "const freeCellBehind = board.getClosestAvailablePlace(",
@@ -467,8 +468,8 @@
     "id": "dl-bcast",
     "file": "app/core/abilities/darkest-lariat.ts",
     "lines": [
-     50,
-     53
+     53,
+     56
     ],
     "symbol": "DarkestLariatStrategy.process",
     "expect": "pokemon.broadcastAbility({",
@@ -500,19 +501,19 @@
     "id": "closest",
     "file": "app/core/board.ts",
     "lines": [
-     527,
-     544
+     544,
+     566
     ],
     "symbol": "Board.getClosestAvailablePlace",
     "expect": "getClosestAvailablePlace(",
-    "note": "all EMPTY cells sorted by distance (distanceM) to the given point, first returned; null when none; the point may be off the board"
+    "note": "Board.getClosestAvailablePlace: every empty cell on the board, sorted by Manhattan distance (the candidate cited 527-544)"
    },
    {
     "id": "moveto",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     882,
-     890
+     890,
+     899
     ],
     "symbol": "PokemonEntity.moveTo",
     "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
@@ -522,8 +523,8 @@
     "id": "reset-cd",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     317,
-     319
+     319,
+     321
     ],
     "symbol": "PokemonEntity.resetCooldown",
     "expect": "resetCooldown(baseDuration: number, speed = this.speed)",
@@ -533,8 +534,8 @@
     "id": "cmd-class",
     "file": "app/core/simulation-command.ts",
     "lines": [
-     12,
-     22
+     22,
+     32
     ],
     "symbol": "DelayedCommand",
     "expect": "export class DelayedCommand extends SimulationCommand",
@@ -544,8 +545,8 @@
     "id": "cmd-update",
     "file": "app/core/simulation-command.ts",
     "lines": [
-     11,
-     14
+     13,
+     19
     ],
     "symbol": "SimulationCommand.update",
     "expect": "this.delay -= dt",
@@ -577,8 +578,8 @@
     "id": "flinch-trig",
     "file": "app/models/colyseus-models/status.ts",
     "lines": [
-     967,
-     976
+     976,
+     986
     ],
     "symbol": "Status.triggerFlinch",
     "expect": "triggerFlinch(duration: number, pkm: PokemonEntity, origin?: PokemonEntity)",
@@ -588,19 +589,19 @@
     "id": "flinch-shield",
     "file": "app/core/pokemon-state.ts",
     "lines": [
-     623,
-     623
+     620,
+     628
     ],
     "symbol": "PokemonState.handleDamage",
     "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
-    "note": "while flinched, damage on a shield is halved and the other half goes to HP"
+    "note": "flinch with a shield: damageOnShield and residualDamage are both Math.ceil(reducedDamage * 0.5)"
    },
    {
     "id": "special",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     345,
-     352
+     346,
+     353
     ],
     "symbol": "PokemonEntity.handleSpecialDamage",
     "expect": "apBoost = true",
@@ -610,8 +611,8 @@
     "id": "special-block",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     351,
-     355
+     354,
+     358
     ],
     "symbol": "PokemonEntity.handleSpecialDamage",
     "expect": "this.status.protect ||",
@@ -676,19 +677,19 @@
     "id": "add-attack",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     608,
-     629
+     726,
+     750
     ],
     "symbol": "PokemonEntity.addAttack",
     "expect": "addAttack(",
-    "note": "requested value: with apBoost 0 and crit false the value stays as passed; then Big Eater Belt (x1.25, rounded down, for a positive change on the holder) and Twist Band (only for negative values) helpers; atk = max(1, atk + value); not permanent here"
+    "note": "PokemonEntity.addAttack (the candidate cited 608-629, which is addAbilityPower / addDodgeChance)"
    },
    {
     "id": "bigeater",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     1826,
-     1839
+     1839,
+     1852
     ],
     "symbol": "applyBigEaterBeltStatBuff",
     "expect": "function applyBigEaterBeltStatBuff(",
@@ -698,8 +699,8 @@
     "id": "twist",
     "file": "app/core/pokemon-entity.ts",
     "lines": [
-     1841,
-     1854
+     1854,
+     1867
     ],
     "symbol": "applyTwistBandBuff",
     "expect": "function applyTwistBandBuff(",
@@ -759,6 +760,17 @@
     "symbol": "class Torracat",
     "expect": "skill = Ability.DARKEST_LARIAT",
     "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "shield-overflow",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     636,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "residualDamage += damageOnShield - pokemon.shield",
+    "note": "when the shield part reaches the shield the excess becomes residual damage; takenDamage = shield part + min(residual, hp)"
    }
   ],
   "executionEvidence": {
@@ -769,6 +781,20 @@
     "cmd-update",
     "dl-comment"
    ]
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "DARKEST_LARIAT",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T044811Z",
+   "reason": "fire-effect gains come after the damage request even when takenDamage is 0; the destination uses the full vector target + (target - caster) with a board-wide closest-free-cell search; flinch described with the actual ceil operations; stale helper citations fixed",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "DARKEST_LARIAT",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
