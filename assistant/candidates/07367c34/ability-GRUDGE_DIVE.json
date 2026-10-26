@@ -1,0 +1,422 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/GRUDGE_DIVE",
+ "kind": "ability",
+ "identifier": "GRUDGE_DIVE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T114202Z"
+ },
+ "record": {
+  "ability": "GRUDGE_DIVE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Basculin (White-Striped) (3 stars, maxPP 100, range 1, passive BASCULIN_WHITE), Basculegion male (4 stars, maxPP 100, range 1) and Basculegion female (4 stars, maxPP 100, range 2) declare ABILITY GRUDGE_DIVE. Despite the name the strategy does not move the caster. GRUDGE, DIVE and TRIPLE_DIVE are separate abilities and not covered.",
+  "appliesTo": [
+   {
+    "key": "BASCULEGION_FEMALE",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "GRUDGE_DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BASCULEGION_MALE",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GRUDGE_DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BASCULIN_WHITE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GRUDGE_DIVE",
+    "declaredPassive": "BASCULIN_WHITE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BASCULEGION_FEMALE": {
+    "evidence": [
+     "unit-basculegion-female"
+    ]
+   },
+   "BASCULEGION_MALE": {
+    "evidence": [
+     "unit-basculegion-male"
+    ]
+   },
+   "BASCULIN_WHITE": {
+    "evidence": [
+     "unit-basculin-white"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.GRUDGE_DIVE] = new GrudgeDiveStrategy()",
+   "strategy": "GrudgeDiveStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-gd",
+    "base",
+    "cast",
+    "gd-class"
+   ]
+  },
+  "summary": "Single-target special burst with recoil. The caster deals flat SPECIAL damage to its current cast target: a star-indexed base (30/60/90/120/240) plus a per-fallen-ally bonus (5/10/15/20/40 times the number of fallen allies), both requested amounts. Then, unless it holds Protective Pads, the caster takes recoil equal to round(10% of its current maxHP) as PHYSICAL damage through its own handleSpecialDamage, so the recoil also takes the caster's AP percentage and, if the cast crit, the crit multiplier. The caster does not move and no status is applied. requiresTarget is the default true, so the caster must have a target in range; the default cast animation is suppressed and a custom broadcastAbility is sent instead.",
+  "targeting": {
+   "who": "the cast target (damage); the caster itself (recoil)",
+   "needsTarget": true,
+   "note": "Single target; no area. The target is whatever the cast supplies (the current attack target).",
+   "evidence": [
+    "gd-class",
+    "gd-damage",
+    "gd-recoil"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area",
+   "detail": "No adjacent-cell or line logic and no movement; the broadcastAbility positions are animation data only.",
+   "evidence": [
+    "gd-damage"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the cast target",
+    "declaredRaw": {
+     "base": [
+      30,
+      60,
+      90,
+      120,
+      240
+     ],
+     "perFallenAlly": [
+      5,
+      10,
+      15,
+      20,
+      40
+     ],
+     "formula": "base[stars-1] + fallenAllies * perFallenAlly[stars-1], both tables fall back to the last entry (240 / 40) beyond 5 stars"
+    },
+    "perUnitRaw": {
+     "BASCULEGION_FEMALE": 120,
+     "BASCULEGION_MALE": 120,
+     "BASCULIN_WHITE": 90
+    },
+    "perUnitRawPerFallenAlly": {
+     "BASCULEGION_FEMALE": 20,
+     "BASCULEGION_MALE": 20,
+     "BASCULIN_WHITE": 15
+    },
+    "scaling": "Requested amount = base + fallen allies x per-ally bonus (labelled requested). handleSpecialDamage(requested, board, SPECIAL, caster, crit) with the default apBoost = true: + requested x caster AP/100, then x2 if the caster has DOUBLE_DAMAGE (effect consumed), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT because canCritByDefault is false), reduced by a Rocky Helmet or Black Augurite on the target. Fallen allies = size of the caster team's DPS meter minus same-team units still on the board.",
+    "resolution": "The requested amount is the pre-defence special damage. A target with protect, skydiving or magicBounce takes none (takenDamage 0; magicBounce reflects if the caster lacks Protective Pads). Otherwise state.handleDamage applies defences, shields and the minimum of 1 (core-mechanics.md section A); the applied/taken amount is what handleDamage reports as takenDamage.",
+    "evidence": [
+     "gd-damage-table",
+     "gd-fallen-table",
+     "gd-fallen-count",
+     "gd-damage",
+     "fallen-fn",
+     "meter-add",
+     "spdmg",
+     "spdmg-calc",
+     "state-damage"
+    ]
+   },
+   {
+    "kind": "recoil-damage",
+    "target": "the caster itself",
+    "declaredRaw": {
+     "formula": "round(0.1 x caster maxHP at cast time)",
+     "note": "the source comment says 20% of base HP; the code uses 0.1 of the current maxHP"
+    },
+    "scaling": "Requested recoil = Math.round(pokemon.maxHP * 0.1) (current maxHP, so it grows with HP buffs; not base HP and not 20%). Skipped entirely when the caster holds Protective Pads. Otherwise pokemon.handleSpecialDamage(recoil, board, PHYSICAL, caster, crit) with the default apBoost: the recoil gets + recoil x caster AP/100, the DOUBLE_DAMAGE doubling if the effect is still present (it is consumed by the damage to the target first unless that was blocked), strange steam x1.2, and the crit multiplier if the cast crit (the caster's own Rocky Helmet can negate it).",
+    "resolution": "Requested recoil depends on the runtime maxHP, so no per-unit figure is given. The caster's own protect/skydiving/magicBounce status blocks it (magicBounce does not reflect a PHYSICAL hit). Otherwise handleDamage applies the caster's Defense (PHYSICAL), shields (which also absorb it) and the minimum of 1. It can bring the caster to 0 HP; whether that kills it was not traced beyond handleDamage.",
+    "evidence": [
+     "gd-recoil-calc",
+     "gd-recoil",
+     "spdmg",
+     "spdmg-calc",
+     "state-damage"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "BASCULEGION_FEMALE": 4,
+    "BASCULEGION_MALE": 4,
+    "BASCULIN_WHITE": 3
+   },
+   "declaredRawBase": {
+    "BASCULEGION_FEMALE": 120,
+    "BASCULEGION_MALE": 120,
+    "BASCULIN_WHITE": 90
+   },
+   "declaredRawPerFallenAlly": {
+    "BASCULEGION_FEMALE": 20,
+    "BASCULEGION_MALE": 20,
+    "BASCULIN_WHITE": 15
+   },
+   "note": "The caster's stars index both tables (1-5, fallback 240 and 40). The three listed units are 3 stars (Basculin White) and 4 stars (Basculegion male and female); the 1, 2 and 5 star entries exist in the tables but no listed unit uses them.",
+   "evidence": [
+    "gd-damage-table",
+    "gd-fallen-table"
+   ]
+  },
+  "positionalConditions": "None. No range or geometry condition beyond having a target; the recoil does not depend on position.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast reads the current fallen-ally count and the caster's current maxHP, so repeated casts can differ.",
+  "rawVsResolved": "Requested: base 90 (Basculin White, 3 stars) or 120 (Basculegion male/female, 4 stars) plus 15 or 20 per fallen ally as special damage to the target; requested recoil round(0.1 x maxHP) to the caster. Applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit raise the requested figures before handleDamage, on the target damage and on the recoil alike; Protective Pads on the caster removes the recoil. Taken: defences, shields and the minimum of 1 decide what handleDamage reports as takenDamage, separately for the target and for the caster.",
+  "sourceTables": [
+   {
+    "id": "grudgeDiveDamage",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.base",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "grudgeDivePerAlly",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "pattern": "const damagePerFallenAlly = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.perFallenAlly",
+    "unitValuesPath": "effects.0.perUnitRawPerFallenAlly"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defences, shield absorption, minimum of 1) only through the shared reference core-mechanics.md section A and the single minimum-of-1 line cited",
+   "When a death from recoil is processed and whether the dead caster still counts as fallen"
+  ],
+  "unresolved": [
+   "Which entities are added to the team DPS meter (summons, spawned units) was not traced beyond the single addPokemon site, so what counts as a 'fallen ally' for summoned units is not settled",
+   "The source comment (20% of base HP) disagrees with the code (10% of current maxHP); the record follows the code",
+   "The BASCULIN_WHITE passive (and the evolution stacking) is a separate record and is not described here",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-gd",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     922,
+     922
+    ],
+    "symbol": "AbilityStrategies[Ability.GRUDGE_DIVE]",
+    "expect": "[Ability.GRUDGE_DIVE]: new GrudgeDiveStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP; requiresTarget defaults to true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "gd-class",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     7,
+     14
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default requiresTarget/canCritByDefault inherited; default animation suppressed"
+   },
+   {
+    "id": "gd-damage-table",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "const damage = [30, 60, 90, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "the comment above the line says the same table"
+   },
+   {
+    "id": "gd-recoil-calc",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "const recoil = Math.round(pokemon.maxHP * 0.1)",
+    "note": "code uses 10% of current maxHP; the comment above it says 20% of base HP (they disagree, code governs)"
+   },
+   {
+    "id": "gd-fallen-table",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "const damagePerFallenAlly = [5, 10, 15, 20, 40][pokemon.stars - 1] ?? 40",
+    "note": ""
+   },
+   {
+    "id": "gd-fallen-count",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "board.getFallenAlliesCount(pokemon)",
+    "note": ""
+   },
+   {
+    "id": "gd-damage",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     33,
+     40
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "damage + nbFallenAllies * damagePerFallenAlly",
+    "note": "SPECIAL damage on the cast target, default apBoost"
+   },
+   {
+    "id": "gd-recoil",
+    "file": "app/core/abilities/grudge-dive.ts",
+    "lines": [
+     42,
+     51
+    ],
+    "symbol": "GrudgeDiveStrategy.process",
+    "expect": "if (!pokemon.items.has(Item.PROTECTIVE_PADS))",
+    "note": "PHYSICAL recoil via handleSpecialDamage on the caster, skipped with Protective Pads"
+   },
+   {
+    "id": "fallen-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     715,
+     722
+    ],
+    "symbol": "Board.getFallenAlliesCount",
+    "expect": "return pokemon.simulation[meter].size - nbAlliesAlive",
+    "note": "meter size minus same-team units still on the board"
+   },
+   {
+    "id": "meter-add",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     369,
+     373
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "this.blueDpsMeter.set(pokemonEntity.id, dps)",
+    "note": "each entity added to a team gets a DPS meter entry (the meter is never reduced here)"
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block (spell blocked, takenDamage 0)"
+   },
+   {
+    "id": "spdmg-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, DOUBLE_DAMAGE (consumed), strange steam, crit"
+   },
+   {
+    "id": "state-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     594,
+     598
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum of 1 after defences (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-basculegion-female",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19468,
+     19479
+    ],
+    "symbol": "class BasculegionFemale",
+    "expect": "skill = Ability.GRUDGE_DIVE",
+    "note": ""
+   },
+   {
+    "id": "unit-basculegion-male",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19454,
+     19465
+    ],
+    "symbol": "class BasculegionMale",
+    "expect": "skill = Ability.GRUDGE_DIVE",
+    "note": ""
+   },
+   {
+    "id": "unit-basculin-white",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19427,
+     19439
+    ],
+    "symbol": "class BasculinWhite",
+    "expect": "skill = Ability.GRUDGE_DIVE",
+    "note": ""
+   }
+  ]
+ }
+}
