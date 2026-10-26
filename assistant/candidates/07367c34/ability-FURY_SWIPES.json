@@ -1,0 +1,714 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FURY_SWIPES",
+ "kind": "ability",
+ "identifier": "FURY_SWIPES",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T054054Z"
+ },
+ "record": {
+  "scope": "The three units in appliesTo declare FURY_SWIPES: Teddiursa (1 star, range 1, no passive), Ursaring (2 stars, range 1, no passive) and Ursaluna (3 stars, range 1, passive BLOODMOON). The strategy is shared; unit differences are the star count (hit-count table index) and Ursaluna's passive, which is not covered here.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FURY_SWIPES] = new FurySwipesStrategy()",
+   "strategy": "FurySwipesStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-fs",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "fs-class",
+    "fs-super"
+   ]
+  },
+  "summary": "The caster queues a burst of delayed PHYSICAL hits on the cast target. The number of hits is 5 for 1-, 2- and 3-star casters (10 would apply to 4 stars and as the fallback) multiplied by 1 + AP/100 and rounded; hit n is delayed n x round(1000 / hits) ms, so the burst spreads over roughly one second. Each hit deals ceil(caster atk) as PHYSICAL damage with apBoost false (AP raises the number of hits, not each hit); the cast crit flag, normally false because canCritByDefault is false, is passed to every hit. A hit that finds the original target dead gives the caster 20 PP instead (no AP scaling). The cast also adds 1000 ms to the caster's attack cooldown.",
+  "targeting": {
+   "who": "the cast target, remembered by reference for every queued hit",
+   "needsTarget": true,
+   "note": "No retarget: if that target dies, the remaining hits do not move to another enemy; they turn into 20 PP each for the caster.",
+   "evidence": [
+    "fs-guard",
+    "fs-else",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "fs-guard"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "PHYSICAL",
+    "target": "cast target (per hit)",
+    "declaredRaw": {
+     "hits": {
+      "byStars": {
+       "1": 5,
+       "2": 5,
+       "3": 5,
+       "4": 10,
+       "fallback": 10
+      }
+     },
+     "perHit": "ceil(caster atk) read when the hit fires"
+    },
+    "perUnitRaw": {
+     "TEDDIURSA": 5,
+     "URSALUNA": 5,
+     "URSARING": 5
+    },
+    "scaling": "requested per hit = Math.ceil(caster atk) at the moment the delayed command runs (current atk, so buffs or debuffs that land during the burst change later hits). Number of hits = Math.round(5 x (1 + AP/100)) (5 for the three listed unit stars). apBoost is false, so handleSpecialDamage adds no AP term to the damage; if the cast crit, each hit is multiplied by 1 + (critPower - 1) x critReductionFactor, where Rocky Helmet on the target cancels the crit bonus and each Black Augurite held in the target player's items reduces the factor by 0.1 (floored at 0).",
+    "resolution": "applied per hit by PokemonState.handleDamage: PHYSICAL damage is divided by 1 + ARMOR_FACTOR x def (def halved and rounded under armorReduction; def and speDef swapped under WONDER_ROOM), then the non-TRUE flat reductions apply per hit (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching flat block, Wonder Guard 20), then rounded up with a minimum of 1 per hit; shield absorbs before HP and takenDamage includes shield damage. A target with the reflect status instead turns each PHYSICAL hit into reflected SPECIAL damage on the caster (unless the caster holds Protective Pads) and takes no damage. protect / skydiving / magicBounce on the target block each hit entirely.",
+    "evidence": [
+     "fs-table",
+     "fs-scale",
+     "fs-rate",
+     "fs-loop",
+     "fs-queue",
+     "fs-hit",
+     "fs-type",
+     "fs-crit",
+     "fs-noap",
+     "fs-delay",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-def",
+     "hd-reflect",
+     "hd-phys",
+     "hd-flat",
+     "hd-min",
+     "hd-recv",
+     "cmd-update",
+     "cmd-class",
+     "cmd-upd2"
+    ]
+   },
+   {
+    "kind": "pp",
+    "target": "caster",
+    "declaredRaw": {
+     "perMissedHit": 20
+    },
+    "scaling": "requested = addPP(20, caster, apBoost 0, crit false): no AP or crit scaling. Applied value = round(20 x (fatigue ? 0.5 : 1)), then the Twist Band hook; the gain is skipped entirely when the caster is silenced, protected, has NO_PP_GAIN or is resurrecting, and the result is clamped to 0..(maxPP x 2 - 1).",
+    "resolution": "happens once per queued hit whose delayed command finds the cast target absent or at hp <= 0, so a target killed early turns the remaining hits into up to 20 PP each; the PP is spent against the next cast threshold (maxPP 100 for all three units).",
+    "evidence": [
+     "fs-else",
+     "addpp",
+     "addpp-gate",
+     "addpp-twist",
+     "addpp-clamp"
+    ]
+   },
+   {
+    "kind": "cooldown",
+    "target": "caster",
+    "declaredRaw": {
+     "addedMs": 1000
+    },
+    "scaling": "flat +1000 ms added to pokemon.cooldown; not scaled by speed, AP or crit.",
+    "resolution": "the attack cooldown was reset by resetCooldown(1000, speed) just before the cast branch in AttackingState.update, so after this cast the caster waits its normal interval plus 1000 ms before the next attack or cast decision. The burst itself runs from the caster's command list and does not depend on that cooldown.",
+    "evidence": [
+     "fs-cd",
+     "reset-cd",
+     "pp-gate"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TEDDIURSA": 1,
+    "URSARING": 2,
+    "URSALUNA": 3
+   },
+   "declaredHits": {
+    "TEDDIURSA": 5,
+    "URSARING": 5,
+    "URSALUNA": 5
+   },
+   "note": "The hit-count table is indexed by the casting entity's stars: 1, 2 and 3 stars all give a base of 5 hits; only a 4-star caster (or the fallback) would get 10 and none of the listed units has that star count at its factory value. Stronger units differ only through atk (per-hit damage) and AP. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "fs-table",
+    "unit-teddiursa",
+    "unit-ursaring",
+    "unit-ursaluna"
+   ]
+  },
+  "positionalConditions": "None in the strategy beyond having a cast target; the hits do not check range or distance after the cast.",
+  "repeatedCastsAndModes": "No stored state or modes. Every cast queues its own independent set of commands; the target and crit flag are captured per cast. The warning for more than 100 pending commands in updateCommands is only a log.",
+  "rawVsResolved": "Raw: 5 hits (base) and ceil(atk) per hit, 20 PP per missed hit, +1000 ms cooldown. Requested damage per hit = ceil(atk) with no AP term (apBoost false); the number of hits is what AP changes (round(5 x (1 + AP/100))). Applied damage per hit = requested (x crit factor if the cast crit) / (1 + ARMOR_FACTOR x def), minus any flat block, minimum 1, rounded up; takenDamage reported by handleDamage includes shield damage. The sum over the burst is not computed here for a specific target.",
+  "sourceTables": [
+   {
+    "id": "hits",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "pattern": "Math\\.round\\(\\(\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.hits.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after later modifiers in handleDamage (shields, resurrection, field multipliers, damage-taken effects); only the PHYSICAL defence division, the non-TRUE flat reductions block and the minimum of 1 were read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage multiplier",
+   "Ordering of pokemon command execution relative to the rest of the tick (only PokemonState.updateCommands and DelayedCommand.update were read)",
+   "Whether a caster that dies, is frozen, silenced or changes state mid-burst keeps executing queued hits (only the updateCommands loop was read, not every call site)"
+  ],
+  "unresolved": [
+   "Ursaluna's BLOODMOON passive (class block in pokemon.ts) and whether it changes this cast: not investigated here",
+   "Whether AP can be negative enough to drive the rounded hit count to 0 or below (then no hits and no cooldown change besides the +1000 ms); the loop simply does not run",
+   "Whether items, synergies or abilities change the caster's atk or AP between the cast and the individual hits",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "FURY_SWIPES",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "TEDDIURSA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FURY_SWIPES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "URSALUNA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FURY_SWIPES",
+    "declaredPassive": "BLOODMOON",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "URSARING",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FURY_SWIPES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TEDDIURSA": {
+    "evidence": [
+     "unit-teddiursa"
+    ]
+   },
+   "URSALUNA": {
+    "evidence": [
+     "unit-ursaluna",
+     "bloodmoon"
+    ]
+   },
+   "URSARING": {
+    "evidence": [
+     "unit-ursaring"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-teddiursa",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14401,
+     14414
+    ],
+    "symbol": "class Teddiursa",
+    "expect": "skill = Ability.FURY_SWIPES",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-ursaring",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14416,
+     14429
+    ],
+    "symbol": "class Ursaring",
+    "expect": "skill = Ability.FURY_SWIPES",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-ursaluna",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14431,
+     14443
+    ],
+    "symbol": "class Ursaluna",
+    "expect": "skill = Ability.FURY_SWIPES",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-fs",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     905,
+     905
+    ],
+    "symbol": "AbilityStrategies[Ability.FURY_SWIPES]",
+    "expect": "[Ability.FURY_SWIPES]: new FurySwipesStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reset-cd",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.resetCooldown(1000, speed)",
+    "note": "the normal attack cooldown is reset before the cast branch runs"
+   },
+   {
+    "id": "fs-class",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "FurySwipesStrategy",
+    "expect": "export class FurySwipesStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "fs-super",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fs-scale",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "const scale = 1 + pokemon.ap / 100",
+    "note": "AP scales the number of hits"
+   },
+   {
+    "id": "fs-table",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "hit-count table",
+    "expect": "const nbAttacks = Math.round(([5,5,5,10][pokemon.stars - 1] ?? 10) * scale)",
+    "note": "hits by caster stars 5/5/5/10, 10 fallback, rounded after AP scale"
+   },
+   {
+    "id": "fs-rate",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "const hitPerSecond = Math.round(1000 / nbAttacks)",
+    "note": "despite its name this is the ms spacing between hits"
+   },
+   {
+    "id": "fs-loop",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "for (let n = 0; n < nbAttacks; n++) {",
+    "note": ""
+   },
+   {
+    "id": "fs-queue",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "one DelayedCommand per hit, on the caster"
+   },
+   {
+    "id": "fs-guard",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "delayed hit",
+    "expect": "if (target && target.hp > 0) {",
+    "note": "hit only while the original cast target is alive"
+   },
+   {
+    "id": "fs-hit",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "delayed hit",
+    "expect": "Math.ceil(pokemon.atk),",
+    "note": "damage argument is ceil of the caster atk read at hit time"
+   },
+   {
+    "id": "fs-type",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "delayed hit",
+    "expect": "AttackType.PHYSICAL,",
+    "note": ""
+   },
+   {
+    "id": "fs-crit",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "delayed hit",
+    "expect": "crit,",
+    "note": "the cast crit flag is passed to every hit"
+   },
+   {
+    "id": "fs-noap",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     29,
+     30
+    ],
+    "symbol": "delayed hit",
+    "expect": "false\n            )",
+    "note": "apBoost = false: no AP multiplier on the damage"
+   },
+   {
+    "id": "fs-else",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "delayed hit",
+    "expect": "pokemon.addPP(20, pokemon, 0, false) // regain 20 PP per remaining hit",
+    "note": "fallback when the target is gone"
+   },
+   {
+    "id": "fs-delay",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "delayed hit",
+    "expect": "}, n * hitPerSecond)",
+    "note": "delay of hit n = n x hitPerSecond ms"
+   },
+   {
+    "id": "fs-cd",
+    "file": "app/core/abilities/fury-swipes.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "FurySwipesStrategy.process",
+    "expect": "pokemon.cooldown += 1000",
+    "note": "adds 1000 ms to the caster attack cooldown"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument; Fury Swipes passes false"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||\n      this.status.skydiving ||\n      this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the target block the hit (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP term is 0 when apBoost is false"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit multiplies by critPower, reduced by Rocky Helmet / Black Augurite (not for TRUE)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hd-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     509
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "armorReduction halves def (rounded)"
+   },
+   {
+    "id": "hd-reflect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     522,
+     522
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.reflect && attackType === AttackType.PHYSICAL) {",
+    "note": "reflect on the target redirects PHYSICAL hits"
+   },
+   {
+    "id": "hd-phys",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     561
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "PHYSICAL: divided by 1 + ARMOR_FACTOR x def"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     570
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat/item reductions (Poke Doll, Guts/Sturdy/Defiant/Coaching, Wonder Guard) apply to each hit"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage per hit, rounded up"
+   },
+   {
+    "id": "hd-recv",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": ""
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "cmd-upd2",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "fires on the first update where the remaining delay is below 0"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     508
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "addPP(",
+    "note": ""
+   },
+   {
+    "id": "addpp-gate",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     524,
+     524
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.silence) &&",
+    "note": "PP gain blocked by silence / protect / NO_PP_GAIN / resurrecting"
+   },
+   {
+    "id": "addpp-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Twist Band hook runs on PP gain"
+   },
+   {
+    "id": "addpp-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     530,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": ""
+   },
+   {
+    "id": "bloodmoon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14443,
+     14443
+    ],
+    "symbol": "class Ursaluna",
+    "expect": "passive = Passive.BLOODMOON",
+    "note": "Ursaluna declares the BLOODMOON passive"
+   }
+  ]
+ }
+}
