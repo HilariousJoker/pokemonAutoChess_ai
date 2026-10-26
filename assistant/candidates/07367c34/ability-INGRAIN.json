@@ -1,0 +1,716 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/INGRAIN",
+ "kind": "ability",
+ "identifier": "INGRAIN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T234040Z"
+ },
+ "record": {
+  "ability": "INGRAIN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare the INGRAIN ability: Victreebel (3 stars), Weepinbell (2 stars), Bellsprout (1 star). The strategy is shared; unit differences are the star count. EffectEnum.INGRAIN (a Grass synergy effect) is a separate identifier and is not covered. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BELLSPROUT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "INGRAIN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VICTREEBEL",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "INGRAIN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WEEPINBELL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "INGRAIN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BELLSPROUT": {
+    "evidence": [
+     "unit-bellsprout"
+    ]
+   },
+   "WEEPINBELL": {
+    "evidence": [
+     "unit-weepinbell"
+    ]
+   },
+   "VICTREEBEL": {
+    "evidence": [
+     "unit-victreebel"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.INGRAIN] = new IngrainStrategy()",
+   "strategy": "IngrainStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super",
+    "eff-sim",
+    "eff-syn"
+   ]
+  },
+  "summary": "Acts on the 3x3 block centred on the caster (caster's cell included): every same-team unit there (the caster itself included) is healed by a requested 15/30/60 (by stars), and every enemy there is attempted to be LOCKED for a base 4000 ms and then takes the same amount (15/30/60 raw) as SPECIAL damage. The cast target is not used for the area.",
+  "targeting": {
+   "who": "all units on the caster's cell and its up to eight neighbouring cells: same-team units are healed (the caster included), other-team units are locked and damaged; empty cells are skipped",
+   "needsTarget": true,
+   "note": "The block is centred on the caster, not on the cast target; the target argument only gates the cast (range 1 here, so the target is adjacent anyway). Off-board cells are dropped.",
+   "evidence": [
+    "ab-cells",
+    "ab-ally",
+    "ab-enemy",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square (Chebyshev radius 1) centred on the caster, centre included, clipped to the board",
+   "evidence": [
+    "ab-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal",
+    "target": "each same-team unit in the 3x3 block around the caster, the caster included (ally branch tested before the enemy branch)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "label": "requested heal (raw)"
+    },
+    "perUnitRaw": {
+     "BELLSPROUT": 15,
+     "VICTREEBEL": 60,
+     "WEEPINBELL": 30
+    },
+    "scaling": "handleHeal(heal, caster, apBoost 1, crit): x (1 + AP/100) of the caster; x critPower of the caster only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT).",
+    "resolution": "applied = requested x AP x optional crit, then on the healed unit: x1.3 with BUFF_HEAL_RECEIVED, x0.5 when burning, x0.5 when enraged, x1.2 in ZENITH weather; rounded; limited to the missing HP (the rest is overheal). A wounded unit, a dead unit or a unit with protect receives nothing. Big Eater Belt is not involved (it only changes stat changes).",
+    "evidence": [
+     "ab-heal-table",
+     "ab-ally",
+     "heal-fn",
+     "heal-wound",
+     "heal-protect",
+     "heal-ap",
+     "heal-crit",
+     "heal-mods",
+     "heal-apply",
+     "adj"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each other-team unit in the 3x3 block around the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "BELLSPROUT": 15,
+     "VICTREEBEL": 60,
+     "WEEPINBELL": 30
+    },
+    "scaling": "requested = table[stars-1] per enemy. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the hit unit) only if the cast crit; x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. The lock is attempted before the damage. See knowledge/07367c34/core-mechanics.md section A.",
+    "evidence": [
+     "ab-dmg-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "ab-enemy",
+     "adj"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "LOCKED",
+    "target": "each other-team unit in the 3x3 block around the caster",
+    "durationMs": 4000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 4000,
+     "probability": 1,
+     "label": "requested base duration; attempted on every enemy, no chance roll"
+    },
+    "scaling": "none from stars, AP or crit.",
+    "resolution": "applied only if the enemy is not already locked, is not skydiving, has no rune protect, lacks IMMUNITY_LOCKED and has ccCooldown <= 0. The call passes the locked unit itself as the second argument, so enraged halving and duration reductions are evaluated on that unit. On success the enemy's range is forced to 1 (it is sent to the moving state first if its range was not 1) until the lock ends, when its range is recomputed and the crowd-control cooldown starts. The lock is attempted even when the following damage is blocked.",
+    "evidence": [
+     "ab-lock",
+     "ab-enemy",
+     "lock-fn",
+     "lock-red",
+     "lock-set",
+     "lock-end"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BELLSPROUT": 1,
+    "WEEPINBELL": 2,
+    "VICTREEBEL": 3
+   },
+   "declaredRawHealAndDamage": {
+    "BELLSPROUT": 15,
+    "VICTREEBEL": 60,
+    "WEEPINBELL": 30
+   },
+   "note": "Heal and damage use the same table and are indexed by the casting entity's stars; the 4-star value (120, also the ?? fallback) is not reachable by the bare factory star counts. The locked duration does not depend on stars. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "ab-heal-table",
+    "ab-dmg-table",
+    "ab-lock",
+    "unit-bellsprout",
+    "unit-weepinbell",
+    "unit-victreebel"
+   ]
+  },
+  "positionalConditions": "Which units are affected depends on the caster's coordinates: off-board neighbours are dropped; allies and enemies in the block are treated differently; the caster itself is on the centre cell and is healed.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP; an enemy already locked is not re-locked and the timer is not extended; after a lock ends the crowd-control cooldown blocks a new lock for a while.",
+  "rawVsResolved": "Requested: heal 15/30/60 and damage 15/30/60 (1/2/3 stars), lock 4000 ms. Applied heal = requested x (1 + AP/100) x optional crit, then receiver modifiers (heal-received buff, burn, enraged, weather), rounded and limited to missing HP; wounded or protected units receive 0. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 for protected units. Applied lock duration depends on the locked unit's enraged state and duration reductions, and is 0 when the lock is refused.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/ingrain.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   },
+   {
+    "id": "heal",
+    "file": "app/core/abilities/ingrain.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "What a locked unit is prevented from doing (the status flag, timer and forced range 1 were read, not the state machine that uses them)"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: EffectEnum.INGRAIN exists (Grass synergy effect, simulation.ts and effects/synergies.ts, growing berry trees) and is a separate identifier from Ability.INGRAIN; the strategy above was read through the registry entry for the ability only, and the synergy effect is not covered",
+   "Whether a unit that dies from an earlier cell's damage changes later cells (cells are collected before the loop, unit values are read at collection time)",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "unit-bellsprout",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4448,
+     4461
+    ],
+    "symbol": "class Bellsprout",
+    "expect": "skill = Ability.INGRAIN",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-weepinbell",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4463,
+     4476
+    ],
+    "symbol": "class Weepinbell",
+    "expect": "skill = Ability.INGRAIN",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-victreebel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4478,
+     4490
+    ],
+    "symbol": "class Victreebel",
+    "expect": "skill = Ability.INGRAIN",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     989,
+     989
+    ],
+    "symbol": "AbilityStrategies[Ability.INGRAIN]",
+    "expect": "[Ability.INGRAIN]: new IngrainStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "IngrainStrategy",
+    "expect": "export class IngrainStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ab-heal-table",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "const heal = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "heal table by stars"
+   },
+   {
+    "id": "ab-dmg-table",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "ab-lock",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "const lockedDuration = 4000",
+    "note": "base locked duration 4000 ms"
+   },
+   {
+    "id": "ab-cells",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     18,
+     22
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "pokemon.positionX,",
+    "note": "3x3 block centred on the CASTER, centre included"
+   },
+   {
+    "id": "ab-ally",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     24,
+     25
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "cell.value.handleHeal(heal, pokemon, 1, crit)",
+    "note": "same-team unit (including the caster on the centre cell): heal with apBoost 1 and the cast crit flag"
+   },
+   {
+    "id": "ab-enemy",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     26,
+     27
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "cell.value.status.triggerLocked(lockedDuration, cell.value)",
+    "note": "other-team unit: locked attempt (second argument is the locked unit itself) before the damage"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/ingrain.ts",
+    "lines": [
+     28,
+     34
+    ],
+    "symbol": "IngrainStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, caster as attacker, crit flag passed through"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 neighbourhood, off-board cells dropped, centre kept when includesCenter"
+   },
+   {
+    "id": "heal-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     332
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "return { healReceived: 0, overheal: 0 }",
+    "note": "a wounded unit receives no heal"
+   },
+   {
+    "id": "heal-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "no heal for dead or protected units"
+   },
+   {
+    "id": "heal-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     334,
+     336
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP scaling with apBoost 1"
+   },
+   {
+    "id": "heal-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     337,
+     339
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= caster.critPower",
+    "note": "crit multiplier when the cast crit"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     352
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.burn) {",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH weather x1.2"
+   },
+   {
+    "id": "heal-apply",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "rounded, then limited to missing HP; overheal is the rest"
+   },
+   {
+    "id": "lock-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1149
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "not applied if already locked, skydiving, rune protect, IMMUNITY_LOCKED on pkm, or ccCooldown > 0"
+   },
+   {
+    "id": "lock-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1150,
+     1155
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "enraged halving, then duration reductions"
+   },
+   {
+    "id": "lock-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1156,
+     1161
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "pkm.range = 1",
+    "note": "sets locked and the timer; forces the locked unit's range to 1 (and a moving state first if its range was not 1)"
+   },
+   {
+    "id": "lock-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1165,
+     1181
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "when the lock ends the range is restored and the crowd-control cooldown starts"
+   },
+   {
+    "id": "eff-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     846,
+     846
+    ],
+    "symbol": "Simulation effect switch",
+    "expect": "case EffectEnum.INGRAIN:",
+    "note": "EffectEnum.INGRAIN is a Grass synergy effect, a separate identifier"
+   },
+   {
+    "id": "eff-syn",
+    "file": "app/core/effects/synergies.ts",
+    "lines": [
+     1024,
+     1024
+    ],
+    "symbol": "synergy effects table",
+    "expect": "[EffectEnum.INGRAIN]: [growBerryTreesEffect]",
+    "note": "the synergy effect grows berry trees; unrelated to the ability strategy"
+   }
+  ]
+ }
+}
