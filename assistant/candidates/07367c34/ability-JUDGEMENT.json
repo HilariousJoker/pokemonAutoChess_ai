@@ -283,7 +283,7 @@
     "jd-strategy"
    ]
   },
-  "summary": "Single-target special damage to the cast target equal to a per-synergy-level amount (10 for 1-3 stars, 20 beyond) multiplied by the sum of the owner player's synergy values for each of the caster's types. The caster's types are dynamic for these units (the PROTEAN3 passive adds the player's three highest synergies while the unit is on the board), so the multiplier depends on the board, not on a table. A caster without a player (no owner board) deals 0.",
+  "summary": "Single-target special damage to the cast target equal to a per-synergy-level amount (10 for 1-3 stars, 20 beyond) multiplied by the sum of the owner player's synergy values for each of the caster's types. The caster's types are dynamic for these units (the PROTEAN3 passive adds the player's three highest synergies while the unit is on the board), so the multiplier depends on the board, not on a table. A caster without a player, or whose types have no synergy value, requests a raw 0, which is NOT a resolved 0: an unblocked target still takes 1 (see the damage resolution).",
   "targeting": {
    "who": "the cast target chosen by the normal cast flow (requiresTarget true); no retargeting in the strategy",
    "needsTarget": true,
@@ -333,7 +333,7 @@
      "ARCEUS_WATER": 10
     },
     "scaling": "raw = perSynergyLevel x synergyLevelsCount; AP: damage x (1 + AP/100) (apBoost default true); crit multiplies by critPower only if the cast crit (canCritByDefault false, needs ABILITY_CRIT)",
-    "resolution": "then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked by protect / skydiving / magicBounce. With a multiplier of 0 the raw damage is 0 (the minimum-of-1 step applies inside handleDamage; whether a 0 passes that step was not traced).",
+    "resolution": "then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked by protect / skydiving / magicBounce. Raw zero is a request of zero, not a resolved zero. Traced (handleSpecialDamage pokemon-entity.ts:346-467 and handleDamage pokemon-state.ts:422-808; pinned-helper probe ZERO_RAW): neither has a damage <= 0 guard (only the Magic Bounce reflection tests damage > 0); AP, DOUBLE_DAMAGE, steam and crit factors leave 0 at 0; the SPE_DEF division gives 0; the non-TRUE reductions (Poke Doll x0.7, the GUTS / STURDY / DEFIANT / COACHING flat reductions, WONDER_GUARD) keep it at or below 0; then `reducedDamage = min(1)(Math.ceil(reducedDamage))` floors it at 1. So an unblocked, non-protected target takes 1 (HP 500 -> 499; on a shield the 1 lands on the shield; with flinch and a shield the ceil split gives 1 + 1); protect / skydiving / magicBounce still block it entirely and a zero never queues a bounce.",
     "evidence": [
      "jd-table",
      "jd-sum",
@@ -344,7 +344,10 @@
      "special-crit",
      "def-step",
      "def-min",
-     "armor-factor"
+     "armor-factor",
+     "zero-no-guard",
+     "zero-reductions",
+     "zero-bounce"
     ]
    }
   ],
@@ -398,7 +401,7 @@
   },
   "positionalConditions": "None in the strategy. The synergy values come from the owner's board: bench units (positionY 0) are not counted in computeSynergies, and the types of PROTEAN3 units are recomputed on each synergy update.",
   "repeatedCastsAndModes": "No state; each cast recomputes from player.synergies and spends maxPP of PP via the base process.",
-  "rawVsResolved": "Raw damage = 10 x (sum of the owner's synergy values over the caster's types). The synergy values are counts of distinct families per type (not tier thresholds), and for PROTEAN3 types they already include the +1 the Arceus itself adds, so e.g. three types with counts 4, 3 and 2 (after that +1) give a multiplier of 9 and raw 90 before AP and SPE_DEF. The caster's types are copied from the board unit into the entity at simulation start.",
+  "rawVsResolved": "Raw damage = 10 x (sum of the owner's synergy values over the caster's types). The synergy values are counts of distinct families per type (not tier thresholds), and for PROTEAN3 types they already include the +1 the Arceus itself adds, so e.g. three types with counts 4, 3 and 2 (after that +1) give a multiplier of 9 and raw 90 before AP and SPE_DEF. The caster's types are copied from the board unit into the entity at simulation start. A raw 0 (no player or no synergy value) is a request of 0 that resolves to 1 on an unblocked target, not to 0.",
   "sourceEvidence": {
    "dynamicTypes": {
     "evidence": [
@@ -426,12 +429,13 @@
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
   ],
   "unresolved": [
-   "Whether pokemon.player is set for every simulation team (PVE, ghost/bot teams); if absent the damage is 0 by the code but the realistic cases were not traced",
+   "Whether pokemon.player is set for every simulation team (PVE, ghost/bot teams) was not traced; if it is absent the raw request is 0, which still resolves to 1 on an unblocked target",
    "How the PROTEAN3 types change if the owner's board changes mid-fight (types are copied at entity creation; a later synergy recompute during a fight was not traced)",
    "Whether items or effects add or remove types on the entity after construction (addType / removeType exist in pokemon-entity.ts lines ~807-856 and were not read)",
    "Dragon double-type handling for dynamic types is only partly read (the first type of a PROTEAN unit may get an extra +1 on its synergy value, which changes the multiplier)",
    "The skill's cosmetic forms (index changes in computeSynergies) were not checked for any effect on the cast",
-   "Details of the board-order and the tie-breaking used when sorting synergies for the dynamic types"
+   "Details of the board-order and the tie-breaking used when sorting synergies for the dynamic types",
+   "The raw-zero trace was checked with a pinned-helper probe (the real handleSpecialDamage and handleDamage on stub units), not in a fight"
   ],
   "evidence": [
    {
@@ -697,9 +701,56 @@
     "symbol": "Player.synergies",
     "expect": "synergies = new Synergies()",
     "note": ""
+   },
+   {
+    "id": "zero-no-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving)",
+    "note": "handleDamage returns early only for a dead or resurrecting target and (as 0) for protect / skydiving; there is no damage <= 0 guard before the floor"
+   },
+   {
+    "id": "zero-reductions",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     595
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = reducedDamage - damageBlocked",
+    "note": "non-TRUE flat reductions can push a zero below zero before the floor"
+   },
+   {
+    "id": "zero-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     366
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage > 0 &&",
+    "note": "only the Magic Bounce reflection tests damage > 0; the protect / skydiving / magicBounce block itself does not"
    }
   ],
   "label": "production-branch reference; deployment unverified",
-  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1"
- }
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "ZERO_RAW",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T221929Z",
+   "reason": "raw zero traced through handleSpecialDamage and handleDamage (floor of 1 for unblocked targets; protect / skydiving / magicBounce still block); 'deals 0' wording replaced",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "ZERO_RAW",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

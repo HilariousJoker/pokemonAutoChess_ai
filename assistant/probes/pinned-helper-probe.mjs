@@ -1,4 +1,4 @@
-// Narrow reproduction of twenty repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT) using the TEXT of the
+// Narrow reproduction of twenty-five repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT; JUDGEMENT, MULTI_ATTACK, SPIKY_SHIELD, HATCH, PROTEAN3) using the TEXT of the
 // pinned functions (production-branch reference 07367c341fe928763da2b565c2eee010433e4fc1; deployment unverified).
 // Each function body is read with `git show <sha>:<path>` by line range (the first line is asserted), types are stripped with
 // node:module stripTypeScriptTypes, and the code is run against minimal stubs (enums answer with their own name). Nothing is installed,
@@ -503,6 +503,117 @@ expect("TELEPORT against a protected target: the flag is consumed and the bonus 
 expect("TELEPORT bonus crit comes from the BASIC attack's crit roll and needs ABILITY_CRIT: with it a crit roll doubles the bonus (15 -> 30, plus the doubled basic hit), without it the bonus stays 15", [out.TELEPORT.critWithAbilityCrit.targetHp, out.TELEPORT.critWithoutAbilityCrit.targetHp], [410, 425])
 expect("TELEPORT canCast is false while the flag is set (pokemon-entity.ts:250-256), so a marked unit that never attacks cannot cast again; it is true again once unmarked", [out.TELEPORT.canCastWhileMarked, out.TELEPORT.canCastUnmarked], [false, true])
 
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Sections 21-25 (run 7): JUDGEMENT / MULTI_ATTACK raw zero, SPIKY_SHIELD, HATCH, PROTEAN3. Real strategy text, real handleSpecialDamage /
+// handleDamage on stub units, real effectInOrientation, the spike-armor block of PokemonEntity.onHit, the pinned hatch / evolution
+// logic (setTimeout replaced by a recorder) and the pinned computeSynergies. Stubs for everything else; nothing here is a fight.
+
+// 21. JUDGEMENT / MULTI_ATTACK: a raw 0 is a request of 0, not a resolved 0 (handleDamage floors a non-blocked hit at 1)
+const Judgement = stratReal("app/core/abilities/judgement.ts", "JudgementStrategy")
+const MultiAttack = stratReal("app/core/abilities/multi-attack.ts", "MultiAttackStrategy")
+const zeroRun = (kind, { synergies = null, types = ["NORMAL"], shield = 0, flinch = false, protect = false, bounce = false, items = [], effects = [], enemies = 1 } = {}) => {
+  const mkT = () => { const t = mkFU({ hp: 500, maxHP: 1000, shield, items: new Set(items), effects: new Set(effects) }); t.status.flinch = flinch; t.status.protect = protect; t.status.magicBounce = bounce; return t }
+  const targets = Array.from({ length: kind === "multi" ? enemies : 1 }, mkT)
+  const c = mkFU({ team: "BLUE", stars: 3, types: new Set(types), player: synergies ? { synergies: new Map(synergies) } : null })
+  const board = { getAdjacentCells: () => targets.map((t) => ({ value: t })) }
+  new (kind === "judgement" ? Judgement : MultiAttack)().process(c, board, targets[0], false)
+  return targets.map((t) => ({ hp: t.hp, shield: t.shield, queuedBounce: t.commands.length }))
+}
+out.ZERO_RAW = {
+  judgementNoPlayer: zeroRun("judgement"), judgementPlayerTypeMissing: zeroRun("judgement", { synergies: [["FIRE", 4]] }), judgementThirty: zeroRun("judgement", { synergies: [["NORMAL", 3]] }),
+  judgementZeroOnShield: zeroRun("judgement", { shield: 100 }), judgementZeroFlinchShield: zeroRun("judgement", { shield: 100, flinch: true }), judgementZeroProtect: zeroRun("judgement", { protect: true }), judgementZeroMagicBounce: zeroRun("judgement", { bounce: true }),
+  judgementZeroPokeDoll: zeroRun("judgement", { items: ["POKE_DOLL"] }), judgementZeroGuts: zeroRun("judgement", { effects: ["GUTS"] }),
+  multiNoPlayerTwoEnemies: zeroRun("multi", { enemies: 2 }), multiTwoEnemiesRaw39: zeroRun("multi", { synergies: [["NORMAL", 3]], enemies: 2 })
+}
+const ZR = out.ZERO_RAW
+expect("JUDGEMENT raw 0 (no player, or no synergy value for the caster's types) still resolves to 1 damage on an unblocked target (HP 500 -> 499); a nonzero raw 30 lands as 30 (HP 470)", [ZR.judgementNoPlayer[0].hp, ZR.judgementPlayerTypeMissing[0].hp, ZR.judgementThirty[0].hp], [499, 499, 470])
+expect("JUDGEMENT raw 0 on a shielded target: the 1 lands on the shield (shield 99, HP 500); with flinch and a shield the ceil split gives 1 + 1 (shield 99, HP 499); protect and Magic Bounce block it (HP 500, no bounce queued for a zero amount)", [ZR.judgementZeroOnShield[0], ZR.judgementZeroFlinchShield[0], ZR.judgementZeroProtect[0], ZR.judgementZeroMagicBounce[0]], [{ hp: 500, shield: 99, queuedBounce: 0 }, { hp: 499, shield: 99, queuedBounce: 0 }, { hp: 500, shield: 0, queuedBounce: 0 }, { hp: 500, shield: 0, queuedBounce: 0 }])
+expect("JUDGEMENT raw 0 with Poke Doll (x0.7) or the GUTS flat reduction (-3): the minimum-of-1 step still leaves 1 (HP 499)", [ZR.judgementZeroPokeDoll[0].hp, ZR.judgementZeroGuts[0].hp], [499, 499])
+expect("MULTI_ATTACK raw 0 hits every adjacent enemy for 1 (two enemies: HP 499 each); raw 39 (13 x 3) lands as 39 on each", [ZR.multiNoPlayerTwoEnemies.map((t) => t.hp), ZR.multiTwoEnemiesRaw39.map((t) => t.hp)], [[499, 499], [461, 461]])
+
+// 22. SPIKY_SHIELD: rays use the real RIGHT-ray bound on the 8 x 6 board; retaliation is the spike-armor block of onHit (successful hits only)
+const OrientationArray = [...lines("app/utils/orientation.ts").slice(24, 34).join(" ").matchAll(/Orientation\.(\w+)/g)].map((m) => m[1])
+const SpikyShield = stratReal("app/core/abilities/spiky-shield.ts", "SpikyShieldStrategy", { effectInOrientation, OrientationArray })
+const spiky = ({ armor, enemies, target, cx = 4, cy = 2 }) => {
+  const b = new BoardFull(6, 8), armorCalls = []
+  const put = (x, y, team, name) => { const e = mkEnemy({ team, name, positionX: x, positionY: y }); e.status = {}; b.cells[8 * y + x] = e; return e }
+  const c = put(cx, cy, "BLUE", "caster"); Object.assign(c, { stars: 1, def: 50, status: { spikeArmor: armor, triggerSpikeArmor: (d) => armorCalls.push(d) } })
+  const made = enemies.map(([x, y]) => put(x, y, "RED", `e${x}${y}`))
+  const tgt = made.find((e) => e.positionX === target[0] && e.positionY === target[1])
+  new SpikyShield().process(c, b, tgt, false)
+  return { hits: made.filter((e) => e.hits.length).map((e) => `${e.name}:${e.hits.join("/")}`), armorRequested: armorCalls }
+}
+const retaliate = build({ Item: enums(), EffectEnum: enums(), AttackType: enums(), chance: () => false, distanceC }, js(`function r(target, board) {\n${cut(PE, 1097, 1126, "if (")}\n}`), "r")
+const retaliation = ({ dist = 1, pads = false, armor = true, stars = 3 } = {}) => {
+  const woundCalls = [], dmg = []
+  const hitter = { positionX: 3, positionY: 3, items: new Set(pads ? ["PROTECTIVE_PADS"] : []), status: { triggerWound: (...a) => woundCalls.push(a[0]) }, handleDamage: (o) => dmg.push([o.damage, o.attackType, o.isRetaliation]) }
+  const target = { positionX: 3 + dist, positionY: 3, status: { spikeArmor: armor }, effects: new Set(), critChance: 0, stars, def: 50, ap: 0, critPower: 2 }
+  retaliate.call(hitter, target, {})
+  return { woundCalls, retaliationDamage: dmg }
+}
+out.SPIKY_SHIELD = {
+  orientationOrder: OrientationArray,
+  armorActive: spiky({ armor: true, enemies: [[5, 2], [7, 2], [0, 2], [4, 5]], target: [5, 2] }), armorInactive: spiky({ armor: false, enemies: [[5, 2], [7, 2], [0, 2], [4, 5]], target: [5, 2] }),
+  armorActiveCasterColumn5: spiky({ armor: true, enemies: [[6, 2], [7, 2], [0, 2]], target: [6, 2], cx: 5 }),
+  retaliationAdjacent: retaliation(), retaliationDistance2: retaliation({ dist: 2 }), retaliationWithPads: retaliation({ pads: true }), retaliationNoArmor: retaliation({ armor: false }), retaliationOneStar: retaliation({ stars: 1 }),
+  onHitCallers: { basicAttackSuccessBranch: lines(PS)[294].includes("if (isAttackSuccessful)") && lines(PS)[295].includes("pokemon.onHit("), loadedDiceSecondHit: lines("app/core/effects/items.ts")[193].includes("pokemon.onHit("), notInHandleSpecialDamage: !cut(PE, 346, 467, "handleSpecialDamage(").includes("onHit("), notInHandleDamage: !cut(PS, 422, 808, "handleDamage(").includes("onHit(") }
+}
+const SP = out.SPIKY_SHIELD
+expect("SPIKY_SHIELD orientation order and RIGHT bound: with spike armor already active, caster (4,2), target (5,2): the target takes the DEF hit (30) AND the RIGHT ray hit (30); (7,2) beyond the RIGHT shortfall is never reached; LEFT (0,2) and UP (4,5) are hit; the new armor is requested afterwards", [SP.orientationOrder, SP.armorActive.hits, SP.armorActive.armorRequested], [["DOWN", "DOWNRIGHT", "RIGHT", "UPRIGHT", "UP", "UPLEFT", "LEFT", "DOWNLEFT"], ["e52:30/30", "e02:30", "e45:30"], [3000]])
+expect("SPIKY_SHIELD without pre-existing armor: only the cast target is hit (30), no rays; from column 5 the RIGHT ray visits nothing, so (6,2) only takes the DEF hit while LEFT (0,2) takes a ray hit", [SP.armorInactive.hits, SP.armorActiveCasterColumn5.hits], [["e52:30"], ["e62:30", "e02:30"]])
+expect("SPIKY_SHIELD retaliation (spike-armor block of onHit): an adjacent hitter without Pads is wounded 2000 and takes SPECIAL retaliation round(DEF 50 x factor) = 50 (3 stars) / 30 (1 star) with isRetaliation true; distance 2, Protective Pads or no armor do nothing", [SP.retaliationAdjacent, SP.retaliationOneStar, SP.retaliationDistance2, SP.retaliationWithPads, SP.retaliationNoArmor], [{ woundCalls: [2000], retaliationDamage: [[50, "SPECIAL", true]] }, { woundCalls: [2000], retaliationDamage: [[30, "SPECIAL", true]] }, { woundCalls: [], retaliationDamage: [] }, { woundCalls: [], retaliationDamage: [] }, { woundCalls: [], retaliationDamage: [] }])
+expect("SPIKY_SHIELD retaliation pathway: onHit is called after a successful basic attack (pokemon-state.ts:295-296) and by the Loaded Dice second hit (items.ts:194), and neither handleSpecialDamage nor handleDamage calls it, so spell hits do not trigger it", Object.values(SP.onHitCallers), [true, true, true, true])
+
+// 23. HATCH: transformPokemon carry-over, the delayed (setTimeout) evolution window and the chained-hatch question
+const EVO = "app/core/evolution-logic/", PLY = "app/models/colyseus-models/player.ts"
+const getHatchTime = build({ EvolutionTime: { EGG_HATCH: 5, EVOLVE_HATCH: 5 }, Pkm: enums(), EffectEnum: enums() }, js(cut(EVO + "hatch-time.ts", 7, 15, "export function getHatchTime").replace("export function", "function")), "getHatchTime")
+const HatchHandler = build({ Item: enums(), Pkm: enums(), getHatchTime, GoldenEggItems: [], pickRandomIn: (a) => a[0], EvolutionHandler: class { constructor(rule) { this.rule = rule } getEvolution(p) { return p.evolution } } }, js(cut(EVO + "hatch-evolution-handler.ts", 10, 32, "export class").replace("export class", "class")), "HatchEvolutionHandler")
+const timers = []
+const emPieces = [[52, 62], [64, 73], [75, 107], [118, 125], [135, 154]].map(([a, b]) => cut(EVO + "evolution-manager.ts", a, b, "").replace(/,\s*$/, ""))
+const EM = new (build({ HatchHandler, getHatchTime, EvolutionRuleType: enums(), PokemonActionState: enums(), Passive: enums(), Pkm: enums(), PassiveEffects: {}, OnEvolutionEffect: class {}, setTimeout: (fn, ms) => timers.push([ms, fn]) },
+  js(`class EMc {\n getHandler() { return new HatchHandler({}) }\n${emPieces.join("\n")}\n}`), "EMc"))()
+const carryOver = build({ PokemonFactory: { createPokemonFromName: () => ({ maxHP: 100, atk: 10, def: 5, speDef: 5, speed: 40, ap: 0, luck: 0 }) }, sum: (a) => a.reduce((x, y) => x + y, 0), Stat: enums(), Ability: enums(), pickRandomIn: (a) => a[0] }, js(cut(EVO + "evolution-handler.ts", 45, 93, "export function carryOverPermanentStats").replace("export function", "function")), "carryOverPermanentStats")
+const PlayerCls = build({ PokemonFactory: { createPokemonFromName: (name) => ({ id: `new-${name}`, name, stacks: 0, evolution: "NEXT", evolutionRule: { type: "HATCH" }, items: new Set(), maxHP: 100, atk: 10, def: 5, speDef: 5, speed: 40, ap: 0, luck: 0, tm: "DEFAULT", applyStat(stat, v) { this.appliedStats = { ...(this.appliedStats ?? {}), [stat]: v } }, addItem() {}, onAcquired() {} }) }, carryOverPermanentStats: carryOver, Item: enums() }, js(`class P {\n${cut(PLY, 333, 352, "transformPokemon(")}\n}`), "P")
+const hatchPlayer = () => Object.assign(new PlayerCls(), { board: new Map(), pokemonsPlayed: new Set(), updateSynergies() {}, items: [], effects: new Set() })
+const mkHatchMon = (over = {}) => ({ id: "old", name: "DREEPY", stacks: 4, evolution: "DRAKLOAK", evolutionRule: { type: "HATCH" }, items: new Set(), action: "IDLE", dishes: new Set(), positionX: 1, positionY: 1, maxHP: 100, atk: 17, def: 5, speDef: 5, speed: 40, ap: 0, luck: 0, tm: "DEFAULT", ...over })
+const hatchRun = ({ stacks = 4, items = [], soldInWindow = false } = {}) => {
+  timers.length = 0
+  const player = hatchPlayer(), old = mkHatchMon({ stacks, items: new Set(items) })
+  player.board.set(old.id, old)
+  EM.updateHatch(old, player)
+  const afterStageEnd = { stacks: old.stacks, action: old.action, timers: timers.map((t) => t[0]), stillOldOnBoard: player.board.has("old") }
+  if (soldInWindow) player.board.delete("old")
+  const fns = timers.splice(0).map((t) => t[1]); fns.forEach((f) => f())
+  const evolved = [...player.board.values()][0]
+  return { afterStageEnd, afterTimer: { oldStacks: old.stacks, boardIds: [...player.board.keys()], newStacks: evolved?.stacks, newAppliedStats: evolved?.appliedStats, extraTimers: timers.length } }
+}
+out.HATCH = { reachesFive: hatchRun(), belowFive: hatchRun({ stacks: 2 }), eviolite: hatchRun({ items: ["EVIOLITE"] }), soldDuringWindow: hatchRun({ soldInWindow: true }), hatchTimes: { egg: getHatchTime({ name: "EGG" }, { effects: new Set() }), eggBreeder: getHatchTime({ name: "EGG" }, { effects: new Set(["BREEDER"]) }), other: getHatchTime({ name: "DREEPY" }, { effects: new Set() }) }, stageEndCallSite: lines("app/rooms/commands/game-commands.ts")[1963].includes("EvolutionRuleType.HATCH") && lines("app/rooms/commands/game-commands.ts")[1964].includes("EvolutionManager.updateHatch(pokemon, player)") }
+const HT = out.HATCH
+expect("HATCH stacks 4 -> stage end: stacks 5, action HOP, one 2000 ms timer, the old unit is still on the board until the timer runs; when it runs the old instance has stacks 0, the board holds only the new instance with stacks 0 (the permanent stat deltas +7 ATK are carried over, stacks are not) and no further timer is queued, so there is no immediate second hatch", [HT.reachesFive.afterStageEnd, HT.reachesFive.afterTimer], [{ stacks: 5, action: "HOP", timers: [2000], stillOldOnBoard: true }, { oldStacks: 0, boardIds: ["new-DRAKLOAK"], newStacks: 0, newAppliedStats: { HP: 0, ATK: 7, DEF: 0, SPE_DEF: 0, SPEED: 0, AP: 0, LUCK: 0 }, extraTimers: 0 }])
+expect("HATCH below 5 stacks: stacks increment, no timer; Eviolite blocks hatching at 5 (no timer, stacks stay 5 and keep counting); a unit sold during the 2 s window does not evolve (the board stays empty)", [HT.belowFive.afterStageEnd.stacks, HT.belowFive.afterStageEnd.timers, HT.eviolite.afterStageEnd.stacks, HT.eviolite.afterStageEnd.timers, HT.eviolite.afterTimer.boardIds, HT.soldDuringWindow.afterTimer.boardIds], [3, [], 5, [], ["old"], []])
+expect("HATCH hatch time: Egg 5 (4 with BREEDER or GOLDEN_EGGS), every other HATCH unit 5; the stage-end call site loops over player.board and calls updateHatch for units whose evolutionRule type is HATCH", [HT.hatchTimes.egg, HT.hatchTimes.eggBreeder, HT.hatchTimes.other, HT.stageEndCallSite], [5, 4, 5, true])
+
+// 24. PROTEAN3: dynamic reset versus item-derived types; which units contribute to counts (the pinned computeSynergies)
+const SynergyEnum = Object.fromEntries([...lines("app/types/enum/Synergy.ts").join("\n").matchAll(/^\s+([A-Z_]+) = "/gm)].map((m) => [m[1], m[1]]))
+class SetSchema extends Set { constructor(a) { super(a) } }
+const computeSynergies = build({ Synergy: SynergyEnum, Passive: enums(), SpecialGameRule: enums(), PkmFamily: new Proxy({}, { get: (_, k) => String(k) }), PkmIndex: new Proxy({}, { get: (_, k) => `IDX_${String(k)}` }), Pkm: enums(), SynergyTiersThresholds: { DRAGON: [3, 5, 7] }, SynergyGivenByItem: { FIRE_GEM: "FIRE" }, schemaValues: (s) => [...s], SetSchema },
+  js(`${cut("app/models/colyseus-models/synergies.ts", 97, 285, "export function computeSynergies").replace("export function", "function")}\n${cut("app/models/colyseus-models/synergies.ts", 287, 298, "export function addSynergiesGivenByItem").replace("export function", "function")}`), "computeSynergies")
+const unit = (name, types, y = 2, passive = "NONE", items = []) => ({ name, passive, positionY: y, types: new SetSchema(types), items: new Set(items), index: name })
+const proteanBoard = (arceus) => [unit("A", ["FIRE"]), unit("B", ["FIRE"]), unit("C", ["WATER"]), unit("D", ["WATER"]), unit("E", ["GRASS"]), ...arceus]
+const protean = (arceusList) => {
+  const board = proteanBoard(arceusList), syn = computeSynergies(board)
+  const arc = board.filter((u) => u.passive === "PROTEAN3")
+  return { types: arc.map((u) => [...u.types]), counts: { FIRE: syn.get("FIRE"), WATER: syn.get("WATER"), GRASS: syn.get("GRASS") } }
+}
+out.PROTEAN3 = {
+  baseline: protean([]), onBoard: protean([unit("ARCEUS", [], 2, "PROTEAN3")]), onBench: protean([unit("ARCEUS", [], 0, "PROTEAN3")]),
+  benchWithFireItem: protean([unit("ARCEUS", [], 0, "PROTEAN3", ["FIRE_GEM"])]), boardWithFireItem: protean([unit("ARCEUS", [], 2, "PROTEAN3", ["FIRE_GEM"])]),
+  staleDynamicTypesClearedOnBench: protean([unit("ARCEUS", ["WATER", "GRASS"], 0, "PROTEAN3")]), twoOnBoard: protean([unit("ARCEUS", [], 2, "PROTEAN3"), unit("ARCEUS", [], 3, "PROTEAN3")])
+}
+const PR = out.PROTEAN3
+expect("PROTEAN3 baseline board (two Fire, two Water, one Grass family): FIRE 2, WATER 2, GRASS 1; an Arceus on the board takes the top three with ties in Synergy key order (WATER, FIRE, GRASS) and each added type adds +1 (3, 3, 2)", [PR.baseline.counts, PR.onBoard.types, PR.onBoard.counts], [{ FIRE: 2, WATER: 2, GRASS: 1 }, [["WATER", "FIRE", "GRASS"]], { FIRE: 3, WATER: 3, GRASS: 2 }])
+expect("PROTEAN3 bench: an Arceus on the bench gets no dynamic types and adds nothing to the counts; stale dynamic types are cleared (WATER, GRASS -> none); a held type item is re-added after the reset (FIRE stays) but is not counted while on the bench", [PR.onBench, PR.staleDynamicTypesClearedOnBench.types, PR.benchWithFireItem], [{ types: [[]], counts: { FIRE: 2, WATER: 2, GRASS: 1 } }, [[]], { types: [["FIRE"]], counts: { FIRE: 2, WATER: 2, GRASS: 1 } }])
+expect("PROTEAN3 on the board with a Fire type item: the item type is added before counting (FIRE 3 by family count), the dynamic loop then skips FIRE without replacing the slot, adding only WATER and GRASS (+1 each): FIRE 3, WATER 3, GRASS 2", [PR.boardWithFireItem.types, PR.boardWithFireItem.counts], [[["FIRE", "WATER", "GRASS"]], { FIRE: 3, WATER: 3, GRASS: 2 }])
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))
 const failed = expectations.filter((x) => !x.ok)

@@ -393,7 +393,7 @@
    }
   },
   "kind": "marker passive with no PassiveEffects entry; the hatch behaviour is driven by evolutionRule.type === HATCH, not by the passive",
-  "summary": "Passive.HATCH itself does nothing in the pinned source: no code reads pokemon.passive === Passive.HATCH. What these 25 units do come from their evolutionRule { type: HATCH }: at the end of each stage, for every unit on the player's board whose evolutionRule is HATCH, stacks is incremented; when stacks reaches 5 (EvolutionTime.EVOLVE_HATCH) the unit is flagged to hop and, 2 seconds later (setTimeout), tryEvolve transforms it into its declared evolution (pokemon.evolution) and resets stacks to 0. A unit holding Eviolite does not hatch, and neither does one no longer on the board.",
+  "summary": "Passive.HATCH itself does nothing in the pinned source: no code reads pokemon.passive === Passive.HATCH. What these 25 units do come from their evolutionRule { type: HATCH }: at the end of each stage, for every unit on the player's board whose evolutionRule is HATCH, stacks is incremented; when stacks reaches 5 (EvolutionTime.EVOLVE_HATCH) the unit is flagged to hop and, 2 seconds later (setTimeout), tryEvolve transforms it into its declared evolution (pokemon.evolution). The OLD instance's stacks is set to 0 just before the transform; the NEW instance is built by the factory with the field default stacks = 0 (carryOverPermanentStats copies permanent stat deltas and the TM, not stacks), and the generic retry afterwards sees 0 < 5, so no second hatch follows immediately. A unit holding Eviolite does not hatch, and neither does one no longer on the board.",
   "triggers": [
    "Stage end: game-commands loop over player.board calls EvolutionManager.updateHatch for units whose evolutionRule is HATCH",
    "updateHatch: stacks++, then canEvolve; if true set action HOP and setTimeout(tryEvolve, 2000)"
@@ -403,12 +403,17 @@
     "kind": "evolution",
     "declaredRaw": "evolve after EVOLVE_HATCH = 5 stage ends",
     "scaling": "none (no AP, no crit, no combat effect)",
-    "resolution": "stacks >= stacksRequired where stacksRequired = getHatchTime(pokemon, player) = EvolutionTime.EVOLVE_HATCH for any non-Egg",
+    "resolution": "stacks >= stacksRequired where stacksRequired = getHatchTime(pokemon, player) = EvolutionTime.EVOLVE_HATCH for any non-Egg The hatch chain, transform carry-over and the delayed window were checked with a pinned-helper probe (the real hatch handler, updateHatch / tryEvolve / afterEvolve text, transformPokemon and carryOverPermanentStats on stub players), not in a game.",
     "evidence": [
      "update-hatch",
      "can-evolve",
      "hatch-time",
-     "evolution-time"
+     "evolution-time",
+     "transform",
+     "carry-over",
+     "stacks-default",
+     "after-evolve",
+     "update-hatch-timeout"
     ]
    }
   ],
@@ -417,19 +422,23 @@
    "The unit must still be on player.board when canEvolve runs (an egg/unit sold during the 2 s delay does not evolve).",
    "Only the Egg path adds BREEDER / GOLDEN_EGGS reductions (EGG_HATCH - 1); the 25 listed units are not eggs so the time is always EVOLVE_HATCH (5).",
    "The evolution target is pokemon.evolution unless a divergentEvolution function is declared on the rule; none of the 25 unit blocks declares one (not exhaustively verified beyond the evolution/evolutionRule lines).",
-   "After evolve, EvolutionManager.afterEvolve updates synergies and calls tryEvolve again on the new unit, so a stacked unit can evolve twice in a row.",
-   "stacks counter: evolve sets it to 0 before transformPokemon; the hatch of an Egg (not in scope) additionally rewards a golden-egg item when shiny."
+   "After evolve, EvolutionManager.afterEvolve updates synergies, runs the OnEvolution passive effects, handles the COSMOG / COSMOEM board units and calls tryEvolve again on the NEW unit. For a HATCH rule that retry is false: the new instance starts at stacks 0 and the hatch time is at least 4 (Egg 5, or 4 with BREEDER / GOLDEN_EGGS; every other HATCH unit 5), so a chained HATCH unit (for example Dreepy -> Drakloak) hatches again only after further stage-end increments. Probe: stacks 4 -> stage end -> 5 -> timer -> new instance with stacks 0 and no further timer.",
+   "stacks counter: HatchEvolutionHandler.evolve sets the OLD instance's stacks to 0 before Player.transformPokemon (the comment says 'prevent trying to evolve twice in a row'); transformPokemon builds the new unit with PokemonFactory.createPokemonFromName, carries over permanent stat deltas and the TM (carryOverPermanentStats), dishes, position and items, and does not set stacks; the new instance keeps the field default 0 (pokemon.ts:103). The hatch of an Egg (not in scope) additionally rewards a golden-egg item when shiny.",
+   "Delayed evolution window: updateHatch increments stacks, evaluates canEvolve and, if true, sets action HOP and schedules tryEvolve with setTimeout(…, 2000), a real-time server timer, not simulation time. tryEvolve re-checks canEvolve when it runs (Eviolite, still on the board, stacks >= required), so a unit sold during the window does not evolve; the board is not changed until the timer runs, and the stage-end loop over player.board therefore never visits the evolved instance in the same pass.",
+   "Eviolite blocks hatching but not counting: a unit holding it keeps incrementing stacks at each stage end (probe: stacks 5 stay 5 with no timer) and can hatch later once the item is removed."
   ],
-  "resetBehaviour": "stacks resets to 0 on hatch; otherwise the counter lives on the unit instance for the whole game (not per fight).",
+  "resetBehaviour": "The OLD instance's stacks is set to 0 on hatch; the NEW instance starts from the Pokemon field default (0) and receives only permanent stat deltas and the TM, not stacks. Otherwise the counter lives on the unit instance for the whole game (not per fight).",
   "dependsOnUnverifiedGenericCombat": [
-   "No combat behaviour is involved; the only unread dependency is Player.transformPokemon (what carries over on hatch) and the setTimeout-based timing, which depends on the server process staying alive"
+   "No combat behaviour is involved; the dependencies are the setTimeout-based timing, which depends on the server process staying alive, and the unread per-species onAcquired overrides"
   ],
   "unresolved": [
    "NO_PASSIVE_EFFECTS_ENTRY: no PassiveEffects entry; completeness checked by grepping app/ (excluding public/) for Passive.HATCH, which finds only the unit class blocks",
-   "Whether stacks is carried across transformPokemon on hatch (transformPokemon was not read)",
+   "Per-species Pokemon.onAcquired overrides (several exist) and the OnEvolution passive effects of the evolved unit were not individually read; other writers of stacks (for example passives.ts and the COSMOG / COSMOEM branch of afterEvolve) concern other mechanics and were not traced for HATCH units",
    "Units that gain a hatch rule or stacks through other means (Eggs, evolutions from other families, items other than Eviolite) are not covered; non-listed units with rarity HATCH (final evolutions) are not covered",
    "stage-end loop context (which stages, PVE vs PVP, player.alive guard) only partially read",
-   "Client-side display of hatch progress was not read"
+   "Client-side display of hatch progress was not read",
+   "The 2000 ms window uses setTimeout (a real-time server timer): its interaction with server restarts, room disposal and a second updateHatch inside the window was not traced; the probe replaces setTimeout with a recorder",
+   "The stage-end loop was read only at its HATCH call site (game-commands.ts:1963-1966); which stages and players reach it (PVE vs PVP, alive guard) was not traced"
   ],
   "sourceEvidence": {
    "managerRouting": {
@@ -1103,7 +1112,76 @@
     "symbol": "EvolutionManager.tryEvolve",
     "expect": "if (handler.canEvolve(pokemon, player, ...additionalArgs))",
     "note": ""
+   },
+   {
+    "id": "transform",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     333,
+     352
+    ],
+    "symbol": "Player.transformPokemon",
+    "expect": "carryOverPermanentStats(newPokemon, [pokemon])",
+    "note": "builds the new unit, carries over permanent stats, dishes, position, items; does not set stacks"
+   },
+   {
+    "id": "carry-over",
+    "file": "app/core/evolution-logic/evolution-handler.ts",
+    "lines": [
+     45,
+     93
+    ],
+    "symbol": "carryOverPermanentStats",
+    "expect": "const permanentBuffStats = [",
+    "note": "carries maxHP, atk, def, speDef, speed, ap, luck deltas and the TM; stacks are not copied"
+   },
+   {
+    "id": "stacks-default",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     103,
+     103
+    ],
+    "symbol": "Pokemon.stacks",
+    "expect": "stacks: number = 0",
+    "note": "the new instance starts at 0"
+   },
+   {
+    "id": "after-evolve",
+    "file": "app/core/evolution-logic/evolution-manager.ts",
+    "lines": [
+     75,
+     107
+    ],
+    "symbol": "EvolutionManager.afterEvolve",
+    "expect": "this.tryEvolve(pokemonEvolved, player, ...additionalArgs)",
+    "note": "the generic retry on the new unit"
+   },
+   {
+    "id": "update-hatch-timeout",
+    "file": "app/core/evolution-logic/evolution-manager.ts",
+    "lines": [
+     139,
+     143
+    ],
+    "symbol": "EvolutionManager.updateHatch",
+    "expect": "setTimeout(() => {",
+    "note": "the 2000 ms real-time delay before tryEvolve"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "HATCH",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T221929Z",
+   "reason": "old-instance stack reset distinguished from new-instance defaults; transformPokemon carry-over, the delayed 2 s evolution window and the stage-end iteration traced; the 'can evolve twice in a row' claim corrected",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "HATCH",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

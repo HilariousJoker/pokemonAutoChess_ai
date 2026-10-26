@@ -283,7 +283,7 @@
     "ma-strategy"
    ]
   },
-  "summary": "Deals special damage to every enemy on the up-to-eight cells adjacent to the caster. The damage per enemy is a per-synergy-level amount (7, 10, 13, 20 by stars; 13 for the 3-star listed units) times the sum of the owner player's synergy values over the caster's current types. The cast target itself is not used for the damage (only enemies adjacent to the caster are hit). A caster without a player deals 0.",
+  "summary": "Deals special damage to every enemy on the up-to-eight cells adjacent to the caster. The damage per enemy is a per-synergy-level amount (7, 10, 13, 20 by stars; 13 for the 3-star listed units) times the sum of the owner player's synergy values over the caster's current types. The cast target itself is not used for the damage (only enemies adjacent to the caster are hit). A caster without a player, or whose types have no synergy value, requests a raw 0 against each adjacent enemy, which is NOT a resolved 0: each unblocked enemy still takes 1.",
   "targeting": {
    "who": "all enemies (team !== caster team) on the cells returned by Board.getAdjacentCells around the caster; the cast target only triggers the cast",
    "needsTarget": true,
@@ -338,7 +338,7 @@
      "SILVALLY_WATER": 13
     },
     "scaling": "raw = perSynergyLevel x synergyLevelsCount; AP: damage x (1 + AP/100) (apBoost default true); crit multiplies by critPower only if the cast crit (canCritByDefault false, needs ABILITY_CRIT), the same crit flag for all targets",
-    "resolution": "then each target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked per target by protect / skydiving / magicBounce.",
+    "resolution": "then each target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later untraced modifiers; blocked per target by protect / skydiving / magicBounce. Raw zero is a request of zero, not a resolved zero. Traced (handleSpecialDamage pokemon-entity.ts:346-467 and handleDamage pokemon-state.ts:422-808; pinned-helper probe ZERO_RAW): neither has a damage <= 0 guard (only the Magic Bounce reflection tests damage > 0); AP, DOUBLE_DAMAGE, steam and crit factors leave 0 at 0; the SPE_DEF division gives 0; the non-TRUE reductions (Poke Doll x0.7, the GUTS / STURDY / DEFIANT / COACHING flat reductions, WONDER_GUARD) keep it at or below 0; then `reducedDamage = min(1)(Math.ceil(reducedDamage))` floors it at 1. So an unblocked, non-protected target takes 1 (HP 500 -> 499; on a shield the 1 lands on the shield; with flinch and a shield the ceil split gives 1 + 1); protect / skydiving / magicBounce still block it entirely and a zero never queues a bounce. The same request is made once per adjacent enemy, so with two adjacent enemies both take 1.",
     "evidence": [
      "ma-table",
      "ma-sum",
@@ -349,7 +349,10 @@
      "special-crit",
      "def-step",
      "def-min",
-     "armor-factor"
+     "armor-factor",
+     "zero-no-guard",
+     "zero-reductions",
+     "zero-bounce"
     ]
    }
   ],
@@ -403,7 +406,7 @@
   },
   "positionalConditions": "Only enemies on the caster's adjacent cells are hit; the number of hit enemies depends on the board at cast time. Synergy values come from the owner's board (bench units are not counted).",
   "repeatedCastsAndModes": "No state; each cast recomputes from player.synergies and the entity's types, and spends maxPP of PP via the base process.",
-  "rawVsResolved": "Raw damage per enemy = 13 x (sum of the owner's synergy values over the caster's types) for the listed units. The synergy values are counts of distinct families per type, not tier thresholds; with e.g. Normal 3 and Artificial 2 the multiplier is 5 and raw 65 before AP and SPE_DEF. Types added by held synergy items (Memory Discs) raise the multiplier by that type's count.",
+  "rawVsResolved": "Raw damage per enemy = 13 x (sum of the owner's synergy values over the caster's types) for the listed units. The synergy values are counts of distinct families per type, not tier thresholds; with e.g. Normal 3 and Artificial 2 the multiplier is 5 and raw 65 before AP and SPE_DEF. Types added by held synergy items (Memory Discs) raise the multiplier by that type's count. A raw 0 (no player or no synergy value) resolves to 1 per unblocked adjacent enemy, not to 0.",
   "sourceEvidence": {
    "typesOfCaster": {
     "evidence": [
@@ -430,12 +433,13 @@
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
   ],
   "unresolved": [
-   "Whether pokemon.player is set for every simulation team (PVE, ghost/bot teams); if absent the damage is 0 by the code",
+   "Whether pokemon.player is set for every simulation team (PVE, ghost/bot teams) was not traced; if it is absent the raw request is 0, which still resolves to 1 per unblocked adjacent enemy",
    "How the Silvally forms (SILVALLY_BUG etc.) are produced and whether any of them change types: the catalog lists NORMAL, ARTIFICIAL for all, the form selection code (Silvally evolutionRule divergentEvolution near pokemon.ts line 10143) was not read",
    "Memory Disc to type mapping (SynergyGivenByItem) was not read; only that held synergy items add their type through addSynergiesGivenByItems",
    "Whether a unit's entity types are refreshed during a fight (types are copied at entity construction; later changes such as addType were not read)",
    "The RKS_SYSTEM passive is a separate queue item; only its item-return behaviour was glimpsed and is not documented here",
-   "Whether the damage is also applied to the original cast target when it is not adjacent"
+   "Whether the damage is also applied to the original cast target when it is not adjacent",
+   "The raw-zero trace was checked with a pinned-helper probe (the real handleSpecialDamage and handleDamage on stub units), not in a fight"
   ],
   "evidence": [
    {
@@ -712,9 +716,56 @@
     "symbol": "PassiveEffects[RKS_SYSTEM]",
     "expect": "new OnChangePositionEffect",
     "note": "moves items back to the player when the unit is moved to the bench (row 0)"
+   },
+   {
+    "id": "zero-no-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving)",
+    "note": "handleDamage returns early only for a dead or resurrecting target and (as 0) for protect / skydiving; there is no damage <= 0 guard before the floor"
+   },
+   {
+    "id": "zero-reductions",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     595
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = reducedDamage - damageBlocked",
+    "note": "non-TRUE flat reductions can push a zero below zero before the floor"
+   },
+   {
+    "id": "zero-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     366
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage > 0 &&",
+    "note": "only the Magic Bounce reflection tests damage > 0; the protect / skydiving / magicBounce block itself does not"
    }
   ],
   "label": "production-branch reference; deployment unverified",
-  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1"
- }
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "ZERO_RAW",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T221929Z",
+   "reason": "raw zero traced through the per-target loop, handleSpecialDamage and handleDamage (floor of 1 for each unblocked adjacent enemy); 'deals 0' wording replaced",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "ZERO_RAW",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

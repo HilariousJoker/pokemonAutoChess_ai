@@ -268,7 +268,7 @@
    }
   },
   "kind": "dynamic-type passive with no PassiveEffects entry; handled inside computeSynergies",
-  "summary": "Units with Passive.PROTEAN3 (Arceus and its 17 form keys) have a static empty type set. On every synergy recompute (computeSynergies) their types are cleared, then, when the unit is off the bench, up to three types are added: the three synergies with the highest current value on the owner's board (counted without the Arceus), skipping any whose value is 0. Each added type also adds +1 to that synergy's value, so the Arceus counts as a member of its own types. Dragon, if it is among the top three, is placed first. The Arceus's appearance form (index) follows its first type. The passive has no PassiveEffects entry and no combat effect of its own.",
+  "summary": "Units with Passive.PROTEAN3 (Arceus and its 17 form keys) have a static empty type set. On every synergy recompute (computeSynergies) their types are cleared (bench units included), the types given by held items are then re-added for EVERY unit (addSynergiesGivenByItems), and only when the unit is off the bench are up to three dynamic types added: the three synergies with the highest current value on the owner's board at that point (the family counts of off-bench units, including the Arceus's own item-derived types and the +1s added by earlier PROTEAN units, but not its own dynamic types), skipping any whose value is 0 or that the unit already holds. Each added type also adds +1 to that synergy's value, so the Arceus counts as a member of its own types. Dragon, if it is among the top three, is placed first. The Arceus's appearance form (index) follows its first type. The passive has no PassiveEffects entry and no combat effect of its own.",
   "triggers": [
    "Player.updateSynergies -> computeSynergies(board, bonusSynergies, specialGameRule) over the board",
    "computeSynergies runs for every board unit; the PROTEAN3 branch runs after the regular type counting and after Dragon double-type handling"
@@ -287,18 +287,23 @@
      "dyn-dragon",
      "dyn-dragon-double",
      "arceus-index",
-     "items-types"
+     "items-types",
+     "items-readd",
+     "reader-judgement",
+     "reader-infestation"
     ]
    }
   ],
   "conditions": [
-   "Only units not on the bench (positionY !== 0) get dynamic types; on the bench the type set stays empty after the reset and contributes nothing to the counts.",
+   "Dynamic types are added only to units not on the bench (positionY !== 0), and only off-bench units (positionY != 0) contribute their types to the family counts. After the reset a BENCH PROTEAN unit keeps the item-derived types re-added for every unit, has no dynamic types and contributes nothing to the counts; stale dynamic types are cleared. Probe: a benched Arceus holding a Fire type item ends with types [FIRE] and leaves the counts unchanged; on the board it gets the dynamic types and the item type counts as its family's FIRE.",
    "Synergy values used for ranking are counts of distinct families per type (not tier thresholds); ties keep the order in which the keys were inserted into the map (Object.keys(Synergy) order) because the sort is by value only; stable-sort behaviour assumed from the language, not tested.",
    "A type is added only if its value is greater than 0 and the unit does not already hold it (for example from a held synergy item added just before); a skipped slot is not replaced by the fourth-best type.",
    "If Dragon is in the top three it is moved to the front before types are assigned, so Dragon is added first; reaching Dragon 3 through the Arceus triggers a second pass of the Dragon double-type step (applyDragonDoubleTypes), and when Dragon 3 was already active it adds +1 to the second-ranked synergy.",
-   "The reset is done per unit inside the board loop before counting, so another PROTEAN unit's earlier types are already cleared when counting the board (two PROTEAN units are processed in board order; interaction between them was not traced)."
+   "The reset is done per unit inside the board loop before counting, so another PROTEAN unit's earlier types are already cleared when counting the board (two PROTEAN units are processed in board order; interaction between them was not traced).",
+   "A held type item can occupy one of the three dynamic slots: the loop skips a type the unit already holds without moving to the fourth-ranked synergy (probe: Fire item on the board -> types FIRE (item), WATER, GRASS (dynamic), counts FIRE 3, WATER 3, GRASS 2).",
+   "Readers of the types: the entity constructor copies the board unit's types (pokemon-entity.ts:212-214; a DARK ranged check follows at 216), JUDGEMENT and MULTI_ATTACK sum the player's synergy values over the entity's types, infestation.ts:28-30 reads the types of BENCH units (isOnBench), and many other abilities, item and passive effects, status immunities by type and simulation synergy effects read `types` (a bounded text search finds about 100 matches in app/core and app/models, not individually traced)."
   ],
-  "resetBehaviour": "No timer or stack. The type set is cleared and rebuilt on every recompute; the entity copies the types when a simulation is created, so changes after that were not traced.",
+  "resetBehaviour": "No timer or stack. On every recompute the type set of each PROTEAN unit is cleared, item-derived types are re-added for every unit, and (off the bench only) the dynamic types are added; the entity copies the types when a simulation is created, so changes after that were not traced.",
   "dependsOnUnverifiedGenericCombat": [
    "How and when updateSynergies is called relative to simulation start (board edits, item changes) - only the recompute function itself was read",
    "Anything that uses the types of the entity during a fight (synergy effects, JUDGEMENT damage multiplier) is separate"
@@ -309,7 +314,9 @@
    "Interaction with FAMILY_OUTING and bonusSynergies (bonus values enter the counts as the starting value) was not traced",
    "PROTEAN2 (Kecleon) shares the code path but is a separate queue item and is not covered",
    "Whether form-index changes (pkm.index) have any gameplay effect beyond appearance was not checked",
-   "How the player's synergy effects (tier thresholds) react to the +1 counts the unit adds was not read"
+   "How the player's synergy effects (tier thresholds) react to the +1 counts the unit adds was not read",
+   "The readers of `types` are numerous and were sampled, not enumerated (see the conditions); whether anything besides infestation.ts reads a benched PROTEAN unit's item-derived types was not searched exhaustively",
+   "The reset/bench/item behaviour was checked with a pinned-helper probe (the real computeSynergies and addSynergiesGivenByItems text on stub units with a stub item-to-type map and Dragon threshold), not in a game; tie order follows the Synergy enum key order as run by the probe"
   ],
   "sourceEvidence": {
    "recompute": {
@@ -456,9 +463,56 @@
     "symbol": "computeSynergies",
     "expect": "addSynergiesGivenByItems(pkm)",
     "note": "item types are added right after the reset, so they are counted before the dynamic ones"
+   },
+   {
+    "id": "items-readd",
+    "file": "app/models/colyseus-models/synergies.ts",
+    "lines": [
+     287,
+     298
+    ],
+    "symbol": "addSynergiesGivenByItems",
+    "expect": "const synergy = SynergyGivenByItem[item]",
+    "note": "re-adds the types given by held items for every unit (called for bench units too, line 115)"
+   },
+   {
+    "id": "reader-judgement",
+    "file": "app/core/abilities/judgement.ts",
+    "lines": [
+     17,
+     19
+    ],
+    "symbol": "JudgementStrategy.process",
+    "expect": "synergyLevelsCount += synergies.get(type) ?? 0",
+    "note": "JUDGEMENT sums the player's synergy values over the entity's types"
+   },
+   {
+    "id": "reader-infestation",
+    "file": "app/core/abilities/infestation.ts",
+    "lines": [
+     28,
+     30
+    ],
+    "symbol": "InfestationStrategy.process",
+    "expect": "p.types.has(Synergy.BUG) && isOnBench(p)",
+    "note": "a reader of the types of BENCH units"
    }
   ],
   "label": "production-branch reference; deployment unverified",
-  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1"
- }
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "PROTEAN3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T221929Z",
+   "reason": "dynamic reset versus item-derived types on bench units traced; which units contribute to counts; a held type item can occupy a dynamic slot; representative readers of the types listed",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "PROTEAN3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

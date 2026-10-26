@@ -118,7 +118,7 @@
     "ss-anim"
    ]
   },
-  "summary": "The caster deals SPECIAL damage equal to round(multiplier x its own DEF) to the cast target (multiplier 0.6/0.8/1/2 by stars). If the caster already had spike armor when it cast, it also deals flat SPECIAL damage (30/30/30/60 by stars) to every enemy-team unit on the rays in all 8 directions out to the board edge. Afterwards it gains (or refreshes to the longer of old and new) spike armor for 3000/5000/10000/10000 ms. While spike armor is active, any unit that hits the caster from distance 1 (without PROTECTIVE_PADS) is wounded for 2000 ms and takes retaliation SPECIAL damage from the caster's DEF.",
+  "summary": "The caster deals SPECIAL damage equal to round(multiplier x its own DEF) to the cast target (multiplier 0.6/0.8/1/2 by stars). If the caster already had spike armor when it cast, it also deals flat SPECIAL damage (30/30/30/60 by stars) to every enemy-team unit on the rays in all 8 directions out to the board edge. Afterwards it gains (or refreshes to the longer of old and new) spike armor for 3000/5000/10000/10000 ms. While spike armor is active, any unit that hits the caster from distance 1 (without PROTECTIVE_PADS) is wounded for 2000 ms and takes retaliation SPECIAL damage from the caster's DEF. On the production board (8 columns x 6 rows: BOARD_WIDTH 8, BOARD_HEIGHT 6, Board(rows, columns)), the RIGHT ray loops `x < board.rows` (6), so it stops at column 5 and never reaches columns 6 and 7 (a caster in column 4 reaches only column 5, from column 5 nothing); the other directions use the real bounds. The retaliation is not part of the strategy: it is the spike-armor block of PokemonEntity.onHit, which runs only after a successful basic attack (or the Loaded Dice second hit), not after every spell hit.",
   "targeting": {
    "who": "damage: the cast target (DEF-based) and, only if spike armor was already active at cast time, every enemy-team unit on the 8 rays from the caster; buff: the caster",
    "needsTarget": true,
@@ -195,7 +195,7 @@
      "SILCOON": 30
     },
     "scaling": "AP: x (1 + AP/100); crit as above; each unit is hit once per ray that crosses it",
-    "resolution": "then SPE_DEF division and untraced modifiers; per-target protect / skydiving / magicBounce block",
+    "resolution": "then SPE_DEF division and untraced modifiers; per-target protect / skydiving / magicBounce block The rays use effectInOrientation with an Orientation (not an entity) as target, so there is no original-target fallback; RIGHT is shortened to column 5 on the 8 x 6 board.",
     "evidence": [
      "ss-table-ring",
      "ss-ring",
@@ -203,7 +203,9 @@
      "special",
      "special-block",
      "special-ap",
-     "special-crit"
+     "special-crit",
+     "board-dims",
+     "sim-board"
     ]
    },
    {
@@ -250,11 +252,14 @@
      "woundMs": 2000
     },
     "scaling": "round(caster DEF x factor x (1 + AP/100) x critPower if the retaliation rolled a crit)",
-    "resolution": "applied through handleDamage with isRetaliation true (not read further); the wound is applied to the attacker",
+    "resolution": "this is the spike-armor block of PokemonEntity.onHit (pokemon-entity.ts:1097-1126), executed for the HITTER (`this`) after a successful basic attack (PokemonState.attack calls onHit only when isAttackSuccessful, pokemon-state.ts:295-296) or the Loaded Dice second hit (items.ts:194); it is not triggered by spell damage (neither handleSpecialDamage nor handleDamage calls onHit). Conditions: the target (the spike-armored unit) has spikeArmor, the hitter is at Chebyshev distance exactly 1 and does not hold Protective Pads. Then the hitter is wounded for 2000 ms (triggerWound(2000, hitter, target); refused by Rune Protect, x1.3 under BLOODMOON, then the hitter's duration reductions) and takes SPECIAL handleDamage with attacker = the spike unit and isRetaliation true, damage round(DEF x factor x (1 + AP/100) x critPower if the roll succeeded) with factor 0.6 / 0.8 / 1 (1 for any other star count). Probe: DEF 50 gives 50 at 3 stars and 30 at 1 star.",
     "evidence": [
      "retaliation",
      "retaliation-def",
-     "retaliation-wound"
+     "retaliation-wound",
+     "onhit-def",
+     "onhit-callers",
+     "wound-trig"
     ]
    }
   ],
@@ -272,9 +277,10 @@
    {
     "status": "WOUND",
     "durationMs": 2000,
-    "effect": "applied to a retaliating-hit attacker (effect of wound not read)",
+    "effect": "applied to the hitter in the retaliation block: refused by Rune Protect, duration x1.3 under BLOODMOON, then the hitter's duration reductions (status.ts:877-897); while wounded the unit's heals are blocked (handleHeal), with the Blood Moon / Blood Stone shield exception",
     "evidence": [
-     "retaliation-wound"
+     "retaliation-wound",
+     "wound-trig"
     ]
    }
   ],
@@ -328,7 +334,7 @@
     "unit-silcoon"
    ]
   },
-  "positionalConditions": "Ray damage requires spike armor to be active at the moment of casting (a repeat cast within the duration). Ray length is the distance to the board edge; the RIGHT ray is bounded by board.rows instead of board.columns in the source as written. Retaliation needs the attacker at distance exactly 1.",
+  "positionalConditions": "Ray damage requires spike armor to be active at the moment of casting (a repeat cast within the duration). Ray length is the distance to the board edge; the RIGHT ray is bounded by board.rows (6) instead of board.columns (8) on the 8 x 6 production board, so it stops at column 5 (probe: caster (4,2) reaches (5,2) but never (7,2); from column 5 the ray visits nothing). Retaliation needs the attacker at distance exactly 1.",
   "repeatedCastsAndModes": "Two modes by pre-existing spikeArmor: first cast (no armor) = target hit + armor; a cast while armor is active = target hit + 8 rays + refreshed armor (the longer cooldown is kept). The animation flag also depends on the pre-cast state.",
   "rawVsResolved": "Declared raw: target hit = DEF multiplier (0.6/0.8/1 for 1/2/3 stars) x the caster's DEF at cast time; ray hit 30 (1-3 stars); armor 3000/5000/10000 ms; retaliation DEF factor 0.6/0.8/1. Damage dealt = raw x (1 + AP/100) (x critPower on a crit), then SPE_DEF division and untraced modifiers.",
   "sourceTables": [
@@ -359,16 +365,16 @@
    "Final damage after handleSpecialDamage's later modifiers (SPE_DEF division, shields, items, resurrection, field multipliers)",
    "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
-   "handleDamage with isRetaliation and the wound status effect were not read",
-   "Board.orientation / getEntityOnCell and the full per-direction loop bounds beyond the lines cited were not verified"
+   "The retaliation damage is requested through handleDamage with isRetaliation true; the final HP change depends on the generic damage pipeline (shields, items), which was not traced further; the wound status effect beyond triggerWound (blocked heals via handleHeal) was not traced",
+   "Board.orientation / getEntityOnCell were not read; the full per-direction loop bounds of effectInOrientation were read (board.ts:845-909) and probed"
   ],
   "unresolved": [
    "Whether the DEF used for the target hit includes buffs applied earlier in the same fight (pokemon.def at cast time; no modifiers traced)",
-   "The RIGHT ray loop bound uses board.rows; the effect on a board where columns differ from rows was not analysed",
+   "The RIGHT-ray shortfall is traced for the 8 x 6 board (probe) and is a property of the pinned helper as written, not patched here",
    "The retaliation uses a 3-entry table only; for 4 stars it falls back to 1 (not reachable for listed units)",
    "Whether the target is hit twice when it lies on a ray (code adds no exclusion)",
    "Whether the six units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No live-match or full-battle validation: the evidence is source inspection plus the limited pinned-helper probe (section SPIKY_SHIELD of probes/pinned-helper-probe.mjs, `--check`), which runs the pinned function text against stubs"
   ],
   "evidence": [
    {
@@ -722,7 +728,76 @@
     "symbol": "class Silcoon",
     "expect": "skill = Ability.SPIKY_SHIELD",
     "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "board-dims",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "BOARD_WIDTH = 8, BOARD_HEIGHT = 6"
+   },
+   {
+    "id": "sim-board",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "Simulation.board",
+    "expect": "board: Board = new Board(BOARD_HEIGHT, BOARD_WIDTH)",
+    "note": "Board(rows = 6, columns = 8)"
+   },
+   {
+    "id": "onhit-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     969,
+     983
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "onHit({",
+    "note": "onHit runs on the hitter after a successful basic attack"
+   },
+   {
+    "id": "onhit-callers",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     295,
+     297
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "pokemon.onHit({",
+    "note": "called only inside if (isAttackSuccessful) (the other caller is the Loaded Dice second hit, items.ts:194)"
+   },
+   {
+    "id": "wound-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     877,
+     897
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "triggerWound(",
+    "note": "Rune Protect refuses; BLOODMOON x1.3; duration reductions; longer timer kept"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SPIKY_SHIELD",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261026T221929Z",
+   "reason": "actual 8-column x 6-row RIGHT-ray shortfall stated; retaliation moved to the successful-onHit pathway (not every spell hit) with the wound and damage formula traced",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SPIKY_SHIELD",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
