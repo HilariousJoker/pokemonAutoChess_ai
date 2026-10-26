@@ -1,0 +1,567 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HYDRO_PUMP",
+ "kind": "ability",
+ "identifier": "HYDRO_PUMP",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T174015Z"
+ },
+ "record": {
+  "ability": "HYDRO_PUMP",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare HYDRO_PUMP (passive NONE in the catalog). The strategy is shared; the units differ in stars and stats. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "BLASTOISE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HYDRO_PUMP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SQUIRTLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HYDRO_PUMP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WARTORTLE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "HYDRO_PUMP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BLASTOISE": {
+    "evidence": [
+     "unit-blastoise"
+    ]
+   },
+   "SQUIRTLE": {
+    "evidence": [
+     "unit-squirtle"
+    ]
+   },
+   "WARTORTLE": {
+    "evidence": [
+     "unit-wartortle"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HYDRO_PUMP] = new HydroPumpStrategy()",
+   "strategy": "HydroPumpStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hp",
+    "hp-class",
+    "base-flags",
+    "base-pp",
+    "hp-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Line attack: every enemy standing on a supercover line from the caster through the cast target to the far board edge takes the same raw SPECIAL damage (20/40/80 by the caster's stars; 160 is the 4-star value and fallback, not reachable by the three listed units). Allies on the line and empty cells are skipped. Damage is a flat table value (no atk scaling) and goes through the normal AP / crit / SPE_DEF pipeline for each victim separately. No status, heal, shield or buff is applied.",
+  "targeting": {
+   "who": "all enemy entities on the cells of the line defined by the caster's position and the cast target's position (the target itself is on the line)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not traced beyond the pp >= maxPP && canCast gate.",
+   "evidence": [
+    "hp-class",
+    "base-flags",
+    "hp-line",
+    "hp-enemy",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's cell through the target's cell, extended to a point 12 cells away along the angle (rounded) and clipped to the board; every touched cell counts, diagonal crossings included; the caster's own cell is the first cell and is skipped by the team check",
+   "evidence": [
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between",
+    "hp-line",
+    "hp-enemy"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "SQUIRTLE": 20,
+     "WARTORTLE": 40,
+     "BLASTOISE": 80
+    },
+    "scaling": "requested amount per victim = the table value (no atk scaling). In handleSpecialDamage for each victim: x (1 + AP/100) (apBoost defaults to true); x2 if the caster has DOUBLE_DAMAGE (consumed by the first victim, so later victims on the line do not get it); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet victim and by 0.1 per Black Augurite of the victim's player (floor 0); the crit flag is the same for every victim",
+    "resolution": "then PokemonState.handleDamage per victim: x2 if the caster is enraged, attacker/target field and weather multipliers (read as a list), SPE_DEF division damage / (1 + 0.05 x speDef) (speDef halved while the victim has armorReduction), Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard reductions, ceil with a minimum of 1; a shield absorbs first. Blocked (takenDamage 0) for a victim with protect / skydiving / magicBounce (magicBounce also queues a reflected hit unless the caster holds Protective Pads), or at 0 hp / resurrecting; a Cover Band ally adjacent to a victim that would die takes that hit instead. takenDamage is returned but discarded. Requested = table value; applied = what is left after these steps for each victim.",
+    "evidence": [
+     "hp-dmg",
+     "hp-hit",
+     "hp-enemy",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-mult",
+     "special-crit",
+     "special-handle",
+     "special-lens",
+     "dmg-guard",
+     "dmg-field",
+     "dmg-protect",
+     "dmg-spedef",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "dmg-shield",
+     "dmg-cover"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BLASTOISE": 3,
+    "SQUIRTLE": 1,
+    "WARTORTLE": 2
+   },
+   "declaredRawDamage": {
+    "SQUIRTLE": 20,
+    "WARTORTLE": 40,
+    "BLASTOISE": 80
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (160, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP 100 and range 3 for all three.",
+   "evidence": [
+    "hp-dmg",
+    "unit-squirtle",
+    "unit-wartortle",
+    "unit-blastoise"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle to the target, rounded end point, supercover cells); enemies behind the target on the same line are hit as well, enemies beside it are not. An ally on the line is skipped but does not block the line.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-hits every enemy on the line.",
+  "rawVsResolved": "Requested: damage 20/40/80 per enemy on the line. Applied per victim: damage x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE on the first victim only / strange-steam / enraged / field / weather], then SPE_DEF division, ceil, at least 1, other reductions, shield first. takenDamage is discarded.",
+  "sourceTables": [
+   {
+    "id": "hydroPumpDamage",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Field, weather and Poke Doll / Guts-type multipliers in handleDamage were read as a list (lines 455-595), not each traced",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution before the call: only the damage-side multiplier in handleSpecialDamage was read",
+   "The order in which the line cells are visited (the supercover loop was read; its effect on DOUBLE_DAMAGE consumption and on kill order was not simulated)",
+   "Positions of units at the instant of the cast and whether entities can occupy the same cell: only cell.value of the board array is read"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect other than those listed changes HYDRO_PUMP damage",
+   "No routing uncertainty was recorded for HYDRO_PUMP in the queue; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true (HORN_DRILL does not pass it)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "blocks ability damage (takenDamage 0); magicBounce also queues reflected damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-mult",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE (consumed) and STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "special-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     464
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "Item.POWER_LENS",
+    "note": "Power Lens on the target reflects the blocked part to the caster"
+   },
+   {
+    "id": "dmg-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": ""
+   },
+   {
+    "id": "dmg-field",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.status.enraged",
+    "note": "attacker/target multipliers (enraged, fields, weather) precede the defense step"
+   },
+   {
+    "id": "dmg-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "dmg-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.armorReduction",
+    "note": "armorReduction halves the SPE_DEF used"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "dmg-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes shield damage; a shield absorbs damage first"
+   },
+   {
+    "id": "dmg-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "ally.items.has(Item.COVER_BAND)",
+    "note": "Cover Band ally can take the hit instead"
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     936
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": "end point 12 cells from the caster along that angle, rounded"
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     937,
+     939
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped); each cell carries the entity on it"
+   },
+   {
+    "id": "unit-blastoise",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4434,
+     4446
+    ],
+    "symbol": "class Blastoise",
+    "expect": "skill = Ability.HYDRO_PUMP",
+    "note": "unit class block: skill / stars / stats (no passive line; base atk 20)"
+   },
+   {
+    "id": "unit-squirtle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4404,
+     4417
+    ],
+    "symbol": "class Squirtle",
+    "expect": "skill = Ability.HYDRO_PUMP",
+    "note": "unit class block: skill / stars / stats (no passive line; base atk 5)"
+   },
+   {
+    "id": "unit-wartortle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4419,
+     4432
+    ],
+    "symbol": "class Wartortle",
+    "expect": "skill = Ability.HYDRO_PUMP",
+    "note": "unit class block: skill / stars / stats (no passive line; base atk 9)"
+   },
+   {
+    "id": "reg-hp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     973,
+     973
+    ],
+    "symbol": "AbilityStrategies[Ability.HYDRO_PUMP]",
+    "expect": "[Ability.HYDRO_PUMP]: new HydroPumpStrategy()",
+    "note": ""
+   },
+   {
+    "id": "hp-class",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "HydroPumpStrategy",
+    "expect": "class HydroPumpStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden (defaults true / false)"
+   },
+   {
+    "id": "hp-super",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HydroPumpStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hp-dmg",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HydroPumpStrategy.process",
+    "expect": "[20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "hp-line",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "HydroPumpStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "callback runs for every cell on the line"
+   },
+   {
+    "id": "hp-enemy",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HydroPumpStrategy.process",
+    "expect": "cell.value != null && cell.value.team !== pokemon.team",
+    "note": "only occupied cells holding an entity of another team"
+   },
+   {
+    "id": "hp-hit",
+    "file": "app/core/abilities/hydro-pump.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "HydroPumpStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage per enemy cell, same raw and same crit flag for each; return value discarded"
+   }
+  ]
+ }
+}
