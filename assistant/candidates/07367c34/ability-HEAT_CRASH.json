@@ -1,0 +1,433 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HEAT_CRASH",
+ "kind": "ability",
+ "identifier": "HEAT_CRASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261026T114202Z"
+ },
+ "record": {
+  "ability": "HEAT_CRASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Tepig (1 star, passive HATCH), Pignite (2 stars, passive HATCH) and Emboar (3 stars, no passive) declare ABILITY HEAT_CRASH (maxPP 100, range 1). The HATCH passive is a separate record and is not described here.",
+  "appliesTo": [
+   {
+    "key": "EMBOAR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAT_CRASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PIGNITE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAT_CRASH",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TEPIG",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HEAT_CRASH",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "EMBOAR": {
+    "evidence": [
+     "unit-emboar"
+    ]
+   },
+   "PIGNITE": {
+    "evidence": [
+     "unit-pignite"
+    ]
+   },
+   "TEPIG": {
+    "evidence": [
+     "unit-tepig"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HEAT_CRASH] = new HeatCrashStrategy()",
+   "strategy": "HeatCrashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hc",
+    "base",
+    "cast",
+    "hc-class"
+   ]
+  },
+  "summary": "Single-target SPECIAL hit that grows with the ATK gap, followed by a knockback. The requested damage is the star-indexed base (40/60/80/160) plus 2 x (caster ATK - target ATK), both read at cast time, so it is larger against a lower-ATK target and smaller against a higher-ATK one. After the damage the caster turns toward the target and the target is pushed one cell directly away if a free cell exists (straight first, then the two adjacent directions), and its cooldown is set to 500. The caster does not move and no status is applied. requiresTarget is the default true.",
+  "targeting": {
+   "who": "the cast target (damage and knockback); the caster only changes orientation",
+   "needsTarget": true,
+   "note": "Single target, no area.",
+   "evidence": [
+    "hc-class",
+    "hc-damage",
+    "hc-kb"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; knockback of one cell away from the caster",
+   "detail": "The caster orientation comes from the sign of the cell difference caster to target (Board.orientation). Board.getKnockBackPlace tries the straight orientation then its two neighbouring orientations (OrientationKnockback) and takes the first cell that is on the board and empty; with none it returns null and there is no movement. The knockback is evaluated after the damage using the target's position at that moment.",
+   "evidence": [
+    "hc-orient",
+    "hc-kb",
+    "board-orient",
+    "board-kb",
+    "kb-table"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": [
+      40,
+      60,
+      80,
+      160
+     ],
+     "attackDifferenceMultiplier": 2,
+     "formula": "table[stars-1] + 2 x (caster ATK - target ATK)"
+    },
+    "perUnitRaw": {
+     "EMBOAR": 80,
+     "PIGNITE": 60,
+     "TEPIG": 40
+    },
+    "scaling": "Requested amount = table value + 2 x (caster atk - target atk), read at cast time from the entities' current ATK (after items, synergies and buffs). The difference can be negative, which lowers the requested amount, even below zero. handleSpecialDamage(requested, board, SPECIAL, caster, crit) then applies the default apBoost: + requested x caster AP/100, x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 with the strange-steam board effect, then the crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false).",
+    "resolution": "The per-unit raw value is only the table base (40/60/80 for Tepig/Pignite/Emboar); the ATK term depends on the two entities. A target with protect, skydiving or magicBounce takes none (magicBounce reflects if the caster lacks Protective Pads). Otherwise state.handleDamage applies the target's Special Defense, shields and the minimum of 1, so a requested amount that has become zero or negative still ends up as at least 1 (no early return for damage <= 0 was found before that line). The applied/taken amount is what handleDamage reports as takenDamage.",
+    "evidence": [
+     "hc-table",
+     "hc-diff",
+     "hc-damage",
+     "spdmg",
+     "spdmg-calc",
+     "state-guard",
+     "state-min"
+    ]
+   },
+   {
+    "kind": "knockback",
+    "target": "the cast target",
+    "declaredRaw": {
+     "distanceCells": 1,
+     "cooldownAfter": 500,
+     "forcedDisplacement": true
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, true) is a forced displacement: it does nothing when the target cannot be moved (skydiving, locked or holding Heavy Duty Boots), or when the occupant of the destination cannot be moved (the destination is empty by construction). The damage has already been dealt in that case. When the move happens the target enters the moving state and its cooldown is set to 500 (overriding the 100 set by moveTo). A target that is blocked by protect still gets knocked back because the knockback does not depend on damage.",
+    "evidence": [
+     "hc-kb",
+     "board-kb",
+     "kb-table",
+     "moveto",
+     "canbemoved"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "EMBOAR": 3,
+    "PIGNITE": 2,
+    "TEPIG": 1
+   },
+   "declaredRawBase": {
+    "EMBOAR": 80,
+    "PIGNITE": 60,
+    "TEPIG": 40
+   },
+   "note": "Caster stars index the base table (1-4, fallback 160). The listed units are 1, 2 and 3 stars, so the 160 entry is not used by any listed unit.",
+   "evidence": [
+    "hc-table"
+   ]
+  },
+  "positionalConditions": "The knockback needs an empty on-board cell among the three directions tried; at a wall or when surrounded it does not happen. The damage has no positional condition.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast reads the current ATK of both entities.",
+  "rawVsResolved": "Requested: 40/60/80 (Tepig/Pignite/Emboar) + 2 x (caster ATK - target ATK) as SPECIAL damage. Applied: AP percentage, DOUBLE_DAMAGE, strange steam and crit scale the requested amount before handleDamage (a negative requested amount is scaled the same way). Taken: Special Defense, shields and the minimum of 1 decide takenDamage. The knockback and the 500 cooldown are independent of the damage amount and of protect.",
+  "sourceTables": [
+   {
+    "id": "heatCrashDamage",
+    "file": "app/core/abilities/heat-crash.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "state.handleDamage body (defences, shield absorption, minimum of 1) only through the shared reference core-mechanics.md section A and the cited lines",
+   "Which stat bonuses are already folded into atk at cast time (core-mechanics.md section I covers declared item bonuses only)"
+  ],
+  "unresolved": [
+   "Behaviour when the target dies from the damage before the knockback runs (its cell and moveTo on a dead entity were not traced)",
+   "Whether a retargeting or moving state overrides the cooldown 500 afterwards was not traced",
+   "Passive HATCH on Tepig and Pignite is a separate record",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-hc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     935,
+     935
+    ],
+    "symbol": "AbilityStrategies[Ability.HEAT_CRASH]",
+    "expect": "[Ability.HEAT_CRASH]: new HeatCrashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and plays the default animation; requiresTarget defaults to true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "hc-class",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hc-table",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     14,
+     15
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "let damage = [40, 60, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "hc-diff",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "damage += attackDifference * 2",
+    "note": "current ATK of caster minus current ATK of target, times 2, added to the table value"
+   },
+   {
+    "id": "hc-damage",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target, default apBoost"
+   },
+   {
+    "id": "hc-orient",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "pokemon.orientation = board.orientation(",
+    "note": "caster orientation set from caster cell to target cell"
+   },
+   {
+    "id": "hc-kb",
+    "file": "app/core/abilities/heat-crash.ts",
+    "lines": [
+     27,
+     35
+    ],
+    "symbol": "HeatCrashStrategy.process",
+    "expect": "target.moveTo(knockbackCell.x, knockbackCell.y, board, true)",
+    "note": "forced displacement, then target.cooldown = 500"
+   },
+   {
+    "id": "board-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     107
+    ],
+    "symbol": "Board.orientation",
+    "expect": "const dx = x1 - x0",
+    "note": "orientation from the sign of dx and dy between the two cells"
+   },
+   {
+    "id": "board-kb",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     711
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "const possibleOrientations = OrientationKnockback[knockBackOrientation]",
+    "note": "first on-board empty cell among the listed orientations, else null"
+   },
+   {
+    "id": "kb-table",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     66,
+     67
+    ],
+    "symbol": "OrientationKnockback",
+    "expect": "export const OrientationKnockback",
+    "note": "per orientation: the straight direction first, then its two neighbouring directions"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "forced displacement is refused when the moved entity cannot be moved"
+   },
+   {
+    "id": "canbemoved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.items.has(Item.HEAVY_DUTY_BOOTS)",
+    "note": "not skydiving, not locked, no Heavy Duty Boots"
+   },
+   {
+    "id": "spdmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "spdmg-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, DOUBLE_DAMAGE, strange steam, crit"
+   },
+   {
+    "id": "state-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "no early return for damage <= 0 between the function start and the protect check; enraged attacker doubles the damage"
+   },
+   {
+    "id": "state-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     594,
+     598
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum of 1 after defences (core-mechanics.md section A)"
+   },
+   {
+    "id": "unit-emboar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12207,
+     12218
+    ],
+    "symbol": "class Emboar",
+    "expect": "skill = Ability.HEAT_CRASH",
+    "note": ""
+   },
+   {
+    "id": "unit-pignite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12190,
+     12203
+    ],
+    "symbol": "class Pignite",
+    "expect": "skill = Ability.HEAT_CRASH",
+    "note": ""
+   },
+   {
+    "id": "unit-tepig",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12173,
+     12186
+    ],
+    "symbol": "class Tepig",
+    "expect": "skill = Ability.HEAT_CRASH",
+    "note": ""
+   }
+  ]
+ }
+}
