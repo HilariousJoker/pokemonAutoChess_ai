@@ -1,0 +1,403 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MAGIC_POWDER",
+ "kind": "ability",
+ "identifier": "MAGIC_POWDER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T053959Z"
+ },
+ "record": {
+  "ability": "MAGIC_POWDER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "HATENNA (1 star), HATTREM (2 stars) and HATTERENE (3 stars), the queued units; maxPP 100, range 1 for all three.",
+  "appliesTo": [
+   {
+    "key": "HATENNA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MAGIC_POWDER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HATTERENE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MAGIC_POWDER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HATTREM",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MAGIC_POWDER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HATENNA": {
+    "evidence": [
+     "unit-hatenna"
+    ]
+   },
+   "HATTREM": {
+    "evidence": [
+     "unit-hattrem"
+    ]
+   },
+   "HATTERENE": {
+    "evidence": [
+     "unit-hatterene"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MAGIC_POWDER] = new MagicPowderStrategy()",
+   "strategy": "MagicPowderStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mp",
+    "base",
+    "mp-impl"
+   ]
+  },
+  "summary": "Self shield plus silence of adjacent enemies. The caster gains a shield of 15 / 30 / 60 / 120 (requested, by caster stars) scaled by its AP and by crit, and every enemy-team entity in the up-to-8 cells adjacent to the caster is silenced for 2000 / 3000 / 4000 / 8000 ms (requested, by caster stars). The silence duration is not AP- or crit-scaled. No damage is dealt. A silenced unit cannot cast and gains no positive PP. The cast target itself is not used: the effect is centred on the caster, but requiresTarget is the default true, so the caster still needs a target in range to start the cast.",
+  "targeting": {
+   "who": "the caster (shield); enemy-team entities in the cells adjacent to the caster (silence)",
+   "needsTarget": true,
+   "note": "the passed target is ignored by the effect; the area is the caster's neighbourhood",
+   "evidence": [
+    "mp-impl",
+    "adjacent"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around the caster (centre excluded), clipped to the board",
+   "detail": "board.getAdjacentCells(x, y) with includesCenter = false; only cells with an entity whose team differs from the caster's are affected",
+   "evidence": [
+    "mp-impl",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "HATENNA": 15,
+     "HATTREM": 30,
+     "HATTERENE": 60
+    },
+    "scaling": "requested amount: addShield(shield, pokemon, 1, crit): apBoost 1 gives x(1 + AP/100); the crit multiplier applies when the cast crit (needs ABILITY_CRIT, canCritByDefault is false)",
+    "resolution": "applied amount: PokemonEntity.addShield first runs applyBigEaterBeltStatBuff (x1.25 rounded down, only when the caster holds Big Eater Belt and the value is positive), then PokemonState.addShield: nothing if the caster is at 0 hp, x0.5 if the caster is enraged, Math.round, added to the existing shield. Order is Big Eater Belt, then AP, crit, enraged",
+    "evidence": [
+     "mp-impl",
+     "entity-addshield",
+     "bigeater",
+     "state-addshield"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "silence",
+    "target": "enemy-team entities in the 8 adjacent cells",
+    "declaredRaw": {
+     "byStars": {
+      "1": 2000,
+      "2": 3000,
+      "3": 4000,
+      "4": 8000,
+      "fallback": 8000
+     },
+     "unit": "ms"
+    },
+    "perUnitRaw": {
+     "HATENNA": 2000,
+     "HATTREM": 3000,
+     "HATTERENE": 4000
+    },
+    "scaling": "none: the duration is passed to triggerSilence unchanged by the strategy; no AP or crit scaling",
+    "resolution": "applied duration: triggerSilence does nothing if the target has runeProtect or is a tree; x1.3 in MURKY weather; then SWIFT_SWIM x0.7 or HYDRATION x0.5 or WATER_VEIL / SURGE_SURFER x0.3 (first match), then Odd Keystone x(1 - 0.1 per stone) on the target's player; rounded. The status keeps the longer of the old and new cooldown",
+    "evidence": [
+     "mp-impl",
+     "trigger-silence",
+     "duration-reductions"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "silence",
+    "who": "adjacent enemy-team entities",
+    "declaredRawDurationMs": {
+     "HATENNA": 2000,
+     "HATTREM": 3000,
+     "HATTERENE": 4000
+    },
+    "combatEffect": "canCast is false while silenced (and while holding Nullify Bandanna), and addPP ignores positive PP gains while silenced",
+    "evidence": [
+     "trigger-silence",
+     "cancast",
+     "addpp-silence"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "the caster",
+    "declaredRawByStars": {
+     "HATENNA": 15,
+     "HATTREM": 30,
+     "HATTERENE": 60
+    },
+    "evidence": [
+     "mp-impl",
+     "state-addshield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "HATENNA": 1,
+    "HATTREM": 2,
+    "HATTERENE": 3
+   },
+   "declaredRawShield": {
+    "HATENNA": 15,
+    "HATTREM": 30,
+    "HATTERENE": 60
+   },
+   "declaredRawSilenceMs": {
+    "HATENNA": 2000,
+    "HATTREM": 3000,
+    "HATTERENE": 4000
+   },
+   "note": "both tables are indexed by the caster's stars (stars-1); the 4-star entries (120 / 8000) and fallbacks are not reached by the listed units.",
+   "evidence": [
+    "mp-impl",
+    "unit-hatenna",
+    "unit-hattrem",
+    "unit-hatterene"
+   ]
+  },
+  "positionalConditions": "The silence only reaches enemy-team entities standing in one of the up to 8 cells adjacent to the caster at cast time; the shield is applied regardless of neighbours.",
+  "repeatedCastsAndModes": "No stored state or modes. Shields stack additively on repeated casts; a new silence only replaces the cooldown if longer.",
+  "rawVsResolved": "Requested shield 15 / 30 / 60 and silence 2000 / 3000 / 4000 ms. Applied shield = Big Eater Belt x1.25 (round down) if held, then x(1 + AP/100), x crit factor, x0.5 if enraged, rounded. Applied silence = requested ms after the Murky weather, status-duration reductions and Odd Keystone; rune protection or tree status blocks it. No damage and no takenDamage involved.",
+  "sourceTables": [
+   {
+    "id": "mpShield",
+    "file": "app/core/abilities/magic-powder.ts",
+    "pattern": "const shield = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "mpSilence",
+    "file": "app/core/abilities/magic-powder.ts",
+    "pattern": "const silenceDuration = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether other effects change shield amounts (only the Big Eater Belt, AP, crit and enraged steps in the two addShield functions were read)",
+   "How silenced units behave in a real fight beyond canCast and addPP (e.g. other callers of status.silence)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+  ],
+  "unresolved": [
+   "Whether non-enemy, non-allied entity teams can occupy adjacent cells (the check is only team !== caster team)",
+   "Whether any other item or synergy changes MAGIC_POWDER beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-mp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1019,
+     1019
+    ],
+    "symbol": "AbilityStrategies[Ability.MAGIC_POWDER]",
+    "expect": "[Ability.MAGIC_POWDER]: new MagicPowderStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "mp-impl",
+    "file": "app/core/abilities/magic-powder.ts",
+    "lines": [
+     12,
+     22
+    ],
+    "symbol": "MagicPowderStrategy.process",
+    "expect": "const shield = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "shield and silence tables, addShield(shield, pokemon, 1, crit), adjacent enemy loop"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "entity-addshield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": ""
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain function, positive value on a holder"
+   },
+   {
+    "id": "state-addshield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     401
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP, crit, enraged x0.5, round (390-394)"
+   },
+   {
+    "id": "trigger-silence",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     535
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "Murky x1.3; reductions; keeps the longer cooldown"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone"
+   },
+   {
+    "id": "cancast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     256
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence",
+    "note": "silence blocks casting"
+   },
+   {
+    "id": "addpp-silence",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     524,
+     525
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.silence)",
+    "note": "silenced units gain no positive PP"
+   },
+   {
+    "id": "unit-hatenna",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8349,
+     8362
+    ],
+    "symbol": "Hatenna",
+    "expect": "skill = Ability.MAGIC_POWDER",
+    "note": ""
+   },
+   {
+    "id": "unit-hattrem",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8364,
+     8377
+    ],
+    "symbol": "Hattrem",
+    "expect": "skill = Ability.MAGIC_POWDER",
+    "note": ""
+   },
+   {
+    "id": "unit-hatterene",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8379,
+     8391
+    ],
+    "symbol": "Hatterene",
+    "expect": "skill = Ability.MAGIC_POWDER",
+    "note": ""
+   }
+  ]
+ }
+}
