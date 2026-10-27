@@ -1,0 +1,604 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PYRO_BALL",
+ "kind": "ability",
+ "identifier": "PYRO_BALL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T234210Z"
+ },
+ "record": {
+  "ability": "PYRO_BALL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare PYRO_BALL in this production reference. The strategy is shared; differences are star count, stats and (for Scorbunny and Raboot) the HATCH passive, which this record does not cover.",
+  "appliesTo": [
+   {
+    "key": "SCORBUNNY",
+    "stars": 1,
+    "maxPP": 50,
+    "range": 2,
+    "declaredSkill": "PYRO_BALL",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RABOOT",
+    "stars": 2,
+    "maxPP": 50,
+    "range": 2,
+    "declaredSkill": "PYRO_BALL",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CINDERACE",
+    "stars": 3,
+    "maxPP": 50,
+    "range": 2,
+    "declaredSkill": "PYRO_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SCORBUNNY": {
+    "evidence": [
+     "unit-scorbunny"
+    ]
+   },
+   "RABOOT": {
+    "evidence": [
+     "unit-raboot"
+    ]
+   },
+   "CINDERACE": {
+    "evidence": [
+     "unit-cinderace"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PYRO_BALL] = new PyroBallStrategy()",
+   "strategy": "PyroBallStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pb",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "pb-class",
+    "pb-super"
+   ]
+  },
+  "summary": "The caster picks its farthest targettable enemy (PokemonState.getFarthestTarget, strictly greater Manhattan distance wins, scan order on ties) or, if there is none, the cast target, and every unit of another team on the supercover line from the caster's cell to that unit (both ends included) is collected once. Each unit hit is set burning for 2000 ms (requested; origin = the caster) and then takes SPECIAL damage (raw 10/20/40/80 by caster stars). The burn is applied before the damage and is skipped per target by IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive, without cancelling the damage. If no enemy stands on the line, the cast target alone is burned and damaged. The caster does not move.",
+  "targeting": {
+   "who": "every unit of another team on the cells between the caster and its farthest targettable enemy; fallback: the cast target",
+   "needsTarget": true,
+   "note": "Farthest selection: distanceM (Manhattan) from the caster over all cells holding a targettable enemy, strictly greater wins, so ties keep the first enemy in Board.forEach order (rows outer, columns inner). The line is collected with a team filter only, not isTargettableBy, so an untargettable enemy standing on the line is still collected (whether it then takes the burn or damage was not traced). Allies on the line are skipped.",
+   "evidence": [
+    "pb-far",
+    "far-fn",
+    "far-targ",
+    "istarg",
+    "dist-m",
+    "board-each",
+    "pb-cells",
+    "pb-collect",
+    "pb-fallback",
+    "between"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's cell to the farthest target's cell, both ends included; no width, no falloff; the caster's own cell is on the line but holds an ally",
+   "evidence": [
+    "pb-cells",
+    "between",
+    "pb-collect"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each unit of another team on the line (each once, Set); else the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "SCORBUNNY": 10,
+     "RABOOT": 20,
+     "CINDERACE": 40
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false); no falloff along the line",
+    "resolution": "requested = the raw amount; applied = after AP/crit, the target's SPE_DEF division and later untraced modifiers (see core-mechanics section A for the division, ceil and minimum of 1); protect / skydiving / magicBounce targets take none. The strategy does not read takenDamage. The burn is applied first and does not change this hit (burn damage is separate TRUE damage over time).",
+    "evidence": [
+     "pb-table",
+     "pb-hit",
+     "pb-collect",
+     "pb-fallback",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "pb-burn"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BURN",
+    "target": "each unit hit (the same set as the damage)",
+    "durationMs": 2000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "SCORBUNNY": 2000,
+     "RABOOT": 2000,
+     "CINDERACE": 2000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "applied only if the target lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the target's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects at application: a GUTS-passive target gains +5 attack once; a WELL_BAKED target gains +20 DEF and a MAGMARIZER holder +30 speed if it was not already burning; a RAWST_BERRY holder eats the berry. While burning the target takes TRUE damage of 5% max HP each second (modified by weather, items and passives; the burn tick details were read only for the base formula).",
+    "evidence": [
+     "pb-burn",
+     "burn-trig",
+     "burn-red",
+     "burn-set",
+     "burn-guts",
+     "burn-extra",
+     "burn-tick",
+     "burn-true"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SCORBUNNY": 1,
+    "RABOOT": 2,
+    "CINDERACE": 3
+   },
+   "declaredRawDamage": {
+    "SCORBUNNY": 10,
+    "RABOOT": 20,
+    "CINDERACE": 40
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (80, also the fallback) is not reachable by the bare factory star counts. The burn duration (2000 ms) does not depend on stars. maxPP and range are in appliesTo.",
+   "evidence": [
+    "pb-table",
+    "unit-scorbunny",
+    "unit-raboot",
+    "unit-cinderace"
+   ]
+  },
+  "positionalConditions": "The set of units hit depends on the caster's and the farthest target's coordinates. If the farthest target is adjacent, the line is two cells. Allies on the line are not affected. If getFarthestTarget returns nothing, the cast target ends the line (and is also the fallback victim). Unlike the dash abilities (FLAME_CHARGE, VOLT_SWITCH) the caster does not move.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast recomputes the farthest target and the line; repeated burns are not stacked (the longer remaining cooldown and its origin are kept).",
+  "rawVsResolved": "Declared raw: damage 10/20/40 (1/2/3 stars) per unit hit and burn 2000 ms. Damage dealt per unit = raw x (1 + AP/100) [x crit factor], then the target's SPE_DEF division (ceil, at least 1) and untraced modifiers. Burn applied = 2000 ms after the target's duration reductions, or none for the immune cases listed; burn ticks are 5% max HP per second TRUE damage and are not part of the ability's SPECIAL damage.",
+  "sourceTables": [
+   {
+    "id": "pyroBallDamage",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleSpecialDamage's later modifiers (SPE_DEF division, shields, items, resurrection, field multipliers); only the shared references in core-mechanics section A were consulted",
+   "When the cast fires in a real fight (PP gain, targeting, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "applyStatusDurationReductions (status duration modifiers) was not read",
+   "Burn tick modifiers (weather, Assault Vest, water effects, Well Baked, Magmarizer) beyond the base 5% max HP formula"
+  ],
+  "unresolved": [
+   "Scorbunny and Raboot declare passive HATCH (not covered by this record; Cinderace declares none in the catalog)",
+   "Whether an untargettable enemy on the line takes the burn and damage: the collection filter is team only and handleSpecialDamage was not traced for it",
+   "The MERCILESS clause of isTargettableBy (an attacker with the effect may target units at 10 HP or less on its own side) was read but its interaction with the team filter on the line was not traced",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-scorbunny",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10676,
+     10691
+    ],
+    "symbol": "class Scorbunny",
+    "expect": "skill = Ability.PYRO_BALL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-raboot",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10693,
+     10708
+    ],
+    "symbol": "class Raboot",
+    "expect": "skill = Ability.PYRO_BALL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-cinderace",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10710,
+     10722
+    ],
+    "symbol": "class Cinderace",
+    "expect": "skill = Ability.PYRO_BALL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1108,
+     1108
+    ],
+    "symbol": "AbilityStrategies[Ability.PYRO_BALL]",
+    "expect": "[Ability.PYRO_BALL]: new PyroBallStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP; defaults requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     345,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling"
+   },
+   {
+    "id": "pb-class",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PyroBallStrategy",
+    "expect": "export class PyroBallStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target, crit); requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "pb-super",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PyroBallStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process (spends maxPP, counts the cast) with preventDefaultAnim = true; the strategy broadcasts its own animation toward the farthest target"
+   },
+   {
+    "id": "pb-table",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "raw damage by caster stars; fallback 80"
+   },
+   {
+    "id": "pb-far",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "farthest target",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "line end = farthest targettable unit, else the cast target"
+   },
+   {
+    "id": "pb-cells",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     25,
+     30
+    ],
+    "symbol": "cells between",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells from the caster's position to the farthest target's position"
+   },
+   {
+    "id": "pb-collect",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     32,
+     34
+    ],
+    "symbol": "collect enemies",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "every unit of another team on the line (a Set, one entry per enemy); the filter is team only"
+   },
+   {
+    "id": "pb-fallback",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "fallback",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "the cast target is hit if no enemy is on the line"
+   },
+   {
+    "id": "pb-burn",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "hit loop",
+    "expect": "enemy.status.triggerBurn(2000, enemy, pokemon)",
+    "note": "per enemy: burn 2000 ms (origin = caster) applied BEFORE the damage"
+   },
+   {
+    "id": "pb-hit",
+    "file": "app/core/abilities/pyro-ball.ts",
+    "lines": [
+     40,
+     46
+    ],
+    "symbol": "hit loop",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "then SPECIAL damage (apBoost default true, crit flag from the cast)"
+   },
+   {
+    "id": "far-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1210,
+     1210
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance) {",
+    "note": "strictly greater distanceM wins, first in board.forEach order on ties; candidate must pass isTargettableBy(pokemon)"
+   },
+   {
+    "id": "far-targ",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1208,
+     1208
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (enemy && enemy.isTargettableBy(targettableBy)) {",
+    "note": "only targettable enemies are candidates (default targetEnemies = true, targetAllies = false)"
+   },
+   {
+    "id": "istarg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     280,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "enemy team and not untargettable; also a MERCILESS attacker may target a unit with hp <= 10 of its own side"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "board-each",
+    "file": "app/core/board.ts",
+    "lines": [
+     78,
+     78
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "scan order: rows (y) outer, columns (x) inner"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     260,
+     304
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number)",
+    "note": "supercover line, both ends included when on board"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and origin; a shorter one keeps the existing"
+   },
+   {
+    "id": "burn-guts",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     420,
+     424
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.passive === Passive.GUTS &&",
+    "note": "a GUTS-passive target gains +5 attack once when burned"
+   },
+   {
+    "id": "burn-extra",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     427,
+     435
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (pkm.passive === Passive.WELL_BAKED && !alreadyBurning) {",
+    "note": "WELL_BAKED +20 DEF, MAGMARIZER +30 speed (only if not already burning), RAWST_BERRY eaten"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second as TRUE damage (weather / items / passives modify it)"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": ""
+   }
+  ]
+ }
+}
