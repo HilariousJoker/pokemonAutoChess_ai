@@ -1,0 +1,476 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/METEOR_MASH",
+ "kind": "ability",
+ "identifier": "METEOR_MASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T114138Z"
+ },
+ "record": {
+  "ability": "METEOR_MASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "BELDUM, METANG and METAGROSS (the queued units; the only units declaring METEOR_MASH in the catalog).",
+  "appliesTo": [
+   {
+    "key": "BELDUM",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "METEOR_MASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "METANG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "METEOR_MASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "METAGROSS",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "METEOR_MASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.METEOR_MASH] = new MeteorMashStrategy()",
+   "strategy": "MeteorMashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mm",
+    "base",
+    "cast",
+    "dispatch-attack"
+   ]
+  },
+  "summary": "Single-target multi-hit special attack: 3 hits (4 if the caster has the psychicField status when the cast starts). Each hit is a separate SPECIAL handleSpecialDamage call of the same requested amount = round(caster ATK x 100/120/140% by caster stars (200% fallback)), and after every hit the caster gains +2 ATK (requested; Big Eater Belt x1.25 rounded down, Twist Band irrelevant for a positive self-buff). The damage is computed once before the loop from the ATK at cast start, so the +2 ATK per hit does not raise the later hits of the same cast; the gained ATK stays for the rest of the fight (not permanent beyond it).",
+  "targeting": {
+   "who": "the single current target (the same target entity for every hit)",
+   "needsTarget": true,
+   "evidence": [
+    "mm-impl",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, repeated hits on one entity",
+   "evidence": [
+    "mm-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "hits": "3, or 4 when pokemon.status.psychicField is true at cast time",
+    "declaredRaw": {
+     "formula": "round(pokemon.atk x percent / 100) per hit, percent indexed by pokemon.stars - 1",
+     "percentByStars": {
+      "1": 100,
+      "2": 120,
+      "3": 140,
+      "4": 200,
+      "fallback": 200
+     },
+     "note": "requested amount per hit; ATK is the caster's current atk read once at cast start (after items/buffs already applied to atk), not a fixed table value"
+    },
+    "scaling": "requested amount: round(atk x percent/100); then per hit inside handleSpecialDamage: x (1 + AP/100) (apBoost default true); x2 once if the caster has DOUBLE_DAMAGE (the effect is deleted after the first hit, so only hit 1 of the cast is doubled); x1.2 if STRANGE_STEAM_BOARD_EFFECT on either side; crit multiplier per hit only if the cast crit (canCritByDefault false: needs ABILITY_CRIT); the caster's psychicField then multiplies each hit x1.2 inside handleDamage",
+    "resolution": "applied amount: per hit the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1 elsewhere in handleDamage) and later modifiers; a hit on a target with protect / skydiving / magicBounce is blocked (death false, takenDamage 0), and magicBounce can reflect special damage back at the caster; every hit is attempted regardless of earlier hits' results; the return values (death, takenDamage incl. shield damage) are ignored by this ability",
+    "evidence": [
+     "mm-damage",
+     "mm-loop",
+     "special",
+     "special-ap",
+     "double-damage",
+     "special-crit",
+     "special-blocked",
+     "psychic-dmg",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitRaw": {
+     "BELDUM": "round(atk x 100%)",
+     "METANG": "round(atk x 120%)",
+     "METAGROSS": "round(atk x 140%)"
+    },
+    "perUnitPercent": {
+     "BELDUM": 100,
+     "METANG": 120,
+     "METAGROSS": 140
+    }
+   },
+   {
+    "kind": "selfBuff",
+    "stat": "ATK",
+    "target": "the caster",
+    "declaredRaw": {
+     "perHit": 2,
+     "note": "requested +2 ATK after each hit (3 or 4 times per cast, so +6 or +8 requested); apBoost 0 and crit false are passed, so AP and crit do not scale it"
+    },
+    "scaling": "none beyond helpers: addAttack(2, caster, 0, false) multiplies by (1 + 0 x AP/100) x 1 and rounds",
+    "resolution": "applied amount: Big Eater Belt on the caster rounds value x 1.25 down to an integer (2 -> 2, since 2.5 rounds down to 2) per hit; Twist Band only flips negative values from an enemy caster, so it does not apply to this positive self-gain; then atk = max(1, atk + value). Not permanent: permanent defaults false, so only the fight entity is changed; the gain happens even when the hit was blocked or killed the target",
+    "evidence": [
+     "mm-loop",
+     "add-attack",
+     "belt",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "ATK",
+    "amount": "+2 per hit, requested",
+    "target": "caster",
+    "evidence": [
+     "mm-loop",
+     "add-attack",
+     "belt"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BELDUM": 1,
+    "METANG": 2,
+    "METAGROSS": 3
+   },
+   "declaredPercentOfAtk": {
+    "BELDUM": 100,
+    "METANG": 120,
+    "METAGROSS": 140
+   },
+   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 200 and the fallback 200 are not reached by these units' bare star counts (1, 2, 3). Hit count (3 or 4) does not depend on stars. maxPP is 100 and range 1 for all three.",
+   "evidence": [
+    "mm-damage",
+    "unit-beldum",
+    "unit-metang",
+    "unit-metagross"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target in range. The extra fourth hit needs the caster to be in psychicField at cast time.",
+  "repeatedCastsAndModes": "No state is stored by the ability. The +2 ATK per hit accumulates on the caster for the rest of the fight, so later casts start from a higher atk (a later cast's base damage uses that higher atk). Psychic field can be added or removed during the fight (Psychic synergy terrain effect, ExpandingForce, TerrainPulse, dishes, items; removed when the PSYCHIC_TERRAIN passive entity leaves), so the hit count can change between casts. No modes.",
+  "rawVsResolved": "Requested per-hit damage: round(atk x 1.00 / 1.20 / 1.40) for BELDUM / METANG / METAGROSS using the atk at cast start, the same value for all hits. Applied per hit: x(1 + AP/100), optional DOUBLE_DAMAGE x2 on the first hit only, optional steam x1.2, crit factor if the cast crit, psychicField x1.2 (caster) in handleDamage, then the SPE_DEF division and later modifiers; takenDamage (incl. shield damage) is not used. Requested ATK gain: +2 per hit; received gain 2 after Big Eater Belt rounding down (x1.25 of 2 = 2.5 -> 2), floor of atk 1 irrelevant for a positive gain.",
+  "sourceTables": [
+   {
+    "id": "meteorMashPercent",
+    "file": "app/core/abilities/meteor-mash.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.percentByStars",
+    "unitValuesPath": "effects.0.perUnitPercent"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division, the psychicField x1.2 and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "Behaviour of repeated handleSpecialDamage calls on a target that died on an earlier hit of the same cast (the loop does not check death; handling of an already dead target in handleDamage was not traced)"
+  ],
+  "unresolved": [
+   "Consulted for the helpers: addAttack, applyBigEaterBeltStatBuff and applyTwistBandBuff (pokemon-entity.ts), handleSpecialDamage, PokemonState.handleDamage; shared references core-mechanics.md and item-effects.json for Big Eater Belt / Twist Band",
+   "Whether death-cancelling effects or resurrection change repeated hits on one target",
+   "Whether any other item or synergy effect changes METEOR_MASH beyond what is listed (e.g. on-ability-cast effects after castAbility)",
+   "Queue record lists no routing uncertainties"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mm",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1033,
+     1033
+    ],
+    "symbol": "AbilityStrategies[Ability.METEOR_MASH]",
+    "expect": "[Ability.METEOR_MASH]: new MeteorMashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "mm-impl",
+    "file": "app/core/abilities/meteor-mash.ts",
+    "lines": [
+     6,
+     26
+    ],
+    "symbol": "MeteorMashStrategy.process",
+    "expect": "const nbHits = 3 + (pokemon.status.psychicField ? 1 : 0)",
+    "note": "hit count: 3, +1 with psychicField"
+   },
+   {
+    "id": "mm-damage",
+    "file": "app/core/abilities/meteor-mash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "MeteorMashStrategy.process",
+    "expect": "[100, 120, 140, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage computed once, before the loop"
+   },
+   {
+    "id": "mm-loop",
+    "file": "app/core/abilities/meteor-mash.ts",
+    "lines": [
+     16,
+     25
+    ],
+    "symbol": "MeteorMashStrategy.process",
+    "expect": "pokemon.addAttack(2, pokemon, 0, false)",
+    "note": "each iteration: handleSpecialDamage(damage, SPECIAL, crit) then addAttack(2)"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "double-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "DOUBLE_DAMAGE doubles one hit and is then removed"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect/skydiving/magicBounce block the hit (damage 0, death false)"
+   },
+   {
+    "id": "psychic-dmg",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     467,
+     469
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.status.psychicField",
+    "note": "attacker in psychicField deals x1.2 damage"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     746
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "scales by AP/crit (0 / false here), helper adjustments, then adds; permanent false"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "pokemon.items.has(Item.BIG_EATER_BELT)",
+    "note": "plain function: buffs x1.25 rounded down to nbDigits (0)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "pokemon.items.has(Item.TWIST_BAND)",
+    "note": "only negative values from non-allies are flipped"
+   },
+   {
+    "id": "psychic-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1307,
+     1313
+    ],
+    "symbol": "Status.addPsychicField",
+    "expect": "this.psychicField = true",
+    "note": "sets the status"
+   },
+   {
+    "id": "psychic-src-synergy",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1140,
+     1140
+    ],
+    "symbol": "Simulation PSYCHIC_TERRAIN effect",
+    "expect": "pokemon.status.addPsychicField(pokemon)",
+    "note": "Psychic synergy terrain effect gives psychicField to Psychic-type units (METEOR_MASH users are PSYCHIC-type)"
+   },
+   {
+    "id": "psychic-remove",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     834,
+     836
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "pkm.status.removePsychicField(pkm)",
+    "note": "removed from the team when the PSYCHIC_TERRAIN passive entity dies"
+   },
+   {
+    "id": "unit-beldum",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1224,
+     1224
+    ],
+    "symbol": "Beldum",
+    "expect": "skill = Ability.METEOR_MASH",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-metang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1243,
+     1243
+    ],
+    "symbol": "Metang",
+    "expect": "skill = Ability.METEOR_MASH",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-metagross",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1261,
+     1261
+    ],
+    "symbol": "Metagross",
+    "expect": "skill = Ability.METEOR_MASH",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "psychicFieldSources": {
+   "note": "psychicField can come from the Psychic synergy terrain, other abilities, dishes and items; only the status setter, the synergy source and the removal were cited",
+   "evidence": [
+    "psychic-add",
+    "psychic-src-synergy",
+    "psychic-remove"
+   ]
+  }
+ }
+}
