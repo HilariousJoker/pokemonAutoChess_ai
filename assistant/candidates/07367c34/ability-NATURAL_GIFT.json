@@ -1,0 +1,527 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/NATURAL_GIFT",
+ "kind": "ability",
+ "identifier": "NATURAL_GIFT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T174258Z"
+ },
+ "record": {
+  "ability": "NATURAL_GIFT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CHERRIM",
+    "stars": 2,
+    "maxPP": 65,
+    "range": 3,
+    "declaredSkill": "NATURAL_GIFT",
+    "declaredPassive": "BLOSSOM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHERRIM_SUNLIGHT",
+    "stars": 3,
+    "maxPP": 65,
+    "range": 3,
+    "declaredSkill": "NATURAL_GIFT",
+    "declaredPassive": "BLOSSOM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHERUBI",
+    "stars": 1,
+    "maxPP": 65,
+    "range": 3,
+    "declaredSkill": "NATURAL_GIFT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CHERRIM": {
+    "evidence": [
+     "unit-cherrim"
+    ]
+   },
+   "CHERRIM_SUNLIGHT": {
+    "evidence": [
+     "unit-cherrim-sunlight"
+    ]
+   },
+   "CHERUBI": {
+    "evidence": [
+     "unit-cherubi"
+    ]
+   }
+  },
+  "scope": "The three units in appliesTo declare NATURAL_GIFT in this production reference (CHERUBI has passive NONE; CHERRIM and CHERRIM_SUNLIGHT have passive BLOSSOM). The strategy is shared; differences are the star count.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.NATURAL_GIFT] = new NaturalGiftStrategy()",
+   "strategy": "NaturalGiftStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-natural-gift",
+    "ng-class",
+    "base-flags",
+    "base-pp",
+    "ng-super",
+    "moving-cast",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Heals the team entity with the lowest hp/maxHP ratio (the caster included) and gives it rune protect. The heal is a requested 30/60/90 (raw, by stars 1/2/3; 150 for 4 or more) with AP scaling (apBoost 1) and the cast's crit flag; rune protect lasts 1000/2000/3000 ms (6000 for 4+) and its trigger clears the target's listed negative statuses. If the target is wounded the HP heal is 0 (the Blood Moon / Blood Stone shield branch may still add a shield) but the rune protect is still applied. The default cast animation is suppressed and a custom one aimed at the chosen ally is broadcast.",
+  "targeting": {
+   "who": "the board entity of the caster's team with the lowest hp/maxHP; ties keep the first in board.cells order (row-major index columns x y) because the sort is stable; no target is passed to the strategy (target null)",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast fires from the moving state without an enemy in range. board.cells is filtered with cell && cell.team === pokemon.team: the caster itself and every living team entity count; whether dead entities are removed from cells before this runs was not traced. If no entity matches (the caster is always on the board while casting) nothing is healed.",
+   "evidence": [
+    "ng-class",
+    "ng-pick",
+    "moving-cast",
+    "ng-anim"
+   ]
+  },
+  "geometry": {
+   "shape": "single ally anywhere on the board (no range or positional limit)",
+   "evidence": [
+    "ng-pick"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal (lowest-ratio ally)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 150,
+      "fallback": 150
+     }
+    },
+    "perUnitRaw": {
+     "CHERUBI": 30,
+     "CHERRIM": 60,
+     "CHERRIM_SUNLIGHT": 90
+    },
+    "scaling": "requested amount: raw x (1 + 1 x caster.AP / 100), then x caster.critPower only if the cast crit flag is true (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "applied change comes from PokemonState.handleHeal on the chosen ally: wounded target -> healReceived 0 (shield branch with Blood Moon + Blood Stone: round(0.3 x stones x requested heal) through addShield); nothing for a target at 0 hp or protected; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH, rounded, capped at the target's missing HP. A full-HP lowest-ratio ally therefore receives 0 HP (the cast still sets rune protect).",
+    "evidence": [
+     "ng-pick",
+     "ng-heal-tbl",
+     "ng-heal",
+     "heal-entity",
+     "heal-wound",
+     "heal-ap-crit",
+     "heal-mods"
+    ]
+   },
+   {
+    "kind": "rune protect (lowest-ratio ally)",
+    "declaredRaw": {
+     "durationMs": {
+      "1": 1000,
+      "2": 2000,
+      "3": 3000,
+      "4": 6000,
+      "fallback": 6000
+     }
+    },
+    "perUnitRaw": {
+     "CHERUBI": 1000,
+     "CHERRIM": 2000,
+     "CHERRIM_SUNLIGHT": 3000
+    },
+    "scaling": "none from AP or crit (the duration is a fixed table value)",
+    "resolution": "Status.triggerRuneProtect sets runeProtect = true, clears the listed negative statuses on the ally (clearNegativeStatus: burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, curse flag, possession unless from the same team, locked, blind) and raises runeProtectCooldown to the duration only if it is longer than the remaining one. It does not pass through applyStatusDurationReductions. A wounded ally is cleared of wound (woundCooldown 0) by the clear, but this happens after the heal request, so the heal still saw the wound.",
+    "evidence": [
+     "ng-rune-tbl",
+     "ng-rune",
+     "rune-trigger",
+     "clear-neg",
+     "rune-update",
+     "ng-heal"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "runeProtect",
+    "target": "the lowest-ratio ally (possibly the caster)",
+    "declaredRaw": {
+     "duration": {
+      "1": 1000,
+      "2": 2000,
+      "3": 3000,
+      "4": 6000,
+      "fallback": 6000
+     },
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the heal request, inside the same if (lowestHealthAlly) block, before the animation broadcast",
+    "guards": "no guard in the strategy; the cooldown is only raised when the new duration is longer than the remaining time",
+    "combatEffect": "rune protect makes later status triggers (for example triggerFlinch, which checks runeProtect first) a no-op while active; its full list of effects was not enumerated here (runeProtect appears in 26 places in status.ts and in a few ability files, which were not audited).",
+    "evidence": [
+     "ng-rune",
+     "rune-trigger",
+     "rune-update",
+     "clear-neg"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CHERUBI": 1,
+    "CHERRIM": 2,
+    "CHERRIM_SUNLIGHT": 3
+   },
+   "declaredRawHeal": {
+    "CHERUBI": 30,
+    "CHERRIM": 60,
+    "CHERRIM_SUNLIGHT": 90
+   },
+   "declaredRuneProtectMs": {
+    "CHERUBI": 1000,
+    "CHERRIM": 2000,
+    "CHERRIM_SUNLIGHT": 3000
+   },
+   "note": "both tables are indexed by the casting entity's stars; the 4-star value (150 / 6000, also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 65 and range 3 for all three. CHERRIM and CHERRIM_SUNLIGHT carry passive BLOSSOM, which only transforms between the two forms with the spotlight and does not change the cast.",
+   "evidence": [
+    "ng-heal-tbl",
+    "ng-rune-tbl",
+    "blossom"
+   ]
+  },
+  "positionalConditions": "None. The target is chosen by hp ratio over the whole team; no range or line is involved.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-evaluates the lowest ratio; a second rune protect only extends the timer if its duration is longer than the remaining time.",
+  "rawVsResolved": "Declared raw: heal 30/60/90 (1/2/3 stars) and rune protect 1000/2000/3000 ms. Requested heal = raw x (1 + AP/100) [x critPower on a crit]; the applied HP change is that value after wound, protect, the heal modifiers and the cap at missing HP (0 on a full-HP or wounded target). The rune protect duration is not scaled and is applied regardless of the heal result.",
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence); the moving-state and attacking-state gates were read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate in castAbility was read",
+   "Everything runeProtect blocks in combat beyond the cited status triggers",
+   "Consulted for the heal helpers: PokemonState.handleHeal at the pinned commit (wound, protect, modifier chain, cap at missing HP); the shared references core-mechanics.md section B/H were not needed for a heal"
+  ],
+  "unresolved": [
+   "Whether dead entities can still sit in board.cells when the filter runs (they would be eligible with hp 0 / maxHP ratio 0 and then receive no heal); not traced",
+   "Whether applyStatusDurationReductions or other effects shorten the rune protect duration: triggerRuneProtect does not call it, but other code reading runeProtectCooldown was not enumerated",
+   "The remaining effects of runeProtect elsewhere in combat (only the flinch trigger guard and clearNegativeStatus were read)",
+   "Whether any item or synergy effect changes NATURAL_GIFT beyond what is listed",
+   "Which units hold the CHERRIM / CHERRIM_SUNLIGHT forms at runtime depends on the spotlight; only the declared catalog stars are modelled"
+  ],
+  "sourceTables": [
+   {
+    "id": "naturalGiftHeal",
+    "file": "app/core/abilities/natural-gift.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "naturalGiftRune",
+    "file": "app/core/abilities/natural-gift.ts",
+    "pattern": "runeProtectDuration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.durationMs",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "evidence": [
+   {
+    "id": "unit-cherubi",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13117,
+     13150
+    ],
+    "symbol": "class Cherubi",
+    "expect": "skill = Ability.NATURAL_GIFT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-cherrim-sunlight",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13172,
+     13190
+    ],
+    "symbol": "class CherrimSunlight",
+    "expect": "skill = Ability.NATURAL_GIFT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-cherrim",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13152,
+     13170
+    ],
+    "symbol": "class Cherrim",
+    "expect": "skill = Ability.NATURAL_GIFT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-natural-gift",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1051,
+     1051
+    ],
+    "symbol": "AbilityStrategies[Ability.NATURAL_GIFT]",
+    "expect": "[Ability.NATURAL_GIFT]: new NaturalGiftStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP reset"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags (requiresTarget true, canCritByDefault false)"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ng-class",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "NaturalGiftStrategy",
+    "expect": "class NaturalGiftStrategy extends AbilityStrategy",
+    "note": "requiresTarget overridden to false; canCritByDefault not overridden"
+   },
+   {
+    "id": "ng-super",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the base process skips its default broadcast but still resets PP"
+   },
+   {
+    "id": "ng-pick",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     11,
+     15
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": ".sort((a, b) => a.hp / a.maxHP - b.hp / b.maxHP)[0]",
+    "note": "all living team entities on the board (the caster included), sorted ascending by hp/maxHP; the first is taken"
+   },
+   {
+    "id": "ng-heal-tbl",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "const heal = [30, 60, 90, 150]",
+    "note": "raw heal by stars"
+   },
+   {
+    "id": "ng-heal",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "lowestHealthAlly.handleHeal(heal, pokemon, 1, crit)",
+    "note": "heal request: apBoost 1, crit flag of the cast"
+   },
+   {
+    "id": "ng-rune-tbl",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "[1000,2000,3000,6000][pokemon.stars - 1] ?? 6000",
+    "note": "rune protect duration (ms) by stars"
+   },
+   {
+    "id": "ng-rune",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     20,
+     24
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "lowestHealthAlly.status.triggerRuneProtect(",
+    "note": "rune protect on the healed ally (called inside the same if block, after the heal)"
+   },
+   {
+    "id": "ng-anim",
+    "file": "app/core/abilities/natural-gift.ts",
+    "lines": [
+     25,
+     28
+    ],
+    "symbol": "NaturalGiftStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "custom animation toward the chosen ally"
+   },
+   {
+    "id": "moving-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     43,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, null)",
+    "note": "a requiresTarget=false skill is cast from the moving state with target null once pp >= maxPP and canCast"
+   },
+   {
+    "id": "heal-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "PokemonEntity.handleHeal(heal, caster, apBoost, crit) delegates to state.handleHeal"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded target receives no HP heal; the Blood Moon / Blood Stone branch may add a shield instead"
+   },
+   {
+    "id": "heal-ap-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     334,
+     338
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP scaling heal *= 1 + apBoost x caster.ap / 100, then crit x caster.critPower"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     355
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH (preceding lines), then rounded, capped at missing HP"
+   },
+   {
+    "id": "rune-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.clearNegativeStatus(pokemon, origin)",
+    "note": "sets runeProtect, clears negative statuses, raises the cooldown to the timer only if longer"
+   },
+   {
+    "id": "rune-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     968,
+     974
+    ],
+    "symbol": "Status.updateRuneProtect",
+    "expect": "updateRuneProtect(dt: number)",
+    "note": "runeProtect ends when the cooldown reaches 0"
+   },
+   {
+    "id": "clear-neg",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     146
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.possessedCooldown = 0",
+    "note": "zeroes the listed negative status cooldowns; curse keeps its timer extended by 2000"
+   },
+   {
+    "id": "blossom",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1729,
+     1740
+    ],
+    "symbol": "Passive.BLOSSOM",
+    "expect": "player.transformPokemon(pokemon, Pkm.CHERRIM_SUNLIGHT)",
+    "note": "BLOSSOM (CHERRIM, CHERRIM_SUNLIGHT) only transforms the unit with the spotlight; it does not touch the cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "attack-state cast gate"
+   }
+  ]
+ }
+}
