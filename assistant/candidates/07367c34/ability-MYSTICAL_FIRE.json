@@ -1,0 +1,440 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MYSTICAL_FIRE",
+ "kind": "ability",
+ "identifier": "MYSTICAL_FIRE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T114138Z"
+ },
+ "record": {
+  "ability": "MYSTICAL_FIRE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "BRAIXEN, DELPHOX and FENNEKIN (the queued units; the only units declaring MYSTICAL_FIRE in the catalog).",
+  "appliesTo": [
+   {
+    "key": "BRAIXEN",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MYSTICAL_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DELPHOX",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MYSTICAL_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FENNEKIN",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MYSTICAL_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MYSTICAL_FIRE] = new MysticalFireStrategy()",
+   "strategy": "MysticalFireStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mf",
+    "base",
+    "cast",
+    "dispatch-attack",
+    "mf-impl"
+   ]
+  },
+  "summary": "Single-target special damage (20 / 40 / 80 / 160 raw by caster stars), then the same target loses ability power: a requested -15 / -20 / -25 / -50 AP, scaled by the CASTER's AP and by the crit factor if the cast crit. The AP loss is not capped by the damage hit and is applied even if that hit was blocked or killed the target.",
+  "targeting": {
+   "who": "the single current target",
+   "needsTarget": true,
+   "evidence": [
+    "mf-impl",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "mf-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "note": "requested damage"
+    },
+    "scaling": "requested amount: x (1 + AP/100) (apBoost default true); x2 if DOUBLE_DAMAGE (consumed); crit multiplier only if the cast crit (canCritByDefault false: needs ABILITY_CRIT)",
+    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF)) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (magicBounce can reflect it); results (death, takenDamage incl. shield damage) are ignored by this ability",
+    "evidence": [
+     "mf-damage",
+     "special",
+     "special-ap",
+     "double-damage",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitRaw": {
+     "BRAIXEN": 40,
+     "DELPHOX": 80,
+     "FENNEKIN": 20
+    }
+   },
+   {
+    "kind": "statChange",
+    "stat": "AP",
+    "target": "the damaged target (same entity as the hit)",
+    "declaredRaw": {
+     "apLossByStars": {
+      "1": 15,
+      "2": 20,
+      "3": 25,
+      "4": 50,
+      "fallback": 50
+     },
+     "note": "requested AP loss magnitudes as written in the source table; the code passes them negated, i.e. -15 / -20 / -25 / -50 (fallback -50)"
+    },
+    "scaling": "requested amount: round(value x (1 + 1 x casterAP/100) x critPower-if-crit), apBoost 1 is passed: a caster with more AP removes more AP, and a crit multiplies it",
+    "resolution": "applied amount: if the target holds NULLIFY_BANDANNA the AP loss is skipped and instead its ATK changes by round(0.2 x requested value) (negative, e.g. -3 / -4 / -5 / -10 before addAttack's own helpers) through addAttack(.., caster, 0, false); otherwise Big Eater Belt does not apply (the value is negative and the caster is an enemy), Twist Band on the target flips the negative value to positive, so the target GAINS that much AP (also in the nullify branch through addAttack); then target.ap = max(-100, ap + value); not permanent (the board unit is unchanged); the change happens whether or not the damage hit was blocked",
+    "evidence": [
+     "mf-ap",
+     "add-ap",
+     "belt",
+     "twist",
+     "add-attack"
+    ],
+    "perUnitRaw": {
+     "BRAIXEN": -20,
+     "DELPHOX": -25,
+     "FENNEKIN": -15
+    }
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BRAIXEN": 2,
+    "DELPHOX": 3,
+    "FENNEKIN": 1
+   },
+   "declaredRawDamage": {
+    "BRAIXEN": 40,
+    "DELPHOX": 80,
+    "FENNEKIN": 20
+   },
+   "declaredRawApChange": {
+    "BRAIXEN": -20,
+    "DELPHOX": -25,
+    "FENNEKIN": -15
+   },
+   "note": "both tables are indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entries (160 damage, -50 AP) and the fallbacks are not reached by these units' bare star counts (2, 3, 1). maxPP is 80 and range 2 for all three.",
+   "evidence": [
+    "mf-damage",
+    "mf-ap",
+    "unit-fennekin",
+    "unit-braixen",
+    "unit-delphox"
+   ]
+  },
+  "positionalConditions": "None beyond the target being within the caster's range (2).",
+  "repeatedCastsAndModes": "No state is kept by the ability; each cast removes AP again and the target's AP can keep falling to the floor of -100. No modes.",
+  "rawVsResolved": "Requested damage 20 / 40 / 80 (FENNEKIN / BRAIXEN / DELPHOX); applied = x(1 + AP/100) [x2 DOUBLE_DAMAGE] [x crit], then the SPE_DEF division and later modifiers (takenDamage unused). Requested AP change -15 / -20 / -25; applied = round(value x (1 + casterAP/100) x crit factor), then Twist Band may flip its sign on the target, Nullify Bandanna converts it into a 20% ATK change, and the target's AP is floored at -100.",
+  "sourceTables": [
+   {
+    "id": "mysticalFireDamage",
+    "file": "app/core/abilities/mystical-fire.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "mysticalFireAp",
+    "file": "app/core/abilities/mystical-fire.ts",
+    "pattern": "-\\(\\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.apLossByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "How AP on the target affects its own abilities and heals beyond handleSpecialDamage / handleHeal (the AP formulas elsewhere were not traced)"
+  ],
+  "unresolved": [
+   "Consulted: PokemonEntity.addAbilityPower (stat helper, found by name in pokemon-entity.ts), applyBigEaterBeltStatBuff and applyTwistBandBuff (plain functions at the end of that file), addAttack for the Nullify Bandanna branch, handleSpecialDamage and handleDamage; item-effects.json for Twist Band / Big Eater Belt",
+   "Item.NULLIFY_BANDANNA is only cited at its use site in addAbilityPower; its item card was not read",
+   "Whether items or synergies change MYSTICAL_FIRE beyond what is listed",
+   "Queue record lists no routing uncertainties"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mf",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1049,
+     1049
+    ],
+    "symbol": "AbilityStrategies[Ability.MYSTICAL_FIRE]",
+    "expect": "[Ability.MYSTICAL_FIRE]: new MysticalFireStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "mf-impl",
+    "file": "app/core/abilities/mystical-fire.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "MysticalFireStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage first, then the AP loss on the same target"
+   },
+   {
+    "id": "mf-damage",
+    "file": "app/core/abilities/mystical-fire.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "MysticalFireStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "mf-ap",
+    "file": "app/core/abilities/mystical-fire.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "MysticalFireStrategy.process",
+    "expect": "target.addAbilityPower(-([15, 20, 25, 50][pokemon.stars - 1] ?? 50), pokemon, 1, crit)",
+    "note": "apBoost 1 and crit passed"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "Nullify Bandanna branch (628-631); AP/crit scaling (633-635); helpers (636-637); floor -100"
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     746
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "used by the Nullify Bandanna branch; atk floor 1"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "pokemon.items.has(Item.BIG_EATER_BELT)",
+    "note": "buff only: positive values, or negative values from an ally; an enemy's debuff is not boosted"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "pokemon.items.has(Item.TWIST_BAND)",
+    "note": "negative values from non-allies are flipped to positive"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "double-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "DOUBLE_DAMAGE doubles one hit and is then removed"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect/skydiving/magicBounce block the hit (damage 0, death false)"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "unit-fennekin",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8404,
+     8404
+    ],
+    "symbol": "Fennekin",
+    "expect": "skill = Ability.MYSTICAL_FIRE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-braixen",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8418,
+     8418
+    ],
+    "symbol": "Braixen",
+    "expect": "skill = Ability.MYSTICAL_FIRE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-delphox",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8431,
+     8431
+    ],
+    "symbol": "Delphox",
+    "expect": "skill = Ability.MYSTICAL_FIRE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
