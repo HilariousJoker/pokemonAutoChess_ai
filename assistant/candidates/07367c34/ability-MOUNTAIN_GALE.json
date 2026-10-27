@@ -1,0 +1,571 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MOUNTAIN_GALE",
+ "kind": "ability",
+ "identifier": "MOUNTAIN_GALE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T114138Z"
+ },
+ "record": {
+  "ability": "MOUNTAIN_GALE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "AVALUGG, BERGMITE and HISUI_AVALUGG (the queued units; the only units declaring MOUNTAIN_GALE in the catalog). The AVALUGG passive is only cited for the first-cast Bergmite bonus.",
+  "appliesTo": [
+   {
+    "key": "AVALUGG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MOUNTAIN_GALE",
+    "declaredPassive": "AVALUGG",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BERGMITE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MOUNTAIN_GALE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HISUI_AVALUGG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MOUNTAIN_GALE",
+    "declaredPassive": "AVALUGG",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MOUNTAIN_GALE] = new MountainGaleStrategy()",
+   "strategy": "MountainGaleStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "process calls super.process(..., preventDefaultAnim = true), so the default cast animation is not broadcast; each hit broadcasts its own ability animation",
+   "evidence": [
+    "reg",
+    "reg-mg",
+    "base",
+    "cast",
+    "dispatch-attack",
+    "mg-impl"
+   ]
+  },
+  "summary": "Delayed multi-hit flurry: every hit picks one random enemy from the enemies adjacent to the caster at cast time (the cast target is always included), 200 ms x hit index later flinches it for 3000 ms (requested) and deals 40 raw SPECIAL damage. Hit count by caster stars: 1 / 3 / 5 / 10 (10 fallback); on the caster's very first cast of the fight, AVALUGG and HISUI_AVALUGG add one extra hit per BergmiteOnBack stack, capped at 4. BERGMITE never gets the bonus.",
+  "targeting": {
+   "who": "enemies in the 8 cells around the caster (center excluded) captured at cast time, plus the cast target if it is not among them (or if there is none adjacent); each hit independently picks one of them uniformly at random with replacement, so one enemy may take several hits and the target list is not refreshed when it moves or dies",
+   "needsTarget": true,
+   "evidence": [
+    "mg-targets",
+    "adjacent",
+    "random-pick",
+    "mg-loop"
+   ]
+  },
+  "geometry": {
+   "shape": "adjacent ring (radius 1, 8 cells) around the caster, evaluated once at cast time",
+   "evidence": [
+    "mg-targets",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "hits": "nbHits + nbBergmites",
+    "declaredRaw": {
+     "perHit": 40,
+     "hitsByStars": {
+      "1": 1,
+      "2": 3,
+      "3": 5,
+      "4": 10,
+      "fallback": 10
+     },
+     "note": "requested damage per hit: 40, fixed, no stat scaling in the strategy"
+    },
+    "scaling": "requested amount: 40 per hit; inside handleSpecialDamage each hit is x (1 + AP/100) (apBoost default true), x2 if DOUBLE_DAMAGE (the effect is deleted after the first hit that consumes it), x1.2 steam effect, and the crit multiplier only if the cast crit (canCritByDefault false: needs ABILITY_CRIT); the crit flag is fixed at cast time and used for every hit",
+    "resolution": "applied amount per hit: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF)) and later handleDamage modifiers; a target with protect / skydiving / magicBounce blocks that hit (death false); if the target has a shield, flinch halves the damage that the shield absorbs (the other half goes on to health); the hit runs 200 ms x i after the cast (hit 0 after the next command update) as a DelayedCommand stored on the caster, and its death/takenDamage results are ignored; whether a picked enemy that has already died by then still receives the status and damage was not traced",
+    "evidence": [
+     "mg-damage",
+     "mg-loop",
+     "special",
+     "special-ap",
+     "double-damage",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor",
+     "delayed",
+     "commands-update"
+    ],
+    "perUnitRaw": {
+     "AVALUGG": "3 hits x 40",
+     "BERGMITE": "1 hit x 40",
+     "HISUI_AVALUGG": "3 hits x 40"
+    },
+    "perUnitHits": {
+     "AVALUGG": 3,
+     "BERGMITE": 1,
+     "HISUI_AVALUGG": 3
+    }
+   },
+   {
+    "kind": "extraHits",
+    "condition": "only when pokemon.count.ult === 0 before super.process increments it, i.e. the caster's first cast",
+    "declaredRaw": {
+     "formula": "min(MaxTroopersPerPkm[pokemon.name] ?? 0, stacks of the caster's BergmiteOnBackEffect ?? 0)",
+     "maxTroopersPerPkm": {
+      "AVALUGG": 4,
+      "HISUI_AVALUGG": 4
+     },
+     "note": "requested extra hits; BERGMITE is not in MaxTroopersPerPkm and has no such effect, so it gets 0"
+    },
+    "scaling": "none: each extra hit is a normal 40-damage hit as above",
+    "resolution": "stacks = number of Bergmite on the player's board with positionY === 0 (bench row) other than the caster, counted once when the caster spawns (OnSpawnEffect); 0 if the entity has no player; extra hits are added to nbHits in the same loop and their ability animation uses delay i - nbHits",
+    "evidence": [
+     "mg-bergmites",
+     "bergmite-effect",
+     "passive-reg",
+     "max-troopers",
+     "max-helper"
+    ]
+   },
+   {
+    "kind": "statusApplication",
+    "status": "flinch",
+    "duration": "3000 ms requested, per hit",
+    "target": "the picked enemy of each hit",
+    "scaling": "none",
+    "resolution": "applied only if the target lacks runeProtect; the stored duration is the requested 3000 reduced by applyStatusDurationReductions evaluated on the CALLER-supplied entity: mountain-gale passes the caster (pokemon) as the pkm argument, so SWIFT_SWIM (x0.7) / HYDRATION (x0.5) / WATER_VEIL or SURGE_SURFER (x0.3) and the owner's ODD_KEYSTONE count (x(1 - 0.1 n)) of the CASTER shorten it, not the target's; a longer existing flinch is kept; its combat effect in handleDamage is the shield halving described above (other flinch effects not searched)",
+    "evidence": [
+     "mg-loop",
+     "flinch-trigger",
+     "flinch-reductions",
+     "flinch-effect"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "duration": "3000 ms requested (reduced by the caster's duration-reduction effects, see the effects entry)",
+    "evidence": [
+     "mg-loop",
+     "flinch-trigger",
+     "flinch-reductions",
+     "flinch-effect"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "AVALUGG": 2,
+    "BERGMITE": 1,
+    "HISUI_AVALUGG": 2
+   },
+   "declaredHits": {
+    "AVALUGG": 3,
+    "BERGMITE": 1,
+    "HISUI_AVALUGG": 3
+   },
+   "note": "hits indexed by the casting entity's stars (pokemon.stars - 1); the 5 and 10 entries are not reached by these units' bare star counts (1, 2, 2). Damage per hit (40) and flinch duration do not depend on stars. maxPP is 100 and range 1 for all three.",
+   "evidence": [
+    "mg-hits",
+    "unit-bergmite",
+    "unit-avalugg",
+    "unit-hisui-avalugg"
+   ]
+  },
+  "positionalConditions": "The target pool is the enemies adjacent to the caster at cast time; the cast target is added when none is adjacent or when it is not adjacent. Extra Bergmite hits depend on how many Bergmite were on the player's bench row (positionY 0) when the caster spawned, not on the board at cast time.",
+  "repeatedCastsAndModes": "Only the first cast of the fight (count.ult === 0) can add Bergmite hits; every later cast uses just the star-based hit count. No modes. Pending hits live in the caster's command list, so overlapping casts queue independently.",
+  "rawVsResolved": "Requested: 40 damage per hit, hits 1 / 3 / 5 / 10 by stars (+ up to 4 on the first cast for AVALUGG / HISUI_AVALUGG), flinch 3000 ms per hit. Applied damage per hit = 40 x (1 + AP/100) [x2 first DOUBLE_DAMAGE hit] [x crit factor], then the SPE_DEF division and later handleDamage modifiers; takenDamage (incl. shield damage) is not used. Applied flinch duration = 3000 after the caster's duration reductions, kept only if longer than the target's current flinch; blocked by the target's runeProtect.",
+  "sourceTables": [
+   {
+    "id": "mountainGaleHits",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "pattern": "const nbHits = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.hitsByStars",
+    "unitValuesPath": "effects.0.perUnitHits"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division, the flinch shield halving and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+   "Whether pending DelayedCommands still run if the caster dies or the fight ends before they fire (updateCommands is called from the state update; its caller was not traced)",
+   "Other effects of the flinch status besides shield halving were not searched beyond pokemon-state.ts"
+  ],
+  "unresolved": [
+   "Consulted: Board.getAdjacentCells, pickRandomIn, DelayedCommand / updateCommands, Status.triggerFlinch and applyStatusDurationReductions, BergmiteOnBackEffect, MaxTroopersPerPkm, handleSpecialDamage and handleDamage",
+   "Hits whose picked enemy died or moved before the delayed command ran: handleSpecialDamage on a dead entity was not traced",
+   "The flinch duration reductions use the caster's effects because the strategy passes `pokemon` as the status owner argument; whether that is intended is not a source claim",
+   "Whether items or synergies change the hit count or flinch beyond what is listed",
+   "Queue record lists no routing uncertainties"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1044,
+     1044
+    ],
+    "symbol": "AbilityStrategies[Ability.MOUNTAIN_GALE]",
+    "expect": "[Ability.MOUNTAIN_GALE]: new MountainGaleStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count (line 15), animation broadcast unless prevented, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "mg-impl",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     11,
+     57
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default animation prevented"
+   },
+   {
+    "id": "mg-damage",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "const damage = 40",
+    "note": "fixed requested damage per hit"
+   },
+   {
+    "id": "mg-targets",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "if (targets.length === 0 || !targets.some((t) => t.id === target.id))",
+    "note": "adjacent enemies, cast target added if missing"
+   },
+   {
+    "id": "mg-hits",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "const nbHits = [1, 3, 5, 10][pokemon.stars - 1] ?? 10",
+    "note": "hits by caster stars"
+   },
+   {
+    "id": "mg-bergmites",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "const isFirstCast = pokemon.count.ult === 0",
+    "note": "read before super.process increments count.ult; first-cast gate; extra hits computed at lines 30-36"
+   },
+   {
+    "id": "mg-loop",
+    "file": "app/core/abilities/mountain-gale.ts",
+    "lines": [
+     37,
+     56
+    ],
+    "symbol": "MountainGaleStrategy.process",
+    "expect": "t.status.triggerFlinch(3000, pokemon)",
+    "note": "per hit: random target, flinch 3000 then 40 SPECIAL damage in a DelayedCommand 200 * i ms"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "8 neighbours, center excluded by default, only on-board cells"
+   },
+   {
+    "id": "random-pick",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform pick"
+   },
+   {
+    "id": "delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     16
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "a command executes once its delay has run below 0 on an update"
+   },
+   {
+    "id": "commands-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "pending commands advance and are dropped when executed"
+   },
+   {
+    "id": "bergmite-effect",
+    "file": "app/core/effects/passives/bergmite-on-back.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "BergmiteOnBackEffect",
+    "expect": "p.name === Pkm.BERGMITE && p.positionY === 0 && p.id !== pkm.id",
+    "note": "stacks counted once at spawn from the player's board row 0"
+   },
+   {
+    "id": "passive-reg",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1324,
+     1326
+    ],
+    "symbol": "Passive.AVALUGG",
+    "expect": "() => new BergmiteOnBackEffect()",
+    "note": "per-entity effect instance"
+   },
+   {
+    "id": "max-troopers",
+    "file": "app/config/game/pokemons.ts",
+    "lines": [
+     444,
+     448
+    ],
+    "symbol": "MaxTroopersPerPkm",
+    "expect": "[Pkm.AVALUGG]: 4",
+    "note": "cap 4 for AVALUGG and HISUI_AVALUGG"
+   },
+   {
+    "id": "max-helper",
+    "file": "app/utils/number.ts",
+    "lines": [
+     5,
+     8
+    ],
+    "symbol": "max",
+    "expect": "Math.min(maximum, value)",
+    "note": "max(n)(v) = min(n, v)"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "double-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "DOUBLE_DAMAGE doubles one hit and is then removed"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect/skydiving/magicBounce block the hit (damage 0, death false)"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "flinch-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     986
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "blocked by runeProtect; keeps the longer cooldown"
+   },
+   {
+    "id": "flinch-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "reductions read from the pkm argument's effects and its player's ODD_KEYSTONE count"
+   },
+   {
+    "id": "flinch-effect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     622,
+     625
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "flinched target: a shield absorbs only half of the damage"
+   },
+   {
+    "id": "unit-bergmite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20504,
+     20504
+    ],
+    "symbol": "Bergmite",
+    "expect": "skill = Ability.MOUNTAIN_GALE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-avalugg",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20523,
+     20523
+    ],
+    "symbol": "Avalugg",
+    "expect": "skill = Ability.MOUNTAIN_GALE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-hisui-avalugg",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20539,
+     20539
+    ],
+    "symbol": "HisuiAvalugg",
+    "expect": "skill = Ability.MOUNTAIN_GALE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
