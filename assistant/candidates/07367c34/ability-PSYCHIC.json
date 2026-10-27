@@ -1,0 +1,502 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PSYCHIC",
+ "kind": "ability",
+ "identifier": "PSYCHIC",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T174258Z"
+ },
+ "record": {
+  "ability": "PSYCHIC",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "DUOSION",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "PSYCHIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "REUNICLUS",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "PSYCHIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SOLOSIS",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "PSYCHIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DUOSION": {
+    "evidence": [
+     "unit-duosion"
+    ]
+   },
+   "REUNICLUS": {
+    "evidence": [
+     "unit-reuniclus"
+    ]
+   },
+   "SOLOSIS": {
+    "evidence": [
+     "unit-solosis"
+    ]
+   }
+  },
+  "scope": "The three units in appliesTo declare PSYCHIC in this production reference, all with passive NONE. The strategy is shared; differences are the star count.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PSYCHIC] = new PsychicStrategy()",
+   "strategy": "PsychicStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-psychic",
+    "ps-class",
+    "base-flags",
+    "base-pp",
+    "ps-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Hits the cast target and the cells adjacent to it (a 3x3 block, centre included) that hold enemies of the caster: each gets requested SPECIAL damage 40/80/160 (raw, by stars 1/2/3; 320 for 4+) with AP scaling and the cast's crit flag, then a requested -15 PP (burn), and its manaBurnCount is incremented. A target holding Twist Band has the -15 flipped to +15 by the shared helper.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target) and every enemy of the caster standing in the 8 cells around it; allies of the caster standing in that block are skipped",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read. The cell list is built once before any damage is applied.",
+   "evidence": [
+    "ps-class",
+    "base-flags",
+    "ps-cells",
+    "ps-filter",
+    "adjacent"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block centred on the cast target (adjacent cells with includesCenter true), clipped at the board edge",
+   "evidence": [
+    "ps-cells",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     }
+    },
+    "perUnitRaw": {
+     "SOLOSIS": 40,
+     "DUOSION": 80,
+     "REUNICLUS": 160
+    },
+    "scaling": "requested amount: raw x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "intermediate, not guaranteed final HP damage: handleSpecialDamage returns 0 and deals nothing for an enemy that is protected, skydiving or has magicBounce; otherwise handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps (shield, Shiny Charm, Fossil, Cover Band, resurrection: shared helper, see core-mechanics.md section A, not re-traced here). The strategy ignores the returned takenDamage. Same damage for the target and each adjacent enemy (no centre bonus).",
+    "evidence": [
+     "ps-dmg-tbl",
+     "ps-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "PP loss (mana burn)",
+    "declaredRaw": {
+     "requestedPP": -15,
+     "perUnitRaw": "same for every star"
+    },
+    "scaling": "none: apBoost 0 and crit false are passed, so neither AP nor crit scales it",
+    "resolution": "applied change comes from addPP on each enemy after its damage: value = round(-15) = -15 (the fatigue halving applies only to positive values); then applyTwistBandBuff: an enemy holding TWIST_BAND (the caster is on another team) gets +15 instead, which is then blocked by silence, protect or NO_PP_GAIN; a negative change is blocked only for the tree status and for a resurrecting target; otherwise pp = clamp(pp - 15, 0, 2 x maxPP - 1), so the applied loss is at most the current pp. manaBurnCount++ happens for every filtered enemy whatever addPP did. The addPP call comes after handleSpecialDamage, also for an enemy the damage just killed.",
+    "evidence": [
+     "ps-pp",
+     "ps-burn",
+     "addpp",
+     "addpp-neg",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SOLOSIS": 1,
+    "DUOSION": 2,
+    "REUNICLUS": 3
+   },
+   "declaredRawDamage": {
+    "SOLOSIS": 40,
+    "DUOSION": 80,
+    "REUNICLUS": 160
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (320, also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 90 and range 2 for all three. The PP loss is 15 for every star.",
+   "evidence": [
+    "ps-dmg-tbl"
+   ]
+  },
+  "positionalConditions": "The 3x3 block is centred on the target's cell, so the hit pattern depends on where the target stands; cells outside the board are skipped. Only enemies of the caster in those cells are affected.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the damage and the PP loss on whatever enemies are in the block at that moment.",
+  "rawVsResolved": "Declared raw: damage 40/80/160 (1/2/3 stars) per affected enemy and -15 PP. Requested damage = raw x (1 + AP/100) [x critPower on a crit]; dealt damage is that after the SPE_DEF division (ceil, at least 1) and the other handleDamage steps, 0 when blocked by protect / skydiving / magicBounce. Requested PP change -15; applied PP change is -min(15, current pp) except when the enemy holds Twist Band (+15, subject to the positive-gain blocks and the 2 x maxPP - 1 cap) or has the tree status / is resurrecting (no change).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shield, items, damage-reduction effects, resurrection, field multipliers): only the SPE_DEF step was cited; core-mechanics.md section A was consulted for the rest",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence); only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate in castAbility was read",
+   "Consulted for the PP helpers: PokemonEntity.addPP and applyTwistBandBuff at the pinned commit (core-mechanics.md section B documents PP; Twist Band card via lookup-item was not needed beyond the function text)"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect changes PSYCHIC beyond what is listed (Big Eater Belt is applied by addShield-type adders, not by addPP, in the code read)",
+   "Resurrection and other death-cancelling paths on a damaged enemy were not enumerated",
+   "What manaBurnCount is used for elsewhere (counter only incremented here; its consumers were not searched)",
+   "The cast target can be at the edge of the block of an enemy that moved after targeting; only the target's position at cast time is used"
+  ],
+  "sourceTables": [
+   {
+    "id": "psychicDamage",
+    "file": "app/core/abilities/psychic.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "evidence": [
+   {
+    "id": "unit-solosis",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2330,
+     2343
+    ],
+    "symbol": "class Solosis",
+    "expect": "skill = Ability.PSYCHIC",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-reuniclus",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2360,
+     2372
+    ],
+    "symbol": "class Reuniclus",
+    "expect": "skill = Ability.PSYCHIC",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-duosion",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2345,
+     2358
+    ],
+    "symbol": "class Duosion",
+    "expect": "skill = Ability.PSYCHIC",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-psychic",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1097,
+     1097
+    ],
+    "symbol": "AbilityStrategies[Ability.PSYCHIC]",
+    "expect": "[Ability.PSYCHIC]: new PsychicStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP reset"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags (requiresTarget true, canCritByDefault false)"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by the target's critReductionFactor"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL defence division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil and floor of 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "attack-state cast gate"
+   },
+   {
+    "id": "ps-class",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PsychicStrategy",
+    "expect": "class PsychicStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden (defaults true / false)"
+   },
+   {
+    "id": "ps-super",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default base process (PP reset, default animation aimed at the target)"
+   },
+   {
+    "id": "ps-dmg-tbl",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "const damage = [40, 80, 160, 320]",
+    "note": "raw damage by stars"
+   },
+   {
+    "id": "ps-cells",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "true",
+    "note": "the 3x3 block around the cast target, centre included"
+   },
+   {
+    "id": "ps-filter",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "only occupied cells holding an entity of another team than the caster"
+   },
+   {
+    "id": "ps-hit",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "crit",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "ps-pp",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "cell.value.addPP(-15, pokemon, 0, false)",
+    "note": "requested PP change -15, apBoost 0, crit false; applied after the damage on each enemy"
+   },
+   {
+    "id": "ps-burn",
+    "file": "app/core/abilities/psychic.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "PsychicStrategy.process",
+    "expect": "cell.value.count.manaBurnCount++",
+    "note": "counter incremented for each enemy in the block, regardless of the PP result"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "cells x-1..x+1, y-1..y+1 (y outer, x inner); the centre is kept when includesCenter is true; off-board cells are skipped; value = the occupant or undefined"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "value = round(base x (1 + apBoost x AP/100) x (crit ? critPower : 1) x (fatigue and base > 0 ? 0.5 : 1)); applyTwistBandBuff; changes pp unless blocked; clamp to 0..2xmaxPP-1"
+   },
+   {
+    "id": "addpp-neg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     528,
+     528
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "a negative change is blocked only for the tree status (and for resurrecting targets); silence, protect and NO_PP_GAIN block only positive changes"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "a negative value on a holder of TWIST_BAND from another team (or environment) is flipped to positive"
+   }
+  ]
+ }
+}
