@@ -1,0 +1,434 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MANTIS_BLADES",
+ "kind": "ability",
+ "identifier": "MANTIS_BLADES",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T053959Z"
+ },
+ "record": {
+  "ability": "MANTIS_BLADES",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SEWADDLE (1 star), SWADLOON (2 stars) and LEAVANNY (3 stars), the queued units; maxPP 100, range 1 for all three.",
+  "appliesTo": [
+   {
+    "key": "LEAVANNY",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MANTIS_BLADES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SEWADDLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MANTIS_BLADES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWADLOON",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "MANTIS_BLADES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SEWADDLE": {
+    "evidence": [
+     "unit-sewaddle"
+    ]
+   },
+   "SWADLOON": {
+    "evidence": [
+     "unit-swadloon"
+    ]
+   },
+   "LEAVANNY": {
+    "evidence": [
+     "unit-leavanny"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MANTIS_BLADES] = new MantisBladesStrategy()",
+   "strategy": "MantisBladesStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mt",
+    "base",
+    "mt-impl"
+   ]
+  },
+  "summary": "Three consecutive hits on the single cast target, each with the same requested amount (10 / 20 / 40 / 80 by caster stars: 10 Sewaddle, 20 Swadloon, 40 Leavanny): one PHYSICAL, one SPECIAL and one TRUE, in that order, each through handleSpecialDamage with apBoost = true and the cast's crit flag. Each hit is scaled by AP separately; the physical hit is divided by the target's def, the special hit by its speDef and the true hit by neither. Every hit is a separate handleDamage call with its own minimum of 1, shield absorption and death check. No status, movement or heal.",
+  "targeting": {
+   "who": "the single current target",
+   "needsTarget": true,
+   "evidence": [
+    "mt-impl"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area, no movement",
+   "evidence": [
+    "mt-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "PHYSICAL",
+    "target": "the cast target",
+    "hitOrder": 1,
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "note": "requested amount per hit; the same table value is used for all three hits"
+    },
+    "perUnitRaw": {
+     "SEWADDLE": 10,
+     "SWADLOON": 20,
+     "LEAVANNY": 40
+    },
+    "scaling": "requested amount: handleSpecialDamage with apBoost = true: x(1 + AP/100) per hit; DOUBLE_DAMAGE x2 (effect consumed) applies only to the first hit that sees it, i.e. this physical hit; strange-steam x1.2; crit multiplier only if the cast crit (needs ABILITY_CRIT, canCritByDefault false), reduced by target Rocky Helmet / Black Augurite for the physical and special hits only",
+    "resolution": "applied amount: divided by (1 + 0.05 x def) (def halved under armorReduction, swapped with speDef under WONDER_ROOM), then flat reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard), ceil with a minimum of 1; shield absorbs first. If the target has the reflect status, a PHYSICAL hit is not applied at all: it is reflected to the attacker as SPECIAL damage and handleDamage returns takenDamage 0. Blocked entirely by protect / skydiving / magicBounce",
+    "evidence": [
+     "mt-impl",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "state-protect",
+     "state-reflect",
+     "state-def",
+     "state-flat",
+     "state-min1"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "hitOrder": 2,
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "SEWADDLE": 10,
+     "SWADLOON": 20,
+     "LEAVANNY": 40
+    },
+    "scaling": "same as the physical hit (AP x(1 + AP/100), strange steam, crit), without DOUBLE_DAMAGE unless it is still unconsumed",
+    "resolution": "applied amount: divided by (1 + 0.05 x speDef), flat reductions, ceil with a minimum of 1, shield first. magicBounce on the target blocks this hit and, unless the caster holds Protective Pads, bounces damage back to the caster after 500 ms (the bounce only triggers for SPECIAL hits). Power Lens on the target returns the speDef-blocked part to the caster",
+    "evidence": [
+     "mt-impl",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "state-spedef",
+     "state-flat",
+     "state-min1"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "target": "the cast target",
+    "hitOrder": 3,
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "SEWADDLE": 10,
+     "SWADLOON": 20,
+     "LEAVANNY": 40
+    },
+    "scaling": "same AP and crit scaling as the other hits; Rocky Helmet and Black Augurite crit reductions do not apply to TRUE",
+    "resolution": "applied amount: no def / speDef division and no flat reductions; ceil with a minimum of 1; shield first. Blocked by protect / skydiving / magicBounce (no bounce for TRUE)",
+    "evidence": [
+     "mt-impl",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "state-true",
+     "state-min1"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SEWADDLE": 1,
+    "SWADLOON": 2,
+    "LEAVANNY": 3
+   },
+   "declaredRawPerHit": {
+    "SEWADDLE": 10,
+    "SWADLOON": 20,
+    "LEAVANNY": 40
+   },
+   "note": "indexed by the caster's stars (stars-1): 10, 20, 40, 80, fallback 80; the 4-star entry and fallback are not reached by the listed units. The same value is used for each of the three hits, so the total requested amount is three times it (30 / 60 / 120).",
+   "evidence": [
+    "mt-impl",
+    "unit-sewaddle",
+    "unit-swadloon",
+    "unit-leavanny"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target within range 1.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast fires the same three hits in the order physical, special, true. If the target dies on an earlier hit the remaining handleSpecialDamage calls are still made (the loop does not check death); handleDamage returns without damage for an entity with hp <= 0.",
+  "rawVsResolved": "Requested: three hits of 10 / 20 / 40 (total 30 / 60 / 120) as PHYSICAL, SPECIAL and TRUE damage. Applied per hit = requested x (1 + AP/100) [DOUBLE_DAMAGE on the first hit only] [strange steam] [crit factor], then def division (physical), speDef division (special) or neither (true), flat reductions for non-true hits, ceil with a minimum of 1. takenDamage (shield included, residual capped at remaining hp) is reported by each call but not used by this ability.",
+  "sourceTables": [
+   {
+    "id": "mtDamage",
+    "file": "app/core/abilities/mantis-blades.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "handleDamage multipliers beyond those read (lines 454-515) and death-cancelling or resurrection paths",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+  ],
+  "unresolved": [
+   "Whether other items or synergies change MANTIS_BLADES beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-mt",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1027,
+     1027
+    ],
+    "symbol": "AbilityStrategies[Ability.MANTIS_BLADES]",
+    "expect": "[Ability.MANTIS_BLADES]: new MantisBladesStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "mt-impl",
+    "file": "app/core/abilities/mantis-blades.ts",
+    "lines": [
+     14,
+     22
+    ],
+    "symbol": "MantisBladesStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "three handleSpecialDamage calls: PHYSICAL, SPECIAL, TRUE"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": ""
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "blocked branch returns { death: false, takenDamage: 0 } (line 397); bounce only for SPECIAL (lines 361-364)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "Rocky Helmet negation excludes TRUE (line 415)"
+   },
+   {
+    "id": "state-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "state-reflect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     522,
+     556
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.reflect && attackType === AttackType.PHYSICAL",
+    "note": "physical hit on a reflecting target is returned as SPECIAL damage; returns takenDamage 0"
+   },
+   {
+    "id": "state-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     560,
+     561
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "PHYSICAL branch; armorReduction halving at 509-514"
+   },
+   {
+    "id": "state-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL branch"
+   },
+   {
+    "id": "state-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     565
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage",
+    "note": "TRUE: no division"
+   },
+   {
+    "id": "state-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     595
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attackType !== AttackType.TRUE) {",
+    "note": "Poke Doll, Guts/Sturdy/Defiant/Coaching, Wonder Guard apply to non-TRUE hits only"
+   },
+   {
+    "id": "state-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "unit-sewaddle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2049,
+     2062
+    ],
+    "symbol": "Sewaddle",
+    "expect": "skill = Ability.MANTIS_BLADES",
+    "note": ""
+   },
+   {
+    "id": "unit-swadloon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2064,
+     2077
+    ],
+    "symbol": "Swadloon",
+    "expect": "skill = Ability.MANTIS_BLADES",
+    "note": ""
+   },
+   {
+    "id": "unit-leavanny",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2079,
+     2091
+    ],
+    "symbol": "Leavanny",
+    "expect": "skill = Ability.MANTIS_BLADES",
+    "note": ""
+   }
+  ]
+ }
+}
