@@ -1,0 +1,415 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/RETALIATE",
+ "kind": "ability",
+ "identifier": "RETALIATE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T234210Z"
+ },
+ "record": {
+  "ability": "RETALIATE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The units in appliesTo declare RETALIATE in this production reference. The strategy is shared; differences are star count, attack stat, range and passive.",
+  "appliesTo": [
+   {
+    "key": "HERDIER",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RETALIATE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LILLIPUP",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RETALIATE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "STOUTLAND",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "RETALIATE",
+    "declaredPassive": "STOUTLAND_SEARCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HERDIER": {
+    "evidence": [
+     "unit-herdier"
+    ]
+   },
+   "LILLIPUP": {
+    "evidence": [
+     "unit-lillipup"
+    ]
+   },
+   "STOUTLAND": {
+    "evidence": [
+     "unit-stoutland"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.RETALIATE] = new RetaliateStrategy()",
+   "strategy": "RetaliateStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ret",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ret-class",
+    "ret-super"
+   ]
+  },
+  "summary": "Deals 1 + N separate SPECIAL hits to the cast target, where N is the number of fallen allies (the caster team's DPS-meter size minus same-team units still on the board). Each hit has the same raw amount: the caster's current attack stat x 1.5 (1 to 3 stars; 3 at 4+ stars). The hits are separate handleSpecialDamage calls, each scaled by AP and the cast's single crit flag, then reduced by the target's SPE_DEF; there is no area, status or movement. The cast cannot crit unless the caster has ABILITY_CRIT (canCritByDefault false).",
+  "targeting": {
+   "who": "the cast target only (all hits)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read. If the target dies during the loop the remaining iterations still call handleSpecialDamage on it (their effect on a dead target was not traced).",
+   "evidence": [
+    "ret-class",
+    "base-flags",
+    "ret-hit",
+    "ret-loop"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area",
+   "evidence": [
+    "ret-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (multi-hit)",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "label": "atk multiplier per hit",
+     "byStars": {
+      "1": 1.5,
+      "2": 1.5,
+      "3": 1.5,
+      "4": 3,
+      "fallback": 3
+     },
+     "hits": "1 + fallenAllies"
+    },
+    "perUnitRaw": {
+     "HERDIER": 1.5,
+     "LILLIPUP": 1.5,
+     "STOUTLAND": 1.5
+    },
+    "scaling": "requested per hit = pokemon.atk (the caster's attack at cast time, after buffs and items) x multiplier; then per hit AP: x(1 + AP/100) (apBoost default true); the cast's crit flag multiplies each hit by critPower only if the cast rolled a crit (needs ABILITY_CRIT); total requested = hits x per-hit requested, before defences",
+    "resolution": "each of the 1 + N hits is resolved independently: a protect / skydiving / magicBounce target takes none; otherwise the SPE_DEF division (ceil, minimum 1, core-mechanics section A) is applied PER HIT, so the minimum of 1 and the ceil apply to every hit. N = DPS-meter size - allies still on the board, so it counts every entity ever added to the team's meter, not only deaths in the round. The strategy does not read takenDamage.",
+    "evidence": [
+     "ret-dmg",
+     "ret-count",
+     "ret-loop",
+     "ret-hit",
+     "fallen-fn",
+     "meter-add",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "cast"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HERDIER": 2,
+    "LILLIPUP": 1,
+    "STOUTLAND": 3
+   },
+   "declaredAtkMultiplier": {
+    "HERDIER": 1.5,
+    "LILLIPUP": 1.5,
+    "STOUTLAND": 1.5
+   },
+   "note": "indexed by the casting entity's stars; 1, 2 and 3 stars share 1.5; the 4-star value (3, also the fallback) is not reachable by the bare factory star counts. The raw damage depends on the caster's current atk, which differs per unit and is not a table in the source. maxPP and range are in appliesTo.",
+   "evidence": [
+    "ret-dmg",
+    "unit-herdier",
+    "unit-lillipup",
+    "unit-stoutland"
+   ]
+  },
+  "positionalConditions": "None: the strategy reads no coordinates; only the cast target and the fallen-ally count matter.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the fallen-ally count and the attack stat.",
+  "rawVsResolved": "Requested per hit: atk x 1.5 (atk read at cast time, not a table value). Number of hits: 1 + fallen allies. Each hit is then scaled by AP [x crit factor] and reduced by the target's SPE_DEF (ceil, minimum 1) separately; the total taken is the sum of the per-hit results.",
+  "sourceTables": [
+   {
+    "id": "retaliateAtkMultiplier",
+    "file": "app/core/abilities/retaliate.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "The caster's atk at cast time (base stat, synergies, items, buffs) was not traced; atk is read as a plain field of PokemonEntity",
+   "What the DPS meter counts (summons, spawned units) beyond the single addPokemon site cited, so the fallen-ally count for such units is not settled",
+   "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
+   "Behaviour of repeated handleSpecialDamage on a target that dies mid-loop",
+   "Crit chance value and critPower; only the roll gate was located"
+  ],
+  "unresolved": [
+   "Passives declared by the listed units (see appliesTo) are not covered by this record",
+   "Whether the units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-herdier",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13955,
+     13968
+    ],
+    "symbol": "class Herdier",
+    "expect": "skill = Ability.RETALIATE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lillipup",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13940,
+     13953
+    ],
+    "symbol": "class Lillipup",
+    "expect": "skill = Ability.RETALIATE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-stoutland",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13970,
+     13983
+    ],
+    "symbol": "class Stoutland",
+    "expect": "skill = Ability.RETALIATE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "fallen-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     715,
+     722
+    ],
+    "symbol": "Board.getFallenAlliesCount",
+    "expect": "return pokemon.simulation[meter].size - nbAlliesAlive",
+    "note": "meter size minus same-team units still on the board"
+   },
+   {
+    "id": "meter-add",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     369,
+     373
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "this.blueDpsMeter.set(pokemonEntity.id, dps)",
+    "note": "each entity added to a team gets a DPS meter entry (the meter is never reduced here)"
+   },
+   {
+    "id": "reg-ret",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1118,
+     1118
+    ],
+    "symbol": "AbilityStrategies[Ability.RETALIATE]",
+    "expect": "[Ability.RETALIATE]: new RetaliateStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "ret-class",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RetaliateStrategy",
+    "expect": "export class RetaliateStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target, crit); requiresTarget and canCritByDefault not overridden"
+   },
+   {
+    "id": "ret-super",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RetaliateStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation (spends maxPP, counts the cast)"
+   },
+   {
+    "id": "ret-count",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "RetaliateStrategy.process",
+    "expect": "const nbFallenAllies = board.getFallenAlliesCount(pokemon)",
+    "note": "fallen allies = the caster team's DPS meter size minus same-team units still on the board"
+   },
+   {
+    "id": "ret-dmg",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage formula",
+    "expect": "const damage = pokemon.atk * ([1.5, 1.5, 1.5, 3][pokemon.stars - 1] ?? 3)",
+    "note": "per-hit raw = the caster's current atk x a multiplier by stars (1.5 at 1-3 stars, 3 at 4, fallback 3)"
+   },
+   {
+    "id": "ret-loop",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     17,
+     26
+    ],
+    "symbol": "hit loop",
+    "expect": "for (let i = 0; i <= nbFallenAllies; i++) {",
+    "note": "1 + fallen allies hits (the bound is <=), each a separate SPECIAL hit on the cast target"
+   },
+   {
+    "id": "ret-hit",
+    "file": "app/core/abilities/retaliate.ts",
+    "lines": [
+     18,
+     24
+    ],
+    "symbol": "hit loop",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target, apBoost default, crit flag from the cast (same flag for every hit)"
+   }
+  ]
+ }
+}
