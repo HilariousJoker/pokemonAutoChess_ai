@@ -1,0 +1,477 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MAGNET_BOMB",
+ "kind": "ability",
+ "identifier": "MAGNET_BOMB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T053959Z"
+ },
+ "record": {
+  "ability": "MAGNET_BOMB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "MAGNEMITE (1 star), MAGNETON (2 stars) and MAGNEZONE (3 stars), the queued units; maxPP 100, range 2 for all three.",
+  "appliesTo": [
+   {
+    "key": "MAGNEMITE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MAGNET_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAGNETON",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MAGNET_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAGNEZONE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MAGNET_BOMB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MAGNEMITE": {
+    "evidence": [
+     "unit-magnemite"
+    ]
+   },
+   "MAGNETON": {
+    "evidence": [
+     "unit-magneton"
+    ]
+   },
+   "MAGNEZONE": {
+    "evidence": [
+     "unit-magnezone"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MAGNET_BOMB] = new MagnetBombStrategy()",
+   "strategy": "MagnetBombStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mb",
+    "base",
+    "mb-damage"
+   ]
+  },
+  "summary": "Area burst around the cast target. The target takes SPECIAL centre damage (20 / 40 / 80 / 160 requested, by caster stars) and is locked for 1500 ms; each entity of another team in the up to 8 cells adjacent to the target takes SPECIAL damage (10 / 20 / 40 / 80 requested) and is also locked for 1500 ms. Afterwards, for each of 8 directions around the target, if the cell next to the target is empty and at least one entity of the target's team stands in the matching outer-ring cells (2 cells away), one random such entity is pulled into the empty cell and locked for 1500 ms. Locked units have their range forced to 1 and cannot be moved by forced displacement.",
+  "targeting": {
+   "who": "the cast target (centre); other-team entities adjacent to the target; target-team entities in the ring two cells from the target (pulled)",
+   "needsTarget": true,
+   "evidence": [
+    "mb-damage",
+    "mb-adjacent",
+    "mb-attract"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block around the target (centre plus 8 neighbours) for damage and lock, plus the 16 cells of the Chebyshev-distance-2 ring as pull sources",
+   "detail": "the 8 pull directions map one adjacent destination cell to 1 (orthogonal) or 3 (diagonal) source cells in the outer ring; sources and destinations off the board return undefined and are ignored. The destination must be empty at that moment; each direction pulls at most one entity, chosen at random among the occupied source cells that hold a target-team entity",
+   "evidence": [
+    "mb-adjacent",
+    "mb-attract",
+    "adjacent",
+    "entity-cell",
+    "move-to"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "name": "centerDamage"
+    },
+    "perUnitRaw": {
+     "MAGNEMITE": 20,
+     "MAGNETON": 40,
+     "MAGNEZONE": 80
+    },
+    "scaling": "requested amount: handleSpecialDamage default apBoost = true: x(1 + AP/100); DOUBLE_DAMAGE x2 (effect consumed by the first hit that sees it, so it affects only the centre hit), strange-steam x1.2; crit multiplier only if the cast crit (needs ABILITY_CRIT, canCritByDefault false), applied separately to every hit with the same crit flag",
+    "resolution": "applied amount: the target's speDef division (halved under armorReduction), flat reductions, ceil with a minimum of 1, shield first; blocked entirely by protect / skydiving / magicBounce. The centre hit is applied regardless of the target's team",
+    "evidence": [
+     "mb-damage",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "state-spedef",
+     "state-min1"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "entities of another team than the caster in the 8 cells adjacent to the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "name": "damage"
+    },
+    "perUnitRaw": {
+     "MAGNEMITE": 10,
+     "MAGNETON": 20,
+     "MAGNEZONE": 40
+    },
+    "scaling": "same scaling as the centre hit, applied once per affected entity",
+    "resolution": "same resolution as the centre hit; the condition is pokemon.team != cell.value.team (the caster's team), not the target's team",
+    "evidence": [
+     "mb-adjacent",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "locked",
+    "who": "the cast target, each other-team entity adjacent to the target, and each pulled entity",
+    "declaredRawDurationMs": 1500,
+    "scaling": "none (constant 1500 ms, not AP or crit scaled)",
+    "resolution": "triggerLocked does nothing if the entity is already locked, skydiving, rune-protected, has IMMUNITY_LOCKED or is within its crowd-control cooldown (ccCooldown > 0); duration halved if enraged, then SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER reductions and Odd Keystone; range is forced to 1 while locked (forcing retarget if it was not 1); on expiry range returns to base range (plus Wide Lens, Long Wand for fairies) and ccCooldown is set to CC_COOLDOWN (1500 ms)",
+    "combatEffect": "locked entities cannot be moved by forced displacement (canBeMoved false) and are limited to range 1 until the lock ends",
+    "evidence": [
+     "mb-damage",
+     "trigger-locked",
+     "update-locked",
+     "can-be-moved",
+     "cc-cooldown"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MAGNEMITE": 1,
+    "MAGNETON": 2,
+    "MAGNEZONE": 3
+   },
+   "declaredRawCenterDamage": {
+    "MAGNEMITE": 20,
+    "MAGNETON": 40,
+    "MAGNEZONE": 80
+   },
+   "declaredRawAdjacentDamage": {
+    "MAGNEMITE": 10,
+    "MAGNETON": 20,
+    "MAGNEZONE": 40
+   },
+   "note": "both damage tables are indexed by the caster's stars (stars-1); 4-star entries (160 / 80) and the fallbacks are not reached by the listed units. Lock duration (1500 ms) and the pull geometry do not depend on stars.",
+   "evidence": [
+    "mb-damage",
+    "unit-magnemite",
+    "unit-magneton",
+    "unit-magnezone"
+   ]
+  },
+  "positionalConditions": "The pull needs an empty adjacent destination cell and an entity of the target's team in the matching ring-2 source cells; pulled entities must pass moveTo's forced-displacement check (not skydiving, not locked, no Heavy Duty Boots), otherwise moveTo returns without moving them, but triggerLocked is still called on them.",
+  "repeatedCastsAndModes": "No stored state or modes. The pull loop reads the board after the damage and lock steps, so units that were locked or removed by earlier hits of this cast are seen in their new state; directions are processed in the fixed array order (left, right, up, down, up-left, up-right, down-left, down-right) and an entity pulled by one direction is no longer in its source cell for later ones.",
+  "rawVsResolved": "Requested: centre 20 / 40 / 80 and adjacent 10 / 20 / 40 SPECIAL damage, lock 1500 ms. Applied damage = requested x (1 + AP/100) [DOUBLE_DAMAGE / strange steam / crit factor], then the speDef division (ceil, minimum 1); takenDamage (shield included) is not used by this ability. Applied lock = 1500 ms after the enraged halving and duration reductions, and only if no lock immunity or ccCooldown applies; the status itself caps range to 1.",
+  "sourceTables": [
+   {
+    "id": "mbCenter",
+    "file": "app/core/abilities/magnet-bomb.ts",
+    "pattern": "const centerDamage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "mbAdjacent",
+    "file": "app/core/abilities/magnet-bomb.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "handleDamage multipliers beyond those read (lines 454-515) and death-cancelling or resurrection paths",
+   "Whether entities killed by the damage steps are still on their cells when the pull loop runs (board removal timing was not traced)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+  ],
+  "unresolved": [
+   "Whether an entity killed by this cast's damage still occupies its cell (and is therefore pulled or blocks a destination) when the pull loop runs was not traced",
+   "Whether any other item or synergy changes MAGNET_BOMB beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-mb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1022,
+     1022
+    ],
+    "symbol": "AbilityStrategies[Ability.MAGNET_BOMB]",
+    "expect": "[Ability.MAGNET_BOMB]: new MagnetBombStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "mb-damage",
+    "file": "app/core/abilities/magnet-bomb.ts",
+    "lines": [
+     14,
+     26
+    ],
+    "symbol": "MagnetBombStrategy.process",
+    "expect": "const centerDamage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "tables, lock duration 1500, centre hit and lock"
+   },
+   {
+    "id": "mb-adjacent",
+    "file": "app/core/abilities/magnet-bomb.ts",
+    "lines": [
+     28,
+     44
+    ],
+    "symbol": "MagnetBombStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "adjacent damage and lock for other-team entities"
+   },
+   {
+    "id": "mb-attract",
+    "file": "app/core/abilities/magnet-bomb.ts",
+    "lines": [
+     46,
+     110
+    ],
+    "symbol": "MagnetBombStrategy.process",
+    "expect": "attractedEnemy.moveTo(destX, destY, board, true)",
+    "note": "pull map, filter by target.team, empty destination, random pick, lock"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "entity-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells return undefined"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "forced displacement checks canBeMoved, then swaps cells"
+   },
+   {
+    "id": "can-be-moved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.locked",
+    "note": "skydiving, locked and Heavy Duty Boots prevent forced movement"
+   },
+   {
+    "id": "trigger-locked",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1162
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "immunities, enraged halving, reductions, range forced to 1"
+   },
+   {
+    "id": "update-locked",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1165,
+     1181
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "range restored at expiry; cc cooldown set"
+   },
+   {
+    "id": "cc-cooldown",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": ""
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "blocked branch returns { death: false, takenDamage: 0 } (line 397)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "state-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL branch"
+   },
+   {
+    "id": "state-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "unit-magnemite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3412,
+     3425
+    ],
+    "symbol": "Magnemite",
+    "expect": "skill = Ability.MAGNET_BOMB",
+    "note": ""
+   },
+   {
+    "id": "unit-magneton",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3427,
+     3440
+    ],
+    "symbol": "Magneton",
+    "expect": "skill = Ability.MAGNET_BOMB",
+    "note": ""
+   },
+   {
+    "id": "unit-magnezone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3442,
+     3454
+    ],
+    "symbol": "Magnezone",
+    "expect": "skill = Ability.MAGNET_BOMB",
+    "note": ""
+   }
+  ]
+ }
+}
