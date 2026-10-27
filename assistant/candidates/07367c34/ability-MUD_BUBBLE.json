@@ -1,0 +1,380 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MUD_BUBBLE",
+ "kind": "ability",
+ "identifier": "MUD_BUBBLE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T114138Z"
+ },
+ "record": {
+  "ability": "MUD_BUBBLE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "MARSHTOMP, MUDKIP and SWAMPERT (the queued units; the only units declaring MUD_BUBBLE in the catalog). The WATER_SPRING passive of these units is separate and not described here.",
+  "appliesTo": [
+   {
+    "key": "MARSHTOMP",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MUDKIP",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWAMPERT",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MUD_BUBBLE] = new MudBubbleStrategy()",
+   "strategy": "MudBubbleStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "note": "requiresTarget is false: MovingState casts it with a null target as soon as pp >= maxPP and canCast, without first walking up to an enemy; AttackingState can also cast it with a target, but the strategy ignores the target either way",
+   "evidence": [
+    "reg",
+    "reg-mb",
+    "base",
+    "cast",
+    "moving-cast",
+    "dispatch-attack",
+    "mb-impl"
+   ]
+  },
+  "summary": "Self-heal: the caster heals itself by a requested 10 / 20 / 40 / 80 (80 fallback) by caster stars, scaled by its own AP and by its crit factor if the cast crit, then resets its attack cooldown to a short 250 ms-based value so it attacks again quickly.",
+  "targeting": {
+   "who": "the caster only (heal target and caster are the same entity); the cast target is unused",
+   "needsTarget": false,
+   "evidence": [
+    "mb-impl",
+    "moving-cast"
+   ]
+  },
+  "geometry": {
+   "shape": "self",
+   "evidence": [
+    "mb-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "note": "requested heal before scaling"
+    },
+    "scaling": "requested amount: heal x (1 + 1 x AP/100) (apBoost 1 is passed) and x critPower if the cast crit (canCritByDefault false, so only with ABILITY_CRIT)",
+    "resolution": "applied amount: PokemonState.handleHeal gives 0 if the caster is wounded (and under BLOODMOON weather with Blood Stones converts that into a shield of 0.3 x stones x heal), and nothing if hp is 0 or protect is on; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at the caster's missing HP; an overheal with a GRASS synergy effect adds 0.4 x overheal max HP",
+    "evidence": [
+     "mb-heal",
+     "entity-heal",
+     "heal-state",
+     "heal-modifiers",
+     "heal-overheal",
+     "wound"
+    ],
+    "perUnitRaw": {
+     "MARSHTOMP": 20,
+     "MUDKIP": 10,
+     "SWAMPERT": 40
+    }
+   },
+   {
+    "kind": "cooldownReset",
+    "target": "the caster",
+    "declaredRaw": {
+     "baseDuration": 250,
+     "formula": "cooldown = round(250 / (0.4 + speed x 0.007)) using the caster's current speed",
+     "note": "requested; with the catalog speed 44 this gives 353, a different number if speed is changed in the fight"
+    },
+    "scaling": "speed only (no AP or crit)",
+    "resolution": "sets pokemon.cooldown (the attack timer): AttackingState attacks only when cooldown <= 0 and counts it down by dt, so the caster waits that many ms before its next basic attack; it replaces whatever value cooldown had (also a longer one)",
+    "evidence": [
+     "mb-cooldown",
+     "reset-cooldown",
+     "cooldown-use"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MARSHTOMP": 2,
+    "MUDKIP": 1,
+    "SWAMPERT": 3
+   },
+   "declaredHeal": {
+    "MARSHTOMP": 20,
+    "MUDKIP": 10,
+    "SWAMPERT": 40
+   },
+   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 80 and the fallback 80 are not reached by these units' bare star counts (1, 2, 3). Cooldown reset (250) does not depend on stars. maxPP is 60 and range 1 for all three.",
+   "evidence": [
+    "mb-heal",
+    "unit-mudkip",
+    "unit-marshtomp",
+    "unit-swampert"
+   ]
+  },
+  "positionalConditions": "None; no target is needed.",
+  "repeatedCastsAndModes": "No state is kept; each cast heals independently and resets the cooldown again. No modes.",
+  "rawVsResolved": "Requested heal: 10 (MUDKIP) / 20 (MARSHTOMP) / 40 (SWAMPERT). Requested = declared x (1 + AP/100) x critPower-if-crit; received heal after the burn / enraged / buff / weather modifiers, rounding and the cap at missing HP (0 when wounded or protected). Cooldown requested 250 base, applied round(250 / (0.4 + 0.007 x speed)).",
+  "sourceTables": [
+   {
+    "id": "mudBubbleHeal",
+    "file": "app/core/abilities/mud-bubble.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, movement; only the requiresTarget=false branch of MovingState was read)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the heal-side multiplier were read)",
+   "Other callers that read or reset pokemon.cooldown besides AttackingState (only the lines cited were read)"
+  ],
+  "unresolved": [
+   "Consulted: PokemonEntity.handleHeal and resetCooldown, PokemonState.handleHeal, castAbility, MovingState cast branch, AttackingState cooldown use",
+   "Whether items or synergies change the heal beyond what is listed (healing-modifying items other than those in handleHeal were not searched)",
+   "Queue record lists no routing uncertainties; the WATER_SPRING passive of these units is not part of this record"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1045,
+     1045
+    ],
+    "symbol": "AbilityStrategies[Ability.MUD_BUBBLE]",
+    "expect": "[Ability.MUD_BUBBLE]: new MudBubbleStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; canCritByDefault=false (line 8); this strategy overrides requiresTarget to false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "moving-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     40,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "cast with a null target when no target is needed"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "mb-impl",
+    "file": "app/core/abilities/mud-bubble.ts",
+    "lines": [
+     5,
+     12
+    ],
+    "symbol": "MudBubbleStrategy.process",
+    "expect": "requiresTarget = false",
+    "note": ""
+   },
+   {
+    "id": "mb-heal",
+    "file": "app/core/abilities/mud-bubble.ts",
+    "lines": [
+     9,
+     10
+    ],
+    "symbol": "MudBubbleStrategy.process",
+    "expect": "pokemon.handleHeal(heal, pokemon, 1, crit)",
+    "note": "heal on itself; apBoost 1, crit passed"
+   },
+   {
+    "id": "mb-cooldown",
+    "file": "app/core/abilities/mud-bubble.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "MudBubbleStrategy.process",
+    "expect": "pokemon.resetCooldown(250, pokemon.speed)",
+    "note": ""
+   },
+   {
+    "id": "entity-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "entity wrapper"
+   },
+   {
+    "id": "wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     332
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wound => 0 heal (BLOODMOON blood-stone shield aside)"
+   },
+   {
+    "id": "heal-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     342
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "hp > 0 and not protected; AP scaling then crit"
+   },
+   {
+    "id": "heal-modifiers",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     352
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.status.enraged",
+    "note": "burn and enraged halve healing; zenith weather x1.2; BUFF_HEAL_RECEIVED x1.3 just above"
+   },
+   {
+    "id": "heal-overheal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "rounded, capped at missing HP, overheal with GRASS synergy adds max HP"
+   },
+   {
+    "id": "reset-cooldown",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "PokemonEntity.resetCooldown",
+    "expect": "this.cooldown = Math.round(baseDuration / (0.4 + speed * 0.007))",
+    "note": ""
+   },
+   {
+    "id": "cooldown-use",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (pokemon.cooldown <= 0) {",
+    "note": "basic attacks wait for cooldown <= 0; counted down at line 110"
+   },
+   {
+    "id": "unit-mudkip",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3998,
+     3998
+    ],
+    "symbol": "Mudkip",
+    "expect": "skill = Ability.MUD_BUBBLE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-marshtomp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4023,
+     4023
+    ],
+    "symbol": "Marshtomp",
+    "expect": "skill = Ability.MUD_BUBBLE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-swampert",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4047,
+     4047
+    ],
+    "symbol": "Swampert",
+    "expect": "skill = Ability.MUD_BUBBLE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
