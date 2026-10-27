@@ -1,0 +1,568 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/NIGHTMARE",
+ "kind": "ability",
+ "identifier": "NIGHTMARE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T174258Z"
+ },
+ "record": {
+  "ability": "NIGHTMARE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GASTLY",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "NIGHTMARE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GENGAR",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "NIGHTMARE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HAUNTER",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "NIGHTMARE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GASTLY": {
+    "evidence": [
+     "unit-gastly"
+    ]
+   },
+   "GENGAR": {
+    "evidence": [
+     "unit-gengar"
+    ]
+   },
+   "HAUNTER": {
+    "evidence": [
+     "unit-haunter"
+    ]
+   }
+  },
+  "scope": "The three units in appliesTo declare NIGHTMARE in this production reference, all with passive NONE in the catalog. The strategy is shared; differences are the star count.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.NIGHTMARE] = new NightmareStrategy()",
+   "strategy": "NightmareStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-nightmare",
+    "nm-class",
+    "base-flags",
+    "base-pp",
+    "nm-super",
+    "moving-cast",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Affects every enemy on the board. Each enemy that has at least one of the curse flags curseFate, curseTorment, curseVulnerability or curseWeakness takes requested SPECIAL damage 25/50/100 (raw, by stars 1/2/3; 200 for 4+) with AP scaling and the cast's crit flag. Every enemy, cursed or not, then gets fatigue for a requested 2000/4000/6000 ms (10000 for 4+), unaffected by AP. Fatigue halves positive PP gains of the target (addPP).",
+  "targeting": {
+   "who": "all entities of the other team on the board, in row-major cell order (y outer, x inner); no target is passed (target null)",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast fires from the moving state without an enemy in range. The damage condition is evaluated per enemy at its turn in the loop. Whether an enemy killed by the damage (or by an earlier damage in the loop) is still cast on by triggerFatigue was not traced; the code calls triggerFatigue on the same entity regardless of the damage result.",
+   "evidence": [
+    "nm-class",
+    "nm-loop",
+    "board-foreach",
+    "moving-cast"
+   ]
+  },
+  "geometry": {
+   "shape": "whole enemy side of the board, no range limit",
+   "evidence": [
+    "nm-loop",
+    "board-foreach"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (cursed enemies only)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "GASTLY": 25,
+     "HAUNTER": 50,
+     "GENGAR": 100
+    },
+    "scaling": "requested amount: raw x (1 + AP/100) (apBoost true, passed explicitly and also the default); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "intermediate, not guaranteed final HP damage: handleSpecialDamage returns 0 and deals nothing when the enemy is protected, skydiving or has magicBounce; otherwise handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps (shield, Shiny Charm, Fossil, Cover Band, resurrection are in the shared helper and were not re-traced here: see core-mechanics.md section A). The strategy ignores the returned takenDamage.",
+    "condition": "enemy.status.curseFate || curseTorment || curseVulnerability || curseWeakness at the moment of its turn in the loop",
+    "evidence": [
+     "nm-dmg-tbl",
+     "nm-cond",
+     "nm-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "fatigue",
+    "target": "every enemy on the board (cursed or not)",
+    "declaredRaw": {
+     "duration": {
+      "1": 2000,
+      "2": 4000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
+     "GASTLY": 2000,
+     "HAUNTER": 4000,
+     "GENGAR": 6000
+    },
+    "scaling": "none from AP or crit (apBoost is not passed, so it stays false)",
+    "applicationOrder": "per enemy: the conditional damage first, then triggerFatigue",
+    "guards": "not applied if the enemy has runeProtect; duration passes through applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3; then x(1 - 0.1 x ODD_KEYSTONE stones of the enemy's player)); a new fatigue replaces the remaining time only if longer",
+    "combatEffect": "while fatigued, addPP halves positive PP gains (baseValue > 0). A cursed-torment enemy also receives fatigue from its own curse (30000 ms); the two merge by the longer-wins rule. Other uses of status.fatigue in app/core were found only in pokemon-entity.ts:518 and in status.ts (negative-status clearing and transfer); other directories were not searched.",
+    "evidence": [
+     "nm-dur",
+     "nm-fatigue",
+     "fatigue-trig",
+     "dur-red",
+     "fatigue-upd",
+     "fatigue-pp",
+     "curse-torment"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GASTLY": 1,
+    "HAUNTER": 2,
+    "GENGAR": 3
+   },
+   "declaredRawDamage": {
+    "GASTLY": 25,
+    "HAUNTER": 50,
+    "GENGAR": 100
+   },
+   "declaredFatigueMs": {
+    "GASTLY": 2000,
+    "HAUNTER": 4000,
+    "GENGAR": 6000
+   },
+   "note": "both tables are indexed by the casting entity's stars; the 4-star values (200 / 10000, also the fallback) are not reachable by the three units' star counts (1, 2, 3). maxPP is 90 and range 2 for all three.",
+   "evidence": [
+    "nm-dmg-tbl",
+    "nm-dur"
+   ]
+  },
+  "positionalConditions": "None. Every enemy cell is visited; the only per-enemy condition is the curse flags for the damage.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage (on cursed enemies at that moment) and fatigue; a second fatigue only extends the timer if longer.",
+  "rawVsResolved": "Declared raw: damage 25/50/100 (1/2/3 stars) and fatigue 2000/4000/6000 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; dealt damage is that after the SPE_DEF division (ceil, at least 1) and the other handleDamage steps, 0 when blocked by protect / skydiving / magicBounce. The fatigue duration is requested raw, then shortened by the status duration reductions listed above; it is not scaled by AP.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shield, items, damage-reduction effects, resurrection, field multipliers): only the SPE_DEF step was cited; core-mechanics.md section A was consulted for the rest",
+   "When the cast fires in a real fight (PP gain, silence); the moving-state and attacking-state gates were read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate in castAbility was read",
+   "How and when the four curse flags get set on enemies (not traced here; only their use as the damage condition and curseTorment's fatigue)"
+  ],
+  "unresolved": [
+   "Whether an enemy removed from the board during the forEach loop (killed by this cast's own damage) is still visited or handled by triggerFatigue; not traced",
+   "Which effects set the four curse flags; the damage only happens for enemies that already carry one",
+   "All combat effects of fatigue beyond the PP-gain halving in addPP (other directories were not searched)",
+   "Whether any item or synergy effect changes NIGHTMARE beyond what is listed",
+   "Resurrection and other death-cancelling paths on the damaged enemy were not enumerated"
+  ],
+  "sourceTables": [
+   {
+    "id": "nightmareDamage",
+    "file": "app/core/abilities/nightmare.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "nightmareFatigue",
+    "file": "app/core/abilities/nightmare.ts",
+    "pattern": "const duration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.duration",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "evidence": [
+   {
+    "id": "unit-haunter",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1877,
+     1894
+    ],
+    "symbol": "class Haunter",
+    "expect": "skill = Ability.NIGHTMARE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gengar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1896,
+     1912
+    ],
+    "symbol": "class Gengar",
+    "expect": "skill = Ability.NIGHTMARE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gastly",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1858,
+     1875
+    ],
+    "symbol": "class Gastly",
+    "expect": "skill = Ability.NIGHTMARE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-nightmare",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1055,
+     1055
+    ],
+    "symbol": "AbilityStrategies[Ability.NIGHTMARE]",
+    "expect": "[Ability.NIGHTMARE]: new NightmareStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP reset"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags (requiresTarget true, canCritByDefault false)"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "nm-class",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "NightmareStrategy",
+    "expect": "class NightmareStrategy extends AbilityStrategy",
+    "note": "requiresTarget overridden to false; canCritByDefault not overridden"
+   },
+   {
+    "id": "nm-super",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default base process: PP reset, default animation (preventDefaultAnim not passed)"
+   },
+   {
+    "id": "nm-dur",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "const duration = [2000, 4000, 6000, 10000]",
+    "note": "fatigue duration (ms) by stars"
+   },
+   {
+    "id": "nm-dmg-tbl",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200]",
+    "note": "raw damage by stars"
+   },
+   {
+    "id": "nm-loop",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "if (enemy && pokemon.team != enemy.team)",
+    "note": "every board cell holding an entity of another team (no range limit)"
+   },
+   {
+    "id": "nm-cond",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     16,
+     20
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "enemy.status.curseWeakness",
+    "note": "damage only when the enemy has at least one of the four curse flags"
+   },
+   {
+    "id": "nm-hit",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     21,
+     28
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "crit,\n            true",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost true"
+   },
+   {
+    "id": "nm-fatigue",
+    "file": "app/core/abilities/nightmare.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "NightmareStrategy.process",
+    "expect": "enemy.status.triggerFatigue(duration, enemy, pokemon)",
+    "note": "fatigue on every enemy, outside the curse condition, after the damage; apBoost not passed (false)"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "this.cells[this.columns * y + x]",
+    "note": "row-major iteration over every cell (y outer, x inner)"
+   },
+   {
+    "id": "moving-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     43,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, null)",
+    "note": "a requiresTarget=false skill is cast from the moving state with target null once pp >= maxPP and canCast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "attack-state cast gate"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by the target's critReductionFactor"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL defence division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil and floor of 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "fatigue-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     547,
+     562
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "if (duration > this.fatigueCooldown)",
+    "note": "not applied under runeProtect; duration optionally x(1+AP/100) when apBoost (false here), then applyStatusDurationReductions; replaces remaining time only if longer, rounded"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3 (one of them), then x(1 - 0.1 x ODD_KEYSTONE count)"
+   },
+   {
+    "id": "fatigue-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     564,
+     570
+    ],
+    "symbol": "Status.updateFatigue",
+    "expect": "updateFatigue(dt: number)",
+    "note": "fatigue ends when the cooldown runs out"
+   },
+   {
+    "id": "fatigue-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     518,
+     518
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "the only combat effect of fatigue read: positive PP gains are halved in addPP"
+   },
+   {
+    "id": "curse-torment",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     333,
+     335
+    ],
+    "symbol": "Status.updateCurse",
+    "expect": "this.triggerFatigue(30000, pokemon, null)",
+    "note": "curseTorment itself applies fatigue (30000 ms) via triggerFatigue"
+   }
+  ]
+ }
+}
