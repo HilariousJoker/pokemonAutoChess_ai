@@ -1,0 +1,572 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PETAL_DANCE",
+ "kind": "ability",
+ "identifier": "PETAL_DANCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T174258Z"
+ },
+ "record": {
+  "ability": "PETAL_DANCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BUDEW",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "PETAL_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ROSELIA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "PETAL_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ROSERADE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "PETAL_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BUDEW": {
+    "evidence": [
+     "unit-budew"
+    ]
+   },
+   "ROSELIA": {
+    "evidence": [
+     "unit-roselia"
+    ]
+   },
+   "ROSERADE": {
+    "evidence": [
+     "unit-roserade"
+    ]
+   }
+  },
+  "scope": "The three units in appliesTo declare PETAL_DANCE in this production reference, all with passive NONE. The strategy is shared; differences are the star count.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PETAL_DANCE] = new PetalDanceStrategy()",
+   "strategy": "PetalDanceStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-petal-dance",
+    "pd-class",
+    "base-flags",
+    "base-pp",
+    "pd-super",
+    "moving-cast",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Fires 3/4/5 petals (raw count by stars 1/2/3; 6 for 4+) at enemies, nearest first by Manhattan distance, cycling through the enemy list when there are fewer enemies than petals (so one enemy receives every petal). Each petal is a delayed SPECIAL hit of requested 20/30/50 (raw; 100 for 4+) with AP scaling and the cast's single crit flag, landing i x 100 + distance x 100 ms after the cast, and only if that enemy still has hp > 0 at that moment.",
+  "targeting": {
+   "who": "all enemies on the board, ordered by Manhattan distance to the caster at the cast moment (ties keep board.cells order, since the sort is stable); petal i takes enemies[i % enemies.length]; no target is passed (target null)",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast fires from the moving state without an enemy in range. The list is a snapshot taken at the cast; the hit is applied to the stored entity wherever it has moved to. If there are no enemies the list is empty and enemies[i % 0] is undefined, so destructuring it would throw (source reading only; not a gameplay claim).",
+   "evidence": [
+    "pd-class",
+    "pd-enemies",
+    "pd-dist",
+    "pd-loop",
+    "moving-cast"
+   ]
+  },
+  "geometry": {
+   "shape": "up to `count` independent single-target petals on the nearest enemies, no range limit; distance only orders the targets and sets each petal's delay",
+   "evidence": [
+    "pd-enemies",
+    "pd-dist",
+    "pd-loop",
+    "pd-delay"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (delayed petals)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 30,
+      "3": 50,
+      "4": 100,
+      "fallback": 100
+     },
+     "perCast": "one hit per petal"
+    },
+    "perUnitRaw": {
+     "BUDEW": 20,
+     "ROSELIA": 30,
+     "ROSERADE": 50
+    },
+    "petals": {
+     "byStars": {
+      "1": 3,
+      "2": 4,
+      "3": 5,
+      "4": 6,
+      "fallback": 6
+     },
+     "perUnit": {
+      "BUDEW": 3,
+      "ROSELIA": 4,
+      "ROSERADE": 5
+     }
+    },
+    "timing": "petal i executes once its command delay (i x 100 + distanceM x 1000 / 10 ms) has dropped below 0 in the caster's own command updates",
+    "scaling": "requested amount per petal: raw x (1 + AP/100) (apBoost is the default true); the cast's crit flag (rolled once for the whole cast, only with ABILITY_CRIT since canCritByDefault is false) multiplies every petal by critPower (reduced by the target's critReductionFactor)",
+    "resolution": "intermediate, not guaranteed final HP damage: each petal goes through handleSpecialDamage, which deals nothing when the enemy is protected, skydiving or has magicBounce at execution time, then handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps (shield, Shiny Charm, Fossil, Cover Band, resurrection: shared helper, see core-mechanics.md section A, not re-traced here). Returned takenDamage is ignored by the strategy. The alive check enemy.hp > 0 is made when the petal lands.",
+    "evidence": [
+     "pd-dmg-tbl",
+     "pd-count-tbl",
+     "pd-loop",
+     "pd-hit",
+     "pd-delay",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cmd-update",
+     "cmd-delayed",
+     "cmd-run",
+     "cmd-caller",
+     "pd-speed",
+     "pd-anim"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BUDEW": 1,
+    "ROSELIA": 2,
+    "ROSERADE": 3
+   },
+   "declaredRawDamage": {
+    "BUDEW": 20,
+    "ROSELIA": 30,
+    "ROSERADE": 50
+   },
+   "petalCount": {
+    "BUDEW": 3,
+    "ROSELIA": 4,
+    "ROSERADE": 5
+   },
+   "note": "both tables are indexed by the casting entity's stars; the 4-star values (100 damage / 6 petals, also the fallback) are not reachable by the three units' star counts (1, 2, 3). maxPP is 100 and range 3 for all three. Raw total per cast before AP, defence and misses: 60 / 120 / 250.",
+   "evidence": [
+    "pd-dmg-tbl",
+    "pd-count-tbl"
+   ]
+  },
+  "positionalConditions": "None for eligibility. Position matters only through the Manhattan distance, which orders the targets and delays each petal by 100 ms per cell.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast builds a new enemy snapshot and queues new commands; commands live on the caster and are updated from its state update.",
+  "rawVsResolved": "Declared raw: 20/30/50 per petal (1/2/3 stars), 3/4/5 petals. Requested per petal = raw x (1 + AP/100) [x critPower on a crit, one roll for all petals]; the dealt amount is that after the SPE_DEF division (ceil, at least 1) and the other handleDamage steps, 0 when blocked or when the enemy is dead at landing time. With fewer enemies than petals, hits stack on the nearest enemies in cycle order (the first enemies receive the extra petal).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shield, items, damage-reduction effects, resurrection, field multipliers): only the SPE_DEF step was cited; core-mechanics.md section A was consulted for the rest",
+   "When the cast fires in a real fight (PP gain, silence); the moving-state and attacking-state gates were read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate in castAbility was read",
+   "Command timing: SimulationCommand.update and PokemonState.update were read; the order of calls within one simulation tick was not"
+  ],
+  "unresolved": [
+   "Whether pending petals still fire if the caster dies, is frozen or sleeps before they land: commands are updated from PokemonState.update on the caster, and the dead-caster and idle-state paths were not traced",
+   "Behaviour with an empty enemy list (enemies[i % 0] destructuring) and whether the cast can happen then; not traced",
+   "Whether an enemy that has died and been removed from the board is still referenced (the hp > 0 check guards the hit; the entity object persists in the closure)",
+   "Whether any item or synergy effect changes PETAL_DANCE beyond what is listed",
+   "Resurrection and other death-cancelling paths on the damaged enemy were not enumerated"
+  ],
+  "sourceTables": [
+   {
+    "id": "petalDanceDamage",
+    "file": "app/core/abilities/petal-dance.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "petalDanceCount",
+    "file": "app/core/abilities/petal-dance.ts",
+    "pattern": "const count = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.petals.byStars",
+    "unitValuesPath": "effects.0.petals.perUnit"
+   }
+  ],
+  "evidence": [
+   {
+    "id": "unit-roserade",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1533,
+     1545
+    ],
+    "symbol": "class Roserade",
+    "expect": "skill = Ability.PETAL_DANCE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-roselia",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1518,
+     1531
+    ],
+    "symbol": "class Roselia",
+    "expect": "skill = Ability.PETAL_DANCE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-budew",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1503,
+     1516
+    ],
+    "symbol": "class Budew",
+    "expect": "skill = Ability.PETAL_DANCE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-petal-dance",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1073,
+     1073
+    ],
+    "symbol": "AbilityStrategies[Ability.PETAL_DANCE]",
+    "expect": "[Ability.PETAL_DANCE]: new PetalDanceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP reset"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default flags (requiresTarget true, canCritByDefault false)"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by the target's critReductionFactor"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL defence division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil and floor of 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "moving-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     43,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, null)",
+    "note": "a requiresTarget=false skill is cast from the moving state with target null once pp >= maxPP and canCast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "attack-state cast gate"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "a command's delay drops by dt each update and it executes once the delay is below 0"
+   },
+   {
+    "id": "cmd-delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "this.delayedFunction()",
+    "note": "DelayedCommand runs its function on execute"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's own commands are updated from PokemonState.update (updateCommands at the start of update)"
+   },
+   {
+    "id": "cmd-caller",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called at the start of PokemonState.update"
+   },
+   {
+    "id": "pd-class",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     8,
+     9
+    ],
+    "symbol": "PetalDanceStrategy",
+    "expect": "class PetalDanceStrategy extends AbilityStrategy",
+    "note": "requiresTarget overridden to false; canCritByDefault not overridden"
+   },
+   {
+    "id": "pd-super",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default base process (PP reset, default animation)"
+   },
+   {
+    "id": "pd-dmg-tbl",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "const damage = [20, 30, 50, 100]",
+    "note": "raw damage per petal by stars"
+   },
+   {
+    "id": "pd-count-tbl",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "const count = [3, 4, 5, 6]",
+    "note": "number of petals by stars"
+   },
+   {
+    "id": "pd-enemies",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     16,
+     27
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": ".sort((a, b) => a.distance - b.distance)",
+    "note": "snapshot of all enemy entities with their Manhattan distance to the caster, sorted ascending (stable)"
+   },
+   {
+    "id": "pd-dist",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance |dx| + |dy|"
+   },
+   {
+    "id": "pd-speed",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "const projectileSpeed = 10",
+    "note": ""
+   },
+   {
+    "id": "pd-loop",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     31,
+     32
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "enemies[i % enemies.length]",
+    "note": "petal i goes to enemies[i % enemies.length]: nearest first, cycling when there are fewer enemies than petals"
+   },
+   {
+    "id": "pd-hit",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     35,
+     43
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "at execution time: SPECIAL damage on the stored enemy entity if it is still alive, attacker = caster, the cast's crit flag, apBoost default"
+   },
+   {
+    "id": "pd-delay",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "}, i * 100 + (distance * 1000 / projectileSpeed))",
+    "note": "delay = i x 100 + distance x 100 ms (projectile speed 10)"
+   },
+   {
+    "id": "pd-anim",
+    "file": "app/core/abilities/petal-dance.ts",
+    "lines": [
+     48,
+     51
+    ],
+    "symbol": "PetalDanceStrategy.process",
+    "expect": "skill: \"PETAL_DANCE_PROJECTILE\",",
+    "note": "projectile animation per petal, broadcast immediately with delay i x 100"
+   }
+  ]
+ }
+}
