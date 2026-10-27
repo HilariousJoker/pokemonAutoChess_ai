@@ -1,0 +1,410 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LEECH_LIFE",
+ "kind": "ability",
+ "identifier": "LEECH_LIFE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T053959Z"
+ },
+ "record": {
+  "ability": "LEECH_LIFE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ZUBAT (1 star), GOLBAT (2 stars) and CROBAT (3 stars), the queued units; maxPP 100, range 2 for all three.",
+  "appliesTo": [
+   {
+    "key": "CROBAT",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "LEECH_LIFE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOLBAT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "LEECH_LIFE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ZUBAT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "LEECH_LIFE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ZUBAT": {
+    "evidence": [
+     "unit-zubat"
+    ]
+   },
+   "GOLBAT": {
+    "evidence": [
+     "unit-golbat"
+    ]
+   },
+   "CROBAT": {
+    "evidence": [
+     "unit-crobat"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LEECH_LIFE] = new LeechLifeStrategy()",
+   "strategy": "LeechLifeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ll",
+    "base",
+    "ll-impl"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage (20 / 40 / 80 / 160 requested by caster stars: 20 Zubat, 40 Golbat, 80 Crobat), then the caster heals itself for the takenDamage that handleSpecialDamage reports for that hit. The heal is lifesteal on the damage actually taken (shield damage included, residual damage capped at the target's remaining hp), not on the requested amount. The heal is passed apBoost 0 and crit false, so neither AP nor the cast's crit scale it; a blocked hit (protect / skydiving / magicBounce) reports takenDamage 0 and heals nothing. The heal then goes through handleHeal: no healing while the caster is wounded or protected, x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded and capped at the caster's missing hp.",
+  "targeting": {
+   "who": "the single current target (damage); the caster itself (heal)",
+   "needsTarget": true,
+   "evidence": [
+    "ll-impl"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area, no movement; range 2 for all listed units",
+   "evidence": [
+    "ll-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "ZUBAT": 20,
+     "GOLBAT": 40,
+     "CROBAT": 80
+    },
+    "scaling": "requested amount: handleSpecialDamage default apBoost = true, so damage x (1 + AP/100); then x2 DOUBLE_DAMAGE (effect consumed) and x1.2 strange-steam board effect where present; crit multiplier only if the cast crit (needs ABILITY_CRIT because canCritByDefault is false), reduced by target Rocky Helmet / Black Augurite for non-TRUE hits",
+    "resolution": "applied amount: the target's speDef division damage / (1 + 0.05 x speDef) (speDef halved, rounded, under armorReduction; swapped with def under WONDER_ROOM), flat reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching, Wonder Guard), ceil with a minimum of 1; the shield absorbs first. takenDamage = shield damage + min(residual, remaining hp); blocked entirely by protect / skydiving / magicBounce (takenDamage 0). Power Lens on the target reflects part of the blocked damage back as SPECIAL damage",
+    "evidence": [
+     "ll-impl",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "state-protect",
+     "state-spedef",
+     "state-min1",
+     "state-taken",
+     "state-return",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "condition": "always after the damage call; the amount is 0 if takenDamage is 0",
+    "declaredRaw": {
+     "formula": "takenDamage reported by the damage hit",
+     "note": "requested amount equals the damage actually taken (shield damage included), not the requested damage; not star-indexed"
+    },
+    "scaling": "none: apBoost 0 and crit false are passed, so AP and crit do not scale the heal",
+    "resolution": "applied amount: PokemonState.handleHeal: 0 if the caster is wounded or at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; Math.round, then capped at the caster's missing hp (the overheal is not applied)",
+    "evidence": [
+     "ll-heal",
+     "heal",
+     "heal-modifiers",
+     "state-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ZUBAT": 1,
+    "GOLBAT": 2,
+    "CROBAT": 3
+   },
+   "declaredRawDamage": {
+    "ZUBAT": 20,
+    "GOLBAT": 40,
+    "CROBAT": 80
+   },
+   "note": "indexed by the caster's stars (stars-1): 20, 40, 80, 160, fallback 160; the 4-star entry and fallback are not reached by the listed units. The heal has no star table.",
+   "evidence": [
+    "ll-impl",
+    "unit-zubat",
+    "unit-golbat",
+    "unit-crobat"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target within range 2.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast is independent and the heal size follows that cast's takenDamage.",
+  "rawVsResolved": "Requested damage 20 (Zubat) / 40 (Golbat) / 80 (Crobat). Applied damage = requested x (1 + AP/100) [x2 DOUBLE_DAMAGE] [x1.2 strange steam] [x crit factor], then the speDef division (ceil, minimum 1). takenDamage (what the heal uses) = shield damage + residual capped at the target's remaining hp, so the heal can be smaller than the applied damage when the target dies or is nearly dead. Heal requested = takenDamage; received heal = after handleHeal modifiers, rounding and the missing-hp cap.",
+  "sourceTables": [
+   {
+    "id": "llDamage",
+    "file": "app/core/abilities/leech-life.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Death-cancelling and resurrection paths (SHINY_CHARM zeroes takenDamage and hence the heal; other paths sampled, not traced)",
+   "handleDamage multipliers beyond those read in lines 454-515",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+  ],
+  "unresolved": [
+   "Whether other items, synergies or effects change LEECH_LIFE beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-ll",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1006,
+     1006
+    ],
+    "symbol": "AbilityStrategies[Ability.LEECH_LIFE]",
+    "expect": "[Ability.LEECH_LIFE]: new LeechLifeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "ll-impl",
+    "file": "app/core/abilities/leech-life.ts",
+    "lines": [
+     13,
+     22
+    ],
+    "symbol": "LeechLifeStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "ll-heal",
+    "file": "app/core/abilities/leech-life.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "LeechLifeStrategy.process",
+    "expect": "pokemon.handleHeal(takenDamage, pokemon, 0, false)",
+    "note": "heal = takenDamage, apBoost 0, crit false"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": ""
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "blocked branch returns { death: false, takenDamage: 0 } (line 397)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "state-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.protect || pokemon.status.skydiving",
+    "note": ""
+   },
+   {
+    "id": "state-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL branch; armorReduction halving at 509-514"
+   },
+   {
+    "id": "state-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "state-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield damage added to takenDamage (line 645); residual capped at hp (line 649)"
+   },
+   {
+    "id": "state-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     807,
+     807
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return { death, takenDamage }",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "wound => 0 heal; modifiers; capped by missing hp"
+   },
+   {
+    "id": "heal-modifiers",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     352
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.status.enraged",
+    "note": "burn and enraged halve healing; zenith x1.2"
+   },
+   {
+    "id": "unit-zubat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4692,
+     4709
+    ],
+    "symbol": "Zubat",
+    "expect": "skill = Ability.LEECH_LIFE",
+    "note": ""
+   },
+   {
+    "id": "unit-golbat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4711,
+     4728
+    ],
+    "symbol": "Golbat",
+    "expect": "skill = Ability.LEECH_LIFE",
+    "note": ""
+   },
+   {
+    "id": "unit-crobat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4730,
+     4746
+    ],
+    "symbol": "Crobat",
+    "expect": "skill = Ability.LEECH_LIFE",
+    "note": ""
+   }
+  ]
+ }
+}
