@@ -1,0 +1,323 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/METRONOME",
+ "kind": "ability",
+ "identifier": "METRONOME",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261027T114138Z"
+ },
+ "record": {
+  "ability": "METRONOME",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "CLEFABLE, CLEFAIRY and CLEFFA (the queued units). This record covers the selection and delegation mechanism only; the behaviour of each possible delegated ability is NOT part of it (see unresolved). The item METRONOME (+5 PP per tick) shares the name but is a different mechanism and is not covered.",
+  "appliesTo": [
+   {
+    "key": "CLEFABLE",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "METRONOME",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CLEFAIRY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "METRONOME",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CLEFFA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "METRONOME",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.METRONOME] = new MetronomeStrategy()",
+   "strategy": "MetronomeStrategy extends AbilityStrategy (declared in abilities.ts, not its own file)",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "The cast flags (requiresTarget, canCritByDefault) and the crit roll are those of MetronomeStrategy; the delegated strategy's own flags are not consulted by castAbility. MetronomeStrategy.process does not call super.process itself: PP spending, ult count and cast bookkeeping happen inside the delegated strategy (every strategy reached here extends AbilityStrategy; a delegated strategy that skips super.process would skip them - not checked per ability).",
+   "evidence": [
+    "reg",
+    "reg-met",
+    "base",
+    "cast",
+    "dispatch-attack"
+   ]
+  },
+  "summary": "Random delegation: rolls a rarity from a luck-skewed threshold, takes every unit of that rarity from the precomputed list (SPECIAL also adds the HATCH list), collects the distinct skills of those units, removes the InimitableAbilities (which include METRONOME itself), picks one skill uniformly at random from what is left, and runs that ability's strategy as the caster with the same target and crit flag. Damage, targeting and effects are therefore those of the randomly chosen ability, not of METRONOME.",
+  "targeting": {
+   "who": "whatever the delegated ability uses; the current target of the cast is passed through unchanged",
+   "needsTarget": true,
+   "evidence": [
+    "met-impl",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "none of its own; determined by the delegated ability",
+   "evidence": [
+    "met-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "randomAbilityDelegation",
+    "declaredRaw": {
+     "rarityThresholds": {
+      "ULTRA": "threshold < 1/8",
+      "LEGENDARY": "1/8 <= threshold < 2/8",
+      "EPIC": "2/8 <= threshold < 3/8",
+      "UNIQUE": "3/8 <= threshold < 4/8",
+      "RARE": "4/8 <= threshold < 5/8",
+      "SPECIAL": "5/8 <= threshold < 6/8 (HATCH-rarity units are added to the options)",
+      "UNCOMMON": "6/8 <= threshold < 7/8",
+      "COMMON": "7/8 <= threshold <= 1"
+     },
+     "thresholdFormula": "Math.random() ^ (1 + pokemon.luck / 100)",
+     "note": "requested/raw selection probabilities: with luck 0 each of the eight rarity buckets has probability 1/8 before the skill-level pick; a higher luck exponent pushes the threshold toward 0, i.e. toward ULTRA. The three queued units have luck 0 in the catalog; luck can change in fight (not traced)."
+    },
+    "scaling": "none of its own: no AP or crit scaling is applied by METRONOME; the delegated ability applies its own scaling using the caster's stats and the crit flag passed through",
+    "resolution": "the skill pool is the set of distinct skills of the units in the rolled rarity (units' own declared skill via getPokemonData(p).skill), minus InimitableAbilities, then pickRandomIn gives each remaining skill the same probability regardless of how many units share it; the pick is per cast, nothing is remembered",
+    "evidence": [
+     "met-roll",
+     "met-pool",
+     "met-pick",
+     "met-delegate",
+     "inimitable",
+     "random-pick"
+    ]
+   },
+   {
+    "kind": "display",
+    "note": "broadcastAbility({skill}) before the delegated process and a DISPLAY_TEXT broadcast to spectators afterwards; no gameplay effect",
+    "evidence": [
+     "met-delegate",
+     "met-display"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CLEFABLE": 3,
+    "CLEFAIRY": 2,
+    "CLEFFA": 1
+   },
+   "note": "METRONOME's own logic does not read stars; any star dependence comes from the delegated ability. maxPP is 80 for CLEFABLE and 100 for CLEFAIRY and CLEFFA; range is 1 for all three.",
+   "evidence": [
+    "unit-cleffa",
+    "unit-clefairy",
+    "unit-clefable"
+   ]
+  },
+  "positionalConditions": "None of its own; the delegated ability may have some.",
+  "repeatedCastsAndModes": "Every cast re-rolls independently (Math.random, no state). Pool membership depends on the precomputed rarity lists and the InimitableAbilities list at the pinned commit.",
+  "rawVsResolved": "METRONOME requests no amount. Whatever amount the delegated ability requests is resolved by that ability and the shared helpers; nothing in METRONOME changes it. Selection probabilities above are raw (before the exclusion filter changes the pool of a given rarity: the filter happens after the rarity roll, so an emptied pool is not re-rolled - see unresolved).",
+  "dependsOnUnverifiedGenericCombat": [
+   "The behaviour of every ability that can be delegated to (hundreds of strategies; none was read for this record)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (the crit flag is passed through unchanged)"
+  ],
+  "unresolved": [
+   "ROUTING UNCERTAINTY RUNTIME_ABILITY_DISPATCH (from the queue record): which ability actually runs is chosen at runtime by Math.random; this record describes the selection only, and nothing about what any delegated ability does. A per-ability outcome needs that ability's own record.",
+   "ROUTING UNCERTAINTY NAME_SHARED_WITH_ITEM (from the queue record): the item Item.METRONOME (items.ts: +5 PP; pokemon-state.ts adds 5 PP per tick when held) is a different mechanism; only the Ability.METRONOME strategy is described here. The item card is in item-effects.json / lookup-item.mjs.",
+   "The exact content of PRECOMPUTED_POKEMONS_PER_RARITY (built from precomputedPokemonsImplemented in app/models/precomputed/) and so the concrete list of possible skills per rarity was not read; whether a rarity bucket can have an empty pool after the Inimitable filter (pickRandomIn on an empty list returns undefined and AbilityStrategies[undefined] would throw) was not checked",
+   "Whether a delegated strategy calls super.process (PP spend / ult count) in every case was not checked per ability",
+   "Whether any item or synergy effect changes METRONOME beyond what is listed (OnAbilityCastEffects after castAbility run as for any cast)",
+   "Luck sources that could change pokemon.luck in a fight were not traced"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-met",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1034,
+     1034
+    ],
+    "symbol": "AbilityStrategies[Ability.METRONOME]",
+    "expect": "[Ability.METRONOME]: new MetronomeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault; OnAbilityCastEffects run after"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "met-impl",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     635,
+     685
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "export class MetronomeStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "met-roll",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     642,
+     661
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "const threshold = Math.pow(Math.random(), 1 + pokemon.luck / 100)",
+    "note": "rarity buckets in eighths"
+   },
+   {
+    "id": "met-pool",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     663,
+     670
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "const pokemonOptions = [...PRECOMPUTED_POKEMONS_PER_RARITY[rarity]]",
+    "note": "SPECIAL also gets the HATCH list; distinct skills of the units"
+   },
+   {
+    "id": "met-pick",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     672,
+     674
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "skillOptions.filter((s) => InimitableAbilities.includes(s) === false)",
+    "note": "uniform pick among distinct skills after the filter"
+   },
+   {
+    "id": "met-delegate",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     676,
+     677
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "AbilityStrategies[skill].process(pokemon, board, target, crit)",
+    "note": "delegates with the same caster, target and crit flag"
+   },
+   {
+    "id": "met-display",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     679,
+     684
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "Transfer.DISPLAY_TEXT",
+    "note": "spectator text only"
+   },
+   {
+    "id": "inimitable",
+    "file": "app/config/game/abilities.ts",
+    "lines": [
+     3,
+     3
+    ],
+    "symbol": "InimitableAbilities",
+    "expect": "export const InimitableAbilities: Ability[] = [",
+    "note": "list begins here; METRONOME itself is on it at line 37 (Ability.METRONOME,)"
+   },
+   {
+    "id": "random-pick",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform pick"
+   },
+   {
+    "id": "unit-cleffa",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4816,
+     4816
+    ],
+    "symbol": "Cleffa",
+    "expect": "skill = Ability.METRONOME",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-clefairy",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4839,
+     4839
+    ],
+    "symbol": "Clefairy",
+    "expect": "skill = Ability.METRONOME",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-clefable",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4861,
+     4861
+    ],
+    "symbol": "Clefable",
+    "expect": "skill = Ability.METRONOME",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ]
+ }
+}
