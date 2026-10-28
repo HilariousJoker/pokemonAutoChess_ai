@@ -1,0 +1,435 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHADOW_BALL",
+ "kind": "ability",
+ "identifier": "SHADOW_BALL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T114015Z"
+ },
+ "record": {
+  "ability": "SHADOW_BALL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "DUSKULL (1 star), DUSCLOPS (2 stars) and DUSKNOIR (3 stars) declare ABILITY SHADOW_BALL with maxPP 100 and range 2; none declares a passive. All three are DARK/GHOST.",
+  "appliesTo": [
+   {
+    "key": "DUSCLOPS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SHADOW_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DUSKNOIR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SHADOW_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DUSKULL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SHADOW_BALL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHADOW_BALL] = new ShadowBallStrategy()",
+   "strategy": "ShadowBallStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "class",
+    "base"
+   ]
+  },
+  "summary": "Single-target special hit plus a board-wide enemy debuff. The caster deals 30/60/100/200 SPECIAL damage (by caster stars, fallback 200) to the cast target through handleSpecialDamage (AP, DOUBLE_DAMAGE, strange steam and crit scaling, then handleDamage). Afterwards EVERY enemy on the board, not only the target, loses 2 special defense (addSpecialDefense(-2, caster, apBoost 0, crit false), floored at 0 and subject to Twist Band). The debuff is not conditional on the damage landing: it applies even when the target blocked the damage with protect, skydiving or magicBounce.",
+  "targeting": {
+   "who": "damage: the cast target; special defense loss: every enemy (team different from the caster) on the whole board",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true. The debuff sweep uses board.forEach and the test pokemon.team != v.team, so it includes the target (if still on the board) and ignores distance.",
+   "evidence": [
+    "class",
+    "base",
+    "dmg-call",
+    "sweep",
+    "forEach"
+   ]
+  },
+  "geometry": {
+   "shape": "single target for the damage; whole-board enemy sweep for the debuff",
+   "detail": "No range or radius limit on the debuff: Board.forEach visits every cell in row-major order and the callback filters occupied cells with an enemy team.",
+   "evidence": [
+    "dmg-call",
+    "sweep",
+    "forEach"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "formula": "handleSpecialDamage(damage, board, SPECIAL, caster, crit)"
+    },
+    "perUnitRaw": {
+     "DUSCLOPS": 60,
+     "DUSKNOIR": 100,
+     "DUSKULL": 30
+    },
+    "scaling": "REQUESTED amount is the table value by caster stars. Applied before defence: damage + damage x AP/100 (apBoost defaults true), x2 and the effect consumed when the caster has DOUBLE_DAMAGE, x1.2 with the strange steam board effect on target or caster, and when the cast crit: x(1 + (critPower - 1) x reduction), where the factor is 1 minus 0.1 per Black Augurite owned by the target's player, and 0 for a Rocky Helmet target.",
+    "resolution": "The scaled amount is handed to PokemonState.handleDamage (defence, shields, minimum of 1 and takenDamage: see core-mechanics section A; body not re-read here). The whole hit is skipped (returns death false, takenDamage 0) when the target has protect, skydiving or magicBounce; magicBounce additionally reflects a SPECIAL hit back to the caster after 500 ms unless the caster holds Protective Pads, using the target's stars table [0.5,1,2,4] and AP.",
+    "evidence": [
+     "dmg-table",
+     "dmg-call",
+     "sd-sig",
+     "sd-block",
+     "sd-bounce",
+     "sd-ap",
+     "sd-dd",
+     "sd-steam",
+     "sd-crit",
+     "sd-hd"
+    ]
+   },
+   {
+    "kind": "stat-debuff",
+    "target": "every enemy on the board (including the damage target)",
+    "declaredRaw": {
+     "stat": "special defense",
+     "change": -2,
+     "apBoost": 0,
+     "crit": false
+    },
+    "scaling": "Requested -2 with apBoost 0 and crit false, so AP and crit do not change it (factor 1 x 1, rounded). Does not scale with stars.",
+    "resolution": "APPLIED change: addSpecialDefense runs applyBigEaterBeltStatBuff (for an enemy's negative value it does nothing, because the receiver is not on the caster's team) and then applyTwistBandBuff, which flips -2 to +2 for an enemy holding Twist Band. The result is added to speDef and floored at 0, so an enemy at speDef 0 or 1 loses less than 2 (and the loss is not recorded). permanent defaults false.",
+    "evidence": [
+     "sweep",
+     "debuff",
+     "spdef",
+     "spdef-ap",
+     "spdef-hooks",
+     "spdef-floor",
+     "belt",
+     "twist",
+     "twist-flip"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "DUSCLOPS": 2,
+    "DUSKNOIR": 3,
+    "DUSKULL": 1
+   },
+   "declaredRawDamage": {
+    "DUSCLOPS": 60,
+    "DUSKNOIR": 100,
+    "DUSKULL": 30
+   },
+   "note": "The caster's stars index the damage table (30, 60, 100, 200; fallback 200). The -2 special defense loss does not depend on stars. Catalog units here are 1 (DUSKULL), 2 (DUSCLOPS) and 3 (DUSKNOIR) stars.",
+   "evidence": [
+    "dmg-table"
+   ]
+  },
+  "positionalConditions": "Needs a cast target (requiresTarget true, range 2). The debuff has no positional limit and covers the whole board.",
+  "repeatedCastsAndModes": "No stored state. Each cast lowers every enemy's special defense by another 2 down to 0 (permanent false, so only on the simulation copy).",
+  "rawVsResolved": "Requested damage: 30 / 60 / 100 (200 fallback) by caster stars; applied before defence: x(1 + AP/100), DOUBLE_DAMAGE x2, strange steam x1.2, crit factor; takenDamage after PokemonState.handleDamage (defence, shields, minimum of 1) may be much lower and is a separate number. Requested special defense change: -2 on each enemy; applied: reversed to +2 by Twist Band, floored at 0, unaffected by AP or crit.",
+  "sourceTables": [
+   {
+    "id": "damageTable",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "PokemonState.handleDamage body (defence, shields, minimum of 1, kills); see core-mechanics section A",
+   "Generic ability-crit gate (whether the cast can crit) and when the cast fires in a real fight (range 2 unit and the cast gate)",
+   "Whether a target killed by the first hit is still on the board when the sweep runs (Board removal timing not read)"
+  ],
+  "unresolved": [
+   "Ordering: damage first, then the debuff sweep; if the damage kills the target, whether that unit is still visited by Board.forEach depends on removal timing, not read",
+   "Debuff is unconditional on the damage landing (protect/skydiving/magicBounce only block the damage); not confirmed in a real fight",
+   "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
+   "No routing uncertainty is recorded for this identifier in the queue",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1145,
+     1145
+    ],
+    "symbol": "AbilityStrategies[Ability.SHADOW_BALL]",
+    "expect": "[Ability.SHADOW_BALL]: new ShadowBallStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "ShadowBallStrategy",
+    "expect": "export class ShadowBallStrategy extends AbilityStrategy",
+    "note": "no requiresTarget/canCritByDefault override: defaults true/false"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "const damage = [30, 60, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "per-star damage table, fallback 200"
+   },
+   {
+    "id": "dmg-call",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target; apBoost defaults true"
+   },
+   {
+    "id": "sweep",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "process",
+    "expect": "board.forEach((x: number, y: number, v: PokemonEntity | undefined) => { if (v && pokemon.team != v.team) {",
+    "note": "scan every board cell, enemies only"
+   },
+   {
+    "id": "debuff",
+    "file": "app/core/abilities/shadow-ball.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "process",
+    "expect": "v.addSpecialDefense(-2, pokemon, 0, false)",
+    "note": "-2 special defense, apBoost 0, no crit"
+   },
+   {
+    "id": "sd-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage( damage: number, board: Board, attackType: AttackType, attacker: PokemonEntity | null, crit: boolean, apBoost = true ): { death: boolean; takenDamage: number }",
+    "note": "signature; apBoost default true"
+   },
+   {
+    "id": "sd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect, skydiving and magicBounce block the damage"
+   },
+   {
+    "id": "sd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     373,
+     378
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "([0.5, 1, 2, 4][this.stars - 1] ?? 4) * damage * (1 + this.ap / 100)",
+    "note": "magic bounce reflects SPECIAL damage to the attacker unless it holds Protective Pads"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "sd-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.has(EffectEnum.DOUBLE_DAMAGE)) { specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles and is consumed"
+   },
+   {
+    "id": "sd-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     406,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.has(EffectEnum.STRANGE_STEAM_BOARD_EFFECT)",
+    "note": "strange steam x1.2"
+   },
+   {
+    "id": "sd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "sd-hd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     437
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.state.handleDamage({ target: this, damage: specialDamage,",
+    "note": "damage passed to PokemonState.handleDamage"
+   },
+   {
+    "id": "spdef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     705
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "value: number, caster: IPokemonEntity | \"environment\", apBoost: number, crit: boolean, permanent = false",
+    "note": "signature"
+   },
+   {
+    "id": "spdef-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     710,
+     711
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "(1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP/crit factors collapse to 1 with apBoost 0 and crit false"
+   },
+   {
+    "id": "spdef-hooks",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     714,
+     715
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster) value = applyTwistBandBuff(this, value, caster)",
+    "note": "Big Eater Belt hook then Twist Band hook"
+   },
+   {
+    "id": "spdef-floor",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     718,
+     718
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "speDef floored at 0"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1847
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "const isBuffOrBuffLost = value > 0 || (value < 0 && caster !== \"environment\" && caster.team === pokemon.team)",
+    "note": "belt only changes positive values or negative ones from the receiver's own team; an enemy's -2 is untouched"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1865
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 && pokemon.items.has(Item.TWIST_BAND) && (caster === \"environment\" || caster.team !== pokemon.team)",
+    "note": "a negative value from an enemy becomes positive for a Twist Band holder"
+   },
+   {
+    "id": "twist-flip",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1864,
+     1864
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "sign flip"
+   },
+   {
+    "id": "forEach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     82
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) { for (let x = 0; x < this.columns; x++) { callback(x, y, this.cells[this.columns * y + x])",
+    "note": "row-major scan of all cells"
+   }
+  ]
+ }
+}
