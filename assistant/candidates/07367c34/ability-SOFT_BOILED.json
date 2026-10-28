@@ -1,0 +1,426 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SOFT_BOILED",
+ "kind": "ability",
+ "identifier": "SOFT_BOILED",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T173950Z"
+ },
+ "record": {
+  "ability": "SOFT_BOILED",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SOFT_BOILED in this production reference (passive NONE in the catalog; maxPP 120, range 1). The strategy is shared; differences are star count and stats.",
+  "appliesTo": [
+   {
+    "key": "HAPPINY",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SOFT_BOILED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHANSEY",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SOFT_BOILED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BLISSEY",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SOFT_BOILED",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HAPPINY": {
+    "evidence": [
+     "unit-happiny"
+    ]
+   },
+   "CHANSEY": {
+    "evidence": [
+     "unit-chansey"
+    ]
+   },
+   "BLISSEY": {
+    "evidence": [
+     "unit-blissey"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SOFT_BOILED] = new SoftBoiledStrategy()",
+   "strategy": "SoftBoiledStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-soft",
+    "soft-class",
+    "base-flags",
+    "base-pp",
+    "soft-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Team shield and cleanse. Every unit on the board that is on the caster's team, the caster included, gains a shield of 20/40/80 raw by the caster's stars (Happiny 20, Chansey 40, Blissey 80), scaled by the caster's AP (apBoost 1) and crit, and has its negative-status cooldowns cleared. No damage and no heal. The shield amount is changed for a receiver holding Big Eater Belt (x1.25, rounded down, before AP) and halved for an enraged receiver; it is not added to a unit with hp <= 0.",
+  "targeting": {
+   "who": "all units of the caster's team on the board, including the caster",
+   "needsTarget": false,
+   "note": "requiresTarget = false, so the cast does not need an enemy in range; the target argument is null. Which condition decides when it can start (PP gate, silence) was only read at the pp >= maxPP && canCast gate.",
+   "evidence": [
+    "soft-class",
+    "base-flags",
+    "soft-loop",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "whole own team (board-wide)",
+   "note": "iterates every board cell; no distance or position filter",
+   "evidence": [
+    "soft-loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "HAPPINY": 20,
+     "CHANSEY": 40,
+     "BLISSEY": 80
+    },
+    "scaling": "requested amount (raw) -> Big Eater Belt on the receiver (positive value, x1.25 rounded down) -> AP: x (1 + AP/100) with apBoost 1 using the CASTER's AP -> crit: x critPower if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT) -> x0.5 if the receiver is enraged -> Math.round. Same crit flag for every receiver.",
+    "resolution": "requested raw amount vs applied: the shield added to each receiver is the rounded result of the chain above, per receiver (item and enraged state differ); added to the existing shield (floor 0); only if the receiver's hp > 0. Nothing in this strategy reads the result, and no damage is involved.",
+    "evidence": [
+     "soft-shield",
+     "soft-loop",
+     "soft-addshield",
+     "entity-addshield",
+     "bigeater",
+     "state-addshield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "clearNegativeStatus",
+    "target": "each unit of the caster's team (the caster included)",
+    "declaredRaw": {
+     "duration": "not applicable"
+    },
+    "scaling": "none",
+    "applicationOrder": "for each unit, right after its shield (shield first, then clear)",
+    "guards": "curse: the flag is cleared and, if a curse cooldown is still running, 2000 ms is ADDED to curseCooldown rather than cleared; possessed is not cleared when the possessing origin (the caster) is on the receiver's team; the call passes the caster as origin",
+    "combatEffect": "sets burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor-reduction, locked and blind cooldowns to 0. The method itself changes cooldowns, not the boolean flags: the example of wound was traced to its update function, which clears the flag on the next update once the cooldown is 0; the other statuses' update functions were not each traced.",
+    "evidence": [
+     "soft-clear",
+     "clear-neg",
+     "wound-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "every own-team unit including the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "HAPPINY": 20,
+     "CHANSEY": 40,
+     "BLISSEY": 80
+    },
+    "apBoost": 1,
+    "evidence": [
+     "soft-shield",
+     "soft-addshield",
+     "state-addshield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "HAPPINY": 1,
+    "CHANSEY": 2,
+    "BLISSEY": 3
+   },
+   "declaredRawShield": {
+    "HAPPINY": 20,
+    "CHANSEY": 40,
+    "BLISSEY": 80
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 160 (also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 120 and range 1 for all.",
+   "evidence": [
+    "soft-shield",
+    "unit-happiny",
+    "unit-chansey",
+    "unit-blissey"
+   ]
+  },
+  "positionalConditions": "None. The effect applies to the whole own team on the board, whatever the distance.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast adds a new shield on top of whatever shield remains and clears the status cooldowns again.",
+  "rawVsResolved": "Declared raw shield: 20/40/80 by stars (20 Happiny, 40 Chansey, 80 Blissey). Requested per receiver: that amount. Applied per receiver: Big Eater Belt x1.25 (round down) if held, then x(1 + caster AP/100), x critPower if the cast crit, x0.5 if enraged, rounded; zero effect on receivers with hp <= 0. Statuses: cooldowns set to 0 (curse extended by 2000 ms if its cooldown was running).",
+  "sourceTables": [
+   {
+    "id": "softBoiledShield",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "shields.0.declaredRaw.byStars",
+    "unitValuesPath": "shields.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, the PP gate) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the shield-side multiplier were read",
+   "How each status's update function ends its boolean flag after the cooldown is cleared (only wound was traced)",
+   "Effects that react to a shield being added (not read for this record)"
+  ],
+  "unresolved": [
+   "The routing queue record lists no routing uncertainties; Happiny, Chansey and Blissey are the only units listed for this identifier",
+   "Twist Band was not traced for this ability: addShield calls only applyBigEaterBeltStatBuff (read); whether any other held-item effect touches shields was not searched",
+   "The per-ally broadcastAbility calls are animation only and were not traced",
+   "Whether any item or synergy changes SOFT_BOILED beyond what is listed",
+   "No pinned-helper probe was run for this record; the shield and clear paths were read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-happiny",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8569,
+     8582
+    ],
+    "symbol": "class Happiny",
+    "expect": "skill = Ability.SOFT_BOILED",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-chansey",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8584,
+     8601
+    ],
+    "symbol": "class Chansey",
+    "expect": "skill = Ability.SOFT_BOILED",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-blissey",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8603,
+     8619
+    ],
+    "symbol": "class Blissey",
+    "expect": "skill = Ability.SOFT_BOILED",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-soft",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1180,
+     1180
+    ],
+    "symbol": "AbilityStrategies[Ability.SOFT_BOILED]",
+    "expect": "[Ability.SOFT_BOILED]: new SoftBoiledStrategy()",
+    "note": ""
+   },
+   {
+    "id": "soft-class",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "SoftBoiledStrategy",
+    "expect": "requiresTarget = false",
+    "note": "overrides the base default: castable without a target in range"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base default that this strategy overrides"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "soft-super",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SoftBoiledStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "target is null"
+   },
+   {
+    "id": "soft-shield",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "SoftBoiledStrategy.process",
+    "expect": "[20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "soft-loop",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     10,
+     16
+    ],
+    "symbol": "SoftBoiledStrategy.process",
+    "expect": "if (tg && pokemon.team == tg.team)",
+    "note": "every board unit on the caster's team, the caster included"
+   },
+   {
+    "id": "soft-addshield",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SoftBoiledStrategy.process",
+    "expect": "tg.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, caster's crit flag"
+   },
+   {
+    "id": "soft-clear",
+    "file": "app/core/abilities/soft-boiled.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SoftBoiledStrategy.process",
+    "expect": "tg.status.clearNegativeStatus(tg, pokemon)",
+    "note": ""
+   },
+   {
+    "id": "entity-addshield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt on the receiver changes the requested amount before AP"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value on a receiver holding Big Eater Belt: x1.25, rounded down"
+   },
+   {
+    "id": "state-addshield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     420
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "shield = Math.round(shield)",
+    "note": "AP x(1+AP/100) with apBoost 1, crit, enraged halves, round; only if hp > 0; shield cannot go below 0"
+   },
+   {
+    "id": "clear-neg",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     146
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.woundCooldown = 0",
+    "note": "sets the listed negative-status cooldowns to 0; curse flag false; possessed not cleared when the origin is on the same team"
+   },
+   {
+    "id": "wound-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     906
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "this.wound = false",
+    "note": "example: with the cooldown at 0, the next update ends the status flag"
+   }
+  ]
+ }
+}
