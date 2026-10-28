@@ -1,0 +1,432 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPIRIT_BREAK",
+ "kind": "ability",
+ "identifier": "SPIRIT_BREAK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T233949Z"
+ },
+ "record": {
+  "ability": "SPIRIT_BREAK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "IMPIDIMP, MORGREM and GRIMMSNARL (the queued units, the whole evolution line).",
+  "appliesTo": [
+   {
+    "key": "GRIMMSNARL",
+    "stars": 3,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "SPIRIT_BREAK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "IMPIDIMP",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "SPIRIT_BREAK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MORGREM",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "SPIRIT_BREAK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPIRIT_BREAK] = new SpiritBreakStrategy()",
+   "strategy": "SpiritBreakStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sb",
+    "base",
+    "cast",
+    "dispatch-attack"
+   ]
+  },
+  "summary": "Single-target special damage (20 raw at 1 star, 40 at 2, 80 at 3) followed by a -20 requested ability-power change on the same target. The AP change is applied whether or not the damage was blocked or killed the target; it is scaled by the caster's AP, can be turned into an Attack loss by Nullify Bandanna or into a buff by Twist Band, and AP cannot drop below -100.",
+  "targeting": {
+   "who": "the single current target",
+   "needsTarget": true,
+   "evidence": [
+    "sb-dmg",
+    "sb-ap",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "sb-dmg"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "scaling": "requested amount: AP: damage x (1 + AP/100) (6th argument apBoost = true); crit multiplier only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (no damage; the AP debuff below is still applied). takenDamage (which includes shield damage) is not used by this ability",
+    "evidence": [
+     "sb-dmg",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitRaw": {
+     "IMPIDIMP": 20,
+     "MORGREM": 40,
+     "GRIMMSNARL": 80
+    }
+   },
+   {
+    "kind": "statChange",
+    "stat": "AP",
+    "target": "the current target",
+    "declaredRaw": {
+     "value": -20,
+     "note": "requested amount, a constant independent of stars"
+    },
+    "scaling": "requested -20 x (1 + caster AP / 100) x (critPower if the cast crit), rounded (apBoost 1): a caster with AP makes the debuff larger, and a crit (needs ABILITY_CRIT) larger again",
+    "resolution": "applied amount: Big Eater Belt does not apply to this enemy debuff (helper only affects positive values or same-team negatives); TWIST_BAND on the target flips it into a gain of the same size; NULLIFY_BANDANNA on the target replaces it by an Attack change of round(0.2 x -20) = -4 (the AP scaling, helpers and the clamp are skipped); otherwise target AP = max(-100, AP + value). Applied after the damage call regardless of its result, so a protected or just-killed target still receives it",
+    "evidence": [
+     "sb-ap",
+     "addap-nullify",
+     "addap-scale",
+     "addap-helpers",
+     "bigeater",
+     "twist",
+     "addap-clamp"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "IMPIDIMP": 1,
+    "MORGREM": 2,
+    "GRIMMSNARL": 3
+   },
+   "declaredRawDamage": {
+    "IMPIDIMP": 20,
+    "MORGREM": 40,
+    "GRIMMSNARL": 80
+   },
+   "note": "damage is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 160 and the fallback 160 are not reached by these units' bare star counts (1, 2, 3). The -20 AP change has no star dependence. maxPP is 70 and range 1 for all three.",
+   "evidence": [
+    "sb-dmg",
+    "unit-impidimp",
+    "unit-morgrem",
+    "unit-grimmsnarl"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target in the caster's range.",
+  "repeatedCastsAndModes": "No state is kept on the caster: each cast deals damage and applies another -20 (scaled) AP change to the target, so repeated casts on the same target stack until the -100 AP floor. No modes.",
+  "rawVsResolved": "Requested (raw) damage: 20 (IMPIDIMP, 1 star) / 40 (MORGREM, 2 stars) / 80 (GRIMMSNARL, 3 stars). Applied damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division (ceil, at least 1) and later handleDamage modifiers; takenDamage is not used. Requested AP change: -20; applied AP change = round(-20 x (1 + caster AP/100) [x critPower]) unless Twist Band (sign flipped), Nullify Bandanna (Attack -4 instead) or the -100 AP floor changes it.",
+  "sourceTables": [
+   {
+    "id": "spiritBreakDamage",
+    "file": "app/core/abilities/spirit-break.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+  ],
+  "unresolved": [
+   "Effect of a lower target AP on the target's own abilities and healing was not traced (the AP stat is only changed here; its consumers are other records)",
+   "Whether any other item or synergy effect changes SPIRIT_BREAK beyond the Nullify Bandanna, Twist Band and Big Eater Belt paths listed",
+   "Consulted: addAbilityPower, applyBigEaterBeltStatBuff and applyTwistBandBuff in app/core/pokemon-entity.ts, handleSpecialDamage, PokemonState.handleDamage and core-mechanics.md sections A, B, H, I. Queue record lists no routing uncertainties and no dependencies."
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1193,
+     1193
+    ],
+    "symbol": "AbilityStrategies[Ability.SPIRIT_BREAK]",
+    "expect": "[Ability.SPIRIT_BREAK]: new SpiritBreakStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "sb-dmg",
+    "file": "app/core/abilities/spirit-break.ts",
+    "lines": [
+     14,
+     22
+    ],
+    "symbol": "SpiritBreakStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table by casting entity stars, then handleSpecialDamage(..., SPECIAL, pokemon, crit, true)"
+   },
+   {
+    "id": "sb-ap",
+    "file": "app/core/abilities/spirit-break.ts",
+    "lines": [
+     23,
+     24
+    ],
+    "symbol": "SpiritBreakStrategy.process",
+    "expect": "target.addAbilityPower(apDebuff, pokemon, 1, crit)",
+    "note": "AP debuff of -20 on the target after the damage; not conditional on the damage result"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true (SPIRIT_BREAK also passes true explicitly)"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect / skydiving / magicBounce block the hit (damage 0, death false)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "addap-nullify",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     630
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false)",
+    "note": "NULLIFY_BANDANNA on the target: the AP change becomes an Attack change of round(0.2 x value) and returns"
+   },
+   {
+    "id": "addap-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     633,
+     637
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "requested value scaled by the caster's AP (apBoost 1) and crit factor, rounded"
+   },
+   {
+    "id": "addap-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     636,
+     637
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Big Eater Belt then Twist Band helpers"
+   },
+   {
+    "id": "addap-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     639,
+     641
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "AP floor of -100"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value < 0 && caster !== \"environment\" && caster.team === pokemon.team",
+    "note": "Big Eater Belt x1.25 only for positive values or negative values from the same team"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1865
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "TWIST_BAND on the target turns an enemy debuff into the same-size buff"
+   },
+   {
+    "id": "unit-impidimp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14975,
+     14975
+    ],
+    "symbol": "Impidimp",
+    "expect": "skill = Ability.SPIRIT_BREAK",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-morgrem",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14995,
+     14995
+    ],
+    "symbol": "Morgrem",
+    "expect": "skill = Ability.SPIRIT_BREAK",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-grimmsnarl",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15014,
+     15014
+    ],
+    "symbol": "Grimmsnarl",
+    "expect": "skill = Ability.SPIRIT_BREAK",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "unitEvidence": {
+   "IMPIDIMP": {
+    "evidence": [
+     "unit-impidimp"
+    ]
+   },
+   "MORGREM": {
+    "evidence": [
+     "unit-morgrem"
+    ]
+   },
+   "GRIMMSNARL": {
+    "evidence": [
+     "unit-grimmsnarl"
+    ]
+   }
+  }
+ }
+}
