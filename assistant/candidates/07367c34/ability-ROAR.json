@@ -1,0 +1,749 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROAR",
+ "kind": "ability",
+ "identifier": "ROAR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T054109Z"
+ },
+ "record": {
+  "ability": "ROAR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ROAR: Snubull (1 star), Granbull (2 stars), Skarmory (3 stars). The strategy is shared; unit differences are the star count, maxPP (70 / 70 / 80) and, for Skarmory, a declared passive that this record does not trace. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "SNUBULL",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "ROAR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GRANBULL",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "ROAR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKARMORY",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ROAR",
+    "declaredPassive": "SKARMORY",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SNUBULL": {
+    "evidence": [
+     "unit-snubull"
+    ]
+   },
+   "GRANBULL": {
+    "evidence": [
+     "unit-granbull"
+    ]
+   },
+   "SKARMORY": {
+    "evidence": [
+     "unit-skarmory"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROAR] = new RoarStrategy()",
+   "strategy": "RoarStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "roar-class",
+    "roar-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 20/40/80/160 by stars) to the cast target, then walks every cell of the 8-way ray from the caster through the target (no range limit, board edge only). Each unit met on the ray other than the target is swapped with the target's current cell, so the target hops outward past it and the unit moves one step toward the caster; enemies of the caster met this way take the same requested damage and crit flag, allies are swapped without damage. Finally the target is swapped with the last cell that was empty when the walk visited it (if any) - which can be a cell the target already jumped over, so the net result is a rotation of the ray rather than a plain knock-back. The movement uses Board.swapCells directly, not moveTo: canBeMoved (Heavy Duty Boots, locked, skydiving) is not consulted and no moving state or cooldown change is applied. As written, the RIGHT direction loops `x < board.rows` (6) on an 8-column board, so columns 6 and 7 are not walked going RIGHT.",
+  "targeting": {
+   "who": "the cast target (damage and displacement) plus every other unit standing on the ray from the caster in the target's 8-way direction (enemies: damage and swap; allies: swap only)",
+   "needsTarget": true,
+   "note": "Direction = Board.orientation(caster, target): the sign of dx / dy, so an off-axis target gives a diagonal ray that may not contain the target. effectInOrientation reads each cell's occupant when it is visited, so swaps made earlier in the same walk are seen. If no enemy was visited at all the helper calls the callback once on the target's own cell, which the strategy ignores (same id, occupied). Range-1 units normally have the target adjacent, so units between caster and target do not occur in the normal case; this record does not assert that the cast cannot happen at a larger distance. Hand trace on one row (RIGHT, columns 0-5; C caster, T target, X Y Z enemies, '.' empty): C T X Y . Z -> C X Y Z T . (X Y Z each take the damage; the target ends on the empty cell it jumped over); C T X Y Z V -> C X Y Z V T (no empty cell: target ends on the last occupied cell, everyone else moves one step back); C T X . . . -> C X . . . T. A throwaway transcription of Board.swapCells / setEntityOnCell and the walk reproduced these rows; it is not stored in the repository and is not a fight.",
+   "evidence": [
+    "roar-orient",
+    "roar-skip",
+    "roar-enemy",
+    "roar-swap",
+    "roar-empty",
+    "roar-final",
+    "eio-orient",
+    "eio-hit",
+    "eio-value",
+    "eio-fallback",
+    "orient",
+    "swap-cells"
+   ]
+  },
+  "geometry": {
+   "shape": "a line (one of 8 directions) from the caster to the board edge; units on it are rotated one step; the RIGHT direction only walks columns up to x = 5 (loop bound board.rows = 6) on the 8 x 6 board",
+   "evidence": [
+    "eio-orient",
+    "eio-up",
+    "eio-right",
+    "orient",
+    "board-dims"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "SNUBULL": 20,
+     "GRANBULL": 40,
+     "SKARMORY": 80
+    },
+    "scaling": "requested = table[stars-1]; handleSpecialDamage then x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The damage is dealt before any swap; the returned death / takenDamage are discarded by ROAR.",
+    "evidence": [
+     "roar-table",
+     "roar-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "every other enemy of the caster standing on the ray",
+    "declaredRaw": {
+     "description": "the same requested amount as the cast target (table[stars-1])"
+    },
+    "perUnitRaw": {
+     "SNUBULL": 20,
+     "GRANBULL": 40,
+     "SKARMORY": 80
+    },
+    "scaling": "identical to the cast target's damage (same call, same crit flag); one hit per enemy visited, no falloff or cap on the number of enemies.",
+    "resolution": "each ray enemy is hit when its cell is visited, immediately before its swap; protect / skydiving / magicBounce block it as for the target; the returned death is ignored, but a lethal hit empties that unit's cell at once (the unit's own position fields keep the old coordinates), so the swap that follows exchanges the target with an empty cell. Allies on the ray take no damage.",
+    "evidence": [
+     "roar-skip",
+     "roar-enemy",
+     "roar-ray-hit",
+     "special-block",
+     "death-cell",
+     "death-clear"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "the cast target; every other unit on the ray is moved one step in the opposite direction",
+    "declaredRaw": {
+     "description": "for each other unit on the ray, in order outward from the caster: swapCells(target cell, that unit's cell); finally swapCells(target cell, last empty cell seen)"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "unconditional on the damage result and on canBeMoved: ROAR calls Board.swapCells directly, so Heavy Duty Boots, locked or skydiving units are still exchanged (moveTo's forced-displacement refusal is not used here), and no moving state or 100 ms cooldown is set. A swap goes through setEntityOnCell, which updates positionX / positionY, drops board effects of the cell left and adds those of the cell entered unless IMMUNITY_BOARD_EFFECTS. The final swap targets the last cell that was empty when visited, even when that cell lies between the target's current cell and the caster (see targeting.note). If the cast target died from the first hit its cell was emptied but its positionX / positionY still hold the old coordinates, so the later swaps exchange the first ray unit with that empty cell and so on; the resulting layout is not the same as for a living target (hand trace and transcription: C T X Y . with T dead -> units shift along the ray). Resurrection or other non-death branches of handleDamage were not read.",
+    "evidence": [
+     "roar-swap",
+     "roar-empty",
+     "roar-final",
+     "swap-cells",
+     "set-cell",
+     "set-effects",
+     "moveto",
+     "moveto-block",
+     "can-move",
+     "death-clear"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SNUBULL": 1,
+    "GRANBULL": 2,
+    "SKARMORY": 3
+   },
+   "declaredRawDamage": {
+    "SNUBULL": 20,
+    "GRANBULL": 40,
+    "SKARMORY": 80
+   },
+   "note": "Damage is indexed by the casting entity's stars; the 4-star value (160, also the ?? fallback) is not reachable by the bare factory star counts of these units. The ray, the swaps and the damage to ray enemies do not depend on stars. maxPP is 70 (Snubull, Granbull) and 80 (Skarmory).",
+   "evidence": [
+    "roar-table",
+    "unit-snubull",
+    "unit-granbull",
+    "unit-skarmory"
+   ]
+  },
+  "positionalConditions": "The ray is fixed by the caster's and target's coordinates at cast time (sign of dx, dy); only units on it are affected apart from the target. Which units are damaged, swapped or left alone, and where the target ends up, depend on the occupancy of the ray when each cell is visited. RIGHT-facing casts never see columns 6 and 7 (loop bound board.rows). A target off the ray still takes the damage but no ray unit is exchanged unless the ray holds another unit.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and repeats the full walk from the units' current positions.",
+  "rawVsResolved": "Requested: damage 20/40/80 (Snubull / Granbull / Skarmory) for the target and for each enemy on the ray. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage (shield damage included, 0 when blocked) is discarded by ROAR. Displacement: swapCells is applied as written - there is no 'requested vs refused' step as with moveTo, because canBeMoved is not checked.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/roar.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate and the crit roll were read",
+   "Death handling beyond triggerDeath / the cell clearing (resurrection branches, onDeath effects, Cover Band) was not read",
+   "Rune Protect and other status guards do not apply to this displacement; none is read in swapCells / setEntityOnCell"
+  ],
+  "unresolved": [
+   "Resolved by trace: ROAR does not use moveTo, so canBeMoved and the moving-state change are not applied (compare BLAZE_KICK / BULLDOZE, which request a forced moveTo); what the developers intended is not asserted and the game was not patched",
+   "Resolved by trace: the RIGHT loop bound board.rows (6) excludes columns 6 and 7 on the 8-column x 6-row board",
+   "Whether a cast can happen with the target farther than the declared range 1, which would put units between caster and target on the ray (the walk would then swap them as well); not examined",
+   "Skarmory also declares Passive.SKARMORY (a simulation-start effect in passives.ts); its interaction with ROAR was not traced",
+   "Behaviour when the cast target or a ray enemy is revived or survives through a non-death branch of handleDamage (Shiny Charm, resurrection) was not traced",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only; the row examples come from hand tracing and a throwaway transcription of the pinned swap / walk logic, not from a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "eio-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     810,
+     827
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "export function effectInOrientation(",
+    "note": "direction = board.orientation(caster, target) (8 sectors by sign of dx/dy), no maxRange passed here"
+   },
+   {
+    "id": "eio-up",
+    "file": "app/core/board.ts",
+    "lines": [
+     847,
+     847
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let y = pokemon.positionY + 1; y < board.rows; y++) {",
+    "note": "UP: walks y upward from the cell after the caster to the board edge"
+   },
+   {
+    "id": "eio-right",
+    "file": "app/core/board.ts",
+    "lines": [
+     863,
+     863
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX + 1; x < board.rows; x++) {",
+    "note": "RIGHT bound uses board.rows (not columns); recorded as read"
+   },
+   {
+    "id": "eio-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     911,
+     917
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "if (isEntity(target) && targetsHit.size === 0) {",
+    "note": "when no enemy was visited the effect is called once on the target's own (occupied) cell"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx>0 RIGHT/UPRIGHT/DOWNRIGHT, dx<0 LEFT/..., dx==0 UP/DOWN; sign-based, so any non-axis offset becomes a diagonal"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "forced displacement is refused if the mover or the unit on the destination cannot be moved; otherwise swaps cells"
+   },
+   {
+    "id": "moveto-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     891,
+     891
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": ""
+   },
+   {
+    "id": "board-dims",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "BOARD_WIDTH = 8, BOARD_HEIGHT = 6; simulation.ts:104 builds `new Board(BOARD_HEIGHT, BOARD_WIDTH)`, i.e. rows 6, columns 8"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1121,
+     1121
+    ],
+    "symbol": "AbilityStrategies[Ability.ROAR]",
+    "expect": "[Ability.ROAR]: new RoarStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "unit-snubull",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10101,
+     10114
+    ],
+    "symbol": "class Snubull",
+    "expect": "skill = Ability.ROAR",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-granbull",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10117,
+     10131
+    ],
+    "symbol": "class Granbull",
+    "expect": "skill = Ability.ROAR",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-skarmory",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16365,
+     16378
+    ],
+    "symbol": "class Skarmory",
+    "expect": "skill = Ability.ROAR",
+    "note": "unit class block; also declares Passive.SKARMORY"
+   },
+   {
+    "id": "roar-class",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "RoarStrategy",
+    "expect": "export class RoarStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "roar-super",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "roar-table",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table by stars; also used for every ray enemy"
+   },
+   {
+    "id": "roar-hit",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "cast target is damaged first, before any swap"
+   },
+   {
+    "id": "roar-orient",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "effectInOrientation(board, pokemon, target, (cell) => {",
+    "note": "ray from the caster toward the target, no maxRange"
+   },
+   {
+    "id": "roar-skip",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "if (cell.value != null && target.id !== cell.value.id) {",
+    "note": "any unit on the ray except the cast target, allies included"
+   },
+   {
+    "id": "roar-enemy",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "if (cell.value.team !== pokemon.team) {",
+    "note": "only enemies of the caster take the damage; allies are swapped without damage"
+   },
+   {
+    "id": "roar-ray-hit",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     23,
+     29
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "same requested damage and crit flag as the target; returned death/takenDamage ignored"
+   },
+   {
+    "id": "roar-swap",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     31,
+     36
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "board.swapCells(",
+    "note": "swap of the target's current cell with the visited unit's cell, damaged or not"
+   },
+   {
+    "id": "roar-empty",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     38,
+     40
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "farthestEmptyCell = cell",
+    "note": "last empty cell seen during the walk (empty at the moment it was visited)"
+   },
+   {
+    "id": "roar-final",
+    "file": "app/core/abilities/roar.ts",
+    "lines": [
+     43,
+     46
+    ],
+    "symbol": "RoarStrategy.process",
+    "expect": "board.swapCells(target.positionX, target.positionY, x, y)",
+    "note": "final swap of the target with that recorded cell, no moveTo / canBeMoved check"
+   },
+   {
+    "id": "eio-hit",
+    "file": "app/core/board.ts",
+    "lines": [
+     839,
+     840
+    ],
+    "symbol": "effectInOrientation.applyEffect",
+    "expect": "if (value != null && value.team !== pokemon.team) {",
+    "note": "enemies visited are counted in targetsHit"
+   },
+   {
+    "id": "eio-value",
+    "file": "app/core/board.ts",
+    "lines": [
+     841,
+     842
+    ],
+    "symbol": "effectInOrientation.applyEffect",
+    "expect": "effect({ x, y, value })",
+    "note": "value is read from the board when the cell is visited, so earlier swaps are seen"
+   },
+   {
+    "id": "set-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "setEntityOnCell(x: number, y: number, entity: PokemonEntity | undefined) {",
+    "note": "writes cell and updates the entity's positionX / positionY when it changes cell"
+   },
+   {
+    "id": "set-effects",
+    "file": "app/core/board.ts",
+    "lines": [
+     48,
+     59
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.delete(effectOnPreviousCell)",
+    "note": "board effects of the old cell are removed, those of the new cell added unless IMMUNITY_BOARD_EFFECTS"
+   },
+   {
+    "id": "swap-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": "plain exchange of two cells' occupants (either may be empty)"
+   },
+   {
+    "id": "death-cell",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     801,
+     803
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "this.triggerDeath(pokemon, attacker, board, attackType)",
+    "note": "a lethal hit triggers death inside handleDamage"
+   },
+   {
+    "id": "death-clear",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     812,
+     818
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "board.setEntityOnCell(pokemon.positionX, pokemon.positionY, undefined)",
+    "note": "the dead unit's cell is emptied at once; its positionX / positionY fields are not changed"
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     262
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "get canBeMoved(): boolean {",
+    "note": "checked by moveTo(..., forcedDisplacement) but not by RoarStrategy"
+   }
+  ]
+ }
+}
