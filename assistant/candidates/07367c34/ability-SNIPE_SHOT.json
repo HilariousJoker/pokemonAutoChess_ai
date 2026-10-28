@@ -1,0 +1,414 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SNIPE_SHOT",
+ "kind": "ability",
+ "identifier": "SNIPE_SHOT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T173950Z"
+ },
+ "record": {
+  "ability": "SNIPE_SHOT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SNIPE_SHOT in this production reference (passive NONE in the catalog; maxPP 100, range 3). The strategy is shared; differences are star count and stats.",
+  "appliesTo": [
+   {
+    "key": "SOBBLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "SNIPE_SHOT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DRIZZILE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "SNIPE_SHOT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "INTELEON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "SNIPE_SHOT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SOBBLE": {
+    "evidence": [
+     "unit-sobble"
+    ]
+   },
+   "DRIZZILE": {
+    "evidence": [
+     "unit-drizzile"
+    ]
+   },
+   "INTELEON": {
+    "evidence": [
+     "unit-inteleon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SNIPE_SHOT] = new SnipeShotStrategy()",
+   "strategy": "SnipeShotStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-snipe",
+    "snipe-class",
+    "base-flags",
+    "base-pp",
+    "snipe-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Line shot. The caster picks the enemy farthest from it by Manhattan distance (first in row-major board order on ties; the cast target if no such enemy exists) and hits every enemy-team unit on the straight (supercover) line of cells from the caster to that enemy, including the farthest enemy itself, with SPECIAL damage of 40/80/160/320 raw by the caster's stars (Sobble 40, Drizzile 80, Inteleon 160). If the line holds no enemy unit, the cast target is hit instead. The target of the cast is not required to be on the line. Each unit hit receives its own handleSpecialDamage call; AP and crit scaling apply, then the target's defenses.",
+  "targeting": {
+   "who": "the enemy farthest from the caster by Manhattan distance among board units for which isTargettableBy(caster) is true; fallback: the cast target passed to the strategy",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true, so a target must exist to start the cast; how the cast target is chosen before the cast was not read. The farthest-target choice ignores the unit's range (range 3).",
+   "evidence": [
+    "snipe-class",
+    "base-flags",
+    "snipe-far",
+    "farthest",
+    "targettable",
+    "dist-m",
+    "snipe-fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "line",
+   "origin": "caster cell",
+   "end": "the farthest enemy's cell",
+   "algorithm": "Board.getCellsBetween, a supercover line (every cell the straight line touches; passes diagonally through exact corners); includes the caster's own cell and the end cell",
+   "hitFilter": "occupied cell whose unit's team differs from the caster's team (no isTargettableBy check on the line, so untargettable or other non-targettable enemies on the line are collected; protect / skydiving / magicBounce still block the damage)",
+   "evidence": [
+    "snipe-cells",
+    "cells-between",
+    "farthest",
+    "snipe-fallback"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     }
+    },
+    "perUnitRaw": {
+     "SOBBLE": 40,
+     "DRIZZILE": 80,
+     "INTELEON": 160
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by each target's critReductionFactor) only if the cast crits (canCritByDefault is false, so needs ABILITY_CRIT). The same crit flag is used for every unit hit.",
+    "resolution": "requested amount (the raw value above) per unit hit -> AP/crit -> PokemonState.handleDamage, which applies defenses (SPE_DEF division, minimum 1), shield and the other steps in core-mechanics §A/§H; the applied HP loss and takenDamage (shield part included) can be lower than the requested amount and differ per unit. Units with protect / skydiving / magicBounce take no damage (magicBounce also reflects damage to the caster). The damage value is not split between targets: every unit on the line gets the full amount. The ability does not read takenDamage.",
+    "evidence": [
+     "snipe-dmg",
+     "snipe-hit",
+     "special-dmg",
+     "special-ap"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SOBBLE": 1,
+    "DRIZZILE": 2,
+    "INTELEON": 3
+   },
+   "declaredRawDamage": {
+    "SOBBLE": 40,
+    "DRIZZILE": 80,
+    "INTELEON": 160
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 320 (also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 100 and range 3 for all.",
+   "evidence": [
+    "snipe-dmg",
+    "unit-sobble",
+    "unit-drizzile",
+    "unit-inteleon"
+   ]
+  },
+  "positionalConditions": "The hit set depends on positions: it is the enemy-team units on the line from the caster to the farthest enemy. The farthest enemy is chosen by Manhattan distance from the caster, ties broken by board scan order (row by row, x ascending, strictly greater distance only). When no enemy qualifies, or no enemy lies on the line, the cast target alone is hit.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes the farthest target and the line from current positions.",
+  "rawVsResolved": "Declared raw: 40/80/160/320 by stars (40 Sobble, 80 Drizzile, 160 Inteleon). Requested per unit hit: that amount. Applied: raw x (1 + AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps, separately for each unit; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "snipeDamage",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); handleDamage was consulted via core-mechanics §A/§H, not re-probed here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "The routing queue record lists no routing uncertainties; Sobble, Drizzile and Inteleon are the only units listed for this identifier",
+   "The Merciless exception in isTargettableBy (units with hp <= 10 of any team) was read but the effect's source was not traced; it could make an ally the 'farthest target'",
+   "Which enemy a given board produces was not exercised; geometry comes from reading getCellsBetween, not from running it",
+   "Whether any item or synergy changes SNIPE_SHOT beyond what is listed",
+   "No pinned-helper probe was run for this record; the damage path was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-sobble",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13880,
+     13894
+    ],
+    "symbol": "class Sobble",
+    "expect": "skill = Ability.SNIPE_SHOT",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-drizzile",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13895,
+     13909
+    ],
+    "symbol": "class Drizzile",
+    "expect": "skill = Ability.SNIPE_SHOT",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-inteleon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13910,
+     13924
+    ],
+    "symbol": "class Inteleon",
+    "expect": "skill = Ability.SNIPE_SHOT",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-snipe",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1177,
+     1177
+    ],
+    "symbol": "AbilityStrategies[Ability.SNIPE_SHOT]",
+    "expect": "[Ability.SNIPE_SHOT]: new SnipeShotStrategy()",
+    "note": ""
+   },
+   {
+    "id": "snipe-class",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SnipeShotStrategy",
+    "expect": "class SnipeShotStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "snipe-dmg",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "[40, 80, 160, 320][pokemon.stars - 1] ?? 320",
+    "note": ""
+   },
+   {
+    "id": "snipe-far",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     14,
+     15
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "farthest enemy by Manhattan distance, else the cast target"
+   },
+   {
+    "id": "snipe-super",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "super.process(pokemon, board, farthestTarget, crit)",
+    "note": "PP spent and ability broadcast aimed at the farthest target"
+   },
+   {
+    "id": "snipe-cells",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     19,
+     31
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "board.getCellsBetween(",
+    "note": "every cell on the supercover line from the caster to the farthest target; occupied cells holding a unit of another team are collected"
+   },
+   {
+    "id": "snipe-fallback",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "fallback: the cast target"
+   },
+   {
+    "id": "snipe-hit",
+    "file": "app/core/abilities/snipe-shot.ts",
+    "lines": [
+     34,
+     42
+    ],
+    "symbol": "SnipeShotStrategy.process",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "SPECIAL damage to each collected unit, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance)",
+    "note": "board scanned row by row; strict > keeps the first of equal distances; distance 0 is never chosen"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "enemy and not untargettable (or the Merciless exception for units with hp <= 10)"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "includes the start cell (the caster) and the end cell; diagonal steps when the line passes exactly through a corner"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": "signature; apBoost defaults to true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   }
+  ]
+ }
+}
