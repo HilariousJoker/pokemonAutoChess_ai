@@ -1,0 +1,619 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STEEL_WING",
+ "kind": "ability",
+ "identifier": "STEEL_WING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T233949Z"
+ },
+ "record": {
+  "ability": "STEEL_WING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ROOKIDEE, CORVISQUIRE and CORVIKNIGHT (the queued units, the whole line).",
+  "appliesTo": [
+   {
+    "key": "CORVIKNIGHT",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "STEEL_WING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CORVISQUIRE",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "STEEL_WING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ROOKIDEE",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "STEEL_WING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STEEL_WING] = new SteelWingStrategy()",
+   "strategy": "SteelWingStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sw",
+    "base",
+    "cast",
+    "dispatch-attack",
+    "sw-base"
+   ]
+  },
+  "summary": "Dash-and-hit with the same movement as STEAMROLLER: the caster takes the destination from Board.getFarthestTargetCoordinateAvailablePlace, collects every enemy on the line from its starting cell to that destination, moves there, and for each collected enemy (unless that enemy holds Twist Band) gains +1 def while the enemy loses 1 def, then deals SPECIAL damage of (10 / 20 / 40 at 1 / 2 / 3 stars) + 2 x the caster's def as read at cast start. The def change happens before the damage but does not change the damage amount (computed first) nor the enemy's special-defence reduction (SPE_DEF is used). If the line held no enemy, or no destination exists (the caster then does not move), only the cast target is hit.",
+  "targeting": {
+   "who": "every enemy on the cells of the supercover line from the caster's starting cell to the destination, read before the caster moves; otherwise the cast target alone",
+   "needsTarget": true,
+   "evidence": [
+    "sw-cells",
+    "sw-fallback",
+    "board-far",
+    "between",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's starting cell to the destination cell chosen by the helper, both endpoints included; the destination is a free cell so it holds no enemy; the destination is not guaranteed to be next to the farthest enemy: the helper can retain a cell chosen for an earlier, nearer enemy",
+   "origin": "the caster's cell",
+   "evidence": [
+    "between",
+    "board-far",
+    "board-far-dist",
+    "board-select",
+    "board-fallback",
+    "dist-m",
+    "targettable",
+    "sw-move",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "formula": "table[stars] + 2 x pokemon.def",
+     "tableByStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "note": "requested amount; def is the caster's current def stat at cast start (one read, before the +1 per enemy is applied). At the catalog base def (ROOKIDEE 8, CORVISQUIRE 13, CORVIKNIGHT 18; no items or buffs) the requested damage would be 26, 46 and 76"
+    },
+    "scaling": "requested amount grows with the caster's def (changes to it go through addDefense: AP/crit scaling of the change, Big Eater Belt / Twist Band helpers, clamp at 0); then AP: damage x (1 + AP/100) (apBoost default true); crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false); one crit roll shared by every enemy hit",
+    "resolution": "applied amount per enemy: the damage is the same number for every enemy hit (computed once), then the enemy's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1) and later handleDamage modifiers; protect / skydiving / magicBounce block the hit for that enemy. The Set means an enemy on the line is hit once. takenDamage (includes shield damage) is not used",
+    "evidence": [
+     "sw-dmg",
+     "sw-hit",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitTable": {
+     "ROOKIDEE": 10,
+     "CORVISQUIRE": 20,
+     "CORVIKNIGHT": 40
+    }
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "description": "swaps into the destination cell chosen by the helper (no forced displacement, so canBeMoved is not checked); happens before any damage; skipped when the helper returns null",
+    "evidence": [
+     "sw-move",
+     "moveto",
+     "sw-far"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "DEF",
+    "target": "the caster",
+    "declaredRaw": {
+     "value": 1,
+     "perEnemyHit": true
+    },
+    "scaling": "requested +1 per collected enemy (addDefense apBoost 0, crit false): the round(value x (1 + 0 x AP/100)) step leaves it at 1",
+    "resolution": "applied: Big Eater Belt on the caster multiplies by 1.25 rounded down to 0 digits (floor(1.25) = 1, so no change); Twist Band does not flip a positive value; skipped entirely for an enemy that holds TWIST_BAND (neither side changes). The caster's def rises by 1 per qualifying enemy, permanent flag false (for the duration of the fight only, board pokemon unchanged), and each rise happens before that enemy's damage call but after the damage amount was computed",
+    "evidence": [
+     "sw-def",
+     "add-def-scale",
+     "add-def-helpers",
+     "bigeater",
+     "twist"
+    ]
+   }
+  ],
+  "debuffs": [
+   {
+    "stat": "DEF",
+    "target": "each collected enemy without TWIST_BAND",
+    "declaredRaw": {
+     "value": -1
+    },
+    "scaling": "requested -1, apBoost 0 and crit false: no AP or crit scaling",
+    "resolution": "applied: the helpers see an enemy-team caster, so Big Eater Belt does not boost it and Twist Band on the enemy would flip it, but the Twist Band holder is excluded before the call; floor of 0 on the enemy's def. It lowers def (physical), while this ability's damage is special and uses SPE_DEF, so it does not affect this hit",
+    "evidence": [
+     "sw-def",
+     "add-def-scale",
+     "add-def-helpers",
+     "add-def-clamp",
+     "dmg-reduction"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ROOKIDEE": 1,
+    "CORVISQUIRE": 2,
+    "CORVIKNIGHT": 3
+   },
+   "declaredTable": {
+    "ROOKIDEE": 10,
+    "CORVISQUIRE": 20,
+    "CORVIKNIGHT": 40
+   },
+   "note": "the damage table is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 80 and the fallback 80 are not reached by these units' bare star counts (1, 2, 3). The +2 x def term and the +-1 def changes have no star dependence. maxPP is 90 and range 1 for all three; catalog def is 8 / 13 / 18.",
+   "evidence": [
+    "sw-dmg",
+    "unit-rookidee",
+    "unit-corvisquire",
+    "unit-corviknight"
+   ]
+  },
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as STEAMROLLER, NUZZLE, AQUA_JET and FLAME_CHARGE, see the FLAME_CHARGE record): board.forEach scans cells row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered, so ties keep the first one scanned. A farther enemy resets only the per-enemy cell maximum; selectedCell is replaced only when that enemy has at least one free adjacent cell, so if it has none the cell chosen for an earlier, nearer enemy is retained. The fallback (closest free cell to the farthest enemy) runs only when selectedCell is still null at the end. Returns null when no targettable enemy or no free cell exists; then the caster does not move and only the cast target is hit.",
+  "repeatedCastsAndModes": "No stored state, but the def changes persist for the fight: each cast adds +1 to the caster's def and -1 to the enemy's def per enemy hit (without Twist Band), so later casts read a higher def for the damage term. No modes.",
+  "rawVsResolved": "Requested damage: table (10 / 20 / 40) + 2 x current def of the caster, the same number for every enemy hit; at catalog base def that is 26 / 46 / 76. Applied damage = requested x (1 + AP/100) [x crit factor], then the SPE_DEF division and later handleDamage modifiers (min 1); takenDamage is not used. Requested def changes: +1 caster / -1 enemy per collected enemy; applied: unchanged by AP or crit (apBoost 0), skipped for Twist Band holders, clamped at 0 on the enemy.",
+  "sourceTables": [
+   {
+    "id": "steelWingDamage",
+    "file": "app/core/abilities/steel-wing.ts",
+    "pattern": "const damage = \\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.tableByStars",
+    "unitValuesPath": "effects.0.perUnitTable"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+  ],
+  "unresolved": [
+   "The caster's real def in a fight (items, synergies, buffs) was not enumerated; the 26 / 46 / 76 figures are at catalog base def only",
+   "Whether the retained-selection case (a farther enemy with no free adjacent cell) is common on real boards was not examined; the probe-style verification done for FLAME_CHARGE was not repeated here",
+   "Behaviour when an enemy on the line dies or moves while the loop runs, and the effect of moveTo setting cooldown = 100, were not traced",
+   "Whether a def drop on the enemy changes anything for later physical hits was not traced beyond the def stat itself",
+   "Whether any other item or synergy effect changes STEEL_WING",
+   "Consulted: Board.getFarthestTargetCoordinateAvailablePlace, isTargettableBy, moveTo, addDefense, applyBigEaterBeltStatBuff / applyTwistBandBuff, handleSpecialDamage, PokemonState.handleDamage and the sibling FLAME_CHARGE record. Queue record lists no routing uncertainties and no dependencies."
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1202,
+     1202
+    ],
+    "symbol": "AbilityStrategies[Ability.STEEL_WING]",
+    "expect": "[Ability.STEEL_WING]: new SteelWingStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast unless preventDefaultAnim, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "sw-base",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "fifth argument true = preventDefaultAnim"
+   },
+   {
+    "id": "sw-dmg",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "([10, 20, 40, 80][pokemon.stars - 1] ?? 80) + 2 * pokemon.def",
+    "note": "damage = table by caster stars + 2 x the caster's def, read once before anything moves or changes"
+   },
+   {
+    "id": "sw-far",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": "destination chosen by the board helper"
+   },
+   {
+    "id": "sw-cells",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     20,
+     32
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "targetsHit.add(cell.value)",
+    "note": "enemies on the cells between the caster's cell and the destination are collected before the caster moves; an extra broadcastAbility per enemy cell"
+   },
+   {
+    "id": "sw-move",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "pokemon.moveTo(farthestCoordinate.x, farthestCoordinate.y, board, false)",
+    "note": "the caster swaps to the destination (forcedDisplacement false)"
+   },
+   {
+    "id": "sw-fallback",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "the cast target is hit if the line held no enemy or the helper returned null"
+   },
+   {
+    "id": "sw-def",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     39,
+     42
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "enemy.addDefense(-1, pokemon, 0, false)",
+    "note": "per enemy, unless that enemy holds TWIST_BAND: caster +1 def and enemy -1 def (apBoost 0, crit false), before the damage"
+   },
+   {
+    "id": "sw-hit",
+    "file": "app/core/abilities/steel-wing.ts",
+    "lines": [
+     43,
+     49
+    ],
+    "symbol": "SteelWingStrategy.process",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "special damage with the precomputed amount (crit passed, apBoost default true)"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     344
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "/* Supercover line algorithm",
+    "note": "supercover line including both endpoints that are on the board"
+   },
+   {
+    "id": "board-far",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     630
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "farthest targetable enemy by Manhattan distance; destination = a free cell adjacent to it farthest from the caster; fallback = closest free cell to that enemy; null if none"
+   },
+   {
+    "id": "board-far-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "strictly greater: the first enemy found at the maximum distance wins (board iteration order)"
+   },
+   {
+    "id": "board-select",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "selectedCell is replaced only inside the loop over that enemy's free adjacent cells; not cleared for a farther enemy without free neighbours"
+   },
+   {
+    "id": "board-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     629
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback to the closest free cell of the farthest enemy only when selectedCell is still null"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "// Manhattan distance",
+    "note": ""
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable",
+    "note": "an enemy is a candidate unless untargettable (MERCILESS can also add allies at <= 10 hp)"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "board.swapCells to the destination; canBeMoved is only checked for forced displacement"
+   },
+   {
+    "id": "add-def-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     681,
+     687
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "(crit ? caster.critPower : 1)",
+    "note": "requested change scaled by (1 + apBoost x caster AP/100) and crit, rounded; with apBoost 0 and crit false the value is unchanged"
+   },
+   {
+    "id": "add-def-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     688,
+     689
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Big Eater Belt then Twist Band helpers"
+   },
+   {
+    "id": "add-def-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     691,
+     692
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "def floor of 0"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value < 0 && caster !== \"environment\" && caster.team === pokemon.team",
+    "note": "Big Eater Belt x1.25 (rounded down to 0 digits) only for positive values or negative values from the same team"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1865
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "TWIST_BAND turns an enemy debuff into the same-size buff"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true (STEEL_WING passes 5 arguments)"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect / skydiving / magicBounce block the hit (damage 0, death false); the defense changes come before and are not blocked"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef (not def); many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "unit-rookidee",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16618,
+     16618
+    ],
+    "symbol": "Rookidee",
+    "expect": "skill = Ability.STEEL_WING",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-corvisquire",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16634,
+     16634
+    ],
+    "symbol": "Corvisquire",
+    "expect": "skill = Ability.STEEL_WING",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-corviknight",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16649,
+     16649
+    ],
+    "symbol": "Corviknight",
+    "expect": "skill = Ability.STEEL_WING",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "unitEvidence": {
+   "ROOKIDEE": {
+    "evidence": [
+     "unit-rookidee"
+    ]
+   },
+   "CORVISQUIRE": {
+    "evidence": [
+     "unit-corvisquire"
+    ]
+   },
+   "CORVIKNIGHT": {
+    "evidence": [
+     "unit-corviknight"
+    ]
+   }
+  }
+ }
+}
