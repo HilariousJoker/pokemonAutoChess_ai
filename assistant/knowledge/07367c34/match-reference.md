@@ -84,13 +84,13 @@ Conditional "reasonable options" from reviewed mechanics, not rankings, meta or 
 "What items for X?": default first, assumptions in one clause, then when another fits. Other units: not covered.
 
 ## Evolution and abilities — [pilot-evolution.md](pilot-evolution.md), [evolution-context.md](evolution-context.md), [pilot-abilities.md](pilot-abilities.md)
-- Evolution declarations exist for only 20 units (Charmander line, Pikachu, Raichu, Alolan Raichu, Galar Meowth, Vespiquen, Arceus, Magikarp, Gyarados, Type Null, Primeape, Tepig, Ditto, Unown D, Farfetch'd, Totodile, Cosmoem, Substitute): `node assistant/lookup-production.mjs KEY`.
+- Evolution declarations exist for only 20 units (Charmander line, Pikachu, Raichu, Alolan Raichu, Galar Meowth, Vespiquen, Arceus, Magikarp, Gyarados, Type Null, Primeape, Tepig, Ditto, Unown D, Farfetch'd, Totodile, Cosmoem, Substitute): `node assistant/lookup-production.mjs KEY` (full card) or, in FAST mode, `node assistant/lookup-fast.mjs --unit KEY --item "<item>"`.
 - Pikachu → Alolan Raichu iff the player's current map has the Psychic synergy; otherwise Raichu.
 - Cosmoem → Solgaleo iff on the game's light cell **and** a Light tier is active (Light ≥ 2); otherwise Lunala. In the plain no-item case a Cosmog that evolves after 8 triggers ends with 220 HP (other cases untraced).
-- Reviewed abilities: Blast Burn (see Charmander family above), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Every other ability: not covered beyond the bare identifier in the unit baseline. No structured passive records exist; passives are explained only where a note does (e.g. Vespiquen's row passive above).
+- Reviewed abilities: Blast Burn (see Charmander family above), Crunch (Totodile: 40 raw special damage; heal on kill), Vespiquen Orders (row-dependent, above). Many more abilities now have saved records (46 at this commit; the loaded reference does not list them): in FAST mode `node assistant/lookup-fast.mjs --unit KEY` returns them, in QUICK say "not in the loaded reference". Structured passive records exist only for SURGE_SURFER and PRIMEAPE (PACHIRISU is a gap); passives are explained only where a note does (e.g. Vespiquen's row passive above).
 
 ## Units — `node assistant/lookup-production.mjs KEY`
 1183 identifiers with bare stats/types/skill identifier. Bare ≠ acquired ≠ combat values. Identifier ≠ availability.
 
 ## Not covered at all
-Meta, win rates, best comps; patch/live-version equivalence; special game rules and modes; most abilities, most passives (no structured records; a few explained in notes), status effects, per-item effects other than those above; targeting and movement detail; the full damage pipeline.
+Meta, win rates, best comps; patch/live-version equivalence; special game rules and modes; most units' abilities beyond the saved records (FAST lookup shows which), most passives (two structured records and one gap; a few explained in notes), status effects, per-item effects other than those above; targeting and movement detail; the full damage pipeline.

@@ -18,7 +18,7 @@ const DATA_DIR = resolve(HERE, "data", "07367c34")
 const NOTES_DIR = resolve(HERE, "knowledge", "07367c34")
 const NOTE_FILES = { "pilot-evolution": "pilot-evolution.md", "evolution-context": "evolution-context.md", "pilot-abilities": "pilot-abilities.md", "reusable-abilities": "reusable-abilities.md" }
 
-class Refusal extends Error { constructor(code, msg) { super(msg); this.code = code } }
+export class Refusal extends Error { constructor(code, msg) { super(msg); this.code = code } }
 const fail = (code, msg) => { throw new Refusal(code, msg) }
 const own = (o, k) => Object.hasOwn(o, k)
 
@@ -60,7 +60,7 @@ function checkProvenance(doc, what) {
   const bad = revisionsIn(doc).filter((r) => r !== SHA)
   if (bad.length) fail(3, `${what} contains source references to another revision (${bad[0]}); refusing`)
 }
-function load(o) {
+export function load(o) {
   const cat = readJson(o.catalog, "catalog"), evo = readJson(o.evolution, "evolution data"), abi = readJson(o.abilities, "ability records"), reu = readJson(o.reusable, "reusable ability/passive records"), rv = readJson(o.review, "review status")
   if (!cat || typeof cat.pokemon !== "object" || !cat.inventory || !Array.isArray(cat.inventory.identifiers)) fail(2, `${o.catalog} is not a catalog (no pokemon/inventory)`)
   if (!evo || typeof evo.units !== "object" || evo.units === null) fail(2, `${o.evolution} has no "units" section`)
@@ -173,21 +173,21 @@ const NOTE_MAP = {
 }
 const ABILITY_NOTE = { BLAST_BURN: ["pilot-abilities", "BLAST_BURN"], CRUNCH: ["pilot-abilities", "CRUNCH"], VESPIQUEN_ORDERS: ["pilot-abilities", "VESPIQUEN_ORDERS"], NUZZLE: ["reusable-abilities", "NUZZLE"], DRAGON_RAGE: ["reusable-abilities", "DRAGON_RAGE"], THRASH: ["reusable-abilities", "THRASH"], BUG_BUZZ: ["reusable-abilities", "BUG_BUZZ"], FOUL_PLAY: ["reusable-abilities", "FOUL_PLAY"], LEAF_BLADE: ["reusable-abilities", "LEAF_BLADE"], SOAK: ["reusable-abilities", "SOAK"], TORMENT: ["reusable-abilities", "TORMENT"], IRON_DEFENSE: ["reusable-abilities", "IRON_DEFENSE"], MACH_PUNCH: ["reusable-abilities", "MACH_PUNCH"], ROCK_SLIDE: ["reusable-abilities", "ROCK_SLIDE"], SLASH: ["reusable-abilities", "SLASH"], VENOSHOCK: ["reusable-abilities", "VENOSHOCK"], AERIAL_ACE: ["reusable-abilities", "AERIAL_ACE"], AQUA_TAIL: ["reusable-abilities", "AQUA_TAIL"], CLANGOROUS_SOUL: ["reusable-abilities", "CLANGOROUS_SOUL"], CRABHAMMER: ["reusable-abilities", "CRABHAMMER"], DISCHARGE: ["reusable-abilities", "DISCHARGE"], DIVE: ["reusable-abilities", "DIVE"], DOUBLE_SHOCK: ["reusable-abilities", "DOUBLE_SHOCK"], DRAGON_TAIL: ["reusable-abilities", "DRAGON_TAIL"], FAKE_TEARS: ["reusable-abilities", "FAKE_TEARS"], FIRE_LASH: ["reusable-abilities", "FIRE_LASH"], KING_SHIELD: ["reusable-abilities", "KING_SHIELD"], LEECH_SEED: ["reusable-abilities", "LEECH_SEED"], FLAME_CHARGE: ["reusable-abilities", "FLAME_CHARGE"], SLUDGE: ["reusable-abilities", "SLUDGE"], VOLT_SWITCH: ["reusable-abilities", "VOLT_SWITCH"], FLOWER_TRICK: ["reusable-abilities", "FLOWER_TRICK"], DARKEST_LARIAT: ["reusable-abilities", "DARKEST_LARIAT"], DRAGON_BREATH: ["reusable-abilities", "DRAGON_BREATH"], DRUM_BEATING: ["reusable-abilities", "DRUM_BEATING"], EXPANDING_FORCE: ["reusable-abilities", "EXPANDING_FORCE"], RAGING_BULL: ["reusable-abilities", "RAGING_BULL"], ZAP_CANNON: ["reusable-abilities", "ZAP_CANNON"], EXPLOSION: ["reusable-abilities", "EXPLOSION"], BLAZE_KICK: ["reusable-abilities", "BLAZE_KICK"], AQUA_STEP: ["reusable-abilities", "AQUA_STEP"], POWDER: ["reusable-abilities", "POWDER"], ICE_BALL: ["reusable-abilities", "ICE_BALL"], BITE: ["reusable-abilities", "BITE"], HORN_LEECH: ["reusable-abilities", "HORN_LEECH"], TELEPORT: ["reusable-abilities", "TELEPORT"] }
 const PASSIVE_NOTE = { SURGE_SURFER: ["reusable-abilities", "SURGE_SURFER"], PRIMEAPE: ["reusable-abilities", "PRIMEAPE"], PACHIRISU: ["reusable-abilities", "PACHIRISU"] }
-const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|Resolved later|Not claimed)/.test(l.trim()))
+export const unresolvedLines = (sec) => sec.body.filter((l) => /^(- )?\*\*(Unresolved|Resolved later|Not claimed)/.test(l.trim()))
 
 // ---- rendering ------------------------------------------------------------------------------------------
 const code = (s) => `\`${s}\``
 const REVIEW_LABEL = { reviewed: "independently reviewed", unreviewed: "source-traced, independent review pending (mechanical validation only; not independently reviewed)" }
 // Review wording for one record. A record with a separately attributed AI review stays source-traced/unreviewed: the AI review is named, scoped,
 // and never described as project-owner review or gameplay testing.
-const aiOf = (review, kind, name) => review.ai?.[kind]?.[name]
+export const aiOf = (review, kind, name) => review.ai?.[kind]?.[name]
 const aiScope = (ai) => `${ai.kind} by ${ai.reviewer} (${ai.scope}; ${ai.projectOwnerReviewed ? "project-owner review also recorded" : "not a project-owner review"}; ${ai.gameplayTested ? "gameplay-tested" : "not gameplay-tested"})`
 const reviewShort = (review, kind, name) => (review[kind][name] === "reviewed" ? "independently reviewed" : aiOf(review, kind, name) ? `source-traced; ${aiOf(review, kind, name).kind} by ${aiOf(review, kind, name).reviewer} recorded; project-owner review pending` : "source-traced, independent review pending")
 const arr = (a) => (a.length ? a.join(", ") : "—")
 const cap = (s, n = 700) => (s.length > n ? s.slice(0, n) + " … (see the note)" : s)
-const rawTable = (t) => Object.entries(t).map(([k, v]) => (/^\d+$/.test(k) ? `${k}★ ${v}` : `${k} ${v}`)).join(", ")
+export const rawTable = (t) => Object.entries(t).map(([k, v]) => (/^\d+$/.test(k) ? `${k}★ ${v}` : `${k} ${v}`)).join(", ")
 // declared raw amount of an effect: a by-stars table, a percent-of-caster-ATK table, a flat amount or a formula; `unit` says what the number is (e.g. a multiplier of target.atk)
-const rawDesc = (d) => {
+export const rawDesc = (d) => {
   let core = d.byStars ? rawTable(d.byStars) : d.percentOfCasterAtkByStars ? rawTable(d.percentOfCasterAtkByStars) : d.flat !== undefined ? `flat ${d.flat}` : d.formula
   if (core === undefined) { // generic fallback: never print "undefined"; tables (all keys are star numbers or "fallback") are shown as tables, other fields as key value
     const isTable = (v) => v && typeof v === "object" && Object.keys(v).every((k) => /^\d+$|^fallback$/.test(k))
@@ -420,22 +420,25 @@ function renderList({ cat, evo, abi, reusable, review }) {
   return L.join("\n")
 }
 
-try {
-  const o = parseArgs(process.argv.slice(2))
-  const data = load(o)
-  if (o.list) console.log(renderList(data))
-  else {
-    const key = o.key
-    if (!own(data.cat.pokemon, key)) {
-      if (own(data.cat.inventory.excluded ?? {}, key)) fail(1, `${key} is an identifier of the catalog but is excluded from it: ${data.cat.inventory.excluded[key].reason} (source: ${data.cat.inventory.excluded[key].source}). No record is shown.`)
-      fail(1, `unknown identifier "${key}" — not a production-reference catalog identifier (exact, case-sensitive Pkm key; use --list). Nothing was guessed.`)
+// run as a CLI only when executed directly; lookup-fast.mjs imports `load` and `Refusal` so both tools apply the same provenance, identity, binding and review-status checks
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const o = parseArgs(process.argv.slice(2))
+    const data = load(o)
+    if (o.list) console.log(renderList(data))
+    else {
+      const key = o.key
+      if (!own(data.cat.pokemon, key)) {
+        if (own(data.cat.inventory.excluded ?? {}, key)) fail(1, `${key} is an identifier of the catalog but is excluded from it: ${data.cat.inventory.excluded[key].reason} (source: ${data.cat.inventory.excluded[key].source}). No record is shown.`)
+        fail(1, `unknown identifier "${key}" — not a production-reference catalog identifier (exact, case-sensitive Pkm key; use --list). Nothing was guessed.`)
+      }
+      console.log(renderUnit(key, data))
     }
-    console.log(renderUnit(key, data))
+  } catch (e) {
+    if (e instanceof Refusal) {
+      console.error(`lookup-production: ${e.code === 3 ? "REFUSED — " : ""}${e.message}`)
+      process.exit(e.code)
+    }
+    throw e
   }
-} catch (e) {
-  if (e instanceof Refusal) {
-    console.error(`lookup-production: ${e.code === 3 ? "REFUSED — " : ""}${e.message}`)
-    process.exit(e.code)
-  }
-  throw e
 }
