@@ -1,0 +1,506 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPARK",
+ "kind": "ability",
+ "identifier": "SPARK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T173950Z"
+ },
+ "record": {
+  "ability": "SPARK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SPARK in this production reference: Wattrel and Kilowattrel (passive WIND_POWER, maxPP 80, range 2) and Pincurchin (passive PINCURCHIN, maxPP 100, range 1). The strategy is shared; the passives were not analysed here.",
+  "appliesTo": [
+   {
+    "key": "WATTREL",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "SPARK",
+    "declaredPassive": "WIND_POWER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KILOWATTREL",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "SPARK",
+    "declaredPassive": "WIND_POWER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PINCURCHIN",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SPARK",
+    "declaredPassive": "PINCURCHIN",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "WATTREL": {
+    "evidence": [
+     "unit-wattrel"
+    ]
+   },
+   "KILOWATTREL": {
+    "evidence": [
+     "unit-kilowattrel"
+    ]
+   },
+   "PINCURCHIN": {
+    "evidence": [
+     "unit-pincurchin"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPARK] = new SparkStrategy()",
+   "strategy": "SparkStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-spark",
+    "spark-class",
+    "base-flags",
+    "base-pp",
+    "spark-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Chain lightning. The cast target takes SPECIAL damage of 30/60/90 raw by the caster's stars (Wattrel 30, Kilowattrel 60, Pincurchin 90) immediately. A chain then hops: each hop picks the first unit (in board scan order of the 8 cells around the previous victim) that is on the primary target's team and not yet in the hit set, and, 250 ms later, deals SPECIAL damage of ceil(raw / 2^n) to it (n = 1 for the first hop), then hops on from it. The chain stops when no such neighbour exists or after the hop with n = 10. The primary target is never added to the hit set, so a hop can come back to it. The AP value lowered by 20 per hop is only an animation payload; damage uses the caster's full AP on every hit.",
+  "targeting": {
+   "who": "primary: the cast target passed to the strategy (the caster's current target); chain: units whose team equals the primary target's team, adjacent to the previous victim",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the cast target is chosen before the cast was not read.",
+   "evidence": [
+    "spark-class",
+    "base-flags",
+    "spark-find",
+    "adjacent",
+    "spark-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "chain through adjacent cells",
+   "adjacency": "all 8 neighbours (including diagonals) of the previous victim's current cell; candidates are examined top row first, left to right; the first eligible one is chosen (no distance, HP or randomness)",
+   "limits": "hit set excludes units already chosen as hop victims but not the primary target; at most 10 hops after the primary hit",
+   "evidence": [
+    "spark-find",
+    "spark-mark",
+    "adjacent",
+    "spark-chain",
+    "spark-start"
+   ],
+   "timing": {
+    "note": "each hop is a DelayedCommand of 250 ms pushed on the caster; SimulationCommand.update runs it once the accumulated dt exceeds the delay, and the caster's own update advances its commands",
+    "evidence": [
+     "spark-delay",
+     "cmd-class",
+     "cmd-update",
+     "cmd-run"
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 180,
+      "fallback": 180
+     }
+    },
+    "perUnitRaw": {
+     "WATTREL": 30,
+     "KILOWATTREL": 60,
+     "PINCURCHIN": 90
+    },
+    "bounceRequested": {
+     "formula": "ceil(raw / 2^n), n = 1..10",
+     "WATTREL": [
+      15,
+      8,
+      4,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "KILOWATTREL": [
+      30,
+      15,
+      8,
+      4,
+      2,
+      1,
+      1,
+      1,
+      1,
+      1
+     ],
+     "PINCURCHIN": [
+      45,
+      23,
+      12,
+      6,
+      3,
+      2,
+      1,
+      1,
+      1,
+      1
+     ]
+    },
+    "scaling": "every hit: AP x (1 + attacker AP/100) (apBoost true, caster's AP, not reduced per hop); the cast's crit flag multiplies by critPower (reduced by each victim's critReductionFactor) only if the cast crits (canCritByDefault is false, so needs ABILITY_CRIT). The same crit flag is used for every hit.",
+    "resolution": "requested amount per hit (raw for the primary target, ceil(raw/2^n) for hop n) -> AP/crit -> PokemonState.handleDamage (defenses, SPE_DEF division with minimum 1, shield; core-mechanics §A/§H); applied HP loss and takenDamage (shield part included) differ per victim. Hop damage is evaluated when the 250 ms command runs; protect / skydiving / magicBounce victims take no damage and (magicBounce) reflect damage to the caster, but the chain continues from them. The ability reads no takenDamage.",
+    "evidence": [
+     "spark-dmg",
+     "spark-hit",
+     "spark-reduce",
+     "spark-anim-ap",
+     "special-dmg",
+     "special-ap"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "WATTREL": 1,
+    "KILOWATTREL": 2,
+    "PINCURCHIN": 3
+   },
+   "declaredRawDamage": {
+    "WATTREL": 30,
+    "KILOWATTREL": 60,
+    "PINCURCHIN": 90
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 180 (also the fallback) is not reachable by the three units' star counts (1, 2, 3). Pincurchin has stars 3 as its base class.",
+   "evidence": [
+    "spark-dmg",
+    "unit-wattrel",
+    "unit-kilowattrel",
+    "unit-pincurchin"
+   ]
+  },
+  "positionalConditions": "The hop sequence depends on the primary target's position and the units next to it: the first eligible neighbour in row-major order. With no eligible neighbour only the primary hit happens. The hit set holds hop victims only; because the primary target is not in it, a later hop can select the primary target again when it is the first eligible neighbour of the current victim.",
+  "repeatedCastsAndModes": "The hit set is created per cast and not stored. Each cast repeats the primary hit and the chain; chains from different casts are independent. Pending hop commands live on the caster and run through its own update.",
+  "rawVsResolved": "Declared raw: 30/60/90 by stars. Requested: primary = raw; hop n = ceil(raw/2^n), e.g. Wattrel 15,8,4,2,1,1,1,1,1,1; Kilowattrel 30,15,8,4,2,1,1,1,1,1; Pincurchin 45,23,12,6,3,2,1,1,1,1. Applied: each requested amount x(1 + caster AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps per victim; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "sparkDamage",
+    "file": "app/core/abilities/spark.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); handleDamage was consulted via core-mechanics §A/§H, not re-probed here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "Whether the caster's command list is still advanced if the caster dies or is removed before a pending hop (only PokemonState.updateCommands was read)"
+  ],
+  "unresolved": [
+   "The routing queue record lists no routing uncertainties; Wattrel, Kilowattrel and Pincurchin are the only units listed for this identifier",
+   "The passives WIND_POWER (Wattrel, Kilowattrel) and PINCURCHIN were not read; if either changes SPARK, that is not covered",
+   "Hop targets are selected at cast time for the first hop and when each earlier hop runs for later ones; positions that change in between were not simulated",
+   "Whether any item or synergy changes SPARK beyond what is listed",
+   "No pinned-helper probe was run for this record; the chain was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-wattrel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15061,
+     15076
+    ],
+    "symbol": "class Wattrel",
+    "expect": "skill = Ability.SPARK",
+    "note": "unit class block; passive WIND_POWER"
+   },
+   {
+    "id": "unit-kilowattrel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15078,
+     15093
+    ],
+    "symbol": "class Kilowattrel",
+    "expect": "skill = Ability.SPARK",
+    "note": "unit class block; passive WIND_POWER"
+   },
+   {
+    "id": "unit-pincurchin",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19644,
+     19662
+    ],
+    "symbol": "class Pincurchin",
+    "expect": "skill = Ability.SPARK",
+    "note": "unit class block; passive PINCURCHIN, maxPP 100, range 1"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-spark",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1186,
+     1186
+    ],
+    "symbol": "AbilityStrategies[Ability.SPARK]",
+    "expect": "[Ability.SPARK]: new SparkStrategy()",
+    "note": ""
+   },
+   {
+    "id": "spark-class",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SparkStrategy",
+    "expect": "class SparkStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "spark-super",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "spark-dmg",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "[30, 60, 90, 180][pokemon.stars - 1] ?? 180",
+    "note": ""
+   },
+   {
+    "id": "spark-hit",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     58,
+     65
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "primary hit: full damage, SPECIAL, attacker = caster, crit passed, apBoost true"
+   },
+   {
+    "id": "spark-find",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     19,
+     27
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "cell.value.team === target.team",
+    "note": "next target: first adjacent cell (board order) holding a unit of the primary target's team that is not in enemiesHit"
+   },
+   {
+    "id": "spark-mark",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     29,
+     30
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "enemiesHit.add(newTarget.id)",
+    "note": "the primary target is never added to enemiesHit"
+   },
+   {
+    "id": "spark-delay",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     31,
+     53
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "each bounce is a caster command delayed 250 ms"
+   },
+   {
+    "id": "spark-reduce",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     40,
+     48
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "Math.ceil(damage / Math.pow(2, nbBounce))",
+    "note": "bounce damage halves per bounce, rounded up, apBoost true"
+   },
+   {
+    "id": "spark-anim-ap",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "ap: min(-100)(pokemon.ap - nbBounce * 20)",
+    "note": "value is only passed to broadcastAbility (animation payload)"
+   },
+   {
+    "id": "spark-chain",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     49,
+     52
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "if (nbBounce < 10)",
+    "note": "stops after the bounce with nbBounce 10"
+   },
+   {
+    "id": "spark-start",
+    "file": "app/core/abilities/spark.ts",
+    "lines": [
+     67,
+     67
+    ],
+    "symbol": "SparkStrategy.process",
+    "expect": "propagate(target)",
+    "note": "chain starts right after the primary hit"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "for (let y = cellY - 1; y < cellY + 2; y++)",
+    "note": "8 neighbours, rows from y-1 to y+1, x ascending within a row; the centre is excluded; off-board cells skipped"
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0)",
+    "note": "executes when the accumulated dt exceeds the delay"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "commands pushed on the caster are advanced by the caster's own update"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": "signature; apBoost parameter"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling from attacker.ap, no per-bounce reduction"
+   }
+  ]
+ }
+}
