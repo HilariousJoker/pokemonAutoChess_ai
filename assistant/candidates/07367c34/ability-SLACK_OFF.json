@@ -1,0 +1,574 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SLACK_OFF",
+ "kind": "ability",
+ "identifier": "SLACK_OFF",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T114015Z"
+ },
+ "record": {
+  "ability": "SLACK_OFF",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SLAKOTH (1 star), VIGOROTH (2 stars, passive VIGOROTH) and SLAKING (3 stars, passive SLAKING) declare ABILITY SLACK_OFF with maxPP 100 and range 1. All are NORMAL/FIELD. The two passives are separate queue records; only their interaction with this ability's sleep is noted here.",
+  "appliesTo": [
+   {
+    "key": "SLAKING",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SLACK_OFF",
+    "declaredPassive": "SLAKING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SLAKOTH",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SLACK_OFF",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VIGOROTH",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SLACK_OFF",
+    "declaredPassive": "VIGOROTH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SLACK_OFF] = new SlackOffStrategy()",
+   "strategy": "SlackOffStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "class",
+    "req",
+    "base"
+   ]
+  },
+  "summary": "Self cleanse, self heal, then self sleep. In this order the caster (1) calls clearNegativeStatus on itself (zeroes the cooldowns of the negative statuses; flags such as wound or burn are switched off later by their update methods), (2) heals itself for maxHP x 0.3 (0.6 fallback star) through handleHeal with apBoost 1 and the cast crit, and (3) triggerSleep(3000 ms) on itself. Because the cleanse only zeroes cooldowns, a wound or burn flag set before the cast is still seen by handleHeal during the same call: a wounded caster heals 0 and a burning caster heals at half. The sleep then makes the caster unable to move or attack until it runs out, unless triggerSleep is refused: VIGOROTH has IMMUNITY_SLEEP (set by its passive on spawn), so it heals and cleanses but does not fall asleep. SLAKING enters a 3000 ms rage when its sleep ends. No target is used.",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": false,
+   "note": "requiresTarget false: castable without a target in reach.",
+   "evidence": [
+    "req",
+    "clear-call",
+    "heal-call",
+    "sleep-call"
+   ]
+  },
+  "geometry": {
+   "shape": "self",
+   "detail": "No area, no movement, no board scan.",
+   "evidence": [
+    "clear-call",
+    "heal-call",
+    "sleep-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "cleanse",
+    "target": "the caster",
+    "declaredRaw": {
+     "call": "status.clearNegativeStatus(caster, caster)"
+    },
+    "scaling": "none",
+    "resolution": "Zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blind; clears the curse flag but adds 2000 ms to a running curse cooldown; possession is kept when the origin is a teammate. The boolean flags (wound, burn, ...) are cleared by the update methods on a later status update, not inside this call (updateWound sets wound = false when its cooldown runs out).",
+    "evidence": [
+     "clear-call",
+     "clear",
+     "clear-wound",
+     "clear-sleep",
+     "clear-curse",
+     "wound-flag",
+     "wound-upd"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.3,
+      "2": 0.3,
+      "3": 0.3,
+      "4": 0.6,
+      "fallback": 0.6
+     },
+     "formula": "handleHeal(maxHP x healFactor, caster, apBoost 1, crit)"
+    },
+    "perUnitRaw": {
+     "SLAKING": 0.3,
+     "SLAKOTH": 0.3,
+     "VIGOROTH": 0.3
+    },
+    "scaling": "REQUESTED amount: maxHP x 0.3 for stars 1 to 3 (0.6 fallback). APPLIED amount in PokemonState.handleHeal: x(1 + AP/100) (apBoost 1), x critPower if the cast crit, x1.3 with BUFF_HEAL_RECEIVED, x0.5 while burning, x0.5 while enraged, x1.2 under ZENITH weather, then rounded and capped at missing HP (healReceived); the rest is overheal.",
+    "resolution": "Nothing is healed (healReceived 0, overheal 0) when the caster's wound flag is true (a Blood Stone under BLOODMOON adds a shield instead), when its hp is 0, or when it is protected. The self cleanse runs first but only zeroes woundCooldown/burnCooldown; the wound and burn flags stay true until the update methods run, so a wounded or burning caster is still treated as wounded/burning inside this call. healDone is increased by healReceived. If overheal is above 0 and the caster has the GRASS synergy effect, 0.4 x overheal is added to max HP.",
+    "evidence": [
+     "factor",
+     "heal-call",
+     "heal-ent",
+     "heal-wound",
+     "heal-gate",
+     "heal-ap",
+     "heal-crit",
+     "heal-mods",
+     "heal-apply",
+     "wound-flag",
+     "wound-upd"
+    ]
+   },
+   {
+    "kind": "status-sleep",
+    "target": "the caster",
+    "declaredRaw": {
+     "durationMs": 3000
+    },
+    "scaling": "REQUESTED duration: fixed 3000 ms, no AP or crit scaling. APPLIED: x1.3 under NIGHT weather, x0.7 under ZENITH, halved when enraged, then applyStatusDurationReductions (Swift Swim x0.7, Hydration x0.5, Water Veil/Surge Surfer x0.3, Odd Keystone -10% each; body read in the SING candidate, not repeated here), rounded.",
+    "resolution": "triggerSleep is refused when the caster is already asleep, has Rune Protect, is skydiving, has IMMUNITY_SLEEP, or has ccCooldown above 0. VIGOROTH gets IMMUNITY_SLEEP in its passive spawn effect, so for VIGOROTH the sleep is normally refused. When it applies: sleep = true and sleepCooldown = rounded duration; the unit cannot move or attack while asleep; each damage instance received shortens the remaining sleep by 300 ms; at the end ccCooldown is raised to at least CC_COOLDOWN and a SLAKING caster triggers rage for 3000 ms. The cleanse zeroed sleepCooldown first, so it does not extend an existing sleep.",
+    "evidence": [
+     "sleep-call",
+     "sleep",
+     "sleep-w",
+     "sleep-rage",
+     "sleep-set",
+     "update",
+     "slaking",
+     "vig",
+     "hitwake",
+     "canmove",
+     "canatk",
+     "comatose"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "sleep (self)",
+    "duration": "requested 3000 ms; refused for VIGOROTH (IMMUNITY_SLEEP)",
+    "evidence": [
+     "sleep-call",
+     "sleep",
+     "vig"
+    ]
+   },
+   {
+    "status": "all negative statuses (self)",
+    "duration": "cooldowns zeroed; flags clear on the next update; curse cooldown extended by 2000 ms",
+    "evidence": [
+     "clear",
+     "clear-curse"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "SLAKING": 3,
+    "SLAKOTH": 1,
+    "VIGOROTH": 2
+   },
+   "declaredRawHealFraction": {
+    "SLAKING": 0.3,
+    "SLAKOTH": 0.3,
+    "VIGOROTH": 0.3
+   },
+   "note": "The caster's stars index the heal fraction (0.3, 0.3, 0.3, 0.6 fallback). The sleep duration does not depend on stars. Catalog units here are 1 (SLAKOTH), 2 (VIGOROTH) and 3 (SLAKING) stars, so every catalog caster heals 30% of max HP (requested).",
+   "evidence": [
+    "factor"
+   ]
+  },
+  "positionalConditions": "None; self-only and no range or target needed.",
+  "repeatedCastsAndModes": "No stored state in the strategy. While asleep the unit cannot act, so a second cast needs the sleep to end (or never begin, as for VIGOROTH). After waking, ccCooldown blocks a new sleep for at least 1500 ms.",
+  "rawVsResolved": "Requested heal: 30% of maxHP (60% fallback). Applied: x(1 + AP/100) x critPower if crit, x1.3 / x0.5 burning / x0.5 enraged / x1.2 ZENITH, rounded, capped at missing HP, and 0 when the wound flag is set at cast time (the cleanse does not remove the flag in time). Requested sleep: 3000 ms; applied after weather, rage and reductions, or refused (already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP, ccCooldown).",
+  "sourceTables": [
+   {
+    "id": "healFactor",
+    "file": "app/core/abilities/slack-off.ts",
+    "pattern": "const healFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "applyStatusDurationReductions body (read for the SING candidate, not cited here)",
+   "eatBerry / Chesto Berry interaction after sleep starts (not read)",
+   "Generic ability-crit gate (whether the cast can crit) and when the cast fires in a real fight",
+   "Status update order inside a tick (when wound/burn flags clear relative to a cast)",
+   "Passives SLAKING and VIGOROTH beyond the lines cited (separate queue records)"
+  ],
+  "unresolved": [
+   "Whether a wound or burn flag survives into handleHeal in a real fight depends on the update order, read only from the code of clearNegativeStatus, updateWound and handleHeal",
+   "VIGOROTH is sleep-immune via its passive, so SLACK_OFF does not put it to sleep; not confirmed in a real fight",
+   "SLAKING passive (rage after waking) is a separate record, only the line in updateSleep is cited",
+   "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
+   "No routing uncertainty is recorded for this identifier in the queue",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1170,
+     1170
+    ],
+    "symbol": "AbilityStrategies[Ability.SLACK_OFF]",
+    "expect": "[Ability.SLACK_OFF]: new SlackOffStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "SlackOffStrategy",
+    "expect": "export class SlackOffStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "req",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SlackOffStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without a target; canCritByDefault stays false"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "clear-call",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "process",
+    "expect": "pokemon.status.clearNegativeStatus(pokemon, pokemon)",
+    "note": "self cleanse first"
+   },
+   {
+    "id": "factor",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "process",
+    "expect": "const healFactor = [0.3, 0.3, 0.3, 0.6][pokemon.stars - 1] ?? 0.6",
+    "note": "fraction of maxHP by stars, fallback 0.6"
+   },
+   {
+    "id": "heal-call",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "process",
+    "expect": "pokemon.handleHeal(pokemon.maxHP * healFactor, pokemon, 1, crit)",
+    "note": "self heal with apBoost 1 and crit"
+   },
+   {
+    "id": "sleep-call",
+    "file": "app/core/abilities/slack-off.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "process",
+    "expect": "pokemon.status.triggerSleep(3000, pokemon)",
+    "note": "self sleep for 3000 ms requested"
+   },
+   {
+    "id": "clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     123
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity) { this.burnCooldown = 0",
+    "note": "only cooldowns are zeroed (and curse/possession handled); boolean flags are not set here"
+   },
+   {
+    "id": "clear-wound",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     130,
+     130
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.woundCooldown = 0",
+    "note": "wound cooldown zeroed"
+   },
+   {
+    "id": "clear-sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     128,
+     128
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.sleepCooldown = 0",
+    "note": "sleep cooldown zeroed"
+   },
+   {
+    "id": "clear-curse",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     135,
+     136
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.curseCooldown += 2000",
+    "note": "curse cooldown extended by 2000"
+   },
+   {
+    "id": "wound-flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "Status.wound",
+    "expect": "wound = false",
+    "note": "wound is a boolean flag separate from woundCooldown"
+   },
+   {
+    "id": "wound-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     901
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "if (this.woundCooldown - dt <= 0) { this.wound = false",
+    "note": "the wound flag turns off only when updateWound runs"
+   },
+   {
+    "id": "heal-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     332
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "return { healReceived: 0, overheal: 0 }",
+    "note": "a wounded unit receives no heal (Blood Stone bloodmoon shield exception)"
+   },
+   {
+    "id": "heal-gate",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.hp > 0 && !pokemon.status.protect",
+    "note": "dead or protected units are not healed"
+   },
+   {
+    "id": "heal-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     335,
+     335
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "heal-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     338,
+     338
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= caster.critPower",
+    "note": "crit scaling"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     350
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1.3 } if (pokemon.status.burn) { heal *= 0.5 } if (pokemon.status.enraged) { heal *= 0.5 } if (pokemon.simulation.weather === Weather.ZENITH) { heal *= 1.2",
+    "note": "x1.3 buff, x0.5 burning, x0.5 enraged, x1.2 ZENITH"
+   },
+   {
+    "id": "heal-apply",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal) const overheal = min(0)(heal - missingHP) pokemon.hp += healReceived",
+    "note": "rounded, capped at missing HP"
+   },
+   {
+    "id": "sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     767
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!this.sleep && !this.runeProtect && !this.skydiving && !pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) && this.ccCooldown <= 0",
+    "note": "guards: already asleep, Rune Protect, skydiving, sleep immunity, ccCooldown"
+   },
+   {
+    "id": "sleep-w",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     768,
+     771
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration *= 1.3 } else if (pkm.simulation.weather === Weather.ZENITH) { duration *= 0.7",
+    "note": "NIGHT x1.3, ZENITH x0.7"
+   },
+   {
+    "id": "sleep-rage",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     773,
+     774
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration = duration / 2",
+    "note": "enraged halves"
+   },
+   {
+    "id": "sleep-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     779,
+     781
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleep = true this.sleepCooldown = Math.round(duration)",
+    "note": "after applyStatusDurationReductions, sleep set"
+   },
+   {
+    "id": "update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     788,
+     796
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.sleepCooldown - dt <= 0",
+    "note": "sleep ends when its cooldown runs out; ccCooldown raised to CC_COOLDOWN; SLAKING rage"
+   },
+   {
+    "id": "slaking",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     798,
+     799
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.triggerRage(3000, pkm)",
+    "note": "SLAKING wakes into 3000 ms rage"
+   },
+   {
+    "id": "vig",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1275,
+     1278
+    ],
+    "symbol": "PassiveEffects[VIGOROTH]",
+    "expect": "pkm.effects.add(EffectEnum.IMMUNITY_SLEEP)",
+    "note": "VIGOROTH gets IMMUNITY_SLEEP on spawn, so its triggerSleep is refused"
+   },
+   {
+    "id": "comatose",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1281,
+     1283
+    ],
+    "symbol": "PassiveEffects[COMATOSE]",
+    "expect": "pkm.status.sleep = true",
+    "note": "for contrast: COMATOSE units are permanently asleep; not a SLACK_OFF unit"
+   },
+   {
+    "id": "hitwake",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1211,
+     1213
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.status.sleepCooldown -= 300",
+    "note": "damage received shortens a running sleep by 300 ms"
+   },
+   {
+    "id": "canmove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     233
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE)",
+    "note": "asleep: cannot move"
+   },
+   {
+    "id": "canatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     240,
+     243
+    ],
+    "symbol": "PokemonEntity.canAttack",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE)",
+    "note": "asleep: cannot attack"
+   }
+  ]
+ }
+}
