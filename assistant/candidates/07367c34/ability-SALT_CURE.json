@@ -1,0 +1,546 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SALT_CURE",
+ "kind": "ability",
+ "identifier": "SALT_CURE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T114015Z"
+ },
+ "record": {
+  "ability": "SALT_CURE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "GARGANACL (3 stars), NACLI (1 star) and NACLSTACK (2 stars) declare ABILITY SALT_CURE with maxPP 80 and range 1; none declares a passive. All three are ROCK/GOURMET.",
+  "appliesTo": [
+   {
+    "key": "GARGANACL",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SALT_CURE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NACLI",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SALT_CURE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NACLSTACK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SALT_CURE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SALT_CURE] = new SaltCureStrategy()",
+   "strategy": "SaltCureStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "class",
+    "base"
+   ]
+  },
+  "summary": "Area shield-and-cleanse plus conditional burn. The caster scans every occupied cell within radius 2 of itself (getCellsInRadius(x, y, 2, false): the caster's own cell is excluded, so the caster itself is NOT shielded or cured, despite the source comment saying 'Adjacent'). Every unit of the caster's team in that area gains a shield of 10/20/40/80 by caster stars (requested amount, scaled by caster AP via apBoost 1, by critPower if the cast crit, then Big Eater Belt on the receiver, halved on an enraged receiver) and has its negative statuses cleared. Every enemy in the area that has the WATER, STEEL or GHOST synergy type is set to burn for 5000 ms (subject to burn immunity, Rune Protect, Water Bubble and duration reductions). Other enemies are untouched. No damage is dealt directly; burn damage arrives later as TRUE ticks.",
+  "targeting": {
+   "who": "all units in the radius-2 area around the caster; allies get the shield and cleanse, enemies with WATER, STEEL or GHOST types get burn",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true, so the caster needs a target to cast, but the passed target is never used by process: the area is centred on the caster. The source comment says 'Adjacent' but the code radius is 2 (see geometry).",
+   "evidence": [
+    "class",
+    "base",
+    "comment",
+    "cells",
+    "ally",
+    "enemy-types"
+   ]
+  },
+  "geometry": {
+   "shape": "filled area around the caster, caster's own cell excluded",
+   "detail": "getCellsInRadius(positionX, positionY, 2, false): radius becomes floor(2) + 0.5 = 2.5 and a cell is included when dx^2 + dy^2 < 6.25 and it is on the board. That covers offsets with (|dx|,|dy|) of (0,1),(1,0),(1,1),(0,2),(2,0),(1,2),(2,1); (2,2) (distance^2 8) is excluded. Cell corners of the square area are therefore cut. Rows/columns follow the board grid in board.ts (isOnBoard test).",
+   "evidence": [
+    "cells",
+    "radius",
+    "radius-body",
+    "radius-center",
+    "radius-dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "every ally (same team) occupied cell in the area, excluding the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "formula": "shield = [10, 20, 40, 80][pokemon.stars - 1] ?? 80; addShield(shield, caster, apBoost 1, crit)"
+    },
+    "perUnitRaw": {
+     "GARGANACL": 40,
+     "NACLI": 10,
+     "NACLSTACK": 20
+    },
+    "scaling": "REQUESTED amount is the table value by the caster's stars. Applied amount: PokemonEntity.addShield first runs applyBigEaterBeltStatBuff on the RECEIVER (x1.25 rounded down when the receiver holds Big Eater Belt and the value is positive), then PokemonState.addShield multiplies by 1 + caster.ap x 1 / 100 (apBoost 1), by caster.critPower if crit, by 0.5 if the receiver is enraged, rounds, and adds to the receiver's shield (floored at 0). Only receivers with hp > 0 get the shield. The caster's shieldDone is increased by the applied amount. Whether the cast can crit depends on the generic ability-crit gate (canCritByDefault false) which was not traced here.",
+    "resolution": "Shield amounts are requested values, not takenDamage; no damage resolution is involved. The applied change can differ from the table by AP, crit, Big Eater Belt and rage as stated in scaling.",
+    "evidence": [
+     "shield-table",
+     "ally",
+     "ally-fx",
+     "ent-shield",
+     "belt",
+     "state-shield",
+     "state-crit",
+     "state-rage",
+     "state-apply",
+     "state-alive"
+    ]
+   },
+   {
+    "kind": "cleanse",
+    "target": "the same allies as the shield, excluding the caster",
+    "declaredRaw": {
+     "call": "status.clearNegativeStatus(ally, caster)"
+    },
+    "scaling": "none",
+    "resolution": "Zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blind; clears the curse flag but ADDS 2000 ms to a running curse cooldown 'on purpose'; resets possession cooldown unless the ally is possessed by a caster of its own team (origin team equals entity team). The effect on each status is applied when its update runs (the status flags themselves turn off through their update methods; update bodies not read).",
+    "evidence": [
+     "ally-fx",
+     "clear",
+     "clear-curse",
+     "clear-poss"
+    ]
+   },
+   {
+    "kind": "status-burn",
+    "target": "every enemy in the area whose types include WATER, STEEL or GHOST",
+    "declaredRaw": {
+     "durationMs": 5000
+    },
+    "scaling": "Fixed 5000 ms requested. triggerBurn passes the duration through applyStatusDurationReductions (body not read) so the applied duration can be shorter. The duration does not scale with AP or crit.",
+    "resolution": "Burn is not applied at all when the target has the IMMUNITY_BURN effect, Rune Protect, or the WATER_BUBBLE passive. If applied: burn = true, burnCooldown = duration only when longer than the current cooldown, and burnOrigin = caster. Guts/Well Baked/Magmarizer/Rawst Berry side effects run inside triggerBurn. Each second updateBurn deals TRUE damage of 5% maxHP (modified by weather, Assault Vest, Swift Swim/Hydration/Water Veil/Surge Surfer, zero for Well Baked or Magmarizer) through handleDamage; the burn ends when burnCooldown runs out.",
+    "evidence": [
+     "enemy-types",
+     "burn-call",
+     "burn",
+     "burn-guard",
+     "burn-dur",
+     "burn-set",
+     "burn-tick",
+     "burn-true"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "burn",
+    "duration": "5000 ms requested on enemies with WATER, STEEL or GHOST type",
+    "evidence": [
+     "burn-call",
+     "burn-guard",
+     "burn-set"
+    ]
+   },
+   {
+    "status": "all negative statuses",
+    "duration": "cleared on allies in the area (curse cooldown extended by 2000 ms instead)",
+    "evidence": [
+     "clear",
+     "clear-curse"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GARGANACL": 3,
+    "NACLI": 1,
+    "NACLSTACK": 2
+   },
+   "declaredRawShield": {
+    "GARGANACL": 40,
+    "NACLI": 10,
+    "NACLSTACK": 20
+   },
+   "note": "The caster's stars index the shield table (10, 20, 40, 80; fallback 80). Burn duration and area do not depend on stars. Catalog units here are 1 (NACLI), 2 (NACLSTACK) and 3 (GARGANACL) stars.",
+   "evidence": [
+    "shield-table"
+   ]
+  },
+  "positionalConditions": "Area is centred on the caster (radius 2.5 on squared distance, centre excluded). Only occupied cells matter. The caster is never included, so a lone caster shields nobody. Enemy burn needs the WATER, STEEL or GHOST type on the enemy at cast time.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Repeated casts add shield again each time (shields stack additively) and re-apply burn (the longer remaining duration wins, burnOrigin updated only when a longer duration is set).",
+  "rawVsResolved": "Requested shield: 10 / 20 / 40 (80 fallback) by caster stars. Applied shield: that value x (1 + AP/100) x critPower if crit, x1.25 down for a Big Eater Belt receiver (applied first), x0.5 if the receiver is enraged, rounded. Requested burn: 5000 ms, applied: after applyStatusDurationReductions and blocked by burn immunity, Rune Protect or Water Bubble. Burn damage is a later TRUE tick (5% maxHP per second before modifiers), not part of the cast.",
+  "sourceTables": [
+   {
+    "id": "shieldTable",
+    "file": "app/core/abilities/salt-cure.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "applyStatusDurationReductions body (burn duration reductions)",
+   "Update methods that turn cleared statuses off, and the per-status effects of the cleared cooldowns",
+   "handleDamage body (burn TRUE tick resolution, shields, kills)",
+   "Generic ability-crit gate (whether the cast can crit) and when the cast fires in a real fight (range 1 unit and the cast gate)"
+  ],
+  "unresolved": [
+   "Source comment says 'Adjacent' but the code uses radius 2 (distance^2 < 6.25, centre excluded); the code was followed",
+   "Caster is excluded from its own shield and cleanse because includesCenter is false; not confirmed in a real fight",
+   "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
+   "applyStatusDurationReductions not read, so the applied burn duration is unquantified",
+   "No routing uncertainty is recorded for this identifier in the queue",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1134,
+     1134
+    ],
+    "symbol": "AbilityStrategies[Ability.SALT_CURE]",
+    "expect": "[Ability.SALT_CURE]: new SaltCureStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SaltCureStrategy",
+    "expect": "export class SaltCureStrategy extends AbilityStrategy",
+    "note": "no requiresTarget/canCritByDefault override, so defaults true/false"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP; requiresTarget defaults true, canCritByDefault false"
+   },
+   {
+    "id": "comment",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "comment in process",
+    "expect": "Adjacent allies gain [10,20,40,80] SHIELD",
+    "note": "source comment says adjacent but code uses radius 2"
+   },
+   {
+    "id": "shield-table",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "const shield = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "per-star shield table, fallback 80"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "process",
+    "expect": "board.getCellsInRadius( pokemon.positionX, pokemon.positionY, 2, false )",
+    "note": "radius 2, includesCenter false"
+   },
+   {
+    "id": "ally",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "process",
+    "expect": "cell.value.team === pokemon.team",
+    "note": "team test on any occupied cell"
+   },
+   {
+    "id": "ally-fx",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     25,
+     26
+    ],
+    "symbol": "process",
+    "expect": "cell.value.addShield(shield, pokemon, 1, crit) cell.value.status.clearNegativeStatus(cell.value, pokemon)",
+    "note": "shield with apBoost 1 and crit, then cure"
+   },
+   {
+    "id": "enemy-types",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     29,
+     31
+    ],
+    "symbol": "process",
+    "expect": "cell.value.types.has(Synergy.WATER) || cell.value.types.has(Synergy.STEEL) || cell.value.types.has(Synergy.GHOST)",
+    "note": "enemy type filter"
+   },
+   {
+    "id": "burn-call",
+    "file": "app/core/abilities/salt-cure.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "process",
+    "expect": "cell.value.status.triggerBurn(5000, cell.value, pokemon)",
+    "note": "5000 ms burn"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     267,
+     272
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "getCellsInRadius( cellX: number, cellY: number, radius: number, includesCenter: boolean )",
+    "note": "signature"
+   },
+   {
+    "id": "radius-body",
+    "file": "app/core/board.ts",
+    "lines": [
+     275,
+     275
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "radius = Math.floor(Math.abs(radius)) + 0.5",
+    "note": "radius 2 becomes 2.5; strict < radius squared"
+   },
+   {
+    "id": "radius-center",
+    "file": "app/core/board.ts",
+    "lines": [
+     156,
+     156
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "x == cellX && y == cellY && !includesCenter",
+    "note": "caster cell skipped when includesCenter false"
+   },
+   {
+    "id": "radius-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     283,
+     283
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "this.isOnBoard(x, y) && distanceSquared < radiusSquared",
+    "note": "squared Euclidean distance test"
+   },
+   {
+    "id": "ent-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt hook then state.addShield"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down for positive values"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "state-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": "crit scaling"
+   },
+   {
+    "id": "state-rage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.status.enraged && shield > 0",
+    "note": "enraged halves shield"
+   },
+   {
+    "id": "state-apply",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     394,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "shield = Math.round(shield) pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "round then add"
+   },
+   {
+    "id": "state-alive",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     389
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.hp > 0) {",
+    "note": "only living targets get shield (first match inside addShield region)"
+   },
+   {
+    "id": "clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     123
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity) { this.burnCooldown = 0",
+    "note": "zeroes cooldowns of negative statuses"
+   },
+   {
+    "id": "clear-curse",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     135,
+     136
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.curseCooldown += 2000",
+    "note": "curse not cleared: cooldown extended by 2000"
+   },
+   {
+    "id": "clear-poss",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     139,
+     139
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.possessed && origin && origin.team === entity.team",
+    "note": "possession kept when origin is an ally"
+   },
+   {
+    "id": "burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     402
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "triggerBurn( duration: number, pkm: PokemonEntity, origin: PokemonEntity | null )",
+    "note": "signature"
+   },
+   {
+    "id": "burn-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     406
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) && !this.runeProtect && pkm.passive !== Passive.WATER_BUBBLE",
+    "note": "immunity, Rune Protect and Water Bubble block burn"
+   },
+   {
+    "id": "burn-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration may be reduced (body not read)"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     413
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) { this.burnCooldown = duration",
+    "note": "longer duration wins; burnOrigin set"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "burn tick base 5% maxHP per second"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE",
+    "note": "burn damage is TRUE type"
+   }
+  ]
+ }
+}
