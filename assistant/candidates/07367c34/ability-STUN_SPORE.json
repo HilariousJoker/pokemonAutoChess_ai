@@ -1,0 +1,542 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STUN_SPORE",
+ "kind": "ability",
+ "identifier": "STUN_SPORE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T233949Z"
+ },
+ "record": {
+  "ability": "STUN_SPORE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ODDISH, GLOOM and VILEPLUME (the queued units, the whole line).",
+  "appliesTo": [
+   {
+    "key": "GLOOM",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "STUN_SPORE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ODDISH",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "STUN_SPORE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VILEPLUME",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "STUN_SPORE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STUN_SPORE] = new StunSporeStrategy()",
+   "strategy": "StunSporeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-st",
+    "base",
+    "cast",
+    "dispatch-attack"
+   ]
+  },
+  "summary": "Area attack around the current target: every enemy on the target's cell or on one of the (up to 8) cells around it is paralysed for a requested 5000 ms and then takes special damage (15 raw at 1 star, 30 at 2, 60 at 3). The paralysis is applied before the damage, per enemy, and is not AP-scaled.",
+  "targeting": {
+   "who": "every enemy of the caster in the 3x3 block centred on the current target (the target included)",
+   "needsTarget": true,
+   "evidence": [
+    "st-area",
+    "adjacent",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square centred on the target's cell (getAdjacentCells with includesCenter = true), off-board cells dropped",
+   "origin": "the target's cell, not the caster's",
+   "evidence": [
+    "st-area",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "scaling": "requested amount, per enemy hit: AP: damage x (1 + AP/100) (apBoost default true); crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false); one crit roll shared by all enemies hit",
+    "resolution": "applied amount per enemy: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1) and later handleDamage modifiers; protect / skydiving / magicBounce block the hit for that enemy (its paralysis was already applied). takenDamage (includes shield damage) is not used",
+    "evidence": [
+     "st-dmg",
+     "st-hit",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor"
+    ],
+    "perUnitRaw": {
+     "ODDISH": 15,
+     "GLOOM": 30,
+     "VILEPLUME": 60
+    }
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "paralysis",
+    "target": "each enemy in the 3x3 block",
+    "declaredRaw": {
+     "durationMs": 5000,
+     "note": "requested, same for every star count"
+    },
+    "scaling": "none from AP or crit: the strategy leaves apBoost at its default false, so triggerParalysis does not multiply by (1 + AP/100)",
+    "applicationOrder": "per enemy, before that enemy's damage call",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then the target's applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each, as recorded in ZAP_CANNON). Timer rule: the cooldown is replaced only if the new duration is larger; the flag is set before that. A CHERI_BERRY holder eats the berry after a successful application",
+    "combatEffect": "a paralysed unit uses half speed for its attack cooldown and its movement speed and cannot dodge basic attacks. Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies.ts, passives.ts) were seen in sibling records but not read here",
+    "evidence": [
+     "st-para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "reductions",
+     "para-atk",
+     "para-move",
+     "para-dodge"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ODDISH": 1,
+    "GLOOM": 2,
+    "VILEPLUME": 3
+   },
+   "declaredRawDamage": {
+    "ODDISH": 15,
+    "GLOOM": 30,
+    "VILEPLUME": 60
+   },
+   "note": "damage is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 120 and the fallback 120 are not reached by these units' bare star counts (1, 2, 3). Paralysis duration has no star dependence. maxPP is 80 and range 1 for all three.",
+   "evidence": [
+    "st-dmg",
+    "unit-oddish",
+    "unit-gloom",
+    "unit-vileplume"
+   ]
+  },
+  "positionalConditions": "The block is centred on the target, not the caster; allies and empty cells are skipped. The cell contents are read when the list is built, before any paralysis or damage is applied.",
+  "repeatedCastsAndModes": "No state is kept: each cast re-applies a paralysis whose timer only extends if longer. No modes.",
+  "rawVsResolved": "Requested (raw) damage per enemy: 15 (ODDISH) / 30 (GLOOM) / 60 (VILEPLUME). Applied damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division and later handleDamage modifiers (min 1); takenDamage is not used. Requested paralysis 5000 ms; applied: x1.3 in STORM (less 20% per ELECTRIC_QUARTZ), status-duration reductions, none under runeProtect / IMMUNITY_PARALYSIS, timer only changes if longer.",
+  "sourceTables": [
+   {
+    "id": "stunSporeDamage",
+    "file": "app/core/abilities/stun-spore.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+  ],
+  "unresolved": [
+   "Behaviour when an enemy in the block dies or is moved during the iteration (death handling) was not traced",
+   "Whether any other item or synergy effect changes STUN_SPORE",
+   "Consulted: Board.getAdjacentCells, Status.triggerParalysis / updateParalysis / applyStatusDurationReductions, handleSpecialDamage, PokemonState.handleDamage and the sibling ZAP_CANNON record. Queue record lists no routing uncertainties and no dependencies."
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-st",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1214,
+     1214
+    ],
+    "symbol": "AbilityStrategies[Ability.STUN_SPORE]",
+    "expect": "[Ability.STUN_SPORE]: new StunSporeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "st-dmg",
+    "file": "app/core/abilities/stun-spore.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "StunSporeStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table by casting entity stars"
+   },
+   {
+    "id": "st-area",
+    "file": "app/core/abilities/stun-spore.ts",
+    "lines": [
+     15,
+     18
+    ],
+    "symbol": "StunSporeStrategy.process",
+    "expect": ".getAdjacentCells(target.positionX, target.positionY, true)",
+    "note": "the target's cell and the up to 8 cells around it (includesCenter = true), enemies of the caster only"
+   },
+   {
+    "id": "st-para",
+    "file": "app/core/abilities/stun-spore.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "StunSporeStrategy.process",
+    "expect": "cell.value.status.triggerParalysis(5000, cell.value, pokemon)",
+    "note": "paralysis requested 5000 ms, applied BEFORE the damage, apBoost left at its default false"
+   },
+   {
+    "id": "st-hit",
+    "file": "app/core/abilities/stun-spore.ts",
+    "lines": [
+     20,
+     26
+    ],
+    "symbol": "StunSporeStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "special damage after the paralysis (crit passed, apBoost default true)"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "3x3 block around the cell, centre only if includesCenter, off-board cells dropped; cell values are read when the list is built"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true (STUN_SPORE passes 5 arguments)"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect / skydiving / magicBounce block the hit (damage 0, death false); the paralysis was already applied before"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     913
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "Status.triggerParalysis definition, apBoost parameter defaults to false"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     918,
+     918
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "apBoost defaults to false, so the 5000 ms is not AP-scaled"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather x1.3, less 20% per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "paralysis duration reductions"
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     935,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": "a CHERI_BERRY holder eats the berry"
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     943,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": "paralysis healed when the timer runs out"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysed units use half speed for the attack cooldown"
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "and for movement speed"
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": "a paralysed target cannot dodge"
+   },
+   {
+    "id": "unit-oddish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7615,
+     7615
+    ],
+    "symbol": "Oddish",
+    "expect": "skill = Ability.STUN_SPORE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-gloom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7630,
+     7630
+    ],
+    "symbol": "Gloom",
+    "expect": "skill = Ability.STUN_SPORE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-vileplume",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7644,
+     7644
+    ],
+    "symbol": "Vileplume",
+    "expect": "skill = Ability.STUN_SPORE",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "unitEvidence": {
+   "ODDISH": {
+    "evidence": [
+     "unit-oddish"
+    ]
+   },
+   "GLOOM": {
+    "evidence": [
+     "unit-gloom"
+    ]
+   },
+   "VILEPLUME": {
+    "evidence": [
+     "unit-vileplume"
+    ]
+   }
+  }
+ }
+}
