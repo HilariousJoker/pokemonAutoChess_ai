@@ -1,0 +1,592 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STEAMROLLER",
+ "kind": "ability",
+ "identifier": "STEAMROLLER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T233949Z"
+ },
+ "record": {
+  "ability": "STEAMROLLER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "VENIPEDE, WHIRLIPEDE and SCOLIPEDE (the queued units, the whole line).",
+  "appliesTo": [
+   {
+    "key": "SCOLIPEDE",
+    "stars": 3,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "STEAMROLLER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VENIPEDE",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "STEAMROLLER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WHIRLIPEDE",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "STEAMROLLER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STEAMROLLER] = new SteamrollerStrategy()",
+   "strategy": "SteamrollerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sr",
+    "base",
+    "cast",
+    "dispatch-attack",
+    "sr-base"
+   ]
+  },
+  "summary": "Dash-and-hit: the caster picks the destination returned by Board.getFarthestTargetCoordinateAvailablePlace (usually a free cell next to the farthest targetable enemy), collects every enemy on the line between its starting cell and that destination, moves there, and deals SPECIAL damage equal to round(multiplier x its current speed stat) to each collected enemy (multiplier 0.4 at 1 star, 0.8 at 2, 1.5 at 3). Each hit enemy then has a 50% chance (luck adjusted) of a 3000 ms flinch. If the line held no enemy, or no destination exists (the caster then does not move), only the cast target is hit.",
+  "targeting": {
+   "who": "every enemy on the cells of the supercover line from the caster's starting cell to the destination, read before the caster moves; otherwise the cast target alone",
+   "needsTarget": true,
+   "evidence": [
+    "sr-cells",
+    "sr-fallback",
+    "board-far",
+    "between",
+    "dispatch-attack"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's starting cell to the destination cell chosen by the helper, both endpoints included; the destination is a free cell so it holds no enemy; the destination is not guaranteed to be next to the farthest enemy: the helper can retain a cell chosen for an earlier, nearer enemy",
+   "origin": "the caster's cell",
+   "evidence": [
+    "between",
+    "board-far",
+    "board-far-dist",
+    "board-select",
+    "board-fallback",
+    "dist-m",
+    "targettable",
+    "sr-move",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "formula": "round(multiplier x pokemon.speed)",
+     "multiplierByStars": {
+      "1": 0.4,
+      "2": 0.8,
+      "3": 1.5,
+      "4": 3,
+      "fallback": 3
+     },
+     "note": "requested amount; speed is the caster's current speed stat, not the declared base. At the catalog base speed 72 (no items or buffs) the requested damage would be round(28.8) = 29 for VENIPEDE, round(57.6) = 58 for WHIRLIPEDE and 108 for SCOLIPEDE"
+    },
+    "scaling": "requested amount scales with the caster's current speed (any change to it goes through addSpeed: Big Eater Belt / Twist Band helpers, AP and crit scaling of the change, clamp 0..MAX_SPEED); then AP: damage x (1 + AP/100) (apBoost default true); crit multiplier only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false); one crit roll shared by every enemy hit",
+    "resolution": "applied amount per enemy: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1) and later handleDamage modifiers; protect / skydiving / magicBounce block the hit for that enemy (the flinch roll is still made). The enemy list is a Set, so an enemy on the line is hit once. takenDamage (includes shield damage) is not used",
+    "evidence": [
+     "sr-dmg",
+     "sr-hit",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-blocked",
+     "dmg-reduction",
+     "armor-factor",
+     "add-speed"
+    ],
+    "perUnitMultiplier": {
+     "VENIPEDE": 0.4,
+     "WHIRLIPEDE": 0.8,
+     "SCOLIPEDE": 1.5
+    }
+   },
+   {
+    "kind": "movement",
+    "target": "the caster",
+    "description": "swaps into the destination cell chosen by the helper (no forced displacement, so canBeMoved is not checked); happens before any damage; skipped when the helper returns null",
+    "evidence": [
+     "sr-move",
+     "moveto",
+     "sr-far"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "each enemy hit",
+    "declaredRaw": {
+     "durationMs": 3000,
+     "chance": 0.5
+    },
+    "scaling": "none from AP or crit: triggerFlinch takes the raw 3000 ms. Chance is chance(0.5, caster): 0.5^(1 - luck/100) with the caster's luck, one roll per enemy",
+    "applicationOrder": "per enemy: damage, then the flinch roll",
+    "guards": "not applied if that enemy's status has runeProtect; applied duration passes through the shared applyStatusDurationReductions on that enemy and replaces the timer only if longer",
+    "combatEffect": "flinch is among the statuses counted at status.ts 155-166; while flinching, a unit with a shield takes half of the reduced damage on the shield and the other half as residual damage (handleDamage). Other uses of status.flinch (e.g. curse vulnerability at status.ts:325) were seen but not read",
+    "evidence": [
+     "sr-hit",
+     "chance",
+     "flinch",
+     "flinch-shield",
+     "flinch-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "VENIPEDE": 1,
+    "WHIRLIPEDE": 2,
+    "SCOLIPEDE": 3
+   },
+   "speedMultiplier": {
+    "VENIPEDE": 0.4,
+    "WHIRLIPEDE": 0.8,
+    "SCOLIPEDE": 1.5
+   },
+   "note": "the multiplier is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 3.0 and the fallback 3.0 are not reached by these units' bare star counts (1, 2, 3). Flinch chance and duration have no star dependence. maxPP is 85 and range 1 for all three; catalog speed is 72 for all three.",
+   "evidence": [
+    "sr-dmg",
+    "unit-venipede",
+    "unit-whirlipede",
+    "unit-scolipede"
+   ]
+  },
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as NUZZLE, AQUA_JET and FLAME_CHARGE, see the FLAME_CHARGE record): board.forEach scans cells row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered, so ties keep the first one scanned. A farther enemy resets only the per-enemy cell maximum; selectedCell is replaced only when that enemy has at least one free adjacent cell, so if it has none the cell chosen for an earlier, nearer enemy is retained. The fallback (closest free cell to the farthest enemy) runs only when selectedCell is still null at the end. Returns null when no targettable enemy or no free cell exists; then the caster does not move and only the cast target is hit.",
+  "repeatedCastsAndModes": "No state is kept: every cast recomputes speed, destination and line. No modes.",
+  "rawVsResolved": "Requested damage: round(multiplier x current speed) with multiplier 0.4 / 0.8 / 1.5 (VENIPEDE / WHIRLIPEDE / SCOLIPEDE); at catalog base speed 72 that is 29 / 58 / 108. Applied damage = requested x (1 + AP/100) [x crit factor], then the SPE_DEF division and later handleDamage modifiers (min 1); takenDamage is not used. Requested flinch: 3000 ms with a 50% chance (luck adjusted); applied: none under runeProtect, otherwise after the status-duration reductions.",
+  "sourceTables": [
+   {
+    "id": "steamrollerMultiplier",
+    "file": "app/core/abilities/steamroller.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.multiplierByStars",
+    "unitValuesPath": "effects.0.perUnitMultiplier"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division, the minimum of 1 and the flinch halving on shields were read",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+  ],
+  "unresolved": [
+   "The caster's real speed in a fight (items, synergies, buffs) was not enumerated; only the stat helper addSpeed was read, so damage figures above are at catalog base speed only",
+   "Whether the retained-selection case (a farther enemy with no free adjacent cell) is common on real boards was not examined; the probe-style verification done for FLAME_CHARGE was not repeated here",
+   "Behaviour when an enemy on the line dies or moves while the damage loop runs, and what the swap does to the caster's own cooldown/state beyond moveTo setting cooldown = 100, were not traced",
+   "Whether any other item or synergy effect changes STEAMROLLER",
+   "Consulted: Board.getFarthestTargetCoordinateAvailablePlace, isTargettableBy, moveTo, addSpeed, chance, triggerFlinch, handleSpecialDamage, PokemonState.handleDamage and the sibling FLAME_CHARGE record. Queue record lists no routing uncertainties and no dependencies."
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sr",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1201,
+     1201
+    ],
+    "symbol": "AbilityStrategies[Ability.STEAMROLLER]",
+    "expect": "[Ability.STEAMROLLER]: new SteamrollerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     33
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process: spends maxPP, ult count, animation broadcast unless preventDefaultAnim, cast bookkeeping; requiresTarget=true, canCritByDefault=false (lines 7-8)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "dispatch-attack",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast when pp >= maxPP && canCast while having a target"
+   },
+   {
+    "id": "sr-base",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "fifth argument true = preventDefaultAnim: the default cast animation is not broadcast"
+   },
+   {
+    "id": "sr-dmg",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "([0.4, 0.8, 1.5, 3.0][pokemon.stars - 1] ?? 3.0) * pokemon.speed",
+    "note": "damage = round(multiplier by caster stars x the caster's current speed stat)"
+   },
+   {
+    "id": "sr-far",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": "destination chosen by the board helper"
+   },
+   {
+    "id": "sr-cells",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     23,
+     34
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "targetsHit.add(cell.value)",
+    "note": "enemies on the cells between the caster's cell and the destination are collected before the caster moves"
+   },
+   {
+    "id": "sr-move",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "pokemon.moveTo(farthestCoordinate.x, farthestCoordinate.y, board, false)",
+    "note": "the caster swaps to the destination (forcedDisplacement false)"
+   },
+   {
+    "id": "sr-fallback",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "the cast target is hit if the line held no enemy or the helper returned null"
+   },
+   {
+    "id": "sr-hit",
+    "file": "app/core/abilities/steamroller.ts",
+    "lines": [
+     39,
+     50
+    ],
+    "symbol": "SteamrollerStrategy.process",
+    "expect": "enemy.status.triggerFlinch(3000, enemy, pokemon)",
+    "note": "per enemy: special damage (crit passed, apBoost default), then a 50% chance (luck adjusted) of a requested 3000 ms flinch"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     344
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "/* Supercover line algorithm",
+    "note": "supercover line including both endpoints that are on the board"
+   },
+   {
+    "id": "board-far",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     630
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "farthest targetable enemy by Manhattan distance; destination = a free cell adjacent to it farthest from the caster; fallback = closest free cell to that enemy; null if none"
+   },
+   {
+    "id": "board-far-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "strictly greater: the first enemy found at the maximum distance wins (board iteration order)"
+   },
+   {
+    "id": "board-select",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "selectedCell is replaced only inside the loop over that enemy's free adjacent cells; it is not cleared for a farther enemy without free neighbours"
+   },
+   {
+    "id": "board-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     629
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback to the closest free cell of the farthest enemy only when selectedCell is still null"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "// Manhattan distance",
+    "note": ""
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable",
+    "note": "an enemy is a candidate unless untargettable (MERCILESS can also add allies at <= 10 hp)"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "board.swapCells to the destination; canBeMoved is only checked for forced displacement"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true (STEAMROLLER passes 5 arguments)"
+   },
+   {
+    "id": "special-blocked",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving",
+    "note": "protect / skydiving / magicBounce block the hit (damage 0, death false); the flinch roll still follows"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applied here for ability damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reducible by target items"
+   },
+   {
+    "id": "dmg-reduction",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage is divided by 1 + 0.05 * speDef; many later modifiers not traced"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     775
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "the speed stat the damage reads is the combat stat: Big Eater Belt / Twist Band helpers, AP and crit scaling, clamp 0..MAX_SPEED apply to changes of it"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability p becomes p^(1 - luck/100); 0 stays 0; capped at 1"
+   },
+   {
+    "id": "flinch",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     986
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "flinch is set inside the runeProtect guard; duration reduced by the shared helper; cooldown replaced only if longer"
+   },
+   {
+    "id": "flinch-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     627
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.flinch) {",
+    "note": "a flinching unit with a shield takes only half of the reduced damage on the shield and the other half as residual damage"
+   },
+   {
+    "id": "flinch-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     295,
+     297
+    ],
+    "symbol": "Status.update",
+    "expect": "if (this.flinch) {",
+    "note": "flinch timer is updated each tick; it is one of the statuses counted in the status check at lines 155-166"
+   },
+   {
+    "id": "unit-venipede",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3636,
+     3636
+    ],
+    "symbol": "Venipede",
+    "expect": "skill = Ability.STEAMROLLER",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-whirlipede",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3651,
+     3651
+    ],
+    "symbol": "Whirlipede",
+    "expect": "skill = Ability.STEAMROLLER",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-scolipede",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3665,
+     3665
+    ],
+    "symbol": "Scolipede",
+    "expect": "skill = Ability.STEAMROLLER",
+    "note": "unit class block: skill / stars / stats"
+   }
+  ],
+  "unitEvidence": {
+   "VENIPEDE": {
+    "evidence": [
+     "unit-venipede"
+    ]
+   },
+   "WHIRLIPEDE": {
+    "evidence": [
+     "unit-whirlipede"
+    ]
+   },
+   "SCOLIPEDE": {
+    "evidence": [
+     "unit-scolipede"
+    ]
+   }
+  }
+ }
+}
