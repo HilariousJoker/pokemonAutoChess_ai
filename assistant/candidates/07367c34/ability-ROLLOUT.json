@@ -1,0 +1,545 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROLLOUT",
+ "kind": "ability",
+ "identifier": "ROLLOUT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T054109Z"
+ },
+ "record": {
+  "ability": "ROLLOUT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ROLLOUT: Miltank (3 stars, maxPP 100), Sandshrew (1 star, maxPP 80), Sandslash (2 stars, maxPP 80), all range 1. The strategy is shared; unit differences are the star count and maxPP. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "MILTANK",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROLLOUT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SANDSHREW",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ROLLOUT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SANDSLASH",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ROLLOUT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MILTANK": {
+    "evidence": [
+     "unit-miltank"
+    ]
+   },
+   "SANDSHREW": {
+    "evidence": [
+     "unit-sandshrew"
+    ]
+   },
+   "SANDSLASH": {
+    "evidence": [
+     "unit-sandslash"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROLLOUT] = new RolloutStrategy()",
+   "strategy": "RolloutStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ro-class",
+    "ro-super"
+   ]
+  },
+  "summary": "The caster first gains Defense (requested +2 / +5 / +10 by stars here; table 2/5/10/20), then deals SPECIAL damage to the cast target equal to 2 x its own Defense as it stands after that gain. The Defense gain is not temporary in this strategy (no timer, no revert), so it stays for the rest of the fight and each later cast starts from the higher Defense. The gain is scaled by AP and, on a crit, by critPower; a Big Eater Belt holder gets it x1.25 (rounded down). The damage amount then goes through the normal special-damage path (AP, crit, target SPE_DEF).",
+  "targeting": {
+   "who": "the caster (Defense gain) and the cast target (damage)",
+   "needsTarget": true,
+   "note": "One target, no area. The damage argument is evaluated after the buff call returns, so pokemon.def in `multiplier * pokemon.def` already includes the gain. The entity's def field at that moment also includes whatever earlier items, synergies and buffs added (core-mechanics \u00a7I).",
+   "evidence": [
+    "ro-buff",
+    "ro-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no displacement, no area",
+   "evidence": [
+    "ro-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "stat_change",
+    "stat": "DEFENSE",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 2,
+      "2": 5,
+      "3": 10,
+      "4": 20,
+      "fallback": 20
+     },
+     "label": "requested Defense gain (raw)"
+    },
+    "perUnitRaw": {
+     "SANDSHREW": 2,
+     "SANDSLASH": 5,
+     "MILTANK": 10
+    },
+    "scaling": "called as addDefense(requested, caster, 1, crit): applied = Math.round(requested x (1 + AP/100) x (critPower if the cast crit else 1)); canCritByDefault is false, so crit needs ABILITY_CRIT. Then applyBigEaterBeltStatBuff (positive value: x1.25 rounded down for a holder) and applyTwistBandBuff (a positive value is unchanged).",
+    "resolution": "requested = +2 / +5 / +10. Applied = the rounded, AP / crit scaled value, then the Big Eater Belt adjustment for a holder; def = max(0, def + applied) with no upper clamp. `permanent` is not passed, so only the in-fight entity changes (the board unit is not updated), and there is no revert timer: the gain lasts for the rest of the fight and accumulates over casts.",
+    "evidence": [
+     "ro-boost",
+     "ro-buff",
+     "add-def",
+     "add-def-ap",
+     "add-def-help",
+     "add-def-perm",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "description": "requested damage = 2 x pokemon.def after the Defense gain (no table)",
+     "multiplier": 2
+    },
+    "scaling": "requested = 2 x the caster's current Defense (post-gain); handleSpecialDamage then x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit; x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT. A crit therefore raises both the Defense gain and the damage.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef) of the target, rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce; the Defense gain is applied whether or not the damage is blocked. Bare-catalog illustration (no items, no synergy, AP 0, no crit): Sandshrew def 6 + 2 = 8 -> requested 16; Sandslash def 10 + 5 = 15 -> 30; Miltank def 10 + 10 = 20 -> 40 (before the target's SPE_DEF).",
+    "evidence": [
+     "ro-mult",
+     "ro-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MILTANK": 3,
+    "SANDSHREW": 1,
+    "SANDSLASH": 2
+   },
+   "declaredRawDefenseGain": {
+    "SANDSHREW": 2,
+    "SANDSLASH": 5,
+    "MILTANK": 10
+   },
+   "note": "Only the Defense gain is indexed by stars (the 4-star value 20, also the ?? fallback, is not reachable by the bare factory star counts of these units); the damage multiplier 2 is fixed, so the damage scales with the caster's Defense rather than its stars directly. Base Defense (catalog): Sandshrew 6, Sandslash 10, Miltank 10.",
+   "evidence": [
+    "ro-boost",
+    "ro-mult",
+    "unit-miltank",
+    "unit-sandshrew",
+    "unit-sandslash"
+   ]
+  },
+  "positionalConditions": "None: no positional or geometric condition in the strategy; the cast target is chosen by the generic targeting code before the strategy runs.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP, adds the Defense gain again (cumulative in the fight) and deals 2 x the then-current Defense, so later casts hit harder than earlier ones if nothing reduces Defense in between.",
+  "rawVsResolved": "Requested: Defense +2 / +5 / +10 (Sandshrew / Sandslash / Miltank) and damage 2 x post-gain Defense. Applied Defense gain = round(requested x (1 + AP/100) x optional critPower), then x1.25 rounded down for a Big Eater Belt holder. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "defense-boost",
+    "file": "app/core/abilities/rollout.ts",
+    "pattern": "const defenseBoost = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate and the crit roll were read",
+   "How the entity's def field is initialised from the unit, items, synergies and permanent bonuses (core-mechanics \u00a7I describes the declared item bonuses; synergy and weather terms were not re-traced here)",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read"
+  ],
+  "unresolved": [
+   "Whether anything in the simulation reduces or resets the caster's Defense later (debuffs, cleanse, evolution) was not examined",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "The bare-catalog illustration ignores held items, synergy bonuses and the target's SPE_DEF; it is arithmetic on declared values, not a probe result",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1129,
+     1129
+    ],
+    "symbol": "AbilityStrategies[Ability.ROLLOUT]",
+    "expect": "[Ability.ROLLOUT]: new RolloutStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "unit-miltank",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5590,
+     5606
+    ],
+    "symbol": "class Miltank",
+    "expect": "skill = Ability.ROLLOUT",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-sandshrew",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10879,
+     10893
+    ],
+    "symbol": "class Sandshrew",
+    "expect": "skill = Ability.ROLLOUT",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-sandslash",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10895,
+     10908
+    ],
+    "symbol": "class Sandslash",
+    "expect": "skill = Ability.ROLLOUT",
+    "note": "unit class block"
+   },
+   {
+    "id": "ro-class",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RolloutStrategy",
+    "expect": "export class RolloutStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ro-super",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RolloutStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "spends maxPP"
+   },
+   {
+    "id": "ro-mult",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "RolloutStrategy.process",
+    "expect": "const multiplier = 2",
+    "note": "fixed multiplier of the caster's Defense"
+   },
+   {
+    "id": "ro-boost",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "RolloutStrategy.process",
+    "expect": "const defenseBoost = [2, 5, 10, 20][pokemon.stars - 1] ?? 20",
+    "note": "Defense gain table by stars"
+   },
+   {
+    "id": "ro-buff",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "RolloutStrategy.process",
+    "expect": "pokemon.addDefense(defenseBoost, pokemon, 1, crit)",
+    "note": "self buff first: apBoost 1 and the cast's crit flag; no `permanent` argument"
+   },
+   {
+    "id": "ro-hit",
+    "file": "app/core/abilities/rollout.ts",
+    "lines": [
+     18,
+     24
+    ],
+    "symbol": "RolloutStrategy.process",
+    "expect": "multiplier * pokemon.def,",
+    "note": "damage amount is 2 x the caster's Defense read after the buff; SPECIAL damage with the cast's crit flag"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "Defense floored at 0, no upper clamp"
+   },
+   {
+    "id": "add-def-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     680,
+     685
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "(1 + (apBoost * caster.ap) / 100)",
+    "note": "AP factor (apBoost 1) and crit factor, rounded"
+   },
+   {
+    "id": "add-def-help",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     688,
+     689
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "held-item adjustments after the rounding"
+   },
+   {
+    "id": "add-def-perm",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     694,
+     697
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "if (permanent && !this.isGhostOpponent) {",
+    "note": "only with permanent = true is the board unit changed too; ROLLOUT does not pass it"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive values (and negative ones from the same team) are scaled x1.25 rounded down for a Big Eater Belt holder"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only negative values from an enemy / the environment are flipped; the self buff is positive"
+   }
+  ]
+ }
+}
