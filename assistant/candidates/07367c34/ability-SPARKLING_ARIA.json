@@ -1,0 +1,441 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPARKLING_ARIA",
+ "kind": "ability",
+ "identifier": "SPARKLING_ARIA",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T173950Z"
+ },
+ "record": {
+  "ability": "SPARKLING_ARIA",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SPARKLING_ARIA in this production reference (maxPP 80, range 3; Popplio and Brionne have passive HATCH, Primarina none). The strategy is shared; the HATCH passive was not analysed here.",
+  "appliesTo": [
+   {
+    "key": "POPPLIO",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "SPARKLING_ARIA",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BRIONNE",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "SPARKLING_ARIA",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PRIMARINA",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "SPARKLING_ARIA",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "POPPLIO": {
+    "evidence": [
+     "unit-popplio"
+    ]
+   },
+   "BRIONNE": {
+    "evidence": [
+     "unit-brionne"
+    ]
+   },
+   "PRIMARINA": {
+    "evidence": [
+     "unit-primarina"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPARKLING_ARIA] = new SparklingAriaStrategy()",
+   "strategy": "SparklingAriaStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-aria",
+    "aria-class",
+    "base-flags",
+    "base-pp",
+    "aria-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Area burst around the cast target. The cast target takes SPECIAL damage of 15/25/50 raw by the caster's stars (Popplio 15, Brionne 25, Primarina 50); every unit of another team standing in one of the 8 cells around the target takes the same raw amount. Every adjacent unit on the caster's own team that is burning has its burn healed and gains burn immunity (IMMUNITY_BURN) for 3000 ms; allies that are not burning are not touched. The adjacent cells are read before the primary hit and the damage is not reduced for the surrounding units.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target) as the centre; affected: enemy-team units in its 8 neighbouring cells; own-team burning units in those cells",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the cast target is chosen before the cast was not read.",
+   "evidence": [
+    "aria-class",
+    "base-flags",
+    "aria-cells",
+    "aria-primary",
+    "aria-enemy",
+    "aria-ally"
+   ]
+  },
+  "geometry": {
+   "shape": "target cell plus the 8 surrounding cells (3x3 block, diagonals included)",
+   "note": "the neighbour list excludes the centre and off-board cells; the primary target is hit separately by its own call",
+   "evidence": [
+    "aria-cells",
+    "adjacent",
+    "aria-primary"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 25,
+      "3": 50,
+      "4": 100,
+      "fallback": 100
+     }
+    },
+    "perUnitRaw": {
+     "POPPLIO": 15,
+     "BRIONNE": 25,
+     "PRIMARINA": 50
+    },
+    "scaling": "every hit: AP x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by each victim's critReductionFactor) only if the cast crits (canCritByDefault is false, so needs ABILITY_CRIT). The same crit flag is used for every victim.",
+    "resolution": "requested amount per victim = the raw value (no falloff) -> AP/crit -> PokemonState.handleDamage (defenses, SPE_DEF division with minimum 1, shield; core-mechanics §A/§H); applied HP loss and takenDamage (shield part included) differ per victim. protect / skydiving / magicBounce victims take no damage (magicBounce reflects damage to the caster). The ability reads no takenDamage.",
+    "evidence": [
+     "aria-dmg",
+     "aria-primary",
+     "aria-enemy",
+     "special-dmg",
+     "special-ap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "healBurn + IMMUNITY_BURN",
+    "target": "adjacent own-team units whose status.burn is true at cast time (the caster included if it stands next to the target, which a range 3 caster normally does not)",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (delayed command that removes IMMUNITY_BURN)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "inside the same adjacent-cell loop as the damage, per unit in board scan order; healBurn first, then the immunity effect is added and a 3000 ms delayed removal is pushed on that unit",
+    "guards": "only for units with status.burn; healBurn returns immediately when no burn. While IMMUNITY_BURN is present, triggerBurn does not apply a new burn. The delayed command deletes IMMUNITY_BURN from the unit's effects after 3000 ms regardless of where the effect was added; IMMUNITY_BURN is also added in passives.ts and pokemon-entity.ts (not traced), and a second cast adds another delayed removal.",
+    "combatEffect": "healBurn clears the burn flag and origin, sets burnDamageCooldown to 1000 and reverts the Guts, Well Baked and Magmarizer stat changes that triggerBurn applied.",
+    "evidence": [
+     "aria-ally",
+     "healburn",
+     "burn-guard",
+     "cmd-run",
+     "cmd-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "POPPLIO": 1,
+    "BRIONNE": 2,
+    "PRIMARINA": 3
+   },
+   "declaredRawDamage": {
+    "POPPLIO": 15,
+    "BRIONNE": 25,
+    "PRIMARINA": 50
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value 100 (also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 80 and range 3 for all.",
+   "evidence": [
+    "aria-dmg",
+    "unit-popplio",
+    "unit-brionne",
+    "unit-primarina"
+   ]
+  },
+  "positionalConditions": "The affected set is whatever stands in the 8 cells around the cast target at the moment of the cast; the cell list is built before the primary hit.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-evaluates the neighbours; each burning ally cured gets its own 3000 ms immunity removal command.",
+  "rawVsResolved": "Declared raw: 15/25/50 by stars (15 Popplio, 25 Brionne, 50 Primarina), the same requested amount for the target and each adjacent enemy. Applied: raw x (1 + AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps, separately per victim; takenDamage includes shield damage. Burn cleanse: flag cleared, immunity 3000 ms.",
+  "sourceTables": [
+   {
+    "id": "ariaDamage",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); handleDamage was consulted via core-mechanics §A/§H, not re-probed here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "Other writers of IMMUNITY_BURN (passives.ts, pokemon-entity.ts) and how they interact with the delayed removal"
+  ],
+  "unresolved": [
+   "The routing queue record lists no routing uncertainties; Popplio, Brionne and Primarina are the only units listed for this identifier",
+   "The HATCH passive (Popplio, Brionne) was not read",
+   "Whether any item or synergy changes SPARKLING_ARIA beyond what is listed",
+   "No pinned-helper probe was run for this record; the cell loop and burn cleanse were read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-popplio",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10783,
+     10798
+    ],
+    "symbol": "class Popplio",
+    "expect": "skill = Ability.SPARKLING_ARIA",
+    "note": "unit class block; passive HATCH"
+   },
+   {
+    "id": "unit-brionne",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10800,
+     10815
+    ],
+    "symbol": "class Brionne",
+    "expect": "skill = Ability.SPARKLING_ARIA",
+    "note": "unit class block; passive HATCH"
+   },
+   {
+    "id": "unit-primarina",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10817,
+     10829
+    ],
+    "symbol": "class Primarina",
+    "expect": "skill = Ability.SPARKLING_ARIA",
+    "note": "unit class block; no passive line"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-aria",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1187,
+     1187
+    ],
+    "symbol": "AbilityStrategies[Ability.SPARKLING_ARIA]",
+    "expect": "[Ability.SPARKLING_ARIA]: new SparklingAriaStrategy()",
+    "note": ""
+   },
+   {
+    "id": "aria-class",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SparklingAriaStrategy",
+    "expect": "class SparklingAriaStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "aria-super",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "aria-dmg",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "[15, 25, 50, 100][pokemon.stars - 1] ?? 100",
+    "note": ""
+   },
+   {
+    "id": "aria-cells",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "board.getAdjacentCells(target.positionX, target.positionY)",
+    "note": "the 8 cells around the cast target, read before the primary hit"
+   },
+   {
+    "id": "aria-primary",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "primary hit, apBoost default true"
+   },
+   {
+    "id": "aria-enemy",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     21,
+     28
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "entity.team !== pokemon.team",
+    "note": "each adjacent unit of another team gets the same SPECIAL damage"
+   },
+   {
+    "id": "aria-ally",
+    "file": "app/core/abilities/sparkling-aria.ts",
+    "lines": [
+     29,
+     37
+    ],
+    "symbol": "SparklingAriaStrategy.process",
+    "expect": "entity.status.healBurn(entity)",
+    "note": "an adjacent ally that is burning: burn healed, burn immunity for 3000 ms"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "for (let y = cellY - 1; y < cellY + 2; y++)",
+    "note": "8 neighbours, centre excluded, off-board skipped"
+   },
+   {
+    "id": "healburn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     503,
+     518
+    ],
+    "symbol": "Status.healBurn",
+    "expect": "this.burn = false",
+    "note": "clears the burn flag and origin; resets burnDamageCooldown to 1000; reverts Guts / Well Baked / Magmarizer stat changes"
+   },
+   {
+    "id": "burn-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     408
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "IMMUNITY_BURN blocks a new burn"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "commands pushed on an entity are advanced by that entity's own update"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0)",
+    "note": "executes when the accumulated dt exceeds the delay"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": "signature; apBoost defaults to true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   }
+  ]
+ }
+}
