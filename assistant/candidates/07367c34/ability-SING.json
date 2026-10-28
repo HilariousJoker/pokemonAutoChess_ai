@@ -1,0 +1,435 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SING",
+ "kind": "ability",
+ "identifier": "SING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T114015Z"
+ },
+ "record": {
+  "ability": "SING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "IGGLYBUFF (1 star), JIGGLYPUFF (2 stars) and WIGGLYTUFF (3 stars) declare ABILITY SING with maxPP 100 and range 2; none declares a passive. IGGLYBUFF is NORMAL/FAIRY/BABY, the other two NORMAL/FAIRY/SOUND.",
+  "appliesTo": [
+   {
+    "key": "IGGLYBUFF",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "JIGGLYPUFF",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WIGGLYTUFF",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SING] = new SingStrategy()",
+   "strategy": "SingStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "class",
+    "req",
+    "base"
+   ]
+  },
+  "summary": "Board-wide sleep on a limited number of enemies. The caster puts every enemy on the board into a ranking, sorts it by positionY (ascending when the enemy team is BLUE, descending otherwise) and calls triggerSleep on the first N of that ranking, where N is 1/2/3 (5 fallback) by caster stars. The requested sleep duration is round(2000 ms (4000 for the fallback star) x (1 + AP/100) x critPower-if-crit). No damage is dealt. Each sleep is refused or modified by the target's own state (see effects). The cast target is not used (requiresTarget false).",
+  "targeting": {
+   "who": "the first N enemies of the whole board after sorting by positionY, N = 1/2/3 by caster stars (5 fallback); no range limit",
+   "needsTarget": false,
+   "note": "requiresTarget false: the cast does not need a target in reach. The comparator reads only a.team (an enemy team), so every enemy in the list is ordered by the same rule: enemies of the BLUE team ascending positionY, enemies of the RED team descending positionY. Which row is 'front' in practice depends on board orientation and was not traced; no claim is made about nearest or farthest.",
+   "evidence": [
+    "req",
+    "count",
+    "collect",
+    "sort",
+    "loop"
+   ]
+  },
+  "geometry": {
+   "shape": "no area; whole-board ranking",
+   "detail": "Board.forEach collects every enemy; the first N after the positionY sort receive the status. Ties in positionY keep the order produced by Array.sort over a row-major collection (stable sort), i.e. lower x first within a row, not verified at runtime.",
+   "evidence": [
+    "collect",
+    "sort",
+    "loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status-sleep",
+    "target": "the first N enemies of the sorted ranking",
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 2000,
+      "2": 2000,
+      "3": 2000,
+      "4": 4000,
+      "fallback": 4000
+     },
+     "targetsByStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 5,
+      "fallback": 5
+     },
+     "formula": "triggerSleep(round(base x (1 + AP/100) x (crit ? critPower : 1)), target)"
+    },
+    "perUnitRaw": {
+     "IGGLYBUFF": 2000,
+     "JIGGLYPUFF": 2000,
+     "WIGGLYTUFF": 2000
+    },
+    "perUnitTargets": {
+     "IGGLYBUFF": 1,
+     "JIGGLYPUFF": 2,
+     "WIGGLYTUFF": 3
+    },
+    "scaling": "REQUESTED duration: 2000 ms for 1-, 2- and 3-star casters (4000 ms fallback), times 1 + AP/100, times the caster's critPower if the cast crit. Targets: 1 / 2 / 3 enemies for 1 / 2 / 3 stars. APPLIED duration in triggerSleep: x1.3 under NIGHT weather, x0.7 under ZENITH, halved when the target is enraged, then applyStatusDurationReductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil or Surge Surfer x0.3, then -10% per Odd Keystone the target's player owns), rounded and stored in sleepCooldown.",
+    "resolution": "triggerSleep does nothing when the target is already asleep, has Rune Protect, is skydiving, has the IMMUNITY_SLEEP effect, or has ccCooldown above 0. If it applies: sleep = true and sleepCooldown = rounded duration; a Chesto Berry holder eats it right away (eatBerry body not read). While asleep the unit cannot move or attack (COMATOSE passive excepted). Each damage instance it receives (onDamageReceived) shortens the remaining sleep by 300 ms. When the sleep ends, ccCooldown is raised to at least 1500 ms (CC_COOLDOWN), which blocks a new sleep (and other crowd control) during that window.",
+    "evidence": [
+     "timer",
+     "count",
+     "loop",
+     "sleep",
+     "sleep-w",
+     "sleep-rage",
+     "sleep-red",
+     "sleep-berry",
+     "reductions",
+     "odd",
+     "update",
+     "cc",
+     "hitwake",
+     "canmove",
+     "canatk"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "sleep",
+    "duration": "requested 2000 ms (4000 fallback) x (1 + AP/100) x crit; applied after weather, rage and duration reductions",
+    "evidence": [
+     "timer",
+     "sleep",
+     "sleep-w",
+     "sleep-rage",
+     "reductions",
+     "update"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "IGGLYBUFF": 1,
+    "JIGGLYPUFF": 2,
+    "WIGGLYTUFF": 3
+   },
+   "declaredRawTargets": {
+    "IGGLYBUFF": 1,
+    "JIGGLYPUFF": 2,
+    "WIGGLYTUFF": 3
+   },
+   "declaredRawDurationMs": {
+    "IGGLYBUFF": 2000,
+    "JIGGLYPUFF": 2000,
+    "WIGGLYTUFF": 2000
+   },
+   "note": "Caster stars choose the number of targets (1, 2, 3; fallback 5) and the base duration (2000 ms for stars 1 to 3, 4000 ms fallback). Catalog units here are 1 (IGGLYBUFF), 2 (JIGGLYPUFF) and 3 (WIGGLYTUFF) stars, so every catalog caster has a 2000 ms base.",
+   "evidence": [
+    "timer",
+    "count"
+   ]
+  },
+  "positionalConditions": "No range or area limit; ordering uses positionY only. Fewer enemies than N on the board means only the available ones are slept (rank[i] undefined is skipped).",
+  "repeatedCastsAndModes": "No stored state. A repeat cast can re-pick the same enemies, but triggerSleep refuses a unit that is already asleep or still inside the ccCooldown window after waking.",
+  "rawVsResolved": "Requested: 2000 ms base (stars 1-3) scaled by AP and crit, on 1 / 2 / 3 enemies. Applied: only on enemies that pass the triggerSleep guards (not asleep, no Rune Protect, not skydiving, no sleep immunity, ccCooldown 0); duration then changed by weather, rage and the status-duration reductions, and shortened by 300 ms per damage instance. A ranked enemy that is refused still counts toward N (the loop does not skip to the next enemy).",
+  "sourceTables": [
+   {
+    "id": "durationTable",
+    "file": "app/core/abilities/sing.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 4000\\)",
+    "recordPath": "effects.0.declaredRaw.durationMsByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "countTable",
+    "file": "app/core/abilities/sing.ts",
+    "pattern": "const count = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.targetsByStars"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "eatBerry body (Chesto Berry)",
+   "Board orientation: which side positionY ascending/descending favours for BLUE and RED teams",
+   "Generic ability-crit gate (whether the cast can crit) and when the cast fires in a real fight (range 2 unit and the cast gate)",
+   "Whether a sleeping unit's pending attack/ability is cancelled (state machine not read; only canMove/canAttack cited)",
+   "Sleep wake-up through damage: only the 300 ms reduction was read, not other wake rules"
+  ],
+  "unresolved": [
+   "Which enemies are 'first' in practice (front or back row) depends on board orientation, not traced",
+   "A refused enemy (already asleep, ccCooldown, immunity) still occupies one of the N slots; not confirmed in a real fight",
+   "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
+   "No routing uncertainty is recorded for this identifier in the queue",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1164,
+     1164
+    ],
+    "symbol": "AbilityStrategies[Ability.SING]",
+    "expect": "[Ability.SING]: new SingStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SingStrategy",
+    "expect": "export class SingStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "req",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "SingStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without a target in reach; canCritByDefault stays false"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "timer",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     10,
+     12
+    ],
+    "symbol": "process",
+    "expect": "([2000, 2000, 2000, 4000][pokemon.stars - 1] ?? 4000) * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1)",
+    "note": "sleep duration in ms by stars, scaled by AP and crit"
+   },
+   {
+    "id": "count",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "const count = [1, 2, 3, 5][pokemon.stars - 1] ?? 5",
+    "note": "number of enemies by stars, fallback 5"
+   },
+   {
+    "id": "collect",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "process",
+    "expect": "if (tg && pokemon.team != tg.team) { rank.push(tg)",
+    "note": "every enemy on the board is a candidate"
+   },
+   {
+    "id": "sort",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "process",
+    "expect": "if (a.team === Team.BLUE_TEAM) { return a.positionY - b.positionY } else { return b.positionY - a.positionY }",
+    "note": "order by positionY: ascending when the enemy team is BLUE, descending otherwise"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/sing.ts",
+    "lines": [
+     27,
+     31
+    ],
+    "symbol": "process",
+    "expect": "const tg = rank[i] if (tg) { tg.status.triggerSleep(timer, tg)",
+    "note": "first count enemies of the sorted list get sleep"
+   },
+   {
+    "id": "sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     767
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!this.sleep && !this.runeProtect && !this.skydiving && !pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) && this.ccCooldown <= 0",
+    "note": "blocked when already asleep, Rune Protect, skydiving, sleep immunity or crowd-control cooldown"
+   },
+   {
+    "id": "sleep-w",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     768,
+     771
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration *= 1.3 } else if (pkm.simulation.weather === Weather.ZENITH) { duration *= 0.7",
+    "note": "NIGHT weather x1.3, ZENITH x0.7"
+   },
+   {
+    "id": "sleep-rage",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     773,
+     774
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration = duration / 2",
+    "note": "enraged target halves the duration"
+   },
+   {
+    "id": "sleep-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     777,
+     780
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleep = true this.sleepCooldown = Math.round(duration)",
+    "note": "further reductions then round and set"
+   },
+   {
+    "id": "sleep-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     782,
+     782
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "pkm.items.has(Item.CHESTO_BERRY)",
+    "note": "Chesto Berry eaten right after sleep starts (eatBerry body not read)"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1289
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "Swift Swim x0.7, Hydration x0.5, Water Veil/Surge Surfer x0.3, Odd Keystone -10% each"
+   },
+   {
+    "id": "odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1297,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone"
+   },
+   {
+    "id": "update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     788,
+     796
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.sleepCooldown - dt <= 0",
+    "note": "sleep ends when the cooldown runs out, then ccCooldown is raised to CC_COOLDOWN"
+   },
+   {
+    "id": "cc",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     738,
+     738
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "after waking, a CC cooldown of 1500 ms (config.ts) blocks the next sleep"
+   },
+   {
+    "id": "hitwake",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1211,
+     1213
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.status.sleepCooldown -= 300",
+    "note": "each damage instance received shortens a running sleep by 300 ms"
+   },
+   {
+    "id": "canmove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     233
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE)",
+    "note": "a sleeping unit cannot move"
+   },
+   {
+    "id": "canatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     240,
+     243
+    ],
+    "symbol": "PokemonEntity.canAttack",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE)",
+    "note": "a sleeping unit cannot attack"
+   }
+  ]
+ }
+}
