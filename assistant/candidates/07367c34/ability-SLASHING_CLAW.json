@@ -1,0 +1,420 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SLASHING_CLAW",
+ "kind": "ability",
+ "identifier": "SLASHING_CLAW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T173950Z"
+ },
+ "record": {
+  "ability": "SLASHING_CLAW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SLASHING_CLAW in this production reference (passive NONE in the catalog). The strategy is shared; differences are star count, stats and maxPP.",
+  "appliesTo": [
+   {
+    "key": "KABUTOPS",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SLASHING_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SNEASEL",
+    "stars": 1,
+    "maxPP": 40,
+    "range": 1,
+    "declaredSkill": "SLASHING_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WEAVILE",
+    "stars": 2,
+    "maxPP": 40,
+    "range": 1,
+    "declaredSkill": "SLASHING_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KABUTOPS": {
+    "evidence": [
+     "unit-kabutops"
+    ]
+   },
+   "SNEASEL": {
+    "evidence": [
+     "unit-sneasel"
+    ]
+   },
+   "WEAVILE": {
+    "evidence": [
+     "unit-weavile"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SLASHING_CLAW] = new SlashingClawStrategy()",
+   "strategy": "SlashingClawStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-claw",
+    "claw-class",
+    "base-flags",
+    "base-pp",
+    "claw-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage (15/30/60/120 raw by the caster's stars; 2-star Kabutops and Weavile, 1-star Sneasel use 30, 30 and 15). If the target is already wounded when the cast starts, the raw amount is first multiplied by 1.3 and rounded up (Math.ceil: 30 -> 39, 15 -> 20); that raw amount then goes through handleSpecialDamage (AP scaling, crit, defenses). After the damage call the target is wounded for a requested 5000 ms, whether or not the hit did any damage; a wound stops the target receiving HP heals. The 1.3 bonus therefore never applies to the cast that first wounds the target, only to later casts or hits while the wound lasts.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "claw-class",
+    "base-flags",
+    "claw-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "claw-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "KABUTOPS": 30,
+     "SNEASEL": 15,
+     "WEAVILE": 30
+    },
+    "woundedTargetRaw": {
+     "note": "requested amount when the target is wounded at cast time: ceil(raw x 1.3)",
+     "KABUTOPS": 39,
+     "SNEASEL": 20,
+     "WEAVILE": 39
+    },
+    "scaling": "conditional multiplier on the raw amount: x1.3 with Math.ceil when target.status.wound is true at cast time (checked before the damage and before this cast's own triggerWound). Then AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crits (canCritByDefault is false, so needs ABILITY_CRIT).",
+    "resolution": "requested amount (ceil(raw x 1.3) if the target was wounded) -> AP/crit -> PokemonState.handleDamage, which applies defenses (SPE_DEF division, minimum 1), shield and the other steps in core-mechanics §A/§H; the applied HP loss and the takenDamage returned (shield part included) can be lower than the requested amount. Blocked entirely by protect / skydiving / magicBounce (takenDamage 0; magicBounce also reflects damage to the caster). The wound is still requested in that case because it is not conditional on the damage result. The ability does not read takenDamage.",
+    "evidence": [
+     "claw-dmg",
+     "claw-wound-check",
+     "claw-hit",
+     "special-dmg",
+     "special-ap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "wound",
+    "target": "the target",
+    "declaredRaw": {
+     "duration": 5000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the damage call; unconditional on damage dealt or takenDamage",
+    "guards": "not applied if runeProtect; duration x1.3 under the Blood Moon weather (before reductions); then applyStatusDurationReductions (Swift Swim 0.7, Hydration 0.5, Water Veil / Surge Surfer 0.3, Odd Keystone -10% each); a new wound replaces the remaining time (and woundOrigin) only if its duration is longer than the remaining cooldown",
+    "combatEffect": "while wounded the target's handleHeal returns healReceived 0 (the Blood Moon + Blood Stone branch may add a shield instead); wound also makes this strategy's own next cast on that target deal ceil(raw x 1.3). Other wound readers in app/core and app/models (Bloodmoon Blood Stone lifesteal, status copy and the refresh passive) were not traced further.",
+    "evidence": [
+     "claw-wound",
+     "wound-trig",
+     "wound-reduce",
+     "wound-update",
+     "wound-heal"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KABUTOPS": 2,
+    "SNEASEL": 1,
+    "WEAVILE": 2
+   },
+   "declaredRawDamage": {
+    "KABUTOPS": 30,
+    "SNEASEL": 15,
+    "WEAVILE": 30
+   },
+   "note": "indexed by the casting entity's stars; 60 (3 stars) and 120 (4 stars, also the fallback) are not reachable by the three units' bare star counts (1, 2, 2). maxPP is 80 for Kabutops and 40 for Sneasel/Weavile; range 1 for all.",
+   "evidence": [
+    "claw-dmg",
+    "unit-kabutops",
+    "unit-sneasel",
+    "unit-weavile"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true). The only conditional branch is the target's wound state at cast time.",
+  "repeatedCastsAndModes": "No stored state, no modes. Cast N on a target that is not wounded deals the base amount and wounds it for 5000 ms; a later cast while the wound lasts (including a wound from another source) deals ceil(raw x 1.3) and extends the wound only if longer than the time remaining.",
+  "rawVsResolved": "Declared raw: 15/30/60/120 by stars (30 Kabutops, 15 Sneasel, 30 Weavile). Requested: that, or ceil(raw x 1.3) (39 / 20 / 39) if the target was already wounded at cast time. Applied: requested x (1 + AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps; takenDamage includes shield damage. Wound is requested for 5000 ms (before Blood Moon and duration reductions).",
+  "sourceTables": [
+   {
+    "id": "clawDamage",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); handleDamage was consulted via core-mechanics §A/§H, not re-probed here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "Blood Moon weather and applyStatusDurationReductions inputs (which effects the target actually has)"
+  ],
+  "unresolved": [
+   "The routing queue record lists no routing uncertainties; Kabutops, Sneasel and Weavile are the only units listed for this identifier",
+   "Other sources of wound on the target (other abilities, items, synergies, passives) were found by search but their timing relative to this cast was not traced",
+   "Whether any item or synergy changes SLASHING_CLAW beyond what is listed",
+   "Whether the Blood Moon weather is present in a given fight (deployment unverified)",
+   "No pinned-helper probe was run for this record; the damage and heal paths were read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-kabutops",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8161,
+     8174
+    ],
+    "symbol": "class Kabutops",
+    "expect": "skill = Ability.SLASHING_CLAW",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-sneasel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9734,
+     9749
+    ],
+    "symbol": "class Sneasel",
+    "expect": "skill = Ability.SLASHING_CLAW",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-weavile",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9750,
+     9764
+    ],
+    "symbol": "class Weavile",
+    "expect": "skill = Ability.SLASHING_CLAW",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-claw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1172,
+     1172
+    ],
+    "symbol": "AbilityStrategies[Ability.SLASHING_CLAW]",
+    "expect": "[Ability.SLASHING_CLAW]: new SlashingClawStrategy()",
+    "note": ""
+   },
+   {
+    "id": "claw-class",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SlashingClawStrategy",
+    "expect": "class SlashingClawStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "claw-super",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SlashingClawStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "claw-dmg",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SlashingClawStrategy.process",
+    "expect": "[15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": ""
+   },
+   {
+    "id": "claw-wound-check",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "SlashingClawStrategy.process",
+    "expect": "damage = Math.ceil(damage * 1.3)",
+    "note": "raw damage x1.3 (ceil) when the target is ALREADY wounded, evaluated before this cast's damage and before the new wound"
+   },
+   {
+    "id": "claw-hit",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SlashingClawStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true"
+   },
+   {
+    "id": "claw-wound",
+    "file": "app/core/abilities/slashing-claw.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "SlashingClawStrategy.process",
+    "expect": "target.status.triggerWound(5000, target, pokemon)",
+    "note": "after the damage call; no takenDamage condition"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": "signature; apBoost defaults to true"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling after the raw (already x1.3) amount"
+   },
+   {
+    "id": "wound-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     877,
+     897
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (duration > this.woundCooldown)",
+    "note": "not applied with runeProtect; Blood Moon x1.3; applyStatusDurationReductions; replaces the timer only if longer; origin updated only then"
+   },
+   {
+    "id": "wound-reduce",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "Swift Swim 0.7 / Hydration 0.5 / Water Veil or Surge Surfer 0.3 / Odd Keystone 10% each"
+   },
+   {
+    "id": "wound-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     906
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "this.wound = false",
+    "note": "wound ends when the cooldown runs out"
+   },
+   {
+    "id": "wound-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     332
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "return { healReceived: 0, overheal: 0 }",
+    "note": "a wounded unit receives no HP heal (Blood Moon + Blood Stone branch can add a shield)"
+   }
+  ]
+ }
+}
