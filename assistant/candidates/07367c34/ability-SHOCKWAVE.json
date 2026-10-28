@@ -1,0 +1,425 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHOCKWAVE",
+ "kind": "ability",
+ "identifier": "SHOCKWAVE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T114015Z"
+ },
+ "record": {
+  "ability": "SHOCKWAVE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ELEKID (1 star), ELECTABUZZ (2 stars) and ELECTIVIRE (3 stars) declare ABILITY SHOCKWAVE with maxPP 100 and range 1; none declares a passive. All three are ELECTRIC/ARTIFICIAL (plus HUMAN or BABY).",
+  "appliesTo": [
+   {
+    "key": "ELECTABUZZ",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHOCKWAVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ELECTIVIRE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHOCKWAVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ELEKID",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHOCKWAVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHOCKWAVE] = new ShockwaveStrategy()",
+   "strategy": "ShockwaveStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "class",
+    "base"
+   ]
+  },
+  "summary": "Area special damage around the caster that falls off with distance. Every enemy within radius 2 of the caster (radius 3 while the caster's status.electricField is true) takes SPECIAL damage of round(base x (1 - 0.2 x d)) where base is 30/60/120/240 by caster stars (fallback 240) and d is the Chebyshev distance from the caster to the enemy: x0.8 at 1 cell, x0.6 at 2, x0.4 at 3. Each enemy is a separate handleSpecialDamage call (own AP, crit, block and bounce handling). The cast target passed to process is not used; the area is centred on the caster. The caster's own cell is excluded and allies are untouched.",
+  "targeting": {
+   "who": "every enemy (team different from the caster) in the area around the caster",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the default true, so the caster needs a target in its range-1 attack reach to cast, but process ignores the target and hits everyone in the radius.",
+   "evidence": [
+    "class",
+    "base",
+    "cells",
+    "enemy"
+   ]
+  },
+  "geometry": {
+   "shape": "filled disc around the caster, caster's cell excluded; radius 2 normally, 3 with electricField",
+   "detail": "getCellsInRadius uses floor(r) + 0.5 and includes a cell when dx^2 + dy^2 < r'^2. Radius 2 (2.5, limit 6.25): offsets (0,1),(1,0),(1,1),(0,2),(2,0),(1,2),(2,1); (2,2) is out. Radius 3 (3.5, limit 12.25) adds (0,3),(3,0),(1,3),(3,1),(2,2); (3,2),(2,3),(3,3) are out. Distance for damage is Chebyshev max(|dx|,|dy|), so (1,1) is distance 1, (2,1) and (2,2) are distance 2, (3,1) is distance 3.",
+   "evidence": [
+    "range",
+    "cells",
+    "dist",
+    "distc",
+    "radius-body",
+    "radius-center",
+    "radius-dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special-damage",
+    "target": "each enemy in the area, once each",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "formula": "handleSpecialDamage(Math.round(damage x (1 - 0.2 x distanceC)), board, SPECIAL, caster, crit)",
+     "distanceMultiplier": {
+      "1": 0.8,
+      "2": 0.6,
+      "3": 0.4
+     }
+    },
+    "perUnitRaw": {
+     "ELECTABUZZ": 60,
+     "ELECTIVIRE": 120,
+     "ELEKID": 30
+    },
+    "scaling": "REQUESTED amount per target: table value x (1 - 0.2 x Chebyshev distance), rounded before the hit (distance 1/2/3 gives x0.8/0.6/0.4; distance 3 is reachable only with electricField). Applied before defence by handleSpecialDamage: damage + damage x AP/100 (apBoost defaults true), x2 and the effect consumed when the caster has DOUBLE_DAMAGE (consumed by the first enemy hit, so only the first processed enemy doubles), x1.2 with the strange steam board effect on target or caster, and when the cast crit: x(1 + (critPower - 1) x reduction), reduction 1 minus 0.1 per Black Augurite owned by the target's player, 0 for a Rocky Helmet target.",
+    "resolution": "Each scaled amount goes to PokemonState.handleDamage (defence, shields, minimum of 1 and takenDamage: see core-mechanics section A). An enemy with protect, skydiving or magicBounce takes nothing from its own hit (takenDamage 0); magicBounce additionally reflects a SPECIAL hit back to the caster after 500 ms unless the caster holds Protective Pads, so several bouncing enemies each reflect. Cells are scanned in getCellsInRadius row-major order.",
+    "evidence": [
+     "dmg-table",
+     "range",
+     "field-volt",
+     "hit",
+     "mult",
+     "dist",
+     "sd-sig",
+     "sd-block",
+     "sd-bounce",
+     "sd-ap",
+     "sd-dd",
+     "sd-steam",
+     "sd-crit",
+     "sd-hd"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "ELECTABUZZ": 2,
+    "ELECTIVIRE": 3,
+    "ELEKID": 1
+   },
+   "declaredRawDamage": {
+    "ELECTABUZZ": 60,
+    "ELECTIVIRE": 120,
+    "ELEKID": 30
+   },
+   "note": "The caster's stars index the damage table (30, 60, 120, 240; fallback 240). Radius and falloff do not depend on stars. Catalog units here are 1 (ELEKID), 2 (ELECTABUZZ) and 3 (ELECTIVIRE) stars.",
+   "evidence": [
+    "dmg-table"
+   ]
+  },
+  "positionalConditions": "Area centred on the caster. Enemies at Chebyshev distance 1 take 80% of the table value, distance 2 take 60%, distance 3 (only with electricField) take 40%. electricField is a status flag set by other effects (e.g. VOLT_SURGE, passives, terrain pulse, items); how the caster obtains it is outside this record.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Two modes by the caster's electricField flag at cast time: radius 2 without it, 3 with it.",
+  "rawVsResolved": "Requested per enemy: round(30/60/120/240 x (1 - 0.2 x distance)). Applied before defence: x(1 + AP/100), DOUBLE_DAMAGE x2 (first hit only), strange steam x1.2, crit factor. takenDamage after PokemonState.handleDamage (defence, shields, minimum of 1) is a separate lower number. Blocked hits report takenDamage 0.",
+  "sourceTables": [
+   {
+    "id": "damageTable",
+    "file": "app/core/abilities/shockwave.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "PokemonState.handleDamage body (defence, shields, minimum of 1, kills); see core-mechanics section A",
+   "Generic ability-crit gate (whether the cast can crit) and when the cast fires in a real fight (range 1 unit and the cast gate)",
+   "All sources that set status.electricField on the caster (only VoltSurge was cited; others listed by name from a repo search, bodies not read)"
+  ],
+  "unresolved": [
+   "The cast target argument is ignored; the area is centred on the caster (range-1 units still need a target to start the cast)",
+   "Which units/effects give the caster electricField (and how long it lasts) was not traced; only the radius switch is recorded",
+   "Whether the DOUBLE_DAMAGE consumption on the first scanned enemy matches a real fight was not verified",
+   "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
+   "No routing uncertainty is recorded for this identifier in the queue",
+   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1160,
+     1160
+    ],
+    "symbol": "AbilityStrategies[Ability.SHOCKWAVE]",
+    "expect": "[Ability.SHOCKWAVE]: new ShockwaveStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "ShockwaveStrategy",
+    "expect": "export class ShockwaveStrategy extends AbilityStrategy",
+    "note": "no requiresTarget/canCritByDefault override: defaults true/false"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "per-star base damage, fallback 240"
+   },
+   {
+    "id": "range",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "process",
+    "expect": "const range = 2 + (pokemon.status.electricField ? 1 : 0)",
+    "note": "radius 2, or 3 while the caster has electricField"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "process",
+    "expect": "getCellsInRadius(pokemon.positionX, pokemon.positionY, range, false)",
+    "note": "area around the caster, centre excluded"
+   },
+   {
+    "id": "enemy",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "process",
+    "expect": "cell.value && cell.value.team != pokemon.team",
+    "note": "every enemy occupant"
+   },
+   {
+    "id": "dist",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     21,
+     26
+    ],
+    "symbol": "process",
+    "expect": "const distance = distanceC( pokemon.positionX, pokemon.positionY, cell.x, cell.y )",
+    "note": "Chebyshev distance caster to cell"
+   },
+   {
+    "id": "mult",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "process",
+    "expect": "const damageMultiplier = 1 - 0.2 * distance",
+    "note": "damage falls 20% per cell of distance"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/shockwave.ts",
+    "lines": [
+     28,
+     34
+    ],
+    "symbol": "process",
+    "expect": "cell.value.handleSpecialDamage( Math.round(damage * damageMultiplier), board, AttackType.SPECIAL, pokemon, crit )",
+    "note": "rounded base damage as SPECIAL, apBoost default true"
+   },
+   {
+    "id": "distc",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     3
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "radius-body",
+    "file": "app/core/board.ts",
+    "lines": [
+     275,
+     275
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "radius = Math.floor(Math.abs(radius)) + 0.5",
+    "note": "radius 2 becomes 2.5, radius 3 becomes 3.5"
+   },
+   {
+    "id": "radius-center",
+    "file": "app/core/board.ts",
+    "lines": [
+     156,
+     156
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "x == cellX && y == cellY && !includesCenter",
+    "note": "caster cell skipped"
+   },
+   {
+    "id": "radius-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     283,
+     283
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "this.isOnBoard(x, y) && distanceSquared < radiusSquared",
+    "note": "squared Euclidean distance test, strict"
+   },
+   {
+    "id": "field-volt",
+    "file": "app/core/abilities/volt-surge.ts",
+    "lines": [
+     53,
+     53
+    ],
+    "symbol": "VoltSurgeStrategy",
+    "expect": "pokemon.status.electricField = true",
+    "note": "one source of electricField on the caster (others: passives.ts, terrain-pulse.ts, electrify.ts, items.ts)"
+   },
+   {
+    "id": "sd-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage( damage: number, board: Board, attackType: AttackType, attacker: PokemonEntity | null, crit: boolean, apBoost = true ): { death: boolean; takenDamage: number }",
+    "note": "signature; apBoost default true"
+   },
+   {
+    "id": "sd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect, skydiving and magicBounce block the damage"
+   },
+   {
+    "id": "sd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     373,
+     378
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "([0.5, 1, 2, 4][this.stars - 1] ?? 4) * damage * (1 + this.ap / 100)",
+    "note": "magic bounce reflects SPECIAL damage to the attacker unless it holds Protective Pads"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "sd-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     403
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.has(EffectEnum.DOUBLE_DAMAGE)) { specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles and is consumed"
+   },
+   {
+    "id": "sd-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     406,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.has(EffectEnum.STRANGE_STEAM_BOARD_EFFECT)",
+    "note": "strange steam x1.2"
+   },
+   {
+    "id": "sd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit scaling reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "sd-hd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     437
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.state.handleDamage({ target: this, damage: specialDamage,",
+    "note": "damage passed to PokemonState.handleDamage"
+   }
+  ]
+ }
+}
