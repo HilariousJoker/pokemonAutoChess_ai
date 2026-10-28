@@ -1,0 +1,748 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROCK_ARTILLERY",
+ "kind": "ability",
+ "identifier": "ROCK_ARTILLERY",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T054109Z"
+ },
+ "record": {
+  "ability": "ROCK_ARTILLERY",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ROCK_ARTILLERY: Roggenrola (1 star), Boldore (2 stars), Gigalith (3 stars), all maxPP 110 and range 2. The strategy is shared; unit differences are the star count only. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ROGGENROLA",
+    "stars": 1,
+    "maxPP": 110,
+    "range": 2,
+    "declaredSkill": "ROCK_ARTILLERY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BOLDORE",
+    "stars": 2,
+    "maxPP": 110,
+    "range": 2,
+    "declaredSkill": "ROCK_ARTILLERY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GIGALITH",
+    "stars": 3,
+    "maxPP": 110,
+    "range": 2,
+    "declaredSkill": "ROCK_ARTILLERY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ROGGENROLA": {
+    "evidence": [
+     "unit-roggenrola"
+    ]
+   },
+   "BOLDORE": {
+    "evidence": [
+     "unit-boldore"
+    ]
+   },
+   "GIGALITH": {
+    "evidence": [
+     "unit-gigalith"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROCK_ARTILLERY] = new RockArtilleryStrategy()",
+   "strategy": "RockArtilleryStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ra-class",
+    "ra-notarget",
+    "ra-super"
+   ]
+  },
+  "summary": "A barrage with no cast target: at cast time the enemy list and, for every rock, the impact cell are fixed. For each of N rocks (10 / 15 / 25 by stars here; table 10 / 15 / 25 / 50) one random enemy is picked (uniformly, with replacement) and then one random cell among that enemy's cell and its on-board neighbours. Rock i lands i x 100 ms later and deals SPECIAL damage (20 / 30 / 40 raw by stars here) to the unit that stood in that cell at cast time, if that unit is an enemy of the caster. Because the occupant is copied at cast time, a rock still hits the same enemy if it has moved away, and misses an enemy that moves into a cell that was empty or held an ally when the cast happened. Rocks that fall on empty cells or allies do nothing (only an animation). The pending rocks live on the caster's own command list and stop if the caster dies or the fight ends.",
+  "targeting": {
+   "who": "no cast target; a random enemy per rock (snapshot of enemies at cast time), then a random cell in its 3 x 3 neighbourhood; the damaged unit is whatever enemy occupied that cell at cast time (the picked enemy itself when the centre cell is drawn)",
+   "needsTarget": false,
+   "note": "enemies = all board units with team != caster team at cast time (including units that may be untargetable by normal attacks; no filter is applied). pickRandomIn(enemies) is repeated per rock, so the same enemy can be picked several times; an empty enemy list skips every rock. getAdjacentCells(x, y, true) returns up to 9 on-board cells (4 in a corner, 6 on an edge) with their current occupant copied in; pickRandomIn then picks one uniformly. For an enemy in the interior each of the 9 cells has probability 1/9; neighbouring enemies can be hit instead of the picked one, allies in the 3 x 3 absorb rocks harmlessly. The damage check and the hit use targetCell.value, i.e. the cast-time occupant, not the current occupant of the cell.",
+   "evidence": [
+    "ra-notarget",
+    "ra-enemies",
+    "ra-pick-enemy",
+    "ra-adjacent",
+    "ra-pick-cell",
+    "gac-sig",
+    "gac-onboard",
+    "gac-snap",
+    "rand",
+    "ra-cond",
+    "ra-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "per rock: one cell drawn uniformly from the picked enemy's 3 x 3 neighbourhood (centre included, off-board cells dropped); no line or area beyond that cell; impact times staggered by 100 ms",
+   "evidence": [
+    "ra-adjacent",
+    "ra-pick-cell",
+    "gac-sig",
+    "gac-onboard",
+    "ra-delay"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast-time occupant of each rock's impact cell, if an enemy of the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 30,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "rocksByStars": {
+      "1": 10,
+      "2": 15,
+      "3": 25,
+      "4": 50,
+      "fallback": 50
+     },
+     "label": "requested damage per rock (raw) and number of rocks"
+    },
+    "perUnitRaw": {
+     "ROGGENROLA": 20,
+     "BOLDORE": 30,
+     "GIGALITH": 40
+    },
+    "perUnitRocks": {
+     "ROGGENROLA": 10,
+     "BOLDORE": 15,
+     "GIGALITH": 25
+    },
+    "scaling": "requested per rock = damage table[stars-1]; every rock goes through handleSpecialDamage with the same crit flag rolled once at cast time (canCritByDefault false, so crit needs ABILITY_CRIT and then applies to all rocks or none): x (1 + AP/100) (apBoost default true), x critPower (reduced by Rocky Helmet / Black Augurite) if crit, x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT. Maximum requested total if every rock connects: 200 / 450 / 1000 (rocks x damage) before those factors, spread over any number of enemies.",
+    "resolution": "applied per rock = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce; each rock is resolved separately at its own time. A recorded occupant that has died by then takes nothing (handleDamage returns early for hp <= 0 / resurrecting); the returned death / takenDamage are ignored by the strategy. The number of rocks that hit is random: it depends on the enemy count, the neighbour geometry and the allies or empty cells around each enemy.",
+    "evidence": [
+     "ra-rocks",
+     "ra-damage",
+     "ra-hit",
+     "ra-cond",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "hd-dead"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ROGGENROLA": 1,
+    "BOLDORE": 2,
+    "GIGALITH": 3
+   },
+   "declaredRawDamage": {
+    "ROGGENROLA": 20,
+    "BOLDORE": 30,
+    "GIGALITH": 40
+   },
+   "declaredRocks": {
+    "ROGGENROLA": 10,
+    "BOLDORE": 15,
+    "GIGALITH": 25
+   },
+   "note": "Both rocks and damage are indexed by the casting entity's stars; the 4-star values (50 rocks, 80 damage, also the ?? fallbacks) are not reachable by the bare factory star counts of these units. Range 2 and maxPP 110 are the same for all three.",
+   "evidence": [
+    "ra-rocks",
+    "ra-damage",
+    "unit-roggenrola",
+    "unit-boldore",
+    "unit-gigalith"
+   ]
+  },
+  "timing": {
+   "description": "each impact is a DelayedCommand (delay i x 100 ms) pushed on the caster's own command list; the caster's PokemonState.update advances it first thing each tick, and a command fires once its delay is below 0. Only units still in blueTeam / redTeam are updated, so pending rocks stop when the caster dies. The animation is broadcast when the impact fires, for any cell content. No cap on pending commands (a warning is logged above 100).",
+   "evidence": [
+    "ra-command",
+    "ra-anim",
+    "ra-delay",
+    "cmd-upd",
+    "cmd-delayed",
+    "st-cmds",
+    "st-upd",
+    "sim-upd-blue",
+    "sim-upd-red",
+    "death-team",
+    "cmd-warn"
+   ]
+  },
+  "positionalConditions": "Impact cells depend on where the enemies stand at cast time and what occupies the cells around them (ally, enemy or empty) at that moment; later movement does not change which unit a rock hits. Board edges reduce the number of candidate cells (corner 4, edge 6).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and builds its own enemy snapshot and its own random rocks; casts made while earlier rocks are still pending simply add more commands on the caster (the engine only logs a warning above 100 pending commands).",
+  "rawVsResolved": "Requested: 10 / 15 / 25 rocks (Roggenrola / Boldore / Gigalith) of 20 / 30 / 40 each. Applied per rock = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage (shield damage included, 0 when blocked) is discarded by the strategy. Which rocks actually hit an enemy is random and fixed at cast time (cell occupants), so the realised total is between 0 and rocks x applied damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "rocks",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "pattern": "const numberOfRocks = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.rocksByStars",
+    "unitValuesPath": "effects.0.perUnitRocks"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, targeting) and what requiresTarget = false changes about it - only the pp >= maxPP && canCast gate and the crit roll were read",
+   "Whether untargetable or special enemies (for example units out of play) can be in board.cells; no filter in the strategy",
+   "Death handling beyond the early return of handleDamage (resurrection branches, Cover Band, Shiny Charm) was not read",
+   "The order in which units are updated within one simulation tick relative to the cast, which fixes the exact tick of the first rock"
+  ],
+  "unresolved": [
+   "Rocks are random (Math.random through pickRandomIn); no distribution beyond the per-rock cell rule is stated and no seed or simulation was run",
+   "Exact timing: command delay is decremented by the caster's own update(dt) and fires when it goes below 0, so rock i fires no earlier than the first caster update after i x 100 ms of accumulated dt has passed; the dt value per tick was not read",
+   "Rocks still pending when the caster dies are dropped (the caster leaves blueTeam / redTeam, which is what Simulation.update iterates); whether a revived caster resumes them was not traced",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1123,
+     1123
+    ],
+    "symbol": "AbilityStrategies[Ability.ROCK_ARTILLERY]",
+    "expect": "[Ability.ROCK_ARTILLERY]: new RockArtilleryStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "unit-roggenrola",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1164,
+     1177
+    ],
+    "symbol": "class Roggenrola",
+    "expect": "skill = Ability.ROCK_ARTILLERY",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-boldore",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1179,
+     1192
+    ],
+    "symbol": "class Boldore",
+    "expect": "skill = Ability.ROCK_ARTILLERY",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-gigalith",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1194,
+     1206
+    ],
+    "symbol": "class Gigalith",
+    "expect": "skill = Ability.ROCK_ARTILLERY",
+    "note": "unit class block"
+   },
+   {
+    "id": "ra-class",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "RockArtilleryStrategy",
+    "expect": "export class RockArtilleryStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ra-notarget",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "RockArtilleryStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target in reach"
+   },
+   {
+    "id": "ra-super",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "spends maxPP; the default animation is suppressed (preventDefaultAnim true)"
+   },
+   {
+    "id": "ra-rocks",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "const numberOfRocks = [10, 15, 25, 50][pokemon.stars - 1] ?? 50",
+    "note": "number of rocks by stars"
+   },
+   {
+    "id": "ra-damage",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "const damage = [20, 30, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage per rock by stars"
+   },
+   {
+    "id": "ra-enemies",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "(cell) => cell && cell.team !== pokemon.team",
+    "note": "snapshot of every unit on the board whose team differs from the caster's, taken once at cast time"
+   },
+   {
+    "id": "ra-pick-enemy",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     20,
+     21
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "const randomEnemy = pickRandomIn(enemies)",
+    "note": "one uniformly random enemy per rock, with replacement; an empty list gives undefined and the rock is skipped"
+   },
+   {
+    "id": "ra-adjacent",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     22,
+     26
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "board.getAdjacentCells(",
+    "note": "the picked enemy's cell and its neighbours (includesCenter true)"
+   },
+   {
+    "id": "ra-pick-cell",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "const targetCell = pickRandomIn(adjacentCells)",
+    "note": "one uniformly random cell among the on-board ones"
+   },
+   {
+    "id": "ra-command",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     29,
+     30
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "the impact is a DelayedCommand stored on the caster"
+   },
+   {
+    "id": "ra-anim",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     31,
+     34
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation broadcast for the cell, whatever it holds"
+   },
+   {
+    "id": "ra-cond",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "if (targetCell.value && targetCell.value.team !== pokemon.team) {",
+    "note": "damage only if the occupant recorded at cast time is an enemy of the caster"
+   },
+   {
+    "id": "ra-hit",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     36,
+     42
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "targetCell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage with the cast's crit flag; returned values ignored"
+   },
+   {
+    "id": "ra-delay",
+    "file": "app/core/abilities/rock-artillery.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "RockArtilleryStrategy.process",
+    "expect": "}, i * 100)",
+    "note": "rock i is delayed by i x 100 ms"
+   },
+   {
+    "id": "gac-sig",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "3 x 3 neighbourhood, centre optional"
+   },
+   {
+    "id": "gac-onboard",
+    "file": "app/core/board.ts",
+    "lines": [
+     156,
+     157
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells are dropped (corner 4, edge 6, interior 9 with the centre)"
+   },
+   {
+    "id": "gac-snap",
+    "file": "app/core/board.ts",
+    "lines": [
+     158,
+     158
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "cells.push({ x, y, value: this.cells[this.columns * y + x] })",
+    "note": "the occupant is copied into the cell object when getAdjacentCells runs, i.e. at cast time"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform pick; empty list gives undefined"
+   },
+   {
+    "id": "cmd-upd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "a command runs on the first update after its delay has gone below 0 (strictly)"
+   },
+   {
+    "id": "cmd-delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "st-cmds",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's own commands are advanced by its own update"
+   },
+   {
+    "id": "st-upd",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "first statement of the per-unit update"
+   },
+   {
+    "id": "sim-upd-blue",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1367,
+     1367
+    ],
+    "symbol": "Simulation.update",
+    "expect": "pkm.update(dt, this.board, this.bluePlayer)",
+    "note": "only units still in blueTeam are updated"
+   },
+   {
+    "id": "sim-upd-red",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1384,
+     1384
+    ],
+    "symbol": "Simulation.update",
+    "expect": "pkm.update(dt, this.board, this.redPlayer)",
+    "note": "only units still in redTeam are updated"
+   },
+   {
+    "id": "death-team",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     864,
+     867
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "pokemon.simulation.redTeam.delete(pokemon.id)",
+    "note": "a dead unit is removed from the team maps, so its update (and its pending commands) stop"
+   },
+   {
+    "id": "cmd-warn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     876,
+     876
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "if (pokemon.commands.length > 100) {",
+    "note": "only a log warning above 100 pending commands; no cap"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     447,
+     452
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "early returns of handleDamage (hp <= 0 / resurrecting / NaN) deal no damage"
+   }
+  ]
+ }
+}
