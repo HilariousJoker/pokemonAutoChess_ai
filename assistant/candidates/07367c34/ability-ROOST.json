@@ -1,0 +1,643 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROOST",
+ "kind": "ability",
+ "identifier": "ROOST",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261028T054109Z"
+ },
+ "record": {
+  "ability": "ROOST",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare ROOST: Pidove (1 star), Tranquill (2 stars), Unfezant (3 stars), all maxPP 100 and range 1 (regional units). The strategy is shared; unit differences are the star count only. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "PIDOVE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROOST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TRANQUILL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROOST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "UNFEZANT",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROOST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PIDOVE": {
+    "evidence": [
+     "unit-pidove"
+    ]
+   },
+   "TRANQUILL": {
+    "evidence": [
+     "unit-tranquill"
+    ]
+   },
+   "UNFEZANT": {
+    "evidence": [
+     "unit-unfezant"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROOST] = new RoostStrategy()",
+   "strategy": "RoostStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "rs-class",
+    "rs-notarget",
+    "rs-super"
+   ]
+  },
+  "summary": "Self-only, three steps in this order: (1) the caster flies away - it relocates (non-forced moveTo, no skydive attack) to an empty cell beyond its own attack range that lets it reach an enemy, chosen among the least threatened and farthest candidates; all units that were targeting it lose their target; (2) the caster is put to sleep for a requested 1000 ms (subject to the sleep guards); (3) it gains a shield, requested 20 / 40 / 80 by stars here (table 20/40/80/160). Nothing is dealt to enemies. The sleep makes the caster idle for its duration and a crowd-control cooldown follows on waking, so Roost trades the caster's own actions for a shield and a repositioning. If no living enemy exists, or no destination is found, the caster stays where it is but still sleeps (if allowed) and still gains the shield.",
+  "targeting": {
+   "who": "the caster only (self); enemies are affected only by losing the caster as a target",
+   "needsTarget": false,
+   "note": "No target is used. flyAway(board, false) asks Board.getFlyAwayCell(caster) for a destination: living enemies required; empty cells farther than the caster's range from its current cell, where at least one targettable enemy is within the caster's range; among them the ones within reach of the fewest enemies, then the farthest (Manhattan distance), then a random pick. When no such cell exists the fallback getSafePlaceAwayFrom was not read. The movement is moveTo(..., false): not forced, so canBeMoved is not consulted.",
+   "evidence": [
+    "rs-fly",
+    "fly-def",
+    "fly-move",
+    "fly-aggro",
+    "cell-enemies",
+    "cell-range",
+    "cell-fallback",
+    "cell-pick",
+    "moveto"
+   ]
+  },
+  "geometry": {
+   "shape": "relocation of the caster to one empty board cell; no area, no line",
+   "evidence": [
+    "fly-move",
+    "cell-range",
+    "cell-pick"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "displacement",
+    "target": "the caster",
+    "declaredRaw": {
+     "description": "flyAway(board, false): moveTo(destination from getFlyAwayCell, forcedDisplacement false)"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "happens only if getFlyAwayCell returns a cell (a living enemy exists and a suitable empty cell is found or the fallback finds one). The caster gets protect for 2000 ms only if it already has the FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM effect (shouldProtect default); the GALE_WINGS passive leaves EMBER board effects on the cells between (not relevant to these three units). Whether or not it moves, every living unit whose target is the caster has its target cleared. The move changes the caster's state through moveTo (moving state, cooldown 100) before the sleep below is applied.",
+    "evidence": [
+     "rs-fly",
+     "fly-def",
+     "fly-protect",
+     "fly-move",
+     "fly-aggro",
+     "cell-enemies",
+     "cell-range",
+     "cell-pick",
+     "moveto"
+    ]
+   },
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested shield (raw)"
+    },
+    "perUnitRaw": {
+     "PIDOVE": 20,
+     "TRANQUILL": 40,
+     "UNFEZANT": 80
+    },
+    "scaling": "called as addShield(requested, caster, 1, crit): a Big Eater Belt holder first gets round-down(requested x 1.25); then x (1 + AP/100); x critPower on a crit (canCritByDefault false, so crit needs ABILITY_CRIT); x0.5 if the caster is enraged; then Math.round.",
+    "resolution": "requested = 20 / 40 / 80. Applied = the scaled, rounded value added to the caster's shield (no cap; only if its hp > 0). Happens after the move and after the sleep attempt, whether or not either succeeded. Shield damage absorbed later follows the generic damage rules (not part of this record).",
+    "evidence": [
+     "rs-table",
+     "rs-shield",
+     "ent-shield",
+     "belt-fn",
+     "st-shield-ap",
+     "st-shield-enr",
+     "st-shield-set"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "SLEEP",
+    "target": "the caster",
+    "durationMs": 1000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 1000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "PIDOVE": 1000,
+     "TRANQUILL": 1000,
+     "UNFEZANT": 1000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "applied only if the caster is not already asleep, has no rune protect, is not skydiving, lacks IMMUNITY_SLEEP and its ccCooldown is <= 0; applied duration = round(requested x 1.3 at NIGHT or x0.7 at ZENITH; halved if enraged; then SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3 and Odd Keystone -10 % each). A sleeping unit is forced to the idle state; when the timer ends a CC cooldown of 1500 ms starts. An eaten Chesto Berry (if held) is triggered on application. The strategy does not guard against the sleep being refused: the shield is still granted.",
+    "evidence": [
+     "rs-sleep",
+     "sleep-fn",
+     "sleep-guard",
+     "sleep-weather",
+     "sleep-reduce",
+     "sleep-upd",
+     "cc-cd",
+     "sleep-idle"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PIDOVE": 1,
+    "TRANQUILL": 2,
+    "UNFEZANT": 3
+   },
+   "declaredRawShield": {
+    "PIDOVE": 20,
+    "TRANQUILL": 40,
+    "UNFEZANT": 80
+   },
+   "note": "Only the shield is indexed by stars (the 4-star value 160, also the ?? fallback, is not reachable by the bare factory star counts of these units). Sleep duration and the fly-away rule do not depend on stars. maxPP is 100 and range 1 for all three.",
+   "evidence": [
+    "rs-table",
+    "unit-pidove",
+    "unit-tranquill",
+    "unit-unfezant"
+   ]
+  },
+  "positionalConditions": "The destination depends on the positions of living enemies and empty cells at cast time; with no living enemy or no suitable cell the caster does not move.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP, repeats the relocation (if possible), the sleep attempt and adds another shield; a new sleep cannot start while the caster is asleep or while its ccCooldown is still running.",
+  "rawVsResolved": "Requested: shield 20 / 40 / 80 (Pidove / Tranquill / Unfezant) and sleep 1000 ms. Applied shield = (Big Eater Belt x1.25 round-down) x (1 + AP/100) x optional critPower x (0.5 if enraged), rounded. Applied sleep = requested after weather, enrage and reductions, or none if a guard refuses it. The relocation is requested by flyAway and is applied only if a destination exists.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/roost.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate and the crit roll were read",
+   "Whether a sleeping caster can still be hit, attack or gain PP, and what ends sleep early, was not traced beyond updateSleep / the idle-state rule",
+   "Board.getSafePlaceAwayFrom (the fallback of getFlyAwayCell) and isTargettableBy were not read",
+   "Rune protect / ccCooldown values of the caster at cast time depend on earlier combat events"
+  ],
+  "unresolved": [
+   "Whether the move and the sleep interact in a real fight (a unit that has just moved is put to idle by the sleep) was read, not exercised",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "Regional availability of the three units (isInRegion in their class blocks) is not covered by this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "forced displacement is refused if the mover or the unit on the destination cannot be moved; otherwise swaps cells"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1130,
+     1130
+    ],
+    "symbol": "AbilityStrategies[Ability.ROOST]",
+    "expect": "[Ability.ROOST]: new RoostStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "unit-pidove",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18055,
+     18072
+    ],
+    "symbol": "class Pidove",
+    "expect": "skill = Ability.ROOST",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-tranquill",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18074,
+     18091
+    ],
+    "symbol": "class Tranquill",
+    "expect": "skill = Ability.ROOST",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-unfezant",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18093,
+     18109
+    ],
+    "symbol": "class Unfezant",
+    "expect": "skill = Ability.ROOST",
+    "note": "unit class block"
+   },
+   {
+    "id": "rs-class",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "RoostStrategy",
+    "expect": "export class RoostStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "rs-notarget",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RoostStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target"
+   },
+   {
+    "id": "rs-super",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "RoostStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "spends maxPP"
+   },
+   {
+    "id": "rs-table",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "RoostStrategy.process",
+    "expect": "const shield = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "shield table by stars"
+   },
+   {
+    "id": "rs-fly",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "RoostStrategy.process",
+    "expect": "pokemon.flyAway(board, false)",
+    "note": "first step: relocation without skydive"
+   },
+   {
+    "id": "rs-sleep",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "RoostStrategy.process",
+    "expect": "pokemon.status.triggerSleep(1000, pokemon)",
+    "note": "second step: requested 1000 ms sleep on the caster"
+   },
+   {
+    "id": "rs-shield",
+    "file": "app/core/abilities/roost.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "RoostStrategy.process",
+    "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+    "note": "third step: self shield, apBoost 1 and the cast's crit flag"
+   },
+   {
+    "id": "fly-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1323,
+     1330
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "flyAway(",
+    "note": "signature; shouldSkydive = false from ROOST, shouldProtect defaults to the FEATHER_DANCE / SKYDIVE / MAX_AIRSTREAM effects"
+   },
+   {
+    "id": "fly-protect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1350,
+     1350
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "if (shouldProtect) this.status.triggerProtect(2000)",
+    "note": "2000 ms protect only if the caster has FEATHER_DANCE / SKYDIVE / MAX_AIRSTREAM"
+   },
+   {
+    "id": "fly-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1383,
+     1386
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "this.moveTo(flyAwayCell.x, flyAwayCell.y, board, false)",
+    "note": "non-forced moveTo to the chosen cell when there is one"
+   },
+   {
+    "id": "fly-aggro",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1388,
+     1394
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "e.targetEntityId === this.id",
+    "note": "all living units that targeted the caster lose their target"
+   },
+   {
+    "id": "cell-enemies",
+    "file": "app/core/board.ts",
+    "lines": [
+     406,
+     409
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "if (enemies.length === 0) {",
+    "note": "no living enemy: no destination and no move (null)"
+   },
+   {
+    "id": "cell-range",
+    "file": "app/core/board.ts",
+    "lines": [
+     420,
+     425
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "distanceC(cell.x, cell.y, entity.positionX, entity.positionY) >",
+    "note": "candidate cells are empty cells beyond the caster's attack range"
+   },
+   {
+    "id": "cell-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     468,
+     470
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "if (cellsWithTarget.length === 0) {",
+    "note": "no empty cell lets the caster reach an enemy: fallback to getSafePlaceAwayFrom (not read)"
+   },
+   {
+    "id": "cell-pick",
+    "file": "app/core/board.ts",
+    "lines": [
+     491,
+     491
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "const selectedDestination = pickRandomIn(farthestSafestCells)",
+    "note": "random pick among the least threatened, farthest cells"
+   },
+   {
+    "id": "sleep-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     786
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleepCooldown = Math.round(duration)",
+    "note": "sleep set unless already asleep, rune protect, skydiving, IMMUNITY_SLEEP or ccCooldown > 0"
+   },
+   {
+    "id": "sleep-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     761,
+     767
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+    "note": "guard conditions"
+   },
+   {
+    "id": "sleep-weather",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     768,
+     774
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration *= 1.3",
+    "note": "NIGHT x1.3, ZENITH x0.7, enraged halves"
+   },
+   {
+    "id": "sleep-reduce",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions"
+   },
+   {
+    "id": "sleep-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     788,
+     803
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "on waking a crowd-control cooldown (CC_COOLDOWN) follows"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   },
+   {
+    "id": "sleep-idle",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     902,
+     908
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "pokemon.status.sleep && pokemon.passive !== Passive.COMATOSE",
+    "note": "a sleeping unit is forced to the idle state"
+   },
+   {
+    "id": "ent-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt adjusts the raw value before the AP / crit scaling"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value x1.25 rounded down for a holder"
+   },
+   {
+    "id": "st-shield-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP factor, then critPower on a crit"
+   },
+   {
+    "id": "st-shield-enr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "an enraged unit gets half"
+   },
+   {
+    "id": "st-shield-set",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     394,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "rounded value added to the shield; only if hp > 0"
+   }
+  ]
+ }
+}
