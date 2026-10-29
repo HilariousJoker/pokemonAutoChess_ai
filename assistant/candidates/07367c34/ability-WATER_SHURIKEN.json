@@ -1,0 +1,712 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WATER_SHURIKEN",
+ "kind": "ability",
+ "identifier": "WATER_SHURIKEN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T114158Z"
+ },
+ "record": {
+  "ability": "WATER_SHURIKEN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare WATER_SHURIKEN: Froakie (1 star), Frogadier (2 stars), Greninja (3 stars); all range 1, maxPP 80. Froakie and Frogadier also declare passive HATCH (not covered here); Greninja has none. The strategy is shared; unit differences are only the star count. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "FROAKIE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "WATER_SHURIKEN",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FROGADIER",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "WATER_SHURIKEN",
+    "declaredPassive": "HATCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GRENINJA",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "WATER_SHURIKEN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FROAKIE": {
+    "evidence": [
+     "unit-froakie"
+    ]
+   },
+   "FROGADIER": {
+    "evidence": [
+     "unit-frogadier"
+    ]
+   },
+   "GRENINJA": {
+    "evidence": [
+     "unit-greninja"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WATER_SHURIKEN] = new WaterShurikenStrategy()",
+   "strategy": "WaterShurikenStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Three rays from the caster toward the board edge: one in the direction of the cast target (one of 8 compass directions from the signs of the coordinate differences) and the two neighbouring directions in OrientationArray (45 degrees to each side). Every enemy on any cell of the three rays takes SPECIAL damage (raw 20/40/60 by stars), with no falloff and no range limit. The caster is turned to face the cast target as a side effect.",
+  "targeting": {
+   "who": "every enemy-team unit on the three rays; allies are skipped, rays are not blocked by units",
+   "needsTarget": true,
+   "note": "The target only fixes the central direction (the signs of dx and dy), not an exact line: unless the target stands on a straight or exact diagonal line from the caster, it is not on the central ray and is then hit only if it happens to lie on one of the three rays. The strategy passes an Orientation, so the 'touch the original target' fallback of effectInOrientation (only for entity arguments) does not apply. If caster and target share a cell, board.orientation picks a random direction for a confused caster and otherwise logs an error and returns DOWNRIGHT.",
+   "evidence": [
+    "ab-orient",
+    "ab-three",
+    "ab-three2",
+    "ab-each",
+    "ab-eio",
+    "ab-filter",
+    "or-fn",
+    "or-dxdy",
+    "or-same",
+    "eio-typeof",
+    "eio-fallback",
+    "eio-isentity"
+   ]
+  },
+  "geometry": {
+   "shape": "three rays from the caster's cell to the board edge: the central direction D and the two directions next to D in the circular order DOWN, DOWNRIGHT, RIGHT, UPRIGHT, UP, UPLEFT, LEFT, DOWNLEFT; no maxRange argument is given. The board is 6 rows x 8 columns: the RIGHT ray is bounded by board.rows (6) instead of board.columns (8) in the source as written, so a RIGHT ray stops at x = 5 and misses columns 6 and 7 for any caster; the other rays use rows / columns correctly (UP uses rows, UPRIGHT and DOWNRIGHT use columns, UPLEFT uses rows).",
+   "evidence": [
+    "or-array",
+    "or-enum",
+    "ab-three",
+    "ab-three2",
+    "eio",
+    "eio-up",
+    "eio-upright",
+    "eio-right",
+    "eio-down",
+    "eio-left",
+    "board-size",
+    "board-new",
+    "board-ctor"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy on any of the three rays",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "FROAKIE": 20,
+     "FROGADIER": 40,
+     "GRENINJA": 60
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. The three rays start from the caster's cell in three different directions and do not share cells, so each enemy is hit at most once per cast. No heal or kill trigger follows in this strategy.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "FROAKIE": 1,
+    "FROGADIER": 2,
+    "GRENINJA": 3
+   },
+   "declaredRawDamage": {
+    "FROAKIE": 20,
+    "FROGADIER": 40,
+    "GRENINJA": 60
+   },
+   "note": "Damage is indexed by the casting entity's stars; the 4-star value (120, also the ?? fallback) is not reachable by the bare factory star counts. Geometry, range and maxPP (80) are the same for the three units.",
+   "evidence": [
+    "ab-table",
+    "unit-froakie",
+    "unit-frogadier",
+    "unit-greninja"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (the central direction from the signs of dx and dy) and on the board edge. Any ray pointing RIGHT (the central ray, or a side ray when the central direction is UPRIGHT or DOWNRIGHT) is cut at column 5 by the board.rows bound; the other rays reach the edge. If caster and target share a cell the central direction is random for a confused caster and DOWNRIGHT otherwise.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP, overwrites the caster's orientation and recomputes the rays.",
+  "rawVsResolved": "Requested: raw SPECIAL damage 20/40/60 (1/2/3 stars) to each enemy on three rays. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; takenDamage includes shield damage. Which enemies receive it is the geometric result of the three rays on the 6x8 board, including the RIGHT-ray bound.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band death handling) were not traced",
+   "The effect of the modified caster orientation on animation or later attacks was not traced",
+   "The shared effectInOrientation helper was read in full for the rays used here; its other callers were not examined"
+  ],
+  "unresolved": [
+   "Whether the RIGHT-ray bound by board.rows is intended; recorded as read (shared with other effectInOrientation callers)",
+   "The HATCH passive of Froakie and Frogadier is not covered by this record",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-froakie",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11890,
+     11905
+    ],
+    "symbol": "class Froakie",
+    "expect": "skill = Ability.WATER_SHURIKEN",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-frogadier",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11907,
+     11922
+    ],
+    "symbol": "class Frogadier",
+    "expect": "skill = Ability.WATER_SHURIKEN",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-greninja",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11924,
+     11936
+    ],
+    "symbol": "class Greninja",
+    "expect": "skill = Ability.WATER_SHURIKEN",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry object"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1276,
+     1276
+    ],
+    "symbol": "AbilityStrategies[Ability.WATER_SHURIKEN]",
+    "expect": "[Ability.WATER_SHURIKEN]: new WaterShurikenStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit gate"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "WaterShurikenStrategy",
+    "expect": "export class WaterShurikenStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "const damage = [20, 40, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table"
+   },
+   {
+    "id": "ab-orient",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "pokemon.orientation = board.orientation(",
+    "note": "caster faces the cast target (side effect on the caster)"
+   },
+   {
+    "id": "ab-three",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "OrientationArray[(OrientationArray.indexOf(pokemon.orientation) + 1) % 8],",
+    "note": "next orientation in OrientationArray"
+   },
+   {
+    "id": "ab-three2",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "OrientationArray[(OrientationArray.indexOf(pokemon.orientation) + 7) % 8]",
+    "note": "previous orientation in OrientationArray"
+   },
+   {
+    "id": "ab-each",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "orientations.forEach((orientation) => {",
+    "note": "three rays"
+   },
+   {
+    "id": "ab-eio",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "effectInOrientation(board, pokemon, orientation, (cell) => {",
+    "note": "ray with an Orientation argument and no maxRange"
+   },
+   {
+    "id": "ab-filter",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "enemies only"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/water-shuriken.ts",
+    "lines": [
+     36,
+     36
+    ],
+    "symbol": "WaterShurikenStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "damage per enemy on a ray"
+   },
+   {
+    "id": "or-array",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     25,
+     34
+    ],
+    "symbol": "OrientationArray",
+    "expect": "export const OrientationArray: Orientation[] = [",
+    "note": "DOWN, DOWNRIGHT, RIGHT, UPRIGHT, UP, UPLEFT, LEFT, DOWNLEFT (circular order)"
+   },
+   {
+    "id": "or-enum",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     44,
+     53
+    ],
+    "symbol": "Orientation",
+    "expect": "export enum Orientation {",
+    "note": "string-valued enum"
+   },
+   {
+    "id": "or-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     100
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "direction from caster to target: sign of dx, dy"
+   },
+   {
+    "id": "or-dxdy",
+    "file": "app/core/board.ts",
+    "lines": [
+     107,
+     107
+    ],
+    "symbol": "Board.orientation",
+    "expect": "const dx = x1 - x0",
+    "note": "signs of dx and dy pick one of 8 orientations"
+   },
+   {
+    "id": "or-same",
+    "file": "app/core/board.ts",
+    "lines": [
+     122,
+     122
+    ],
+    "symbol": "Board.orientation",
+    "expect": "logger.error(\"failed to get pokemon orientation\", {",
+    "note": "caster and target on the same cell: confusion picks randomly, otherwise error and DOWNRIGHT"
+   },
+   {
+    "id": "eio",
+    "file": "app/core/board.ts",
+    "lines": [
+     810,
+     817
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "export function effectInOrientation(",
+    "note": "ray from the caster to the board edge"
+   },
+   {
+    "id": "eio-typeof",
+    "file": "app/core/board.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "typeof target === \"string\"",
+    "note": "an Orientation argument is used directly"
+   },
+   {
+    "id": "eio-up",
+    "file": "app/core/board.ts",
+    "lines": [
+     847,
+     847
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let y = pokemon.positionY + 1; y < board.rows; y++) {",
+    "note": "UP ray"
+   },
+   {
+    "id": "eio-upright",
+    "file": "app/core/board.ts",
+    "lines": [
+     852,
+     861
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "case Orientation.UPRIGHT:",
+    "note": "UPRIGHT ray"
+   },
+   {
+    "id": "eio-right",
+    "file": "app/core/board.ts",
+    "lines": [
+     863,
+     863
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX + 1; x < board.rows; x++) {",
+    "note": "RIGHT ray is bounded by board.rows, not board.columns"
+   },
+   {
+    "id": "eio-down",
+    "file": "app/core/board.ts",
+    "lines": [
+     879,
+     879
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let y = pokemon.positionY - 1; y >= 0; y--) {",
+    "note": "DOWN ray"
+   },
+   {
+    "id": "eio-left",
+    "file": "app/core/board.ts",
+    "lines": [
+     895,
+     895
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "for (let x = pokemon.positionX - 1; x >= 0; x--) {",
+    "note": "LEFT ray"
+   },
+   {
+    "id": "eio-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     914,
+     917
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "// should at least touch the original target",
+    "note": "fallback only when the argument is an entity; not used with an Orientation argument"
+   },
+   {
+    "id": "eio-isentity",
+    "file": "app/core/board.ts",
+    "lines": [
+     912,
+     912
+    ],
+    "symbol": "effectInOrientation",
+    "expect": "obj.hasOwnProperty(\"positionX\")",
+    "note": "isEntity check"
+   },
+   {
+    "id": "board-size",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "8 columns"
+   },
+   {
+    "id": "board-new",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "Simulation.board",
+    "expect": "board: Board = new Board(BOARD_HEIGHT, BOARD_WIDTH)",
+    "note": "rows = 6, columns = 8"
+   },
+   {
+    "id": "board-ctor",
+    "file": "app/core/board.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "Board.constructor",
+    "expect": "constructor(rows: number, colums: number) {",
+    "note": "first argument rows, second columns"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "AP boost default"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP bonus"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands over to handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "blocked"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "special defence"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   }
+  ]
+ }
+}
