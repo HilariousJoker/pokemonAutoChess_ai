@@ -1,0 +1,699 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/UPROAR",
+ "kind": "ability",
+ "identifier": "UPROAR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T114158Z"
+ },
+ "record": {
+  "ability": "UPROAR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare UPROAR: Whismur (1 star), Loudred (2 stars), Exploud (3 stars); all range 2, maxPP 90, no passive. The strategy is shared; unit differences are only the star count. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "WHISMUR",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "UPROAR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LOUDRED",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "UPROAR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EXPLOUD",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "UPROAR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "WHISMUR": {
+    "evidence": [
+     "unit-whismur"
+    ]
+   },
+   "LOUDRED": {
+    "evidence": [
+     "unit-loudred"
+    ]
+   },
+   "EXPLOUD": {
+    "evidence": [
+     "unit-exploud"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.UPROAR] = new UproarStrategy()",
+   "strategy": "UproarStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super",
+    "ab-notarget"
+   ]
+  },
+  "summary": "Area around the caster, no target needed. At cast time the caster and every ally within the caster's range (Chebyshev distance <= range, centre included) that does not already have the sleep immunity gets IMMUNITY_SLEEP, which a command removes 3000 ms later. Then three delayed ticks at 1000, 2000 and 3000 ms each deal SPECIAL damage (raw 5/10/20 by stars) to every enemy within the caster's range at the moment of that tick (centre excluded), using the caster's position and range then. Three ticks, so the raw total is 15/30/60 per enemy that stays in range.",
+  "targeting": {
+   "who": "immunity: the caster and allies within range at cast time; damage: enemies within range of the caster's position at each tick",
+   "needsTarget": false,
+   "note": "The strategy takes target = null (requiresTarget false), so it can be cast without an enemy at attack range. The immunity set is fixed at cast time; the damage set is recomputed at every tick, so an enemy that moves in or out between ticks is counted per tick, and a moved caster uses its new position.",
+   "evidence": [
+    "ab-notarget",
+    "ab-imm-range",
+    "ab-imm-center",
+    "ab-imm-team",
+    "ab-tick-range",
+    "ab-tick-center",
+    "ab-tick-enemy",
+    "range",
+    "cheb"
+   ]
+  },
+  "geometry": {
+   "shape": "square block of cells around the caster: Chebyshev distance <= range (range 2 for these units: up to 5x5 cells), clipped to the board; the caster's own cell is included for the immunity and excluded for the damage",
+   "evidence": [
+    "range",
+    "cheb",
+    "ab-imm-center",
+    "ab-tick-center"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy within range at each of the three ticks (1000 / 2000 / 3000 ms after the cast)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 40,
+      "fallback": 40
+     },
+     "label": "requested damage per tick (raw)"
+    },
+    "perUnitRaw": {
+     "WHISMUR": 5,
+     "LOUDRED": 10,
+     "EXPLOUD": 20
+    },
+    "scaling": "requested = table[stars-1] per tick (the caster's stars are read when each tick runs). handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT. The crit flag is the one decided at cast time and is reused by all three ticks; AP is read at each tick.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. Each tick is a separate handleSpecialDamage call per enemy, so the minimum of 1 applies to every tick separately. The strategy does not check whether the caster is still alive at a tick; whether the caster's commands keep running after its death was not traced.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "ab-loop",
+     "ab-push",
+     "ab-delay",
+     "cmd-update",
+     "cmd-exec",
+     "cmd-run",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "IMMUNITY_SLEEP (effect flag, not a status)",
+    "target": "the caster and every ally in range at cast time that does not already have the flag",
+    "durationMs": 3000,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested immunity duration"
+    },
+    "scaling": "none from stars, AP or crit.",
+    "resolution": "The flag only blocks NEW triggerSleep applications (triggerSleep refuses when the unit has IMMUNITY_SLEEP); a unit that is already asleep stays asleep. A unit that already had the flag from another source (for example a second Uproar still running) is skipped, so no second removal command is queued and the earlier removal ends the immunity at its own time. The removal command is queued on that ally's command list and runs in that ally's update, so it does not run if the ally stops being updated (death handling not traced). Command timing is delay < 0 after subtracting dt, so the removal and the ticks happen on the first update after the delay has elapsed.",
+    "evidence": [
+     "ab-imm-range",
+     "ab-imm-center",
+     "ab-imm-team",
+     "ab-imm-guard",
+     "ab-imm-add",
+     "ab-imm-del",
+     "ab-imm-3000",
+     "sleep-guard",
+     "cmd-update",
+     "cmd-exec"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "WHISMUR": 1,
+    "LOUDRED": 2,
+    "EXPLOUD": 3
+   },
+   "declaredRawDamage": {
+    "WHISMUR": 5,
+    "LOUDRED": 10,
+    "EXPLOUD": 20
+   },
+   "note": "Only the per-tick damage is indexed by the caster's stars (and is read at tick time); the 4-star value (40, also the ?? fallback) is not reachable by the bare factory star counts. Range 2 and maxPP 90 are the same for all three units; the immunity length and the tick schedule do not depend on stars.",
+   "evidence": [
+    "ab-table",
+    "unit-whismur",
+    "unit-loudred",
+    "unit-exploud"
+   ]
+  },
+  "positionalConditions": "Damage and immunity both depend on cells within the caster's range; the damage area follows the caster's position at each tick, the immunity set is fixed at cast time.",
+  "repeatedCastsAndModes": "No stored state or modes besides the delayed commands. Each cast spends maxPP of PP and queues three new damage ticks on the caster; overlapping casts stack their ticks. Allies that still carry the flag from an earlier cast do not get a new removal timer.",
+  "rawVsResolved": "Requested: raw SPECIAL damage 5/10/20 (1/2/3 stars) per tick, three ticks (raw total 15/30/60 per enemy that stays in range), plus a 3000 ms sleep immunity. Applied damage per tick = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1 per tick; takenDamage includes shield damage. The applied number of ticks hitting a given enemy depends on where it stands at each tick.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/uproar.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight when no target exists (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located; the cast-time crit flag is captured by the closure",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band death handling) were not traced",
+   "Whether pending commands of a dead caster or ally still execute, and the simulation tick length (dt), were not traced; only the command update loops were read",
+   "What the sleep status does to a unit once applied was not traced (only the trigger guard was read)"
+  ],
+  "unresolved": [
+   "Whether the caster's delayed ticks continue after the caster dies",
+   "Exact timing of the ticks relative to the cast in real fights (depends on dt)",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-whismur",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2920,
+     2933
+    ],
+    "symbol": "class Whismur",
+    "expect": "skill = Ability.UPROAR",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-loudred",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2934,
+     2947
+    ],
+    "symbol": "class Loudred",
+    "expect": "skill = Ability.UPROAR",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-exploud",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2949,
+     2961
+    ],
+    "symbol": "class Exploud",
+    "expect": "skill = Ability.UPROAR",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry object"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1267,
+     1267
+    ],
+    "symbol": "AbilityStrategies[Ability.UPROAR]",
+    "expect": "[Ability.UPROAR]: new UproarStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit gate"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "UproarStrategy",
+    "expect": "export class UproarStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ab-notarget",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "UproarStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target and from anywhere"
+   },
+   {
+    "id": "ab-imm-range",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "pokemon.range,",
+    "note": "immunity area uses the caster's range"
+   },
+   {
+    "id": "ab-imm-center",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "true",
+    "note": "includesCenter = true: the caster's own cell is included"
+   },
+   {
+    "id": "ab-imm-team",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "pokemon.team === cell.value.team &&",
+    "note": "allies (caster included) in range"
+   },
+   {
+    "id": "ab-imm-guard",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "!cell.value.effects.has(EffectEnum.IMMUNITY_SLEEP)",
+    "note": "skipped if the unit already has the immunity"
+   },
+   {
+    "id": "ab-imm-add",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "cell.value.effects.add(EffectEnum.IMMUNITY_SLEEP)",
+    "note": "immunity added"
+   },
+   {
+    "id": "ab-imm-del",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "cell.value?.effects.delete(EffectEnum.IMMUNITY_SLEEP)",
+    "note": "immunity removed by a delayed command"
+   },
+   {
+    "id": "ab-imm-3000",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "}, 3000)",
+    "note": "removal after 3000 ms"
+   },
+   {
+    "id": "ab-loop",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "for (let i = 1; i <= 3; i++) {",
+    "note": "three ticks"
+   },
+   {
+    "id": "ab-push",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "ticks are commands on the CASTER"
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "const damage = [5, 10, 20, 40][pokemon.stars - 1] ?? 40",
+    "note": "damage table (read inside each tick)"
+   },
+   {
+    "id": "ab-tick-range",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     46,
+     46
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "pokemon.range,",
+    "note": "tick area uses current position and range"
+   },
+   {
+    "id": "ab-tick-center",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     47,
+     47
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "false",
+    "note": "includesCenter = false"
+   },
+   {
+    "id": "ab-tick-enemy",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "enemies only"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     51,
+     51
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "damage per tick per enemy"
+   },
+   {
+    "id": "ab-delay",
+    "file": "app/core/abilities/uproar.ts",
+    "lines": [
+     60,
+     60
+    ],
+    "symbol": "UproarStrategy.process",
+    "expect": "}, i * 1000)",
+    "note": "ticks at 1000, 2000, 3000 ms"
+   },
+   {
+    "id": "range",
+    "file": "app/core/board.ts",
+    "lines": [
+     237,
+     253
+    ],
+    "symbol": "Board.getCellsInRange",
+    "expect": "getCellsInRange(",
+    "note": "range = floor(|range|); Chebyshev distance <= range; whole board scanned"
+   },
+   {
+    "id": "cheb",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "export function distanceC(",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "runs when delay < 0"
+   },
+   {
+    "id": "cmd-exec",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "strict less-than"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "commands advance in the owner's update"
+   },
+   {
+    "id": "sleep-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     765,
+     765
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+    "note": "immunity blocks only NEW sleep applications"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "AP boost default"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP bonus"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands over to handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "blocked"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "special defence"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   }
+  ]
+ }
+}
