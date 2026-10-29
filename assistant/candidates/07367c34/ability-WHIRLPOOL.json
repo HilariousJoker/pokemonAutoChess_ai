@@ -1,0 +1,536 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WHIRLPOOL",
+ "kind": "ability",
+ "identifier": "WHIRLPOOL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T174016Z"
+ },
+ "record": {
+  "ability": "WHIRLPOOL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare WHIRLPOOL: Horsea (1 star), Seadra (2 stars), Kingdra (3 stars); all have range 2 and maxPP 100 per the unit blocks (the cast does not use range). The strategy is shared; the unit difference is the star count (multiplier index) and the unit's own current ATK.",
+  "appliesTo": [
+   {
+    "key": "HORSEA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHIRLPOOL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KINGDRA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHIRLPOOL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SEADRA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHIRLPOOL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HORSEA": {
+    "evidence": [
+     "unit-horsea"
+    ]
+   },
+   "KINGDRA": {
+    "evidence": [
+     "unit-kingdra"
+    ]
+   },
+   "SEADRA": {
+    "evidence": [
+     "unit-seadra"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WHIRLPOOL] = new WhirlpoolStrategy()",
+   "strategy": "WhirlpoolStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wp-class",
+    "wp-super"
+   ]
+  },
+  "summary": "The caster picks its farthest targettable unit (PokemonState.getFarthestTarget) or, if none, the cast target, walks the straight line of cells from itself to it and takes only the FIRST unit of another team on that line (not every unit, and not necessarily the farthest one). That unit, or the cast target if the line holds no enemy, takes four consecutive SPECIAL hits, each of requested size current ATK x 1 (x 2 only at 4 stars or as the fallback), so for these units four hits of the caster's current ATK. No status effect.",
+  "targeting": {
+   "who": "the first unit of another team met on the supercover line from the caster toward its farthest targettable unit; fallback: the cast target",
+   "needsTarget": true,
+   "note": "Selection of the farthest target is by distanceM over targettable units (strictly greater wins; first in board scan order on ties). The line is walked from the caster's own cell; allies on it are skipped by the team filter, and the first enemy stops the walk, so the farthest target is hit only if nothing else stands in front of it. The collection filter is team only, not isTargettableBy. The fallback is whichever unit the generic code passed as the cast target.",
+   "evidence": [
+    "wp-far",
+    "farthest",
+    "wp-cells",
+    "cells-between",
+    "wp-first",
+    "wp-fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "straight line (supercover) from the caster's cell to the cell of its farthest targettable unit, both ends included when on board; only the first enemy on it is a victim, so the result is a single target",
+   "evidence": [
+    "wp-cells",
+    "cells-between",
+    "wp-first"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "hits": 4,
+    "target": "the first enemy on the line; else the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 2,
+      "fallback": 2
+     },
+     "unit": "multiplier of the caster's current ATK, per hit; four hits per cast"
+    },
+    "perUnitRaw": {
+     "HORSEA": 1,
+     "SEADRA": 1,
+     "KINGDRA": 1
+    },
+    "scaling": "requested per hit = pokemon.atk (the caster's current ATK at the moment of each call, buffs and debuffs included) x multiplier. handleSpecialDamage on each hit: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); the DOUBLE_DAMAGE and steam-board multipliers recorded for AQUA_TAIL apply since it is the same function. The four calls are made back to back, so the requested size is the same for all four (ATK does not change within the loop).",
+    "resolution": "requested (ATK x 1) -> applied per hit (after AP and crit) -> handleDamage: attacker/field/weather multipliers, division by (1 + ARMOR_FACTOR x speDef), rounded up with a minimum of 1 for EACH hit, target shield absorbing first. takenDamage reported per hit = shield damage + HP damage (capped at current hp); 0 for a target with protect / skydiving / magicBounce (each of the four hits is blocked separately). The strategy ignores every return value, so the loop continues even if an earlier hit killed the target. With a Cover Band ally adjacent, handleDamage redirects the hit to that ally. Requested, applied and takenDamage are different numbers; the minimum of 1 applies four times, which matters for a very low ATK.",
+    "evidence": [
+     "wp-mult",
+     "wp-loop",
+     "wp-hit",
+     "wp-first",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "ps-cover"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HORSEA": 1,
+    "SEADRA": 2,
+    "KINGDRA": 3
+   },
+   "declaredRawMultiplier": {
+    "HORSEA": 1,
+    "SEADRA": 1,
+    "KINGDRA": 1
+   },
+   "note": "Only the multiplier is indexed by stars: 1 at 1-3 stars, 2 at 4 stars or as the fallback (not reachable at the bare factory star counts of these units). The units differ in the result through their own ATK (base atk 6 / 11 / 21 in the unit blocks, before any buff or debuff). Whether other mechanics raise a star count was not examined.",
+   "evidence": [
+    "wp-mult",
+    "unit-horsea",
+    "unit-seadra",
+    "unit-kingdra"
+   ]
+  },
+  "positionalConditions": "Which enemy is hit depends on the caster's and the farthest target's coordinates and on what stands first on the line. If the farthest target is adjacent, the line is two cells. Allies on the line are not affected and do not block the line. If getFarthestTarget returns nothing the cast target ends the line.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast recomputes the farthest target and the line, spends maxPP of PP (floor 0) and deals its four hits again. The default animation is suppressed; one ability broadcast is sent at the first enemy's cell.",
+  "rawVsResolved": "Requested: four hits, each of the caster's current ATK x 1 at 1-3 stars (a multiplier of a live stat, not a table of flat amounts). Applied per hit = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by the target's SPE_DEF with a minimum of 1 per hit; takenDamage per hit includes shield damage. The total across the four hits is not four times a single resolved number when the target's shield or hp runs out mid-loop. Final values additionally depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "multiplier",
+    "file": "app/core/abilities/whirlpool.ts",
+    "pattern": "const multiplier = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, Cover Band redirect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not",
+   "Whether the 500 ms magicBounce reflection or Power Lens retaliation matters: they were read in handleSpecialDamage but not simulated"
+  ],
+  "unresolved": [
+   "Distance ties in getFarthestTarget keep the first in board scan order; the scan order of board.forEach itself was not traced",
+   "Whether the line can include untargettable enemies or units behind obstacles: the collection filter is team only, not isTargettableBy, and the first enemy on the line is taken regardless",
+   "What the remaining hits do when an earlier hit kills the target or a death handler runs (the loop has no guard; later death handling was not traced)",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance)",
+    "note": "board scanned row by row; strict > keeps the first of equal distances; distance 0 is never chosen"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "includes the start cell (the caster) and the end cell; diagonal steps when the line passes exactly through a corner"
+   },
+   {
+    "id": "ps-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     714,
+     714
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "// cover ally takes the hit instead",
+    "note": "with a Cover Band ally adjacent the call is redirected and the returned death is the cover ally's"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1280,
+     1280
+    ],
+    "symbol": "AbilityStrategies[Ability.WHIRLPOOL]",
+    "expect": "[Ability.WHIRLPOOL]: new WhirlpoolStrategy()",
+    "note": ""
+   },
+   {
+    "id": "wp-class",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "WhirlpoolStrategy",
+    "expect": "export class WhirlpoolStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "wp-far",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "farthest target",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "line end = farthest targettable unit, else the cast target"
+   },
+   {
+    "id": "wp-super",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "super.process",
+    "expect": "super.process(pokemon, board, farthestTarget, crit, true)",
+    "note": "default process spends maxPP; the fifth argument true suppresses the default animation (the strategy broadcasts its own)"
+   },
+   {
+    "id": "wp-cells",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     18,
+     23
+    ],
+    "symbol": "cells between",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells from the caster's position to the farthest target's position"
+   },
+   {
+    "id": "wp-first",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     24,
+     31
+    ],
+    "symbol": "first enemy only",
+    "expect": "if (cell && cell.value && cell.value.team !== pokemon.team) {",
+    "note": "walks the line from the caster's cell outward and takes the FIRST unit of another team, then breaks"
+   },
+   {
+    "id": "wp-fallback",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "fallback",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "the cast target is hit if no enemy is on the line"
+   },
+   {
+    "id": "wp-mult",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "multiplier table",
+    "expect": "const multiplier = [1, 1, 1, 2][pokemon.stars - 1] ?? 2",
+    "note": "multiplier of the caster's current ATK by stars, 2 fallback"
+   },
+   {
+    "id": "wp-loop",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     36,
+     44
+    ],
+    "symbol": "four hits",
+    "expect": "for (let i = 0; i < 4; i++) {",
+    "note": "four consecutive SPECIAL hits of pokemon.atk x multiplier on the one enemy, in the same call, with no check of the previous result"
+   },
+   {
+    "id": "wp-hit",
+    "file": "app/core/abilities/whirlpool.ts",
+    "lines": [
+     37,
+     43
+    ],
+    "symbol": "hit call",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "each hit: requested = pokemon.atk x multiplier, default apBoost, crit flag of the cast"
+   },
+   {
+    "id": "unit-horsea",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3456,
+     3469
+    ],
+    "symbol": "class Horsea",
+    "expect": "skill = Ability.WHIRLPOOL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-seadra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3471,
+     3484
+    ],
+    "symbol": "class Seadra",
+    "expect": "skill = Ability.WHIRLPOOL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-kingdra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3486,
+     3499
+    ],
+    "symbol": "class Kingdra",
+    "expect": "skill = Ability.WHIRLPOOL",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
