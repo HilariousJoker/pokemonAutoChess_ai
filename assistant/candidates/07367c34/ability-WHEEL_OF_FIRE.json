@@ -1,0 +1,614 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WHEEL_OF_FIRE",
+ "kind": "ability",
+ "identifier": "WHEEL_OF_FIRE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T174016Z"
+ },
+ "record": {
+  "ability": "WHEEL_OF_FIRE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare WHEEL_OF_FIRE: Cyndaquil (1 star), Quilava (2 stars), Typhlosion (3 stars); all have range 2 and maxPP 100 per the unit blocks (the cast does not use range). Hisuian Typhlosion uses INFERNAL_PARADE and is not covered. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "CYNDAQUIL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHEEL_OF_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "QUILAVA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHEEL_OF_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TYPHLOSION",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WHEEL_OF_FIRE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CYNDAQUIL": {
+    "evidence": [
+     "unit-cyndaquil"
+    ]
+   },
+   "QUILAVA": {
+    "evidence": [
+     "unit-quilava"
+    ]
+   },
+   "TYPHLOSION": {
+    "evidence": [
+     "unit-typhlosion"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WHEEL_OF_FIRE] = new WheelOfFireStrategy()",
+   "strategy": "WheelOfFireStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wf-class",
+    "wf-super"
+   ]
+  },
+  "summary": "The caster picks its farthest targettable unit (PokemonState.getFarthestTarget, strictly greater distance wins) or, if none, the cast target, and finds every unit of another team on the straight line of cells from the caster to it (both ends included). Each of those enemies (or the cast target if the line holds none) takes SPECIAL damage (raw 10/20/40/80 by stars) immediately and the same raw damage a second time from a DelayedCommand with a 500 ms delay stored on that enemy. There is no status effect. The default animation is broadcast toward the farthest target, not the cast target.",
+  "targeting": {
+   "who": "units of another team on the supercover line between the caster and its farthest targettable unit, each once; fallback: the cast target",
+   "needsTarget": true,
+   "note": "Selection of the farthest target is by distanceM from the caster over all targettable units; ties are resolved by board scan order (first one kept). The line collection filters on team only, not on isTargettableBy, so the same caveat as MAGICAL_LEAF applies. Allies on the line are skipped by the team filter. The fallback target is whichever unit the generic code passed as the cast target.",
+   "evidence": [
+    "wf-far",
+    "farthest",
+    "wf-cells",
+    "cells-between",
+    "wf-collect",
+    "wf-fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "straight line (supercover) of cells from the caster's cell to the cell of its farthest targettable unit, both ends included when on board; the line includes the caster's own cell, which holds no enemy",
+   "evidence": [
+    "wf-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "hit": "immediate",
+    "target": "each unit of another team on the line (each once); else the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested damage per hit (raw); each hit target takes two hits"
+    },
+    "perUnitRaw": {
+     "CYNDAQUIL": 10,
+     "QUILAVA": 20,
+     "TYPHLOSION": 40
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT); also the DOUBLE_DAMAGE and steam-board multipliers recorded for AQUA_TAIL apply since it is the same function. No falloff along the line.",
+    "resolution": "applied (the figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage reported = shield damage + HP damage (HP part capped at current hp); it is 0 if the target has protect / skydiving / magicBounce. Requested, applied and takenDamage are three different numbers, and each of the two hits is resolved separately.",
+    "evidence": [
+     "wf-table",
+     "wf-collect",
+     "wf-fallback",
+     "wf-hit1",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "hit": "delayed repeat",
+    "target": "the same units, via a command stored on each enemy",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested damage per hit (raw); each hit target takes two hits"
+    },
+    "perUnitRaw": {
+     "CYNDAQUIL": 10,
+     "QUILAVA": 20,
+     "TYPHLOSION": 40
+    },
+    "scaling": "the callback repeats handleSpecialDamage with the same requested damage, the same caster object and the crit flag captured at cast time (it is not re-rolled). The caster's AP and critPower are read when the callback runs, not at cast time, so a change in between applies to the second hit. The target's SPE_DEF, shield and protection are likewise read at that later moment.",
+    "resolution": "the command is pushed onto enemy.commands and advanced by PokemonState.updateCommands (called from PokemonState.update with dt) of that enemy; SimulationCommand.update subtracts dt and executes once the remaining delay is below 0, so the second hit happens after more than 500 ms of that enemy's own update time. Whether the callback still runs if the caster has died, or the enemy has died or been removed, was not traced.",
+    "evidence": [
+     "wf-table",
+     "wf-push",
+     "cmd-list",
+     "cmd-update",
+     "cmd-call",
+     "cmd-delay",
+     "cmd-exec",
+     "special",
+     "special-ap",
+     "special-crit",
+     "special-handle"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CYNDAQUIL": 1,
+    "QUILAVA": 2,
+    "TYPHLOSION": 3
+   },
+   "declaredRawDamagePerHit": {
+    "CYNDAQUIL": 10,
+    "QUILAVA": 20,
+    "TYPHLOSION": 40
+   },
+   "note": "The damage table is indexed by the casting entity's stars; the 4-star value 80 (also the ?? fallback) is not reachable at the bare factory star counts of these units. Each target takes two hits, so the total requested damage per target is twice the table value (20/40/80). Whether other mechanics raise a star count was not examined.",
+   "evidence": [
+    "wf-table",
+    "unit-cyndaquil",
+    "unit-quilava",
+    "unit-typhlosion"
+   ]
+  },
+  "positionalConditions": "The set of units hit depends on the caster's and the farthest target's coordinates. If the farthest target is adjacent the line is two cells. Allies on the line are not affected. If getFarthestTarget returns nothing the cast target ends the line. Only the cell occupancy at cast time decides who is hit twice; an enemy that moves before the 500 ms command still receives the second hit because the command belongs to the enemy, not to a cell.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast recomputes the farthest target and the line, spends maxPP of PP (floor 0), and queues new delayed hits; hits from earlier casts are independent commands and stack.",
+  "rawVsResolved": "Requested: 10/20/40 raw SPECIAL damage per hit at 1/2/3 stars, two hits per target (immediate and after 500 ms). Applied per hit = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. The second hit's AP, SPE_DEF and shield state are those at execution time. Final values additionally depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not",
+   "Whether PokemonState.update keeps being called for an enemy that has died or left the board (which decides whether a pending delayed hit still runs) - only updateCommands and its call site were read"
+  ],
+  "unresolved": [
+   "Which enemy wins a distance tie in getFarthestTarget was read (first in board scan order kept) but the exact scan order of board.forEach was not traced",
+   "Whether the line can include untargettable enemies or units behind obstacles: the collection filter is team only, not isTargettableBy",
+   "Whether the delayed second hit still happens when the enemy dies or the caster dies in the 500 ms window (callback has no guard in the strategy; the update path for dead entities was not traced)",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance)",
+    "note": "board scanned row by row; strict > keeps the first of equal distances; distance 0 is never chosen"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "includes the start cell (the caster) and the end cell; diagonal steps when the line passes exactly through a corner"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1279,
+     1279
+    ],
+    "symbol": "AbilityStrategies[Ability.WHEEL_OF_FIRE]",
+    "expect": "[Ability.WHEEL_OF_FIRE]: new WheelOfFireStrategy()",
+    "note": ""
+   },
+   {
+    "id": "wf-class",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "WheelOfFireStrategy",
+    "expect": "export class WheelOfFireStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "wf-table",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "raw damage per hit by caster stars, 80 fallback"
+   },
+   {
+    "id": "wf-far",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "farthest target",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "line end = farthest targettable unit, else the cast target"
+   },
+   {
+    "id": "wf-super",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "super.process",
+    "expect": "super.process(pokemon, board, farthestTarget, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation toward the farthest target (not the cast target)"
+   },
+   {
+    "id": "wf-cells",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "cells between",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells from the caster's position to the farthest target's position"
+   },
+   {
+    "id": "wf-collect",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     27,
+     36
+    ],
+    "symbol": "collect enemies",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "every unit of another team on the line is added once to a Set; a FLAME_HIT animation is broadcast per cell"
+   },
+   {
+    "id": "wf-fallback",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "fallback",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "the cast target is hit if no enemy is on the line"
+   },
+   {
+    "id": "wf-hit1",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     40,
+     46
+    ],
+    "symbol": "first hit",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "immediate SPECIAL hit per enemy, default apBoost, crit flag of the cast"
+   },
+   {
+    "id": "wf-push",
+    "file": "app/core/abilities/wheel-of-fire.ts",
+    "lines": [
+     47,
+     57
+    ],
+    "symbol": "second hit command",
+    "expect": "new DelayedCommand(() => {",
+    "note": "a DelayedCommand with delay 500 ms is pushed onto the ENEMY's own commands list; its callback repeats the same SPECIAL hit with the captured pokemon, damage and crit"
+   },
+   {
+    "id": "cmd-list",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     149,
+     149
+    ],
+    "symbol": "PokemonEntity.commands",
+    "expect": "commands = new Array<SimulationCommand>()",
+    "note": "per-entity command list"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "each update call advances every command of that entity and drops executed ones"
+   },
+   {
+    "id": "cmd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called at the start of the entity's state update"
+   },
+   {
+    "id": "cmd-delay",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "delay is reduced by dt and the command runs once the remainder is below 0"
+   },
+   {
+    "id": "cmd-exec",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     28,
+     31
+    ],
+    "symbol": "DelayedCommand.execute",
+    "expect": "this.delayedFunction()",
+    "note": "runs the stored function"
+   },
+   {
+    "id": "unit-cyndaquil",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4160,
+     4173
+    ],
+    "symbol": "class Cyndaquil",
+    "expect": "skill = Ability.WHEEL_OF_FIRE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-quilava",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4175,
+     4197
+    ],
+    "symbol": "class Quilava",
+    "expect": "skill = Ability.WHEEL_OF_FIRE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-typhlosion",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4199,
+     4211
+    ],
+    "symbol": "class Typhlosion",
+    "expect": "skill = Ability.WHEEL_OF_FIRE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
