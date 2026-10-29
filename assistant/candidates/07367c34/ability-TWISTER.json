@@ -1,0 +1,776 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TWISTER",
+ "kind": "ability",
+ "identifier": "TWISTER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T114158Z"
+ },
+ "record": {
+  "ability": "TWISTER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare TWISTER: Dratini (1 star), Dragonair (2 stars), Dragonite (3 stars); all range 1, maxPP 100, no passive. The strategy is shared; unit differences are only the star count. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "DRATINI",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWISTER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DRAGONAIR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWISTER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DRAGONITE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWISTER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DRATINI": {
+    "evidence": [
+     "unit-dratini"
+    ]
+   },
+   "DRAGONAIR": {
+    "evidence": [
+     "unit-dragonair"
+    ]
+   },
+   "DRAGONITE": {
+    "evidence": [
+     "unit-dragonite"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TWISTER] = new TwisterStrategy()",
+   "strategy": "TwisterStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Area around the caster. Every enemy on one of the 8 cells adjacent to the caster takes SPECIAL damage (raw 25/50/100 by stars) and is then displaced by a swap to a randomly chosen empty cell, within a radius of 1/2/3 cells of the enemy's own cell, that is farthest (Manhattan distance) from the caster. Adjacent allies that have an active FLYING synergy effect (other than the caster) fly away instead (no damage). The cast target itself is not used except for the animation and gate.",
+  "targeting": {
+   "who": "every unit on the up to 8 adjacent cells of the caster at the time of the cast: enemies are damaged and displaced; allies other than the caster with a FLYING synergy effect call flyAway; other allies and empty cells are ignored",
+   "needsTarget": true,
+   "note": "The cell list is snapshotted once before any damage or move; each snapshot entity is processed once even if an earlier displacement changed the board, but the empty-cell search for each enemy reads the live board, so cells already taken by earlier-moved enemies are excluded. The cast target is only passed to the base process. A target adjacent to the caster is hit like any other; a target farther away (range 1 units attack adjacent ones) is not hit by the strategy.",
+   "evidence": [
+    "ab-adj",
+    "ab-enemy",
+    "ab-ally",
+    "ab-ally-self",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block centred on the caster (8 cells), clipped to the board; displacement search disc of radius flyRange (floor(r)+0.5, strictly inside) around each hit enemy",
+   "evidence": [
+    "ab-adj",
+    "ab-free",
+    "adj",
+    "radius"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy on an adjacent cell",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "DRATINI": 25,
+     "DRAGONAIR": 50,
+     "DRAGONITE": 100
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. Damage is dealt before the displacement and independently of whether the displacement happens; a target with protect still can be displaced (protect is not checked by moveTo).",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "each enemy that was on an adjacent cell",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 6,
+      "fallback": 6
+     },
+     "label": "requested displacement radius (cells)"
+    },
+    "perUnitRaw": {
+     "DRATINI": 1,
+     "DRAGONAIR": 2,
+     "DRAGONITE": 3
+    },
+    "scaling": "radius = flyRange from the table; getCellsInRadius uses floor(|radius|) + 0.5 and a strict squared-distance test, with the enemy's own cell excluded. No AP or crit scaling.",
+    "resolution": "candidates = empty cells (live board) in that disc; distance of each candidate is measured from the CASTER's cell, not from the enemy; those at the maximum Manhattan distance are kept and one is picked uniformly (pickRandomIn). The enemy is then moved with moveTo(..., forcedDisplacement = true), a cell swap, which does nothing if the enemy canBeMoved is false (skydiving, locked or Heavy-Duty Boots). If there is no empty cell (maxDistance -Infinity, empty list) pickRandomIn returns undefined and the enemy stays. The destination can be nearer to or on the same side as the caster, since only the farthest within the disc is chosen; with radius 1 around a unit adjacent to a caster it may not increase the distance.",
+    "evidence": [
+     "ab-fly-table",
+     "ab-free",
+     "ab-empty",
+     "ab-dist",
+     "ab-max",
+     "ab-far",
+     "ab-pick",
+     "ab-move",
+     "radius",
+     "get-ent",
+     "swap",
+     "dist",
+     "pick",
+     "moveto",
+     "canmove"
+    ]
+   },
+   {
+    "kind": "allyFlyAway",
+    "target": "each adjacent ally (not the caster) with an active FLYING synergy effect",
+    "declaredRaw": {
+     "label": "no numeric amount in this strategy"
+    },
+    "scaling": "none in the strategy",
+    "resolution": "calls flyAway(board) with its defaults: the ally moves to the cell chosen by Board.getFlyAwayCell (with a fallback), and Feather Dance / Skydive / Max Airstream holders also get protect or a skydive attack. This is delegated behaviour; only the entry points were read.",
+    "evidence": [
+     "ab-ally",
+     "ab-ally-self",
+     "ab-ally-fly",
+     "flyaway",
+     "flyaway-cell",
+     "synfx"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DRATINI": 1,
+    "DRAGONAIR": 2,
+    "DRAGONITE": 3
+   },
+   "declaredRawDamage": {
+    "DRATINI": 25,
+    "DRAGONAIR": 50,
+    "DRAGONITE": 100
+   },
+   "declaredRawDisplacementRadius": {
+    "DRATINI": 1,
+    "DRAGONAIR": 2,
+    "DRAGONITE": 3
+   },
+   "note": "Damage and radius are indexed by the casting entity's stars; the 4-star values (200 damage, radius 6, also the ?? fallbacks) are not reachable by the bare factory star counts. The targeting block (8 adjacent cells) does not change with stars.",
+   "evidence": [
+    "ab-table",
+    "ab-fly-table",
+    "unit-dratini",
+    "unit-dragonair",
+    "unit-dragonite"
+   ]
+  },
+  "positionalConditions": "Entirely positional: which units are hit depends on the 8 neighbours of the caster; the destination depends on empty cells within the radius and their Manhattan distance from the caster, so edges, corners and crowding limit or remove the displacement.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes everything from the current board.",
+  "rawVsResolved": "Requested: raw SPECIAL damage 25/50/100 (1/2/3 stars) to each adjacent enemy and displacement within radius 1/2/3. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; takenDamage includes shield damage. Applied displacement may be absent (no empty cell, unit cannot be moved) and is not guaranteed to move the unit away from the caster in an absolute sense.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/twister.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "flyRange",
+    "file": "app/core/abilities/twister.ts",
+    "pattern": "const flyRange = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band death handling) were not traced",
+   "Whether a target that dies from the damage is still on its cell when the displacement runs (death handling was not traced; the strategy does not check hp before moveTo)",
+   "Board.getFlyAwayCell / flyAway details for allies (only the entry points and the start of getFlyAwayCell were read)",
+   "Heavy-Duty Boots / skydiving / locked exclusion from forced moves was read in canBeMoved; other movement side effects (toMovingState, cooldown = 100) were read in moveTo but not traced further"
+  ],
+  "unresolved": [
+   "Behaviour when the damaged enemy dies before moveTo (the cell may be emptied or the entity still referenced)",
+   "Exact ally flight destination and extra effects for each FLYING synergy tier",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-dratini",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2541,
+     2558
+    ],
+    "symbol": "class Dratini",
+    "expect": "skill = Ability.TWISTER",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-dragonair",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2560,
+     2577
+    ],
+    "symbol": "class Dragonair",
+    "expect": "skill = Ability.TWISTER",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-dragonite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2579,
+     2595
+    ],
+    "symbol": "class Dragonite",
+    "expect": "skill = Ability.TWISTER",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry object"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1263,
+     1263
+    ],
+    "symbol": "AbilityStrategies[Ability.TWISTER]",
+    "expect": "[Ability.TWISTER]: new TwisterStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit gate"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "TwisterStrategy",
+    "expect": "export class TwisterStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table"
+   },
+   {
+    "id": "ab-adj",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "adjacent cells snapshot, taken before any damage or move"
+   },
+   {
+    "id": "ab-fly-table",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "const flyRange = [1, 2, 3, 6][pokemon.stars - 1] ?? 6",
+    "note": "displacement radius table"
+   },
+   {
+    "id": "ab-enemy",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "enemy branch"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "damage on each adjacent enemy"
+   },
+   {
+    "id": "ab-free",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": ".getCellsInRadius(cell.x, cell.y, flyRange, false)",
+    "note": "cells within flyRange of the hit enemy, centre excluded"
+   },
+   {
+    "id": "ab-empty",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": ".filter((cell) => board.getEntityOnCell(cell.x, cell.y) === undefined)",
+    "note": "only currently empty cells (live board)"
+   },
+   {
+    "id": "ab-dist",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "distanceM(cell.x, cell.y, pokemon.positionX, pokemon.positionY)",
+    "note": "distance measured from the CASTER"
+   },
+   {
+    "id": "ab-max",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     36,
+     36
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "const maxDistance = Math.max(...distances)",
+    "note": "maximum Manhattan distance"
+   },
+   {
+    "id": "ab-far",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "(cell, i) => distances[i] === maxDistance",
+    "note": "keep cells at that maximum"
+   },
+   {
+    "id": "ab-pick",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "const destination = pickRandomIn(farthestCells)",
+    "note": "uniform random pick"
+   },
+   {
+    "id": "ab-move",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "cell.value.moveTo(destination.x, destination.y, board, true)",
+    "note": "forced displacement (swap)"
+   },
+   {
+    "id": "ab-ally",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     48,
+     48
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "cell.value.hasSynergyEffect(Synergy.FLYING)",
+    "note": "ally branch condition"
+   },
+   {
+    "id": "ab-ally-fly",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "cell.value.flyAway(board)",
+    "note": "ally flies away"
+   },
+   {
+    "id": "ab-ally-self",
+    "file": "app/core/abilities/twister.ts",
+    "lines": [
+     47,
+     47
+    ],
+    "symbol": "TwisterStrategy.process",
+    "expect": "pokemon.id !== cell.value.id",
+    "note": "caster excluded"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     164
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, on-board only, centre excluded"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     267,
+     285
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "getCellsInRadius(",
+    "note": "radius = floor(|r|) + 0.5, strict < radius^2, whole board scanned"
+   },
+   {
+    "id": "get-ent",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "getEntityOnCell(x: number, y: number): PokemonEntity | undefined {",
+    "note": "undefined when off board or empty"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "moveTo swaps cells"
+   },
+   {
+    "id": "dist",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "export function distanceM(",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "pick",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "export function pickRandomIn<T>(",
+    "note": "list[Math.floor(Math.random() * length)]; undefined on an empty list"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "refuses forced moves of unmovable units"
+   },
+   {
+    "id": "canmove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "get canBeMoved(): boolean {",
+    "note": "skydiving, locked or Heavy-Duty Boots block forced displacement"
+   },
+   {
+    "id": "flyaway",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1323,
+     1325
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "flyAway(",
+    "note": "ally flight, delegated"
+   },
+   {
+    "id": "flyaway-cell",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1330,
+     1330
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "const flyAwayCell = board.getFlyAwayCell(this)",
+    "note": "destination chosen by Board.getFlyAwayCell"
+   },
+   {
+    "id": "synfx",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     316,
+     316
+    ],
+    "symbol": "PokemonEntity.hasSynergyEffect",
+    "expect": "return SynergyTiers[synergy].some((effect) => this.effects.has(effect))",
+    "note": "true if any tier effect of the synergy is active on the unit"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "AP boost default"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP bonus"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands over to handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "blocked"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "special defence"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   }
+  ]
+ }
+}
