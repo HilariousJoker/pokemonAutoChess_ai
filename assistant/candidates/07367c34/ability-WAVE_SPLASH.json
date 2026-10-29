@@ -1,0 +1,575 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WAVE_SPLASH",
+ "kind": "ability",
+ "identifier": "WAVE_SPLASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T174016Z"
+ },
+ "record": {
+  "ability": "WAVE_SPLASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare WAVE_SPLASH: Piplup (1 star), Prinplup (2 stars), Empoleon (3 stars); all have range 1 and maxPP 100 per the unit blocks. The strategy is shared; the only per-unit difference is the star count (table index) and, through maxHP, the unit's own HP. The percentage table is the same for all three listed units. Units that merely evolve into or from these are not covered unless listed.",
+  "appliesTo": [
+   {
+    "key": "EMPOLEON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WAVE_SPLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PIPLUP",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WAVE_SPLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PRINPLUP",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WAVE_SPLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "EMPOLEON": {
+    "evidence": [
+     "unit-empoleon"
+    ]
+   },
+   "PIPLUP": {
+    "evidence": [
+     "unit-piplup"
+    ]
+   },
+   "PRINPLUP": {
+    "evidence": [
+     "unit-prinplup"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WAVE_SPLASH] = new WaveSplashStrategy()",
+   "strategy": "WaveSplashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ws-class",
+    "ws-super"
+   ]
+  },
+  "summary": "The caster first gives itself a shield and then deals SPECIAL damage to the cast target; both requested amounts are round(caster maxHP x 0.2) for 1-3 stars (0.5 for 4 stars or as the fallback), so for these units the requested shield and the requested damage are equal. The shield is applied before the damage. The in-source comment says '[20,SP]%' but the code only uses the 0.2/0.5 table; the AP factor enters later, in addShield and in handleSpecialDamage.",
+  "targeting": {
+   "who": "shield: the caster itself; damage: the cast target (the unit the caster is attacking when the cast fires)",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true). There is no area, line or secondary target. Which unit is chosen as the cast target is decided by the generic targeting code, which was not read.",
+   "evidence": [
+    "ws-hit",
+    "ws-shield",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "ws-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "order": "first",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.2,
+      "2": 0.2,
+      "3": 0.2,
+      "4": 0.5,
+      "fallback": 0.5
+     },
+     "label": "fraction of the caster's maxHP (requested amount = Math.round(maxHP x fraction))"
+    },
+    "perUnitRaw": {
+     "EMPOLEON": 0.2,
+     "PIPLUP": 0.2,
+     "PRINPLUP": 0.2
+    },
+    "scaling": "requested = round(maxHP x fraction) with the caster's maxHP at the moment of the cast (the current maxHP, not the base stat in the unit block). applied: PokemonEntity.addShield first applies Big Eater Belt (x1.25 rounded down, for a holder); PokemonState.addShield with apBoost 1 then multiplies by (1 + AP/100), by critPower only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), by 0.5 if the caster is enraged, and rounds.",
+    "resolution": "requested (rounded fraction of maxHP) -> after Big Eater Belt -> applied (after AP, crit, enraged halving, rounding) -> added to the caster's shield, only if the caster's hp > 0; the shield stat is max(0, shield + value). No timer in this file; later damage taken by the caster consumes the shield first in handleDamage.",
+    "evidence": [
+     "ws-table",
+     "ws-amount",
+     "ws-shield",
+     "addshield-entity",
+     "belt",
+     "addshield-state",
+     "addshield-crit",
+     "addshield-enraged",
+     "addshield-add"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "order": "second",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.2,
+      "2": 0.2,
+      "3": 0.2,
+      "4": 0.5,
+      "fallback": 0.5
+     },
+     "label": "fraction of the caster's maxHP (requested amount = Math.round(maxHP x fraction))"
+    },
+    "perUnitRaw": {
+     "EMPOLEON": 0.2,
+     "PIPLUP": 0.2,
+     "PRINPLUP": 0.2
+    },
+    "scaling": "requested = round(maxHP x fraction), the same figure as the requested shield, computed from the same maxHP (the shield call does not change maxHP, so the two values are equal). handleSpecialDamage: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit; also the DOUBLE_DAMAGE and steam-board multipliers recorded for AQUA_TAIL apply since it is the same function. Big Eater Belt does not touch damage.",
+    "resolution": "applied (the figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage reported = shield damage + HP damage (HP part capped at current hp); it is 0 if the target has protect / skydiving / magicBounce (blocked entirely, magic bounce may reflect). The requested, applied and takenDamage amounts are three different numbers.",
+    "evidence": [
+     "ws-table",
+     "ws-damage",
+     "ws-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [
+   "self shield = round(maxHP x 0.2) requested (raw), applied after Big Eater Belt, AP, crit and enraged halving"
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "EMPOLEON": 3,
+    "PIPLUP": 1,
+    "PRINPLUP": 2
+   },
+   "declaredRawFraction": {
+    "EMPOLEON": 0.2,
+    "PIPLUP": 0.2,
+    "PRINPLUP": 0.2
+   },
+   "note": "The table is indexed by the casting entity's stars: 1-3 stars give 0.2, only 4 stars (and the ?? fallback) give 0.5, which is not reachable at the bare factory star counts of these units. The listed units differ in the result only through their own maxHP (base hp 60 / 130 / 240 in the unit blocks, before any later modification). Whether other mechanics raise a star count or change maxHP was not examined.",
+   "evidence": [
+    "ws-table",
+    "unit-piplup",
+    "unit-prinplup",
+    "unit-empoleon"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), adds a new shield on top of any existing one (shields stack by addition) and deals its damage again. Because the amounts are fractions of the current maxHP, a later change to maxHP changes the next cast.",
+  "rawVsResolved": "Requested: shield and damage are each round(maxHP x 0.2) at 1-3 stars (a fraction, not a flat table). Applied shield = requested after Big Eater Belt, AP, crit, enraged halving and rounding. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. The comment's '[20,SP]%' is not a separate scaling in the code. Final values additionally depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "percent",
+    "file": "app/core/abilities/wave-splash.ts",
+    "pattern": "const shieldPercent = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not",
+   "Whether the 500 ms magicBounce reflection or Power Lens retaliation matters: they were read in handleSpecialDamage but not simulated"
+  ],
+  "unresolved": [
+   "Order of the two effects within a cast is shield first, then damage: if the damage kills the target or triggers an on-death effect, effects keyed to that were not traced",
+   "Whether the caster's shield is still applied when the damage is blocked: it is (addShield is not conditioned on the damage result and runs first)",
+   "How maxHP of these units changes during a fight or through items/synergies (the requested amounts follow the current maxHP) was not traced",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "addshield-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     504,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt applied to the requested value before the state call"
+   },
+   {
+    "id": "addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling (apBoost factor), crit, enraged, rounding"
+   },
+   {
+    "id": "addshield-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": ""
+   },
+   {
+    "id": "addshield-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": ""
+   },
+   {
+    "id": "addshield-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     395,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "applied only if hp > 0; Math.round before adding"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down on positive values when the holder has Big Eater Belt"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1278,
+     1278
+    ],
+    "symbol": "AbilityStrategies[Ability.WAVE_SPLASH]",
+    "expect": "[Ability.WAVE_SPLASH]: new WaveSplashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ws-class",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "WaveSplashStrategy",
+    "expect": "export class WaveSplashStrategy extends AbilityStrategy",
+    "note": "no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "ws-super",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "WaveSplashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "ws-table",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "percent table",
+    "expect": "const shieldPercent = [0.2, 0.2, 0.2, 0.5][pokemon.stars - 1] ?? 0.5",
+    "note": "fraction of the caster's max HP by stars; 0.5 fallback; used for both the shield and the damage"
+   },
+   {
+    "id": "ws-amount",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "shield amount",
+    "expect": "const shieldAmount = Math.round(pokemon.maxHP * shieldPercent)",
+    "note": "requested shield = rounded fraction of the caster's current maxHP"
+   },
+   {
+    "id": "ws-shield",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "shield call",
+    "expect": "pokemon.addShield(shieldAmount, pokemon, 1, crit)",
+    "note": "self shield, apBoost 1, crit flag from the cast; applied BEFORE the damage"
+   },
+   {
+    "id": "ws-damage",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "damage amount",
+    "expect": "const damage = Math.round(pokemon.maxHP * shieldPercent)",
+    "note": "requested damage uses the same fraction and the same maxHP; the variable is named shieldPercent for both"
+   },
+   {
+    "id": "ws-hit",
+    "file": "app/core/abilities/wave-splash.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "damage call",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target with default apBoost"
+   },
+   {
+    "id": "unit-piplup",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3883,
+     3896
+    ],
+    "symbol": "class Piplup",
+    "expect": "skill = Ability.WAVE_SPLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-prinplup",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3898,
+     3911
+    ],
+    "symbol": "class Prinplup",
+    "expect": "skill = Ability.WAVE_SPLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-empoleon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3913,
+     3925
+    ],
+    "symbol": "class Empoleon",
+    "expect": "skill = Ability.WAVE_SPLASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
