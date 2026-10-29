@@ -1,0 +1,572 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/THUNDER_FANG",
+ "kind": "ability",
+ "identifier": "THUNDER_FANG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T054143Z"
+ },
+ "record": {
+  "ability": "THUNDER_FANG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare THUNDER_FANG (stars Arctozolt 3, Electrike 1, Manectric 2). The strategy is shared; unit differences are the caster's star count (table index), maxPP and range. Units sharing the identifier but not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ARCTOZOLT",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "THUNDER_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ELECTRIKE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "THUNDER_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MANECTRIC",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "THUNDER_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARCTOZOLT": {
+    "evidence": [
+     "unit-arctozolt"
+    ]
+   },
+   "ELECTRIKE": {
+    "evidence": [
+     "unit-electrike"
+    ]
+   },
+   "MANECTRIC": {
+    "evidence": [
+     "unit-manectric"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.THUNDER_FANG] = new ThunderFangStrategy()",
+   "strategy": "ThunderFangStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "super",
+    "base-pp"
+   ]
+  },
+  "summary": "Needs a target. After the PP spend the strategy first requests 3000 ms of paralysis on the target (not AP-scaled), then deals one special hit to the same target of raw 30/60/120/240 by caster stars (AP-scaled, crit possible via the passed crit flag). The paralysis is requested before the damage and does not depend on it: a target that blocks the damage (protect / skydiving / magicBounce) is still paralysed unless Rune Protect or IMMUNITY_PARALYSIS stops it.",
+  "targeting": {
+   "who": "the single target passed to the cast",
+   "needsTarget": true,
+   "note": "No area: the status and the damage both go to the target argument only.",
+   "evidence": [
+    "base",
+    "para",
+    "dmg"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no cone, line or area",
+   "evidence": [
+    "para",
+    "dmg"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "target": "the target",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "ARCTOZOLT": 120,
+     "ELECTRIKE": 30,
+     "MANECTRIC": 60
+    },
+    "scaling": "requested = raw table value by the caster's stars. handleSpecialDamage with apBoost true: x(1 + caster AP/100); DOUBLE_DAMAGE x2 and strange-steam x1.2 where present; x(1 + (critPower - 1) x reduction) when the crit flag is true (reduction 0 against a Rocky Helmet, -0.1 per Black Augurite of the target's player, floor 0). No rounding before the defence step.",
+    "resolution": "requested (raw table) -> applied (after AP / crit / multipliers) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; takenDamage = shield damage + min(residual, current HP), rounded (the return value is unused by this strategy). Blocked by protect / skydiving / magicBounce (takenDamage 0; a magic bounce may reflect damage to the caster unless it holds Protective Pads). Dead or resurrecting targets take nothing.",
+    "evidence": [
+     "table",
+     "dmg",
+     "dmg-args",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-dead",
+     "hd-def",
+     "hd-shield",
+     "hd-hp",
+     "hd-round"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "paralysis",
+    "target": "the target",
+    "declaredRaw": {
+     "duration_ms": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP (apBoost defaults to false, so the 3000 ms is not AP-scaled) and none from crit. Modified by STORM weather (x1.3, then x(1 - 0.2 per ELECTRIC_QUARTZ of the target's player)) and by the target's duration reductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then x(1 - 0.1 per ODD_KEYSTONE)), with rounding inside the reduction helper.",
+    "applicationOrder": "first, before the damage",
+    "guards": "not applied when the status has runeProtect or the target has IMMUNITY_PARALYSIS (the refusal does not cancel the damage request). The timer is replaced only when the new reduced duration is longer than the remaining paralysisCooldown. A CHERI_BERRY holder eats the berry after a successful application. No protect check inside triggerParalysis.",
+    "effectInCombat": "paralysed units use half speed for the attack cooldown and for movement speed, and cannot dodge; the status ends when updateParalysis runs the timer out",
+    "evidence": [
+     "para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-fn",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "para-atk",
+     "para-move",
+     "para-dodge"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ARCTOZOLT": 3,
+    "ELECTRIKE": 1,
+    "MANECTRIC": 2
+   },
+   "declaredRawDamage": {
+    "ARCTOZOLT": 120,
+    "ELECTRIKE": 30,
+    "MANECTRIC": 60
+   },
+   "note": "indexed by the casting entity's stars; the 3000 ms paralysis does not vary with stars. 240 is not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-arctozolt",
+    "unit-electrike",
+    "unit-manectric"
+   ]
+  },
+  "positionalConditions": "None in the strategy beyond having a target; the cast range follows the unit's range, which this record does not interpret.",
+  "repeatedCastsAndModes": "No stored state or modes. Repeated casts re-request 3000 ms; the paralysis timer only grows when the new request exceeds the remaining time.",
+  "rawVsResolved": "Declared raw: special damage 30/60/120 for the listed units' stars; paralysis 3000 ms (requested). Requested damage = raw; applied = raw x (1 + AP/100) x crit factor etc.; takenDamage (unused here) = what handleDamage reports after SPE_DEF, the min-1 floor, shield and HP cap. Paralysis: requested 3000 ms; applied duration = after storm weather and the target's duration reductions; effective timer = the larger of the old remainder and the new value.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition) - only the abilities base class was read",
+   "Crit resolution - only the crit parameter passed into handleSpecialDamage was read",
+   "The remaining paralysis consumers beyond attack cooldown, movement speed and dodge were not searched"
+  ],
+  "unresolved": [
+   "Where the IMMUNITY_PARALYSIS effect and ELECTRIC_QUARTZ / ODD_KEYSTONE items come from (synergies, items) was not traced",
+   "Whether STORM weather can be active in the fight modes this reference covers was not examined",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-arctozolt",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14035,
+     14051
+    ],
+    "symbol": "class Arctozolt",
+    "expect": "skill = Ability.THUNDER_FANG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-electrike",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     474,
+     488
+    ],
+    "symbol": "class Electrike",
+    "expect": "skill = Ability.THUNDER_FANG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-manectric",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     490,
+     504
+    ],
+    "symbol": "class Manectric",
+    "expect": "skill = Ability.THUNDER_FANG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1234,
+     1243
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.THUNDER_FANG]: new ThunderFangStrategy()",
+    "note": "registry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     1,
+     6
+    ],
+    "symbol": "ThunderFangStrategy",
+    "expect": "export class ThunderFangStrategy extends AbilityStrategy",
+    "note": "strategy class; requiresTarget / canCritByDefault stay at base defaults"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults: requiresTarget true; canCritByDefault false"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     4,
+     13
+    ],
+    "symbol": "ThunderFangStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: PP spend of maxPP, default animation aimed at the target"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     5,
+     14
+    ],
+    "symbol": "ThunderFangStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "requested damage by caster stars, fallback 240"
+   },
+   {
+    "id": "para",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     6,
+     15
+    ],
+    "symbol": "ThunderFangStrategy.process",
+    "expect": "target.status.triggerParalysis(3000, target, pokemon)",
+    "note": "3000 ms paralysis requested first, apBoost left at its default"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     7,
+     16
+    ],
+    "symbol": "ThunderFangStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "single special hit on the target after the status; return value unused"
+   },
+   {
+    "id": "dmg-args",
+    "file": "app/core/abilities/thunder-fang.ts",
+    "lines": [
+     13,
+     22
+    ],
+    "symbol": "ThunderFangStrategy.process",
+    "expect": "damage, board, AttackType.SPECIAL, pokemon, crit, true",
+    "note": "SPECIAL type, caster as attacker, crit flag, apBoost true"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     349,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "if ( this.status.protect || this.status.skydiving || this.status.magicBounce ) {",
+    "note": "protect / skydiving / magicBounce: returns takenDamage 0 (magic bounce may reflect)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     391,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP scaling of the requested damage"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     423,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite on the target"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     426,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     441,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "dead / resurrecting target: takenDamage 0"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield counts in takenDamage"
+   },
+   {
+    "id": "hd-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage is capped by the target's current HP"
+   },
+   {
+    "id": "hd-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     797,
+     806
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "takenDamage rounded on return"
+   },
+   {
+    "id": "hd-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker-side multipliers (enraged x2, fields x1.2) precede the SPE_DEF division and the min-1 floor (core-mechanics section A)"
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     900,
+     908
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "definition"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     905,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     545,
+     554
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "apBoost defaults to false, so the duration is not AP-scaled when the strategy omits it"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     910,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather x1.3, less 20% per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     920,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions"
+   },
+   {
+    "id": "para-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1273,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3; then -10% per ODD_KEYSTONE of the target's player"
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     922,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     926,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": "a CHERI_BERRY holder eats the berry"
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     935,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": "paralysis healed when the timer runs out"
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     14,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysed units use half speed for the attack cooldown"
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     1,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "and for movement speed"
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     95,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": "a paralysed target cannot dodge"
+   }
+  ]
+ }
+}
