@@ -1,0 +1,579 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TROP_KICK",
+ "kind": "ability",
+ "identifier": "TROP_KICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T114158Z"
+ },
+ "record": {
+  "ability": "TROP_KICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare TROP_KICK: Bounsweet (1 star), Steenee (2 stars), Tsareena (3 stars); all range 1, maxPP 120, no passive. The strategy is shared; unit differences are only the star count. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BOUNSWEET",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "TROP_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "STEENEE",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "TROP_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TSAREENA",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "TROP_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BOUNSWEET": {
+    "evidence": [
+     "unit-bounsweet"
+    ]
+   },
+   "STEENEE": {
+    "evidence": [
+     "unit-steenee"
+    ]
+   },
+   "TSAREENA": {
+    "evidence": [
+     "unit-tsareena"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TROP_KICK] = new TropKickStrategy()",
+   "strategy": "TropKickStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Single-target. In this order: first the cast target's Attack is lowered by a requested amount of 3/5/7 (by the caster's stars; scaled by the caster's AP and crit inside addAttack and changed by the target's items), then the target takes SPECIAL damage (raw 50/100/200 by stars). The Attack reduction is not undone by this strategy.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No area; no other unit is touched. How the cast target is chosen in a fight was not examined.",
+   "evidence": [
+    "ab-debuff",
+    "ab-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no geometry",
+   "evidence": [
+    "ab-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "BOUNSWEET": 50,
+     "STEENEE": 100,
+     "TSAREENA": 200
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. The damage is dealt after the Attack debuff, which does not change it (special damage does not read the target's Attack). No heal or kill trigger follows in this strategy.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "statChange",
+    "stat": "ATK",
+    "target": "the cast target (debuff)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 5,
+      "3": 7,
+      "4": 14,
+      "fallback": 14
+     },
+     "label": "requested attack reduction (raw, passed as -value)"
+    },
+    "perUnitRaw": {
+     "BOUNSWEET": 3,
+     "STEENEE": 5,
+     "TSAREENA": 7
+    },
+    "scaling": "requested change = -table[stars-1]. addAttack(value, caster, apBoost = 1, crit): value = Math.round(value x (1 + 1 x caster.ap / 100) x (crit ? caster.critPower : 1)), so it grows with the caster's AP and with a crit. The call passes no permanent flag.",
+    "resolution": "applied change differs from the request: the shared helpers then run. applyBigEaterBeltStatBuff does not scale it (a negative value from another team is not a buff for a Big Eater Belt holder). applyTwistBandBuff multiplies a negative value from another team by -1 for a Twist Band holder, so the target GAINS that much Attack instead. Finally atk = min(1)(atk + value), so Attack never drops below 1. With no items the applied change is the rounded scaled amount, limited by the floor of 1. Because permanent is false, only the in-fight entity changes; nothing in the strategy restores it.",
+    "evidence": [
+     "ab-atk-table",
+     "ab-debuff",
+     "add-atk",
+     "add-scale",
+     "add-bigeater",
+     "add-twist",
+     "add-min1",
+     "fn-bigeater",
+     "fn-twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BOUNSWEET": 1,
+    "STEENEE": 2,
+    "TSAREENA": 3
+   },
+   "declaredRawDamage": {
+    "BOUNSWEET": 50,
+    "STEENEE": 100,
+    "TSAREENA": 200
+   },
+   "declaredRawAttackDebuff": {
+    "BOUNSWEET": 3,
+    "STEENEE": 5,
+    "TSAREENA": 7
+   },
+   "note": "Both tables are indexed by the casting entity's stars; the 4-star values (400 damage, 14 attack, also the ?? fallbacks) are not reachable by the bare factory star counts. All three units have maxPP 120 and range 1.",
+   "evidence": [
+    "ab-table",
+    "ab-atk-table",
+    "unit-bounsweet",
+    "unit-steenee",
+    "unit-tsareena"
+   ]
+  },
+  "positionalConditions": "None in the strategy; it uses only the cast target.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP; repeated casts on the same target lower its Attack again each time (cumulative, floor of 1, no restoration in the strategy).",
+  "rawVsResolved": "Requested: Attack -3/-5/-7 and raw SPECIAL damage 50/100/200 (1/2/3 stars). Applied Attack change = round(requested x (1 + AP/100) x optional critPower), then a Twist Band holder flips it into a gain, then the floor of 1 on atk. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/trop-kick.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "atkDebuff",
+    "file": "app/core/abilities/trop-kick.ts",
+    "pattern": "const atkDebuff = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band death handling) were not traced",
+   "How the Attack stat is used by the target's own attacks was not traced; only the stat change was read"
+  ],
+  "unresolved": [
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-bounsweet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     813,
+     830
+    ],
+    "symbol": "class Bounsweet",
+    "expect": "skill = Ability.TROP_KICK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-steenee",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     832,
+     849
+    ],
+    "symbol": "class Steenee",
+    "expect": "skill = Ability.TROP_KICK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-tsareena",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     851,
+     867
+    ],
+    "symbol": "class Tsareena",
+    "expect": "skill = Ability.TROP_KICK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry object"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1260,
+     1260
+    ],
+    "symbol": "AbilityStrategies[Ability.TROP_KICK]",
+    "expect": "[Ability.TROP_KICK]: new TropKickStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit gate"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "TropKickStrategy",
+    "expect": "export class TropKickStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "TropKickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "TropKickStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "damage table"
+   },
+   {
+    "id": "ab-atk-table",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "TropKickStrategy.process",
+    "expect": "const atkDebuff = [3, 5, 7, 14][pokemon.stars - 1] ?? 14",
+    "note": "attack debuff table"
+   },
+   {
+    "id": "ab-debuff",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "TropKickStrategy.process",
+    "expect": "target.addAttack(-atkDebuff, pokemon, 1, crit)",
+    "note": "debuff on the cast target first: apBoost factor 1, crit passed"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/trop-kick.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "TropKickStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage second"
+   },
+   {
+    "id": "add-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     629,
+     653
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "addAttack(",
+    "note": "stat adder"
+   },
+   {
+    "id": "add-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "AP and crit scaling inside addAttack"
+   },
+   {
+    "id": "add-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     740,
+     740
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "big eater belt helper"
+   },
+   {
+    "id": "add-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     741,
+     741
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "twist band helper"
+   },
+   {
+    "id": "add-min1",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     744,
+     744
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "attack floor of 1"
+   },
+   {
+    "id": "fn-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "plain function; enemy debuffs are not scaled"
+   },
+   {
+    "id": "fn-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "plain function; enemy debuff flipped to a buff"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "AP boost default"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP bonus"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands over to handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "blocked"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "special defence"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   }
+  ]
+ }
+}
