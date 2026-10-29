@@ -1,0 +1,771 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TRI_ATTACK",
+ "kind": "ability",
+ "identifier": "TRI_ATTACK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T114158Z"
+ },
+ "record": {
+  "ability": "TRI_ATTACK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare TRI_ATTACK: Porygon (1 star), Porygon2 (2 stars) and Porygon-Z (3 stars). The strategy is shared; unit differences are the star count and maxPP (100 / 80 / 60). All three also declare passive CONVERSION, which is not covered here. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "PORYGON",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "TRI_ATTACK",
+    "declaredPassive": "CONVERSION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PORYGON_2",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "TRI_ATTACK",
+    "declaredPassive": "CONVERSION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PORYGON_Z",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 2,
+    "declaredSkill": "TRI_ATTACK",
+    "declaredPassive": "CONVERSION",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PORYGON": {
+    "evidence": [
+     "unit-porygon"
+    ]
+   },
+   "PORYGON_2": {
+    "evidence": [
+     "unit-porygon_2"
+    ]
+   },
+   "PORYGON_Z": {
+    "evidence": [
+     "unit-porygon_z"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TRI_ATTACK] = new TriAttackStrategy()",
+   "strategy": "TriAttackStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-class",
+    "ab-super"
+   ]
+  },
+  "summary": "Single-target. The cast target receives exactly one of three crowd-control statuses, picked uniformly at random (1/3 each): freeze with base duration 3000 ms, burn with base duration 5000 ms, or paralysis with base duration 7000 ms; the status is applied before the damage. The target then takes SPECIAL damage (raw 60/120/250/500 by the caster's stars). Both the status request and the damage can be refused or changed by the target's state (rune protect, immunities, protect / skydiving, shield, special defence), independently of each other.",
+  "targeting": {
+   "who": "the cast target only (the unit the caster was attacking); no area, no other units",
+   "needsTarget": true,
+   "note": "The status methods are called with `target` as the affected entity and `pokemon` as the origin, so immunity, weather, enraged and duration-reduction checks read the unit that receives the status (unlike AURORA_BEAM, where the cast target is passed for other units). Not selected by this record: how the cast target is chosen in a fight.",
+   "evidence": [
+    "ab-freeze",
+    "ab-burn",
+    "ab-para",
+    "ab-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no geometry",
+   "evidence": [
+    "ab-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 60,
+      "2": 120,
+      "3": 250,
+      "4": 500,
+      "fallback": 500
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "PORYGON": 60,
+     "PORYGON_2": 120,
+     "PORYGON_Z": 250
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. The damage is dealt whichever status was chosen, even if the status was refused. The damage is not used for any further effect (heal, kill trigger) in this strategy.",
+    "evidence": [
+     "ab-table",
+     "ab-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "RANDOM_ONE_OF_THREE",
+    "target": "the cast target",
+    "probability": "1/3 each, uniform integer 1..3 (randomBetween); no luck involvement (chance() is not used)",
+    "apScaled": false,
+    "scaling": "The choice is not affected by stars, AP, crit or luck. Exactly one status is requested per cast; the roll happens once and is independent of whether the status is then refused.",
+    "evidence": [
+     "ab-roll",
+     "rand",
+     "ab-freeze",
+     "ab-burn",
+     "ab-para"
+    ]
+   },
+   {
+    "status": "FREEZE",
+    "target": "the cast target (when the roll is 1)",
+    "durationMs": 3000,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested base duration"
+    },
+    "scaling": "none from stars, AP or crit.",
+    "resolution": "applied only if the target is not already frozen, has no rune protect or skydiving, has no IMMUNITY_FREEZE effect and its ccCooldown is 0. Then: SNOW x1.3 (and x(1 - 0.2 per Icy Rock) when the target belongs to a player), DROUGHT x0.7; enraged halves it; then the shared duration reductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10% each) and Math.round. A freeze timer runs at double speed while the target is also burning. Applied duration therefore differs from the requested 3000 ms.",
+    "evidence": [
+     "ab-freeze",
+     "fr-trig",
+     "fr-immune",
+     "fr-snow",
+     "fr-enraged",
+     "fr-red",
+     "fr-set",
+     "fr-update",
+     "dur-red"
+    ]
+   },
+   {
+    "status": "BURN",
+    "target": "the cast target (when the roll is 2)",
+    "durationMs": 5000,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 5000,
+     "label": "requested base duration"
+    },
+    "scaling": "none from stars, AP or crit.",
+    "resolution": "refused for IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive. Otherwise the shared duration reductions apply (no weather change in triggerBurn); the burn timer is replaced only if the new duration is longer than the remaining one, and the burn origin is then set to the caster. While burning the target takes TRUE damage of 5% of max HP per second (weather, Assault Vest, Swift Swim / Hydration / Water Veil and other modifiers adjust it; Well Baked or Magmarizer holders take 0). The origin recorded is the Porygon (burn damage is attributed to it).",
+    "evidence": [
+     "ab-burn",
+     "bu-trig",
+     "bu-red",
+     "bu-set",
+     "bu-dmg",
+     "bu-true",
+     "dur-red"
+    ]
+   },
+   {
+    "status": "PARALYSIS",
+    "target": "the cast target (when the roll is 3)",
+    "durationMs": 7000,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 7000,
+     "label": "requested base duration"
+    },
+    "scaling": "none: the call passes no apBoost argument, so the default false applies and AP does not lengthen the duration.",
+    "resolution": "refused for rune protect or IMMUNITY_PARALYSIS. STORM x1.3 (and x(1 - 0.2 per Electric Quartz) for a player-owned target), then the shared duration reductions; the stored cooldown is replaced only if the new duration is longer. While paralysed, the speed used for the attack delay is halved (checked in the attack-speed calculation in attacking-state.ts; other uses of the flag were not traced).",
+    "evidence": [
+     "ab-para",
+     "pa-trig",
+     "pa-storm",
+     "pa-red",
+     "pa-set",
+     "pa-eff",
+     "dur-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PORYGON": 1,
+    "PORYGON_2": 2,
+    "PORYGON_Z": 3
+   },
+   "declaredRawDamage": {
+    "PORYGON": 60,
+    "PORYGON_2": 120,
+    "PORYGON_Z": 250
+   },
+   "note": "Only the damage is indexed by the caster's stars; the 4-star value (500, also the ?? fallback) is not reachable by the bare factory star counts of these units. Status choice and durations do not depend on stars. Maximum PP differs per unit (100 / 80 / 60), which changes how often it casts, not what a cast does.",
+   "evidence": [
+    "ab-table",
+    "unit-porygon",
+    "unit-porygon_2",
+    "unit-porygon_z"
+   ]
+  },
+  "positionalConditions": "None in the strategy; it uses only the cast target.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and rerolls the status. Re-applying freeze to an already frozen target or a target in its ccCooldown does nothing (damage is still dealt); burn and paralysis only extend, never shorten, the remaining timer.",
+  "rawVsResolved": "Requested: one status (1/3 freeze 3000 ms, 1/3 burn 5000 ms, 1/3 paralysis 7000 ms) plus raw SPECIAL damage 60/120/250 (1/2/3 stars). Applied status: may be refused, and the duration changes with weather, enraged, the shared duration reductions and (for burn / paralysis) the longer-duration rule. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/tri-attack.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band death handling, death handling) were not traced",
+   "What a frozen unit is prevented from doing, and uses of the paralysis flag other than the attack-speed halving, were not traced",
+   "Berries that react to the status (Aspear, Rawst, Cheri) fire inside the trigger methods; their effects were not traced here"
+  ],
+  "unresolved": [
+   "Whether the cast always has a living cast target when the strategy runs (requiresTarget is true; target is passed to process)",
+   "The CONVERSION passive of all three units is not covered by this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-porygon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2002,
+     2016
+    ],
+    "symbol": "class Porygon",
+    "expect": "skill = Ability.TRI_ATTACK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-porygon_2",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2018,
+     2032
+    ],
+    "symbol": "class Porygon2",
+    "expect": "skill = Ability.TRI_ATTACK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "unit-porygon_z",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2034,
+     2047
+    ],
+    "symbol": "class PorygonZ",
+    "expect": "skill = Ability.TRI_ATTACK",
+    "note": "unit class block: skill / passive / stars / maxPP / range"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry object"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1255,
+     1255
+    ],
+    "symbol": "AbilityStrategies[Ability.TRI_ATTACK]",
+    "expect": "[Ability.TRI_ATTACK]: new TriAttackStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit gate"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "ab-class",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "TriAttackStrategy",
+    "expect": "export class TriAttackStrategy extends AbilityStrategy",
+    "note": "class"
+   },
+   {
+    "id": "ab-super",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ab-roll",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "const effect = randomBetween(1, 3)",
+    "note": "uniform status pick"
+   },
+   {
+    "id": "ab-freeze",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "target.status.triggerFreeze(3000, target, pokemon)",
+    "note": "case 1"
+   },
+   {
+    "id": "ab-burn",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "target.status.triggerBurn(5000, target, pokemon)",
+    "note": "case 2"
+   },
+   {
+    "id": "ab-para",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "target.status.triggerParalysis(7000, target, pokemon)",
+    "note": "case 3 (apBoost defaults to false)"
+   },
+   {
+    "id": "ab-table",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "const damage = [60, 120, 250, 500][pokemon.stars - 1] ?? 500",
+    "note": "damage table"
+   },
+   {
+    "id": "ab-hit",
+    "file": "app/core/abilities/tri-attack.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "TriAttackStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage on the cast target"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "randomBetween",
+    "expect": "export function randomBetween",
+    "note": "inclusive integer helper"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "AP boost default"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP bonus"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands over to handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "blocked"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "special defence"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage"
+   },
+   {
+    "id": "fr-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     696,
+     696
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.freeze && // freeze cannot be stacked",
+    "note": "guards"
+   },
+   {
+    "id": "fr-immune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     699,
+     699
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_FREEZE) &&",
+    "note": "immunity"
+   },
+   {
+    "id": "fr-snow",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     702,
+     716
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.simulation.weather === Weather.SNOW) {",
+    "note": "weather"
+   },
+   {
+    "id": "fr-enraged",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     713,
+     713
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.status.enraged) {",
+    "note": "enraged halves duration"
+   },
+   {
+    "id": "fr-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     717,
+     717
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "reductions"
+   },
+   {
+    "id": "fr-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     720,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "this.freezeCooldown = Math.round(duration)",
+    "note": "stored"
+   },
+   {
+    "id": "fr-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     740,
+     740
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.freezeCooldown -= dt * (this.burn ? 2 : 1)",
+    "note": "burning shortens freeze"
+   },
+   {
+    "id": "bu-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "immunity / rune protect / water bubble"
+   },
+   {
+    "id": "bu-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "reductions"
+   },
+   {
+    "id": "bu-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "only a longer duration replaces"
+   },
+   {
+    "id": "bu-dmg",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of max HP per second"
+   },
+   {
+    "id": "bu-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": "burn tick is TRUE damage"
+   },
+   {
+    "id": "pa-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "guards"
+   },
+   {
+    "id": "pa-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     926
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "storm lengthens"
+   },
+   {
+    "id": "pa-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "reductions"
+   },
+   {
+    "id": "pa-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "only a longer duration replaces"
+   },
+   {
+    "id": "pa-eff",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "attack-speed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysis halves the speed used for the attack delay"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL, SURGE_SURFER x0.3 / Odd Keystone"
+   }
+  ]
+ }
+}
