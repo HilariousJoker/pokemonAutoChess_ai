@@ -1,0 +1,955 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TERRAIN_PULSE",
+ "kind": "ability",
+ "identifier": "TERRAIN_PULSE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T054143Z"
+ },
+ "record": {
+  "ability": "TERRAIN_PULSE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare TERRAIN_PULSE: Smoliv (1 star), Dolliv (2 stars), Arboliva (3 stars). The strategy is shared; unit differences are the caster's star count (table index) and maxPP/range as listed. Units sharing the identifier but not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "SMOLIV",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "TERRAIN_PULSE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DOLLIV",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "TERRAIN_PULSE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ARBOLIVA",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "TERRAIN_PULSE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SMOLIV": {
+    "evidence": [
+     "unit-smoliv"
+    ]
+   },
+   "DOLLIV": {
+    "evidence": [
+     "unit-dolliv"
+    ]
+   },
+   "ARBOLIVA": {
+    "evidence": [
+     "unit-arboliva"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TERRAIN_PULSE] = new TerrainPulseStrategy()",
+   "strategy": "TerrainPulseStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "req",
+    "super",
+    "base-pp"
+   ]
+  },
+  "summary": "Needs no target. After the PP spend, a caster without a terrain field gives itself grassField. Every same-team unit that already holds a field (caster included) is found; each same-team neighbour (8 cells) that holds no field receives one of the adjacent field types, chosen at random among the types around it (fields spread one step only, from the snapshot taken before spreading). Then every ally holding a field (the originals and the newly fielded) gets a bonus chosen by the field it reads first in the order fairy, electric, grass, psychic: grass heals a fraction of its max HP, electric adds speed, psychic adds PP, fairy adds a shield of a fraction of its max HP; all bonuses use the caster's star-indexed table and are AP-scaled (apBoost 1) with the crit flag.",
+  "targeting": {
+   "who": "the caster's team: field holders after spreading (including the caster); no enemy is affected",
+   "needsTarget": false,
+   "note": "Spread goes from field holders to adjacent same-team units that hold no field; the bonus step applies to every same-team unit holding a field after spreading, not only to the newly fielded ones.",
+   "evidence": [
+    "collect",
+    "collect-set",
+    "adjcells",
+    "adjfilter",
+    "adjmap",
+    "with-set"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 neighbourhood (8 cells, centre excluded, clipped to the board) around each field holder, for spreading only; the bonus step has no geometry",
+   "evidence": [
+    "adjcells",
+    "adjfn",
+    "foreach"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "caster",
+    "declaredRaw": {
+     "note": "grassField = true if the caster has none of fairy / electric / grass / psychic field"
+    },
+    "scaling": "none",
+    "resolution": "Direct assignment status.grassField = true (not through addGrassField); the caster then counts as a field holder in step 1.",
+    "evidence": [
+     "list",
+     "getfield",
+     "self"
+    ]
+   },
+   {
+    "kind": "status",
+    "target": "same-team neighbours of field holders that hold no field",
+    "declaredRaw": {
+     "note": "receives one randomly chosen adjacent field type"
+    },
+    "scaling": "none",
+    "resolution": "Collected for all holders before any change (snapshot); one pickRandomIn over the set of adjacent field types; applied through addFairyField / addElectricField / addGrassField / addPsychicField. Electric and psychic add +30 speed for SURGE_SURFER units. Newly fielded units do not spread further in the same cast.",
+    "evidence": [
+     "collect",
+     "adjcells",
+     "adjfilter",
+     "adjmap",
+     "pick",
+     "rand",
+     "sw-fairy",
+     "sw-elec",
+     "sw-grass",
+     "sw-psy",
+     "add-elec",
+     "add-psy",
+     "add-grass",
+     "add-fairy"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "each ally whose field reads grassField",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.05,
+      "2": 0.07,
+      "3": 0.1,
+      "4": 0.15,
+      "fallback": 0.15
+     },
+     "unit": "fraction of the ally's max HP"
+    },
+    "perUnitRaw": {
+     "SMOLIV": 0.05,
+     "DOLLIV": 0.07,
+     "ARBOLIVA": 0.1
+    },
+    "scaling": "requested = fraction x the ally's own maxHP (not the caster's). handleHeal(requested, caster, apBoost 1, crit): x(1 + caster AP/100), x critPower on crit, x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH, rounded.",
+    "resolution": "requested (fraction x maxHP) -> applied (after AP / crit / modifiers, rounded) -> healReceived (capped by the ally's missing HP). A wounded or protected ally receives 0.",
+    "evidence": [
+     "grass-case",
+     "heal-tbl",
+     "heal-call",
+     "heal-wound",
+     "heal-body",
+     "heal-cap"
+    ]
+   },
+   {
+    "kind": "buff",
+    "target": "each ally whose field reads electricField",
+    "stat": "speed",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 12,
+      "3": 15,
+      "4": 20,
+      "fallback": 20
+     }
+    },
+    "perUnitRaw": {
+     "SMOLIV": 10,
+     "DOLLIV": 12,
+     "ARBOLIVA": 15
+    },
+    "scaling": "requested = table value. addSpeed(requested, caster, apBoost 1, crit): Big Eater Belt on the receiver first (x1.25, rounded down, positive values), then x(1 + caster AP/100) x critPower on crit.",
+    "resolution": "requested (table) -> applied (after Big Eater Belt, AP, crit) -> speed clamped to 0..MAX_SPEED. Melmetal turns the speed gain into half the amount as attack instead. Twist Band does not matter for a positive value.",
+    "evidence": [
+     "elec-tbl",
+     "elec-call",
+     "spd-belt",
+     "spd-twist",
+     "spd-melmetal",
+     "spd-scale",
+     "spd-clamp"
+    ]
+   },
+   {
+    "kind": "pp",
+    "target": "each ally whose field reads psychicField",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 12,
+      "3": 15,
+      "4": 20,
+      "fallback": 20
+     }
+    },
+    "perUnitRaw": {
+     "SMOLIV": 10,
+     "DOLLIV": 12,
+     "ARBOLIVA": 15
+    },
+    "scaling": "requested = table value. addPP(requested, caster, apBoost 1, crit): x(1 + caster AP/100) x critPower on crit x0.5 under fatigue, rounded.",
+    "resolution": "requested (table) -> applied (after AP / crit / fatigue, rounded) -> not applied while the ally is silenced, protected, resurrecting or under NO_PP_GAIN; clamped to 0..2 x maxPP - 1.",
+    "evidence": [
+     "psy-tbl",
+     "psy-call",
+     "pp-fn",
+     "pp-guard",
+     "pp-clamp"
+    ]
+   },
+   {
+    "kind": "shield",
+    "target": "each ally whose field reads fairyField",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.05,
+      "2": 0.07,
+      "3": 0.1,
+      "4": 0.15,
+      "fallback": 0.15
+     },
+     "unit": "fraction of the ally's max HP"
+    },
+    "perUnitRaw": {
+     "SMOLIV": 0.05,
+     "DOLLIV": 0.07,
+     "ARBOLIVA": 0.1
+    },
+    "scaling": "requested = fraction x the ally's own maxHP. addShield: Big Eater Belt on the receiver first (x1.25, rounded down with 0 digits, positive values), then x(1 + caster AP/100), x critPower on crit, x0.5 when the ally is enraged, rounded.",
+    "resolution": "requested (fraction x maxHP) -> applied (after Big Eater Belt, AP, crit, enraged, rounded) -> added to the ally's shield (no cap). Skipped if the ally has no HP.",
+    "evidence": [
+     "fairy-tbl",
+     "fairy-call",
+     "shield-fn",
+     "shield-belt"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "grassField / fairyField / electricField / psychicField flags set on allies; separate from the bonus step. Each holder deals x1.2 damage per field flag it holds (handleDamage checks each flag), including the caster's own grassField.",
+    "evidence": [
+     "dmg-elec",
+     "dmg-fairy",
+     "self",
+     "add-grass"
+    ]
+   },
+   {
+    "effect": "field flags are cleared by clearPositiveStatus and by the terrain passives' removal code; no duration or cooldown is attached in the status add methods",
+    "evidence": [
+     "clear-pos",
+     "add-fairy"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SMOLIV": 1,
+    "DOLLIV": 2,
+    "ARBOLIVA": 3
+   },
+   "declaredRawHealFraction": {
+    "SMOLIV": 0.05,
+    "DOLLIV": 0.07,
+    "ARBOLIVA": 0.1
+   },
+   "declaredRawSpeed": {
+    "SMOLIV": 10,
+    "DOLLIV": 12,
+    "ARBOLIVA": 15
+   },
+   "declaredRawPP": {
+    "SMOLIV": 10,
+    "DOLLIV": 12,
+    "ARBOLIVA": 15
+   },
+   "declaredRawShieldFraction": {
+    "SMOLIV": 0.05,
+    "DOLLIV": 0.07,
+    "ARBOLIVA": 0.1
+   },
+   "note": "all four tables are indexed by the casting entity's stars (not the receiving ally's); the 4-star entries are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "heal-tbl",
+    "elec-tbl",
+    "psy-tbl",
+    "fairy-tbl",
+    "unit-smoliv",
+    "unit-dolliv",
+    "unit-arboliva"
+   ]
+  },
+  "positionalConditions": "Spreading only reaches same-team units directly adjacent (8 neighbours) to a field holder that has no field itself. An isolated ally far from every holder gets no field and no bonus. An ally that already holds a field is not changed by spreading but still gets its bonus.",
+  "repeatedCastsAndModes": "Field flags persist on the units (no duration is set in the add methods read), so on a later cast units fielded earlier count as holders and get their bonus again, and spreading continues one more step from them. An ally holding several fields gets only the bonus of the first in the order fairy, electric, grass, psychic.",
+  "rawVsResolved": "Declared raw: heal and shield 5/7/10 % of the receiving ally's max HP; speed and PP 10/12/15 (1/2/3 stars). Requested = raw (the percentages times that ally's maxHP). Applied = after the receiving ally's Big Eater Belt (speed, shield), caster AP, crit, fatigue (PP), enraged (shield) and the heal modifiers; received/effective = after the missing-HP cap (heal), MAX_SPEED clamp (speed) or PP clamp.",
+  "sourceTables": [
+   {
+    "id": "heal-pct",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   },
+   {
+    "id": "speed",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "pattern": "const speedBuff = \\[([^\\]]+)\\]",
+    "recordPath": "effects.3.declaredRaw.byStars",
+    "unitValuesPath": "effects.3.perUnitRaw"
+   },
+   {
+    "id": "pp",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "pattern": "const ppGain = \\[([^\\]]+)\\]",
+    "recordPath": "effects.4.declaredRaw.byStars",
+    "unitValuesPath": "effects.4.perUnitRaw"
+   },
+   {
+    "id": "shield-pct",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "pattern": "const shieldPercent = \\[([^\\]]+)\\]",
+    "recordPath": "effects.5.declaredRaw.byStars",
+    "unitValuesPath": "effects.5.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the abilities base class (PP spend) was read",
+   "Crit resolution - only the crit flag passed to the helpers was read",
+   "Which unit actually declares each pre-existing field in a real fight (terrain synergies in simulation.ts set grassField / fairyField at fight start; not read in detail)",
+   "Effects of the other field flags beyond the x1.2 damage checks in handleDamage and the items at items.ts:910-925 were not audited"
+  ],
+  "unresolved": [
+   "Because fields persist, the first-listed field of a unit decides its bonus; which field a given unit holds at cast time depends on earlier events (synergies, items, earlier casts) and was not traced",
+   "The random choice among several adjacent field types uses Math.random; no deterministic outcome is stated",
+   "Whether grassField set directly on the caster (without addGrassField) differs in any effect from the method: addGrassField is a plain flag set, so it appears not to",
+   "Duration of fields: none set in the add methods; removal paths read are clearPositiveStatus and the terrain passives' death handlers, others were not searched",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-smoliv",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18945,
+     18962
+    ],
+    "symbol": "class Smoliv",
+    "expect": "skill = Ability.TERRAIN_PULSE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-dolliv",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18964,
+     18981
+    ],
+    "symbol": "class Dolliv",
+    "expect": "skill = Ability.TERRAIN_PULSE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-arboliva",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18983,
+     18999
+    ],
+    "symbol": "class Arboliva",
+    "expect": "skill = Ability.TERRAIN_PULSE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1228,
+     1237
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.TERRAIN_PULSE]: new TerrainPulseStrategy()",
+    "note": "registry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     1,
+     7
+    ],
+    "symbol": "TerrainPulseStrategy",
+    "expect": "export class TerrainPulseStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "req",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     1,
+     8
+    ],
+    "symbol": "TerrainPulseStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed (canCritByDefault stays at the base default false)"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     1,
+     10
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: PP spend of maxPP, default animation without target"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "list",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "\"fairyField\",",
+    "note": "field order: fairy, electric, grass, psychic"
+   },
+   {
+    "id": "getfield",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     10,
+     19
+    ],
+    "symbol": "getFieldEffect",
+    "expect": "fieldEffects.find((field) => pkm.status[field] === true) ?? null",
+    "note": "first field (in the list order) that is true; null if none"
+   },
+   {
+    "id": "self",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     13,
+     22
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "if (userField === null) pokemon.status.grassField = true",
+    "note": "caster with no field gets grassField set directly (not via addGrassField)"
+   },
+   {
+    "id": "collect",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     21,
+     30
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "if (entity.team !== pokemon.team) return",
+    "note": "step 1 only looks at same-team units (caster included)"
+   },
+   {
+    "id": "collect-set",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     24,
+     33
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pokemonsWithField.set(entity, activeField)",
+    "note": "units already holding a field are recorded with that field"
+   },
+   {
+    "id": "adjcells",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     26,
+     35
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": ".getAdjacentCells(x, y)",
+    "note": "8 neighbouring cells, centre excluded"
+   },
+   {
+    "id": "adjfilter",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     30,
+     39
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "e != null && e.team === entity.team && getFieldEffect(e) === null",
+    "note": "only same-team neighbours without any field"
+   },
+   {
+    "id": "adjfn",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "3x3 block clipped to the board"
+   },
+   {
+    "id": "foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     78
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "row-major scan of all cells"
+   },
+   {
+    "id": "adjmap",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     35,
+     44
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "adjacentFields.add(activeField)",
+    "note": "per unfielded ally: the set of adjacent field types"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     43,
+     52
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "const field = pickRandomIn([...fields])",
+    "note": "one field chosen at random among the adjacent field types"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     38,
+     47
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform random pick"
+   },
+   {
+    "id": "sw-fairy",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     46,
+     55
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.status.addFairyField(pkm)",
+    "note": "apply the chosen field through the status add method"
+   },
+   {
+    "id": "sw-elec",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     49,
+     58
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.status.addElectricField(pkm)",
+    "note": "electric"
+   },
+   {
+    "id": "sw-grass",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     52,
+     61
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.status.addGrassField(pkm)",
+    "note": "grass"
+   },
+   {
+    "id": "sw-psy",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     55,
+     64
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.status.addPsychicField(pkm)",
+    "note": "psychic"
+   },
+   {
+    "id": "with-set",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     58,
+     67
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pokemonsWithField.set(pkm, getFieldEffect(pkm)!)",
+    "note": "newly fielded allies join the bonus step with their (first-order) field"
+   },
+   {
+    "id": "add-elec",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1314,
+     1323
+    ],
+    "symbol": "Status.addElectricField",
+    "expect": "addElectricField(entity: IPokemonEntity) {",
+    "note": "sets electricField; +30 speed for SURGE_SURFER; returns early if already set"
+   },
+   {
+    "id": "add-psy",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1298,
+     1307
+    ],
+    "symbol": "Status.addPsychicField",
+    "expect": "addPsychicField(entity: IPokemonEntity) {",
+    "note": "same pattern as electric"
+   },
+   {
+    "id": "add-grass",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1338,
+     1347
+    ],
+    "symbol": "Status.addGrassField",
+    "expect": "addGrassField(entity: IPokemonEntity) {",
+    "note": "plain flag set"
+   },
+   {
+    "id": "add-fairy",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1330,
+     1339
+    ],
+    "symbol": "Status.addFairyField",
+    "expect": "addFairyField(entity: IPokemonEntity) {",
+    "note": "plain flag set"
+   },
+   {
+    "id": "clear-pos",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     107,
+     116
+    ],
+    "symbol": "Status.clearPositiveStatus",
+    "expect": "this.removeElectricField(entity)",
+    "note": "field flags are removed when positive statuses are cleared"
+   },
+   {
+    "id": "grass-case",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     77,
+     79
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "case \"grassField\": {",
+    "note": "step 3 grass branch"
+   },
+   {
+    "id": "heal-tbl",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     71,
+     80
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "const heal = [0.05, 0.07, 0.1, 0.15][pokemon.stars - 1] ?? 0.15",
+    "note": "heal fraction of max HP by caster stars"
+   },
+   {
+    "id": "heal-call",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     72,
+     81
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.handleHeal(heal * pkm.maxHP, pokemon, 1, crit)",
+    "note": "heal on the fielded ally, caster = the Terrain Pulse user, apBoost 1, crit"
+   },
+   {
+    "id": "elec-tbl",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     76,
+     85
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "const speedBuff = [10, 12, 15, 20][pokemon.stars - 1] ?? 20",
+    "note": "speed buff by caster stars"
+   },
+   {
+    "id": "elec-call",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     77,
+     86
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.addSpeed(speedBuff, pokemon, 1, crit)",
+    "note": "addSpeed with apBoost 1 and crit"
+   },
+   {
+    "id": "psy-tbl",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     81,
+     90
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "const ppGain = [10, 12, 15, 20][pokemon.stars - 1] ?? 20",
+    "note": "PP gain by caster stars"
+   },
+   {
+    "id": "psy-call",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     82,
+     91
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.addPP(ppGain, pokemon, 1, crit)",
+    "note": "addPP with apBoost 1 and crit"
+   },
+   {
+    "id": "fairy-tbl",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     86,
+     95
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "const shieldPercent = [0.05, 0.07, 0.1, 0.15][pokemon.stars - 1] ?? 0.15",
+    "note": "shield fraction of max HP by caster stars"
+   },
+   {
+    "id": "fairy-call",
+    "file": "app/core/abilities/terrain-pulse.ts",
+    "lines": [
+     87,
+     96
+    ],
+    "symbol": "TerrainPulseStrategy.process",
+    "expect": "pkm.addShield(shieldPercent * pkm.maxHP, pokemon, 1, crit)",
+    "note": "addShield with apBoost 1 and crit"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wounded target: heal 0"
+   },
+   {
+    "id": "heal-body",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     325,
+     334
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (apBoost > 0) {",
+    "note": "AP, crit, x1.3 BUFF_HEAL_RECEIVED, x0.5 burn / enraged, x1.2 ZENITH, round, missing-HP cap"
+   },
+   {
+    "id": "heal-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     346,
+     355
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "capped by missing HP"
+   },
+   {
+    "id": "spd-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     759
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt on the receiver (x1.25 rounded down on positive buffs)"
+   },
+   {
+    "id": "spd-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     760
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Twist Band only changes negative values"
+   },
+   {
+    "id": "spd-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     753,
+     762
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "if (this.passive === Passive.MELMETAL) {",
+    "note": "Melmetal turns speed gain into half attack"
+   },
+   {
+    "id": "spd-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     760,
+     769
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP and crit scaling"
+   },
+   {
+    "id": "spd-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     764,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "clamped to 0..MAX_SPEED"
+   },
+   {
+    "id": "pp-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     510,
+     519
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "let value = Math.round( baseValue * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1) * (this.status.fatigue && baseValue > 0 ? 0.5 : 1) )",
+    "note": "AP, crit, fatigue halving, rounded"
+   },
+   {
+    "id": "pp-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     515,
+     524
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.silence) &&",
+    "note": "no positive PP while silenced / protected / NO_PP_GAIN / resurrecting"
+   },
+   {
+    "id": "pp-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     521,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "clamped to 0..2*maxPP-1"
+   },
+   {
+    "id": "shield-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP, crit, enraged halving, round"
+   },
+   {
+    "id": "shield-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt on the receiver"
+   },
+   {
+    "id": "dmg-elec",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     463
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.electricField) {",
+    "note": "a unit holding electric / psychic / grass / fairy field deals x1.2 damage per field (4 consecutive checks)"
+   },
+   {
+    "id": "dmg-fairy",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     466,
+     475
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.fairyField) {",
+    "note": "fairy field attacker x1.2"
+   }
+  ]
+ }
+}
