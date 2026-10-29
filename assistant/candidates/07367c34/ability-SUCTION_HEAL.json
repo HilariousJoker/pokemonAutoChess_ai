@@ -1,0 +1,558 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SUCTION_HEAL",
+ "kind": "ability",
+ "identifier": "SUCTION_HEAL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T054143Z"
+ },
+ "record": {
+  "ability": "SUCTION_HEAL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare SUCTION_HEAL: Tynamo (1 star), Eelektrik (2 stars), Eelektross (3 stars); all range 1, maxPP 80, no passive. The strategy is shared; unit differences are the star count (table index). Units sharing the identifier but not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "TYNAMO",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SUCTION_HEAL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EELEKTRIK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SUCTION_HEAL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EELEKTROSS",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SUCTION_HEAL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TYNAMO": {
+    "evidence": [
+     "unit-tynamo"
+    ]
+   },
+   "EELEKTRIK": {
+    "evidence": [
+     "unit-eelektrik"
+    ]
+   },
+   "EELEKTROSS": {
+    "evidence": [
+     "unit-eelektross"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SUCTION_HEAL] = new SuctionHealStrategy()",
+   "strategy": "SuctionHealStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-pp",
+    "super"
+   ]
+  },
+  "summary": "Needs a target. The caster spends its PP, then every occupied cell of a forward cone (range 2, aimed at the target) that holds an enemy takes special damage of raw 15/30/60/120 (by caster stars; AP-scaled; crit possible via the passed crit flag), and for each such hit the caster heals itself by half of the damage that handleDamage reports as takenDamage (shield damage included, HP part capped by the target's current HP), rounded and subject to the usual heal modifiers but not scaled by AP or crit.",
+  "targeting": {
+   "who": "enemies (cell.value.team differs from the caster's team) standing in the forward cone cells",
+   "needsTarget": true,
+   "note": "The target is only used to orient the cone (getCellsInFront sets the caster's orientation toward it); the damaged units are whatever enemies stand in the cone cells, which need not include the target. Allies and empty cells are skipped.",
+   "evidence": [
+    "cells",
+    "front",
+    "front-ori",
+    "enemy"
+   ]
+  },
+  "geometry": {
+   "shape": "cone: the caster's orientation toward the target plus its two adjacent orientations, expanded for r = 1..2 (cells that coincide are de-duplicated; off-board cells dropped)",
+   "evidence": [
+    "cells",
+    "front",
+    "front-ori",
+    "front-loop",
+    "front-board"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "target": "each enemy in the cone cells",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "TYNAMO": 15,
+     "EELEKTRIK": 30,
+     "EELEKTROSS": 60
+    },
+    "scaling": "requested = table value by the caster's stars. Applied through handleSpecialDamage with the default apBoost = true: x(1 + caster AP/100); DOUBLE_DAMAGE x2 and strange-steam x1.2 where present; x(1 + (critPower - 1) x reduction) when the crit flag is true (reduction 0 against Rocky Helmet, -0.1 per Black Augurite). No rounding before the defence step.",
+    "resolution": "requested (raw table) -> applied (after AP / crit factors, special type) -> PokemonState.handleDamage: SPE_DEF division, min-1 floor (see core-mechanics section A), shield first then HP -> takenDamage = shield damage + min(residual, current HP), rounded. Blocked (protect / skydiving / magicBounce) or dead targets report takenDamage 0.",
+    "evidence": [
+     "table",
+     "dmg",
+     "bcast",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-dead",
+     "hd-shield",
+     "hd-hp",
+     "hd-round"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "caster (self), once per damaged enemy",
+    "declaredRaw": {
+     "factor": 0.5,
+     "of": "takenDamage reported by handleSpecialDamage for that enemy"
+    },
+    "scaling": "requested = 0.5 x takenDamage of that hit (an applied-then-resolved damage figure, not the raw table value). handleHeal is called with apBoost 0 and crit false, so AP and crit do not scale the heal. Then PokemonState.handleHeal: x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH weather; Math.round; capped by the caster's missing HP.",
+    "resolution": "requested (0.5 x takenDamage) -> applied (after the modifiers, rounded) -> healReceived (after the missing-HP cap; the rest is overheal). A wounded caster receives 0; a protected caster receives 0. Shield damage dealt counts in takenDamage and therefore in the heal. A Shiny Charm trigger on the victim makes takenDamage 0 and so no heal. One heal per enemy hit, so several enemies in the cone give several heals.",
+    "evidence": [
+     "heal",
+     "heal-fn",
+     "heal-wound",
+     "heal-ap",
+     "heal-mods",
+     "heal-cap",
+     "hd-shield",
+     "hd-hp",
+     "hd-shiny",
+     "hd-round"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TYNAMO": 1,
+    "EELEKTRIK": 2,
+    "EELEKTROSS": 3
+   },
+   "declaredRawDamage": {
+    "TYNAMO": 15,
+    "EELEKTRIK": 30,
+    "EELEKTROSS": 60
+   },
+   "note": "indexed by the casting entity's stars (stars - 1); 120 is not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-tynamo",
+    "unit-eelektrik",
+    "unit-eelektross"
+   ]
+  },
+  "positionalConditions": "The cone is aimed at the target; only enemies inside the cone cells (distance up to 2 in the three forward orientations) are damaged and heal the caster. If no enemy stands in those cells nothing is damaged and no heal happens (PP is still spent).",
+  "repeatedCastsAndModes": "No stored state or modes; every cast recomputes the cone from the current board. getCellsInFront also overwrites the caster's orientation.",
+  "rawVsResolved": "Declared raw: damage 15/30/60 for 1/2/3 stars. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor etc.; takenDamage = what handleDamage reports (after SPE_DEF, the min-1 floor, shield and HP cap, rounded). The heal requested is 0.5 x takenDamage; applied after heal modifiers and rounding (no AP, no crit); received after the missing-HP cap.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/suction-heal.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition) - only the abilities base class (PP spend, flags) was read",
+   "Crit resolution - only the crit parameter passed into handleSpecialDamage was read, not how the cast decides crit",
+   "Board.orientation (called by getCellsInFront) was not read, so the exact orientation chosen toward a given target is not stated"
+  ],
+  "unresolved": [
+   "Cone cell membership for a given caster/target geometry was not enumerated: only the construction in getCellsInFront was read (three orientations grown for 2 steps, de-duplicated)",
+   "Whether the target itself always stands inside the cone: the cone is built from the orientation toward the target, but the target's distance and the orientation rounding in Board.orientation were not checked",
+   "Ordering of the heals relative to the damage when several enemies are hit follows cells iteration order (a Set of coordinates in insertion order); not verified beyond reading",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-tynamo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17996,
+     18014
+    ],
+    "symbol": "class Tynamo",
+    "expect": "skill = Ability.SUCTION_HEAL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-eelektrik",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18016,
+     18034
+    ],
+    "symbol": "class Eelektrik",
+    "expect": "skill = Ability.SUCTION_HEAL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-eelektross",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18036,
+     18053
+    ],
+    "symbol": "class Eelektross",
+    "expect": "skill = Ability.SUCTION_HEAL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1207,
+     1216
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SUCTION_HEAL]: new SuctionHealStrategy()",
+    "note": "registry: Ability -> strategy instance"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     1,
+     6
+    ],
+    "symbol": "SuctionHealStrategy",
+    "expect": "export class SuctionHealStrategy extends AbilityStrategy",
+    "note": "strategy class (requiresTarget / canCritByDefault left at base defaults)"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults: requiresTarget true; canCritByDefault false (next line)"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend of maxPP, ult counter"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     4,
+     13
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true (own broadcast per hit)"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     5,
+     14
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "requested damage by caster stars, fallback 120"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     6,
+     15
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "const cells = board.getCellsInFront(pokemon, target, 2)",
+    "note": "cone of cells in front of the caster toward the target, range 2"
+   },
+   {
+    "id": "front",
+    "file": "app/core/board.ts",
+    "lines": [
+     179,
+     188
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "cone helper: sets caster orientation, 3 orientations, grows by range"
+   },
+   {
+    "id": "front-ori",
+    "file": "app/core/board.ts",
+    "lines": [
+     195,
+     204
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "const orientations = [",
+    "note": "orientation toward target and its two neighbours"
+   },
+   {
+    "id": "front-loop",
+    "file": "app/core/board.ts",
+    "lines": [
+     204,
+     213
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "for (let r = 1; r <= range; r++) {",
+    "note": "expansion r = 1..range"
+   },
+   {
+    "id": "front-board",
+    "file": "app/core/board.ts",
+    "lines": [
+     220,
+     229
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells dropped; cell.value may be undefined"
+   },
+   {
+    "id": "enemy",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     9,
+     18
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "only occupied cells holding an opposing-team unit"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     10,
+     19
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "const attack = cell.value.handleSpecialDamage(",
+    "note": "special damage per enemy cell, crit passed through, default apBoost"
+   },
+   {
+    "id": "bcast",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     17,
+     26
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "one animation broadcast per hit enemy"
+   },
+   {
+    "id": "heal",
+    "file": "app/core/abilities/suction-heal.ts",
+    "lines": [
+     23,
+     32
+    ],
+    "symbol": "SuctionHealStrategy.process",
+    "expect": "pokemon.handleHeal(attack.takenDamage * 0.5, pokemon, 0, false)",
+    "note": "self-heal of half the takenDamage; apBoost 0, crit false"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     349,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "if ( this.status.protect || this.status.skydiving || this.status.magicBounce ) {",
+    "note": "protect / skydiving / magicBounce: returns takenDamage 0 (magic bounce may reflect)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     391,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP scaling of the requested damage"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     423,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite on the target"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     426,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     441,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "dead / resurrecting target: takenDamage 0"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield counts in takenDamage"
+   },
+   {
+    "id": "hd-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage is capped by the target's current HP"
+   },
+   {
+    "id": "hd-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     650,
+     652
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm trigger resets takenDamage to 0 (guard)"
+   },
+   {
+    "id": "hd-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     797,
+     806
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "takenDamage rounded on return"
+   },
+   {
+    "id": "heal-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     300,
+     308
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "handleHeal(",
+    "note": "state heal: wound / protect guards, modifiers, rounding, missing-HP cap"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wounded caster heals 0"
+   },
+   {
+    "id": "heal-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     325,
+     334
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (apBoost > 0) {",
+    "note": "AP multiplier applied only when apBoost > 0 (it is 0 here)"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     331,
+     340
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.effects.has(EffectEnum.BUFF_HEAL_RECEIVED)) {",
+    "note": "x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH"
+   },
+   {
+    "id": "heal-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     346,
+     355
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "healed amount capped by missing HP"
+   }
+  ]
+ }
+}
