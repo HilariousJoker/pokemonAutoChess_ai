@@ -1,0 +1,258 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/GALE_WINGS",
+ "kind": "passive",
+ "identifier": "GALE_WINGS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T233953Z"
+ },
+ "record": {
+  "passive": "GALE_WINGS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "FLETCHINDER",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FLETCHLING",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TALONFLAME",
+    "stars": 3,
+    "maxPP": 85,
+    "range": 2,
+    "declaredSkill": "FIRESTARTER",
+    "declaredPassive": "GALE_WINGS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FLETCHINDER": {
+    "evidence": [
+     "unit-fletchinder"
+    ]
+   },
+   "FLETCHLING": {
+    "evidence": [
+     "unit-fletchling"
+    ]
+   },
+   "TALONFLAME": {
+    "evidence": [
+     "unit-talonflame"
+    ]
+   }
+  },
+  "kind": "marker passive with no PassiveEffects entry; behaviour is a branch inside PokemonEntity.flyAway",
+  "summary": "Passive.GALE_WINGS has no PassiveEffects entry. It is read only in PokemonEntity.flyAway: whenever a GALE_WINGS unit flies away to a destination found by Board.getFlyAwayCell, every cell on the supercover line from its current position to the destination (both ends included) receives the EMBER board effect through Board.addBoardEffect; the effect is also added to an entity standing on such a cell unless it holds Heavy Duty Boots. Afterwards the unit moves to the destination (or skydives when the skydive flag is set), and enemies that targeted it lose their target. The EMBER effect is read in PokemonState.updateEachSecond: an entity with EMBER that has neither the FIRE nor the FLYING type and no Heavy Duty Boots takes 10 SPECIAL damage (requested 10, no attacker, so no AP or crit; applied by handleDamage with its normal defence, shield and floor handling) and is burned for 2200 ms. The three units' skill is FIRESTARTER, which calls flyAway(board, false) (skydive off), so the trail is laid when the skill moves them; other flyAway callers also exist (Twister, Whirlwind, Roost, Brave Bird, Plasma Tempest, a synergy and an item), and a GALE_WINGS unit going through any of them leaves the trail.",
+  "triggers": [
+   "Any call of flyAway on a GALE_WINGS unit that finds a destination cell"
+  ],
+  "effects": [
+   {
+    "kind": "board_effect_trail",
+    "declaredRaw": "EMBER board effect on every cell from the start to the destination of a fly-away",
+    "scaling": "none (no AP, no crit, no stars)",
+    "resolution": "requested: EMBER on each cell of Board.getCellsBetween(start, destination); applied: cell effect set once per cell and added to a present entity unless Heavy Duty Boots",
+    "evidence": [
+     "fly-sig",
+     "gale",
+     "between",
+     "flycell",
+     "addeffect",
+     "fly-move",
+     "fire"
+    ]
+   },
+   {
+    "kind": "ember_damage",
+    "declaredRaw": "10 special damage and a 2200 ms burn per second tick to entities with EMBER that are not FIRE or FLYING",
+    "scaling": "none; fixed 10, attacker null",
+    "resolution": "requested 10 SPECIAL; applied through handleDamage (defence, shield, minimum of 1 and takenDamage as in core mechanics \u00a7A); burn applied separately with its own tick",
+    "evidence": [
+     "ember",
+     "addeffect"
+    ]
+   },
+   {
+    "kind": "aggro_loss",
+    "declaredRaw": "enemies targeting the unit lose their target after it flies away",
+    "scaling": "none",
+    "resolution": "applies to every flyAway, not only GALE_WINGS",
+    "evidence": [
+     "fly-aggro"
+    ]
+   }
+  ],
+  "conditions": [
+   "Requires a living enemy: getFlyAwayCell returns null with no enemies.",
+   "The trail is laid only when a destination exists.",
+   "FIRE and FLYING entities (and Heavy Duty Boots holders) ignore the EMBER damage and burn.",
+   "The passive does nothing outside flyAway."
+  ],
+  "resetBehaviour": "No stored state in the passive; how long an EMBER cell effect lasts (clearBoardEffect) was not read.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Board-effect lifetime and clearing (clearBoardEffect, the movement hooks near board.ts line 45-55)",
+   "Body of getFlyAwayCell steps 3 onward and getSafePlaceAwayFrom",
+   "Burn status tick damage",
+   "FIRESTARTER's own damage and speed buff are a separate record",
+   "The synergy (synergies.ts line 306) and item (items.ts line 310) flyAway callers were not read"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: no PassiveEffects entry; completeness checked by grepping app/ (excluding public/ and precomputed data) for GALE_WINGS: only pokemon-entity.ts (flyAway) and the three unit classes.",
+   "FIRESTARTER may itself add EMBER on cells (firestarter.ts lines 42 and 65); not read here beyond the flyAway call.",
+   "Whether the trail cells include the cell occupied at the moment of the call (they do by the supercover code) and what EMBER does to the Gale Wings unit itself (a FLYING and FIRE type, so exempt in the lines read).",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "fly-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1323,
+     1330
+    ],
+    "symbol": "PokemonEntity.flyAway signature",
+    "expect": "const flyAwayCell = board.getFlyAwayCell(this)",
+    "note": "flyAway picks a destination with Board.getFlyAwayCell"
+   },
+   {
+    "id": "gale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1332,
+     1348
+    ],
+    "symbol": "PokemonEntity.flyAway GALE_WINGS branch",
+    "expect": "if (flyAwayCell && this.passive === Passive.GALE_WINGS) {",
+    "note": "if a destination exists and the unit has GALE_WINGS, every cell on the line from its position to the destination gets the EMBER board effect"
+   },
+   {
+    "id": "fly-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1384,
+     1386
+    ],
+    "symbol": "PokemonEntity.flyAway move",
+    "expect": "this.moveTo(flyAwayCell.x, flyAwayCell.y, board, false)",
+    "note": "without skydive the unit moves to the destination"
+   },
+   {
+    "id": "fly-aggro",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1388,
+     1397
+    ],
+    "symbol": "PokemonEntity.flyAway aggro",
+    "expect": "e.setTarget(null)",
+    "note": "enemies targeting the unit lose their target and the destination is returned"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "/* Supercover line algorithm from https://www.redblobgames.com/grids/line-drawing.html */",
+    "note": "supercover line from start to end, both cells included when on the board"
+   },
+   {
+    "id": "flycell",
+    "file": "app/core/board.ts",
+    "lines": [
+     383,
+     410
+    ],
+    "symbol": "Board.getFlyAwayCell",
+    "expect": "if (enemies.length === 0) {",
+    "note": "destination search needs a living enemy; falls back to getSafePlaceAwayFrom when no matching cell is found"
+   },
+   {
+    "id": "addeffect",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     654
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "the effect is set on the board cell and added to an entity standing there unless it holds HEAVY_DUTY_BOOTS"
+   },
+   {
+    "id": "ember",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1087,
+     1100
+    ],
+    "symbol": "PokemonState.updateEachSecond EMBER",
+    "expect": "pokemon.effects.has(EffectEnum.EMBER) &&",
+    "note": "an entity with EMBER that is neither FIRE nor FLYING and has no Heavy Duty Boots takes 10 SPECIAL damage and a 2200 ms burn, each second tick"
+   },
+   {
+    "id": "fire",
+    "file": "app/core/abilities/firestarter.ts",
+    "lines": [
+     16,
+     19
+    ],
+    "symbol": "FireStarter",
+    "expect": "const flyAwayCell = pokemon.flyAway(board, false)",
+    "note": "the units' skill FIRESTARTER calls flyAway with skydive off"
+   },
+   {
+    "id": "unit-fletchling",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17021,
+     17035
+    ],
+    "symbol": "Fletchling",
+    "expect": "passive = Passive.GALE_WINGS",
+    "note": "FLETCHLING: 1 star, maxPP 85, range 2, skill FIRESTARTER"
+   },
+   {
+    "id": "unit-fletchinder",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17037,
+     17051
+    ],
+    "symbol": "Fletchinder",
+    "expect": "passive = Passive.GALE_WINGS",
+    "note": "FLETCHINDER: 2 stars, maxPP 85, range 2"
+   },
+   {
+    "id": "unit-talonflame",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17053,
+     17066
+    ],
+    "symbol": "Talonflame",
+    "expect": "passive = Passive.GALE_WINGS",
+    "note": "TALONFLAME: 3 stars, maxPP 85, range 2"
+   }
+  ]
+ }
+}
