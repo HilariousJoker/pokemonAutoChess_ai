@@ -1,0 +1,551 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WISH",
+ "kind": "ability",
+ "identifier": "WISH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T174016Z"
+ },
+ "record": {
+  "ability": "WISH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare WISH: Togepi (1 star), Togetic (2 stars), Togekiss (3 stars); all have range 2 and maxPP 100 per the unit blocks. The strategy is shared; the only unit difference is the star count (shield table index). Units that merely evolve into or from these are not covered unless listed.",
+  "appliesTo": [
+   {
+    "key": "TOGEKISS",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WISH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TOGEPI",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WISH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TOGETIC",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "WISH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TOGEKISS": {
+    "evidence": [
+     "unit-togekiss"
+    ]
+   },
+   "TOGEPI": {
+    "evidence": [
+     "unit-togepi"
+    ]
+   },
+   "TOGETIC": {
+    "evidence": [
+     "unit-togetic"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WISH] = new WishStrategy()",
+   "strategy": "WishStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wi-class",
+    "wi-super"
+   ]
+  },
+  "summary": "Picks the unit of the caster's own team (the caster included) with the lowest current hp / maxHP fraction and gives it a shield (raw 30/60/120 by stars at 1-3 stars; AP-scaled) and a PROTECT status requested for 1500 ms. The in-source comment says '1 second', but the code passes 1500. Protect is not guaranteed: it is skipped if the chosen ally is already protected or enraged, while the shield is applied regardless.",
+  "targeting": {
+   "who": "the unit with the lowest hp / maxHP on the caster's team, the caster itself included; ties go to the unit that comes first in board.cells order (Array.sort is stable)",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the strategy takes no enemy target (the target argument is null). Selection filters on team only: there is no check on hp > 0 or on the entity being on the bench or targettable, and the selected entity is not required to be damaged (a full-health team picks the first unit in scan order at hp fraction 1). Since the sort comparison uses hp / maxHP, a unit with maxHP 0 would give NaN; not traced. The strategy dereferences the result without a guard.",
+   "evidence": [
+    "wi-select",
+    "wi-sort",
+    "cells-type",
+    "wi-class"
+   ]
+  },
+  "geometry": {
+   "shape": "no area; one ally anywhere on the board",
+   "evidence": [
+    "wi-select"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "the lowest-hp-fraction ally (the caster possibly)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "label": "requested shield (raw)"
+    },
+    "perUnitRaw": {
+     "TOGEKISS": 120,
+     "TOGEPI": 30,
+     "TOGETIC": 60
+    },
+    "scaling": "requested = table[stars-1] of the CASTER. PokemonEntity.addShield on the chosen ally: Big Eater Belt applies if the RECEIVING ally holds it (the helper takes the receiver as the entity and the caster as the source; x1.25 rounded down on a positive value); PokemonState.addShield with apBoost 1: x (1 + caster AP/100), x critPower of the caster only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), x0.5 if the RECEIVING ally is enraged, Math.round.",
+    "resolution": "requested (table) -> after the receiver's Big Eater Belt -> applied (after caster AP, crit, receiver enraged halving, rounding) -> added to the ally's shield, only if that ally's hp > 0; the shield stat is max(0, shield + value). No timer in this file; damage taken later consumes the shield first.",
+    "evidence": [
+     "wi-table",
+     "wi-select",
+     "wi-shield",
+     "addshield-entity",
+     "belt",
+     "addshield-state",
+     "addshield-crit",
+     "addshield-enraged",
+     "addshield-add"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "PROTECT",
+    "target": "the same ally",
+    "declaredRaw": {
+     "durationMs": 1500
+    },
+    "perUnitRaw": {
+     "TOGEKISS": 1500,
+     "TOGEPI": 1500,
+     "TOGETIC": 1500
+    },
+    "scaling": "none from stars, AP or crit; no duration-reduction helper is involved in triggerProtect",
+    "resolution": "requested 1500 ms -> applied only if the ally is not already protected and not enraged (a running protect is not extended and nothing is stacked); protectCooldown = 1500 and protect ends once the cooldown runs out in updateProtect. While protected: attacks on the unit are unsuccessful with 0 damage, handleDamage returns takenDamage 0 without death, ability damage is blocked in handleSpecialDamage, and heals are skipped. The protect call comes after the shield call, so a refused protect never prevents the shield.",
+    "evidence": [
+     "wi-protect",
+     "wi-comment",
+     "protect-trigger",
+     "protect-update",
+     "protect-attack",
+     "protect-damage",
+     "protect-special",
+     "protect-heal"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PROTECT",
+    "target": "lowest hp-fraction ally",
+    "raw": "1500 ms (comment says 1 second)",
+    "evidence": [
+     "wi-protect",
+     "wi-comment",
+     "protect-trigger"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   "shield 30/60/120 (requested, raw; 240 only at 4 stars) on the lowest hp-fraction ally"
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "TOGEKISS": 3,
+    "TOGEPI": 1,
+    "TOGETIC": 2
+   },
+   "declaredRawShield": {
+    "TOGEKISS": 120,
+    "TOGEPI": 30,
+    "TOGETIC": 60
+   },
+   "note": "Only the shield table is indexed by the casting entity's stars; the 4-star value 240 (also the ?? fallback) is not reachable at the bare factory star counts of these units. Protect duration does not vary by star. The in-source comment lists three values (30/60/120) while the code has a fourth. Whether other mechanics raise a star count was not examined.",
+   "evidence": [
+    "wi-table",
+    "wi-comment",
+    "unit-togepi",
+    "unit-togetic",
+    "unit-togekiss"
+   ]
+  },
+  "positionalConditions": "None geometric. The choice depends only on the current hp fractions of the caster's team members found in board.cells; a lone caster shields and protects itself.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), re-selects the lowest-fraction ally and adds a new shield (shields stack by addition). Protect cannot be stacked or extended: a second cast while the ally is still protected adds only the shield.",
+  "rawVsResolved": "Requested: shield 30/60/120 at 1-3 stars and a 1500 ms protect request. Applied shield = requested after the receiver's Big Eater Belt, the caster's AP, optional crit and the receiver's enraged halving, rounded; the shield only exists if the receiver's hp > 0. Applied protect = 1500 ms if the receiver is neither protected nor enraged, otherwise nothing. The comment's '1 second' is not what runs.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/wish.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight and what requiresTarget = false changes in the generic targeting/casting flow (PP gain, silence, whether a target is required to start the cast) - only the pp >= maxPP && canCast gate in the attack state and castAbility were read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether board.cells can contain dead, benched or otherwise inactive entities of the caster's team, which the team-only filter would not exclude"
+  ],
+  "unresolved": [
+   "Whether a unit with hp 0 (dead but still on the board) or with maxHP 0 can be selected was not traced; the shield is skipped for hp 0 but the protect call would still run",
+   "What happens if board.cells has no entity of the caster's team (the result would be undefined); the caster is itself on the board during a cast, so this is not expected, but it was not traced",
+   "How Rune Protect, Skydive or other conditions interact with the ally protect was not read; only triggerProtect's own guards (already protected, enraged) were read",
+   "Whether the three units ever reach a different star count than the bare factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "addshield-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     504,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt applied to the requested value before the state call"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down on positive values when the holder has Big Eater Belt"
+   },
+   {
+    "id": "addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling (apBoost factor), crit, enraged, rounding"
+   },
+   {
+    "id": "addshield-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": ""
+   },
+   {
+    "id": "addshield-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": ""
+   },
+   {
+    "id": "addshield-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     395,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "applied only if hp > 0; Math.round before adding"
+   },
+   {
+    "id": "protect-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect is set only if not already protected and not enraged; cooldown set to timer"
+   },
+   {
+    "id": "protect-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "this.protect = false",
+    "note": "protect ends when the cooldown runs out"
+   },
+   {
+    "id": "protect-attack",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a protected target's attack hit is unsuccessful and damage is 0"
+   },
+   {
+    "id": "protect-damage",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protected: no death, takenDamage 0"
+   },
+   {
+    "id": "protect-special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect blocks ability damage"
+   },
+   {
+    "id": "protect-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "heal is skipped while protected"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1285,
+     1285
+    ],
+    "symbol": "AbilityStrategies[Ability.WISH]",
+    "expect": "[Ability.WISH]: new WishStrategy()",
+    "note": ""
+   },
+   {
+    "id": "wi-class",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "WishStrategy",
+    "expect": "requiresTarget = false",
+    "note": "class overrides requiresTarget to false; canCritByDefault is not overridden"
+   },
+   {
+    "id": "wi-super",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "WishStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation (target is null)"
+   },
+   {
+    "id": "wi-select",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     10,
+     14
+    ],
+    "symbol": "lowest ally",
+    "expect": "board.cells.filter(",
+    "note": "every entity on the board whose team equals the caster's team, the caster included, sorted ascending by hp / maxHP; the first is taken"
+   },
+   {
+    "id": "wi-sort",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "sort",
+    "expect": "a.hp / a.maxHP - b.hp / b.maxHP",
+    "note": "comparison on current hp fraction"
+   },
+   {
+    "id": "wi-table",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "shield table",
+    "expect": "const shield = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw shield by caster stars, 240 fallback"
+   },
+   {
+    "id": "wi-shield",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "shield call",
+    "expect": "lowestHealthAlly.addShield(shield, pokemon, 1, crit)",
+    "note": "shield on the chosen ally, caster as source, apBoost 1, crit flag of the cast"
+   },
+   {
+    "id": "wi-protect",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "protect call",
+    "expect": "lowestHealthAlly.status.triggerProtect(1500)",
+    "note": "protect requested for 1500 ms (the comment above says 1 second)"
+   },
+   {
+    "id": "wi-comment",
+    "file": "app/core/abilities/wish.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "comment",
+    "expect": "Grant 30/60/120 shield and 1 second Protect",
+    "note": "the comment lists 30/60/120 and 1 second; the code has a fourth value 240 and 1500 ms"
+   },
+   {
+    "id": "cells-type",
+    "file": "app/core/board.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "Board.cells",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": "board cells hold an entity or undefined"
+   },
+   {
+    "id": "unit-togepi",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2768,
+     2781
+    ],
+    "symbol": "class Togepi",
+    "expect": "skill = Ability.WISH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-togetic",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2783,
+     2800
+    ],
+    "symbol": "class Togetic",
+    "expect": "skill = Ability.WISH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-togekiss",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2802,
+     2818
+    ],
+    "symbol": "class Togekiss",
+    "expect": "skill = Ability.WISH",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
