@@ -1,0 +1,829 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TORCH_SONG",
+ "kind": "ability",
+ "identifier": "TORCH_SONG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261029T054143Z"
+ },
+ "record": {
+  "ability": "TORCH_SONG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The three units in appliesTo declare TORCH_SONG: Fuecoco (1 star), Crocalor (2 stars), Skeledirge (3 stars). The strategy is shared; the only star-indexed value is the AP gain per flame. Units sharing the identifier but not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "FUECOCO",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "TORCH_SONG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CROCALOR",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 3,
+    "declaredSkill": "TORCH_SONG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKELEDIRGE",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 3,
+    "declaredSkill": "TORCH_SONG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FUECOCO": {
+    "evidence": [
+     "unit-fuecoco"
+    ]
+   },
+   "CROCALOR": {
+    "evidence": [
+     "unit-crocalor"
+    ]
+   },
+   "SKELEDIRGE": {
+    "evidence": [
+     "unit-skeledirge"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TORCH_SONG] = new TorchSongStrategy()",
+   "strategy": "TorchSongStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "req",
+    "super",
+    "base-pp"
+   ]
+  },
+  "summary": "Needs no target. After the PP spend the strategy schedules round(4 x (1 + AP/100) x critPower-if-crit) flames at cast time, flame i firing 100 x i ms later. Each flame is aimed at a random enemy (uniform over the enemies on the board at cast time, repeats possible, fixed when scheduled). When a flame fires the caster gains the table AP (1/2/3/6 by stars) whether or not the target is still alive; if the target is alive it takes special damage of 0.5 x the caster's ATK read at cast time (no AP scaling, no crit), and with a luck-adjusted 30% chance is burned for 2000 ms (burning deals 5% of its max HP per second as true damage).",
+  "targeting": {
+   "who": "random enemies, chosen per flame at cast time from all enemies on the board",
+   "needsTarget": false,
+   "note": "Flames can repeat on the same enemy. If no enemy exists at cast time no flame is scheduled (and the caster gains no AP). Targets that die before their flame fires are skipped for damage and burn but the AP gain still happens.",
+   "evidence": [
+    "enemies",
+    "foreach",
+    "pick",
+    "rand",
+    "guard",
+    "hp-check"
+   ]
+  },
+  "geometry": {
+   "shape": "no geometry: any enemy on the board can be chosen",
+   "evidence": [
+    "enemies",
+    "pick"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "count",
+    "target": "flames",
+    "declaredRaw": {
+     "base": 4,
+     "note": "author comment: [4,SP] flames"
+    },
+    "scaling": "nbFlames = Math.round(4 x (1 + caster AP/100) x (critPower if the cast crit else 1)); evaluated once at cast time with the AP the caster has then. A non-positive result schedules none.",
+    "resolution": "requested 4 -> applied round(4 x AP factor x crit factor); each flame is a DelayedCommand with delay 100 x i ms on the caster's command list, executed by the caster's state update while the caster is updated.",
+    "evidence": [
+     "comment",
+     "nb",
+     "loop",
+     "pick",
+     "cmd",
+     "delay",
+     "cmd-cls",
+     "cmd-run",
+     "cmd-upd"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "the flame's random enemy (if alive when the flame fires)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "factor": 0.5,
+     "of": "caster ATK (pokemon.atk read at cast time)"
+    },
+    "scaling": "requested = 0.5 x the caster's current ATK, captured when the ability is cast. handleSpecialDamage is called with crit false and apBoost false, so the caster's AP and crit do not scale the flame (they only change the number of flames). DOUBLE_DAMAGE x2 and strange-steam x1.2 may still apply inside handleSpecialDamage; its crit branch is not taken because crit is passed as false.",
+    "resolution": "requested (0.5 x ATK) -> applied (= requested here, modulo DOUBLE_DAMAGE / strange steam) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; takenDamage (unused) = shield damage + min(residual, current HP), rounded. Blocked by protect / skydiving / magicBounce (a bounce may reflect damage to the caster unless it holds Protective Pads). Skipped when the target's hp is 0 or less at execution.",
+    "evidence": [
+     "dmg-flame",
+     "dmg",
+     "dmg-args",
+     "hp-check",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-dead",
+     "hd-def",
+     "hd-shield",
+     "hd-hp",
+     "hd-round"
+    ]
+   },
+   {
+    "kind": "buff",
+    "target": "caster",
+    "stat": "ability power",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 6,
+      "fallback": 6
+     },
+     "unit": "AP per flame"
+    },
+    "perUnitRaw": {
+     "FUECOCO": 1,
+     "CROCALOR": 2,
+     "SKELEDIRGE": 3
+    },
+    "scaling": "requested = table value by the caster's stars, per flame fired. addAbilityPower(value, caster, apBoost 0, crit false): rounded, then Big Eater Belt on the caster (x1.25 rounded down, positive values), Twist Band irrelevant for a positive value; a NULLIFY_BANDANNA holder gains round(0.2 x value) ATK instead of AP; AP is floored at -100.",
+    "resolution": "requested (table) -> applied (after Nullify Bandanna / Big Eater Belt) -> AP increased by that amount on the caster for the fight (permanent false). The gain happens at execution, before the target's alive check, so it also happens for flames whose target already died. AP gained raises later damage of other abilities but not the flame count already scheduled for this cast.",
+    "evidence": [
+     "ap-tbl",
+     "ap-call",
+     "bcast",
+     "ap-fn",
+     "ap-nullify",
+     "ap-belt",
+     "ap-round"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "burn",
+    "target": "the flame's enemy",
+    "declaredRaw": {
+     "chance": 0.3,
+     "duration_ms": 2000,
+     "unit": "probability (before luck) / ms (requested)"
+    },
+    "scaling": "chance: 0.3 raised to the exponent (1 - caster luck/100) (capped at 1); no AP or crit scaling of the chance or the 2000 ms. The target's duration reductions apply (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then x(1 - 0.1 per ODD_KEYSTONE)).",
+    "applicationOrder": "after the flame's damage call, only if the target's hp was above 0 when the flame fired",
+    "guards": "not applied with IMMUNITY_BURN, runeProtect or a WATER_BUBBLE passive; the burn timer (and burn origin) is replaced only when the new reduced duration is longer than the remaining burnCooldown; a RAWST_BERRY holder eats the berry; GUTS / WELL_BAKED / MAGMARIZER side effects exist (see status code)",
+    "effectInCombat": "while burning, one tick per 1000 ms of 5% of the burning unit's max HP as TRUE damage attributed to the burn origin, then weather (DROUGHT x1.3, RAIN x0.7), ASSAULT_VEST x0.5, duration-effect reductions, zero for WELL_BAKED or MAGMARIZER holders; also halves the burning unit's received heals (handleHeal)",
+    "evidence": [
+     "chance",
+     "chance-fn",
+     "burn",
+     "burn-fn",
+     "burn-guard",
+     "burn-red",
+     "burn-fn2",
+     "burn-longer",
+     "burn-tick",
+     "burn-true",
+     "burn-cd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "FUECOCO": 1,
+    "CROCALOR": 2,
+    "SKELEDIRGE": 3
+   },
+   "declaredRawApPerFlame": {
+    "FUECOCO": 1,
+    "CROCALOR": 2,
+    "SKELEDIRGE": 3
+   },
+   "note": "only the AP gain per flame is indexed by the casting entity's stars (6 for 4 stars is not reached at the factory star counts of these units); flame count, damage factor, burn chance and burn duration do not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ap-tbl",
+    "unit-fuecoco",
+    "unit-crocalor",
+    "unit-skeledirge"
+   ]
+  },
+  "positionalConditions": "None: any enemy on the board can be chosen, wherever it stands. Needs at least one enemy at cast time.",
+  "repeatedCastsAndModes": "No stored state. Each cast reads the caster's AP and ATK at that moment; AP gained from earlier flames raises the flame count of later casts. Burn from different casts only extends if longer. Pending flames stay on the caster's command list and fire as long as the caster is updated.",
+  "rawVsResolved": "Declared raw: 4 flames, flame damage 0.5 x ATK (special), 30% burn for 2000 ms, +1/2/3 AP per flame for the listed stars. Requested = these figures; applied = flame count after AP and crit, AP gain after Big Eater Belt / Nullify Bandanna, burn chance after luck and burn duration after the target's reductions; takenDamage of each flame is not used by the strategy. The three amounts (requested / applied / takenDamage) differ for the damage only after handleDamage's defence step, shield and min-1 floor.",
+  "sourceTables": [
+   {
+    "id": "ap-gain",
+    "file": "app/core/abilities/torch-song.ts",
+    "pattern": "const apGainPerFlame = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the abilities base class was read",
+   "Crit resolution - only the crit flag used in the flame count was read",
+   "Whether the caster's command list is advanced while the caster is silenced, frozen, asleep or resurrecting: only that PokemonState.update calls updateCommands at its start was read (caller of PokemonState.update not traced)",
+   "Burn side effects of GUTS_PASSIVE / WELL_BAKED / MAGMARIZER / RAWST_BERRY were only listed, not followed",
+   "Luck: where the caster's luck value comes from was not traced"
+  ],
+  "unresolved": [
+   "Whether pending flames still fire after the caster dies (the command list is on the caster; death handling of commands was not traced)",
+   "Which ATK value pokemon.atk holds at cast time (current, buffed ATK per addAttack; the helper was not read here)",
+   "Whether the caster's AP could reach a value that makes nbFlames 0 or negative (AP is floored at -100, so the product is at least 0)",
+   "Whether the three units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-fuecoco",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1459,
+     1472
+    ],
+    "symbol": "class Fuecoco",
+    "expect": "skill = Ability.TORCH_SONG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-crocalor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1474,
+     1487
+    ],
+    "symbol": "class Crocalor",
+    "expect": "skill = Ability.TORCH_SONG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-skeledirge",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1489,
+     1501
+    ],
+    "symbol": "class Skeledirge",
+    "expect": "skill = Ability.TORCH_SONG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1241,
+     1250
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.TORCH_SONG]: new TorchSongStrategy()",
+    "note": "registry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     1,
+     8
+    ],
+    "symbol": "TorchSongStrategy",
+    "expect": "export class TorchSongStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "req",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     1,
+     9
+    ],
+    "symbol": "TorchSongStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed (canCritByDefault stays false)"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     2,
+     11
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process: PP spend; default animation suppressed (each flame broadcasts its own)"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "comment",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "// Blow out [4,SP] raging flames to random opponents.",
+    "note": "author comment: 4 flames scaled by SP, 50% ATK, 30% burn, AP gain"
+   },
+   {
+    "id": "dmg-flame",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     4,
+     13
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "const damagePerFlame = 0.5 * pokemon.atk",
+    "note": "damage per flame = half the caster's current ATK, fixed at cast time"
+   },
+   {
+    "id": "ap-tbl",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     5,
+     14
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "const apGainPerFlame = [1, 2, 3, 6][pokemon.stars - 1] ?? 6",
+    "note": "AP gained per flame by caster stars"
+   },
+   {
+    "id": "enemies",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     9,
+     18
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "if (tg && pokemon.team != tg.team) {",
+    "note": "every enemy on the board at cast time is a candidate"
+   },
+   {
+    "id": "foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     78
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "row-major scan"
+   },
+   {
+    "id": "nb",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     15,
+     24
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "4 * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1)",
+    "note": "flame count = round(4 x (1 + AP/100) x critPower if crit)"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     17,
+     26
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "for (let i = 0; i < nbFlames; i++) {",
+    "note": "one scheduled flame per count"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     18,
+     27
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "const randomTarget = pickRandomIn(enemies)",
+    "note": "random enemy chosen at cast time, repeats possible; undefined if no enemy"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     38,
+     47
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform pick (undefined on an empty list)"
+   },
+   {
+    "id": "guard",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     19,
+     28
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "if (randomTarget) {",
+    "note": "no enemy -> no flame is scheduled"
+   },
+   {
+    "id": "cmd",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     21,
+     30
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "delayed command on the caster, delay 100 x i ms (next lines)"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     40,
+     49
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "}, 100 * i)",
+    "note": "flame i fires 100 x i ms after the cast"
+   },
+   {
+    "id": "cmd-cls",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     5,
+     14
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "delay counts down; executes when below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     863,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's pending commands are advanced from the state update"
+   },
+   {
+    "id": "cmd-upd",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     883,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "only caller of updateCommands: runs at the start of the caster's state update"
+   },
+   {
+    "id": "bcast",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     22,
+     31
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation per flame, at execution time"
+   },
+   {
+    "id": "ap-call",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     26,
+     35
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "pokemon.addAbilityPower(apGainPerFlame, pokemon, 0, false)",
+    "note": "AP gain applied at execution, before the alive check of the target"
+   },
+   {
+    "id": "ap-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     612,
+     621
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "addAbilityPower(",
+    "note": "helper: Nullify Bandanna converts to ATK; belt / twist; floor -100"
+   },
+   {
+    "id": "ap-nullify",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     620,
+     629
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false) // AP is gained as Attack instead",
+    "note": "a NULLIFY_BANDANNA holder gains 20% of the value as attack, no AP"
+   },
+   {
+    "id": "ap-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     630,
+     636
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt on the receiver (here the caster): x1.25 rounded down on positive values"
+   },
+   {
+    "id": "ap-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     625,
+     634
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "apBoost 0, crit false: no scaling beyond the rounded value"
+   },
+   {
+    "id": "hp-check",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     27,
+     36
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "if (randomTarget.hp > 0) {",
+    "note": "target must be alive at execution for damage and burn"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     30,
+     37
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "randomTarget.handleSpecialDamage(",
+    "note": "special damage per flame"
+   },
+   {
+    "id": "dmg-args",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     34,
+     43
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "damagePerFlame, board, AttackType.SPECIAL, pokemon, false, false",
+    "note": "crit false and apBoost false: no AP and no crit on the flame damage"
+   },
+   {
+    "id": "chance",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     36,
+     45
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "if (chance(0.3, pokemon)) {",
+    "note": "30% base burn chance, luck-adjusted"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     2,
+     11
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "luck exponent: probability^(1 - luck/100), capped at 1"
+   },
+   {
+    "id": "burn",
+    "file": "app/core/abilities/torch-song.ts",
+    "lines": [
+     37,
+     46
+    ],
+    "symbol": "TorchSongStrategy.process",
+    "expect": "randomTarget.status.triggerBurn(2000, randomTarget, pokemon)",
+    "note": "burn requested for 2000 ms, caster as origin"
+   },
+   {
+    "id": "burn-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     390,
+     397
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "triggerBurn(",
+    "note": "definition"
+   },
+   {
+    "id": "burn-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, runeProtect or WATER_BUBBLE"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     401,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER, ODD_KEYSTONE)"
+   },
+   {
+    "id": "burn-fn2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1273,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "reduction helper"
+   },
+   {
+    "id": "burn-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     403,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "timer and origin replaced only if longer"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     440,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "burn tick: 5% of the burning unit's max HP, then weather / item / effect reductions, once per 1000 ms, TRUE damage"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     480,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": "burn damage is true damage with the burn origin as attacker"
+   },
+   {
+    "id": "burn-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     482,
+     491
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "this.burnDamageCooldown = 1000",
+    "note": "1000 ms between ticks"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     349,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "if ( this.status.protect || this.status.skydiving || this.status.magicBounce ) {",
+    "note": "protect / skydiving / magicBounce: returns takenDamage 0 (magic bounce may reflect)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     391,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP scaling of the requested damage"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     423,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite on the target"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     426,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     441,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "dead / resurrecting target: takenDamage 0"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "damage absorbed by the shield counts in takenDamage"
+   },
+   {
+    "id": "hd-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     640,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage is capped by the target's current HP"
+   },
+   {
+    "id": "hd-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     797,
+     806
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "takenDamage rounded on return"
+   },
+   {
+    "id": "hd-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker-side multipliers (enraged x2, fields x1.2) precede the SPE_DEF division and the min-1 floor (core-mechanics section A)"
+   }
+  ]
+ }
+}
