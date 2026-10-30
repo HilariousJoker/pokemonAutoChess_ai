@@ -1,0 +1,339 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/PILLAR",
+ "kind": "passive",
+ "identifier": "PILLAR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T054118Z"
+ },
+ "record": {
+  "passive": "PILLAR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CONKELDURR",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GURDURR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TIMBURR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COLUMN_CRUSH",
+    "declaredPassive": "PILLAR",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CONKELDURR": {
+    "evidence": [
+     "unit-conkeldurr"
+    ]
+   },
+   "GURDURR": {
+    "evidence": [
+     "unit-gurdurr"
+    ]
+   },
+   "TIMBURR": {
+    "evidence": [
+     "unit-timburr"
+    ]
+   }
+  },
+  "kind": "PassiveEffects entry with OnChangePositionEffect and OnEvolutionEffect (plus afterSell on the unit classes) that keep a player's board pillars in sync; not a combat effect",
+  "summary": "Passive.PILLAR manages Pillar units on the player's board outside combat. Its PassiveEffects entry has an OnChangePositionEffect and an OnEvolutionEffect that both call player.updatePillars(); the three unit classes also call it from afterSell. updatePillars counts, among the player's units whose baseline is TIMBURR and that are not on the bench (positionY not 0), the expected pillars per star rank: one per Timburr (rank 1 = PILLAR_WOOD), one per Gurdurr (rank 2 = PILLAR_IRON) and two per Conkeldurr (rank 3 = PILLAR_CONCRETE). For each rank, if fewer pillars with that name are on the board it creates the missing ones, each placed at the first empty cell found by getFirstAvailablePositionOnBoard(board, 1) (rows 3, 2, 1, x from 0 to 7; nothing is created if no cell is free); if more exist it deletes the surplus ones. The pillars are INANIMATE units that cannot hold items or be sold: wood hp 100 / def 2 / speDef 2, iron hp 200 / def 6 / speDef 6, concrete hp 300 / def 10 / speDef 10, atk 0, speed 0. These are base class values and the requested pillar stats; any combat modification of them is not covered here. The combat use of a pillar (COLUMN_CRUSH jumping to an existing team pillar, or building one from the Pillars table when none exists) belongs to the ability record, not to this one.",
+  "triggers": [
+   "A unit with the passive changes position (OnChangePositionEffect; game command, and bot team updates with unchanged position)",
+   "A unit with the passive is the evolved result of an evolution (OnEvolutionEffect)",
+   "A Timburr-family unit is sold (afterSell on the unit classes)"
+  ],
+  "effects": [
+   {
+    "kind": "board_pillar_sync",
+    "declaredRaw": "expected pillars: 1 wood per Timburr, 1 iron per Gurdurr, 2 concrete per Conkeldurr, counting only non-bench units",
+    "scaling": "none (counts, not amounts)",
+    "resolution": "requested count is created only as far as free cells exist on rows 1..3; surplus pillars of a name are removed regardless of position; pillars are matched by name only",
+    "evidence": [
+     "entry",
+     "update",
+     "free-cell",
+     "onbench",
+     "baseline",
+     "pillars-enum",
+     "effect-classes"
+    ]
+   },
+   {
+    "kind": "pillar_stats",
+    "declaredRaw": "PILLAR_WOOD hp 100 def 2 speDef 2; PILLAR_IRON hp 200 def 6 speDef 6; PILLAR_CONCRETE hp 300 def 10 speDef 10",
+    "scaling": "none; base class stats",
+    "resolution": "raw class stats of the pillar units; passive INANIMATE, no items, cannot be sold",
+    "evidence": [
+     "pillar-wood",
+     "pillar-iron",
+     "pillar-concrete"
+    ]
+   },
+   {
+    "kind": "update_timing",
+    "declaredRaw": "called on move, evolution and sell",
+    "scaling": "none",
+    "resolution": "not called at simulation start or during combat by this entry; a unit bought directly to the bench or board without a move or evolution is not covered by these callers",
+    "evidence": [
+     "call-move",
+     "call-evolve",
+     "call-bot",
+     "call-sell",
+     "unit-timburr",
+     "unit-gurdurr",
+     "unit-conkeldurr"
+    ]
+   },
+   {
+    "kind": "combat_link",
+    "declaredRaw": "COLUMN_CRUSH looks for any team unit named in Pillars",
+    "scaling": "not evaluated here",
+    "resolution": "ability behaviour is a separate record",
+    "evidence": [
+     "crush-use"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only non-bench units (positionY not 0) count toward expected pillars.",
+   "A new pillar needs a free cell on rows 1 to 3; if none exists it is silently not created.",
+   "Pillars are matched by name, and the count covers every Timburr-family unit of the player, not only the one that triggered the call."
+  ],
+  "resetBehaviour": "Stateless: each call recomputes expected versus current pillars from the player's board.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether other code paths (buy, bench-to-board drag handled outside onPokemonChangePosition, round start) also trigger OnChangePositionEffect were not enumerated",
+   "How Pillar units are copied into the simulation and their combat stats modified (synergies, items) was not read",
+   "The COLUMN_CRUSH ability body (separate record)"
+  ],
+  "unresolved": [
+   "Surplus removal deletes from the list of existing pillars in board order, not by position; which individual pillar is removed was not further analysed.",
+   "Whether a Timburr bought straight onto a board cell triggers an update without a move was not traced; only callers found by grepping updatePillars and OnChangePositionEffect / OnEvolutionEffect in app/ are cited.",
+   "The passive and the ability-side pillar both use the Pillars table; Pillars[stars - 1] in COLUMN_CRUSH uses the casting unit's stars.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1742,
+     1749
+    ],
+    "symbol": "PassiveEffects[Passive.PILLAR]",
+    "expect": "player.updatePillars()",
+    "note": "OnChangePositionEffect and OnEvolutionEffect both just call player.updatePillars()"
+   },
+   {
+    "id": "update",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     727,
+     763
+    ],
+    "symbol": "Player.updatePillars",
+    "expect": "p.name === Pkm.CONKELDURR ? 2 : 1",
+    "note": "expected pillars per rank from non-bench Timburr-family units; adds missing pillars on free cells or deletes surplus pillars from the player's board"
+   },
+   {
+    "id": "free-cell",
+    "file": "app/utils/board.ts",
+    "lines": [
+     34,
+     59
+    ],
+    "symbol": "getFirstAvailablePositionOnBoard",
+    "expect": "rowsOrder = [3, 2, 1]",
+    "note": "range 1 scans rows 3, 2, 1 and x 0..7 for the first empty cell; row 0 (bench) is never used; returns undefined when full"
+   },
+   {
+    "id": "onbench",
+    "file": "app/utils/board.ts",
+    "lines": [
+     8,
+     10
+    ],
+    "symbol": "isOnBench",
+    "expect": "return pokemon.positionY === 0",
+    "note": "bench is positionY 0"
+   },
+   {
+    "id": "baseline",
+    "file": "app/models/pokemon-factory.ts",
+    "lines": [
+     71,
+     110
+    ],
+    "symbol": "getPokemonBaseline",
+    "expect": "return PkmFamily[name]",
+    "note": "default branch maps a unit to its family root; TIMBURR / GURDURR / CONKELDURR resolve to TIMBURR (no special case for them)"
+   },
+   {
+    "id": "pillars-enum",
+    "file": "app/types/enum/Pokemon.ts",
+    "lines": [
+     3817,
+     3821
+    ],
+    "symbol": "Pillars",
+    "expect": "Pkm.PILLAR_CONCRETE",
+    "note": "Pillars[rank]: rank 0 wood, 1 iron, 2 concrete"
+   },
+   {
+    "id": "pillar-wood",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17194,
+     17209
+    ],
+    "symbol": "PillarWood",
+    "expect": "passive = Passive.INANIMATE",
+    "note": "hp 100, def 2, speDef 2, atk 0, speed 0, canHoldItems false, canBeSold false"
+   },
+   {
+    "id": "pillar-iron",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17211,
+     17226
+    ],
+    "symbol": "PillarIron",
+    "expect": "hp = 200",
+    "note": "hp 200, def 6, speDef 6"
+   },
+   {
+    "id": "pillar-concrete",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17228,
+     17243
+    ],
+    "symbol": "PillarConcrete",
+    "expect": "hp = 300",
+    "note": "hp 300, def 10, speDef 10"
+   },
+   {
+    "id": "unit-timburr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17138,
+     17155
+    ],
+    "symbol": "Timburr",
+    "expect": "player.updatePillars()",
+    "note": "TIMBURR: 1 star, maxPP 100, range 1, skill COLUMN_CRUSH; afterSell calls updatePillars"
+   },
+   {
+    "id": "unit-gurdurr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17157,
+     17174
+    ],
+    "symbol": "Gurdurr",
+    "expect": "player.updatePillars()",
+    "note": "GURDURR: 2 stars, maxPP 100, range 1, skill COLUMN_CRUSH; afterSell calls updatePillars"
+   },
+   {
+    "id": "unit-conkeldurr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17176,
+     17192
+    ],
+    "symbol": "Conkeldurr",
+    "expect": "player.updatePillars()",
+    "note": "CONKELDURR: 3 stars, maxPP 100, range 1, skill COLUMN_CRUSH; afterSell calls updatePillars"
+   },
+   {
+    "id": "effect-classes",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     105,
+     125
+    ],
+    "symbol": "OnChangePositionEffect / OnEvolutionEffect",
+    "expect": "export class OnEvolutionEffect extends Effect",
+    "note": "hook classes used by the entry"
+   },
+   {
+    "id": "call-move",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     2495,
+     2512
+    ],
+    "symbol": "onPokemonChangePosition",
+    "expect": "if (effect instanceof OnChangePositionEffect) {",
+    "note": "player moves a unit: passive OnChangePositionEffect applied"
+   },
+   {
+    "id": "call-evolve",
+    "file": "app/core/evolution-logic/evolution-manager.ts",
+    "lines": [
+     84,
+     90
+    ],
+    "symbol": "EvolutionManager.afterEvolve",
+    "expect": "if (effect instanceof OnEvolutionEffect) {",
+    "note": "after evolution the evolved unit's OnEvolutionEffect is applied"
+   },
+   {
+    "id": "call-bot",
+    "file": "app/core/bot.ts",
+    "lines": [
+     95,
+     100
+    ],
+    "symbol": "bot updatePlayerTeam",
+    "expect": "if (effect instanceof OnChangePositionEffect) {",
+    "note": "bots also apply OnChangePositionEffect with unchanged position"
+   },
+   {
+    "id": "call-sell",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     996,
+     1000
+    ],
+    "symbol": "sell command",
+    "expect": "pokemon.afterSell(player)",
+    "note": "selling a unit calls its afterSell hook, which updates pillars"
+   },
+   {
+    "id": "crush-use",
+    "file": "app/core/abilities/column-crush.ts",
+    "lines": [
+     10,
+     22
+    ],
+    "symbol": "ColumnCrushStrategy.process",
+    "expect": "isIn(Pillars, e.name)",
+    "note": "COLUMN_CRUSH uses a pillar on the board in combat (separate ability record); the passive itself only manages the pillars on the player's board"
+   }
+  ]
+ }
+}
