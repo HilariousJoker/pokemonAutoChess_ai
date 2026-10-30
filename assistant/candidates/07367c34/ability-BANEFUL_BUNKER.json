@@ -1,0 +1,814 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BANEFUL_BUNKER",
+ "kind": "ability",
+ "identifier": "BANEFUL_BUNKER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T233953Z"
+ },
+ "record": {
+  "ability": "BANEFUL_BUNKER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare BANEFUL_BUNKER: Toxapex (2 stars) and Mareanie (1 star). The strategy is shared; unit differences are the star count (both maxPP 100, range 1). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "MAREANIE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BANEFUL_BUNKER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TOXAPEX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BANEFUL_BUNKER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MAREANIE": {
+    "evidence": [
+     "unit-mareanie"
+    ]
+   },
+   "TOXAPEX": {
+    "evidence": [
+     "unit-toxapex"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BANEFUL_BUNKER] = new BanefulBunkerStrategy()",
+   "strategy": "BanefulBunkerStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bb-class",
+    "bb-super",
+    "base",
+    "base-flags",
+    "cast",
+    "ms-gate",
+    "can-cast"
+   ]
+  },
+  "summary": "Needs no target (cast from the moving state with target null once pp >= maxPP and canCast). For 2000 ms the caster gains protect (unless it is already protected or enraged), and a retaliation effect is attached to it: whenever an attacker whose attack was just processed stands at Chebyshev distance exactly 1 from the caster, that attacker takes SPECIAL damage (requested 10 at 1 star, 20 at 2 stars; 30 at 3 stars, 50 at 4 stars or as the ?? fallback) and gets one poison stack of 3000 ms with the caster as origin. At the moment of the cast every enemy in the 8 adjacent cells is forced to retarget the caster (taunt). The retaliation effect is added even when protect was not applied, and lasts 2000 ms regardless.",
+  "targeting": {
+   "who": "self (protect, retaliation effect); the taunt hits every enemy-team entity in the 8 cells around the caster; retaliation hits each adjacent attacker individually",
+   "needsTarget": false,
+   "note": "Taunt: Board.getAdjacentCells (row-major, centre excluded) and cell.value.team !== caster team; setTarget(caster) with no range, status or targettability check. Retaliation: evaluated in the ATTACKER's onAttack (called after every attack, successful or not, including attacks the protect turned into zero damage), using the positions at that moment; attackers at distance 2 or more (ranged) trigger nothing. Only basic attacks reach this path (onAttack); ability damage does not call OnAttackReceivedEffect in the code read.",
+   "evidence": [
+    "bb-taunt",
+    "adj",
+    "set-target",
+    "bb-dist",
+    "dist-c",
+    "on-attack-recv",
+    "on-attack-doc",
+    "on-attack-call",
+    "get-effects"
+   ]
+  },
+  "geometry": {
+   "shape": "taunt on the 8 surrounding cells at cast time; retaliation condition is Chebyshev distance 1 (the same 8 cells) at each received attack",
+   "evidence": [
+    "bb-taunt",
+    "adj",
+    "bb-dist",
+    "dist-c"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "protect",
+    "target": "the caster",
+    "declaredRaw": {
+     "durationMs": 2000,
+     "label": "requested protect duration"
+    },
+    "perUnitRaw": {
+     "MAREANIE": 2000,
+     "TOXAPEX": 2000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "applied only if the caster is not already protected and not enraged (protect cannot be stacked or refreshed); ends when protectCooldown - dt <= 0. While protected: basic attacks on it do 0 damage and count as unsuccessful, ability damage through handleSpecialDamage/handleDamage returns takenDamage 0, and it receives no healing.",
+    "evidence": [
+     "bb-dur",
+     "protect-trig",
+     "protect-upd",
+     "protect-basic",
+     "special-block",
+     "hd-protect",
+     "protect-heal"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent attacker, per attack received while the effect lasts",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 30,
+      "4": 50,
+      "fallback": 50
+     },
+     "label": "requested damage (raw), per retaliation"
+    },
+    "perUnitRaw": {
+     "MAREANIE": 10,
+     "TOXAPEX": 20
+    },
+    "scaling": "requested = table[stars-1] ?? 50 using the bunker's stars when the retaliation runs. handleSpecialDamage with the bunker as attacker: x (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT; the crit argument is the literal false, so no crit multiplier applies even if the cast crit.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef of the attacker), rounds up with a minimum of 1 and lets the attacker's shield absorb first; takenDamage (not stored by this strategy) = shield damage + HP damage, 0 if the attacker is protected / skydiving / magicBounce. One retaliation per received attack (per attack, not per hit-point); several overlapping effects from repeated casts would each retaliate.",
+    "evidence": [
+     "bb-table",
+     "bb-hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "taunt",
+    "target": "every enemy in the 8 adjacent cells at cast time",
+    "declaredRaw": {
+     "description": "setTarget(caster) on each adjacent enemy"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "immediate, once; the enemy's target is reassigned without checks for range, status or immunities; it may retarget later through normal targeting.",
+    "evidence": [
+     "bb-taunt",
+     "adj",
+     "set-target"
+    ]
+   },
+   {
+    "kind": "effect_lifetime",
+    "target": "the caster",
+    "declaredRaw": {
+     "durationMs": 2000,
+     "label": "retaliation effect lifetime"
+    },
+    "perUnitRaw": {
+     "MAREANIE": 2000,
+     "TOXAPEX": 2000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "a new OnAttackReceivedEffect is added to the caster's effectsSet at cast and removed by a DelayedCommand pushed on the caster's commands (advanced by the caster's state update; it runs once its delay has dropped below 0), so the effect lasts about 2000 ms of simulation time. It is added whether or not protect was applied.",
+    "evidence": [
+     "bb-effect",
+     "bb-add",
+     "bb-remove",
+     "cmd-run",
+     "cmd-delay"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "POISON",
+    "target": "each adjacent attacker, per retaliation",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "stacks": 1,
+     "label": "requested duration and stacks per retaliation"
+    },
+    "perUnitRaw": {
+     "MAREANIE": 3000,
+     "TOXAPEX": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "a triggerPoison call does nothing if the attacker has IMMUNITY_POISON or runeProtect. Otherwise poisonOrigin = the bunker, stacks + 1 up to 3 (4 if the bunker has VENOMOUS, 5 TOXIC), duration passes through the attacker's reductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per Odd Keystone) and replaces the timer only if longer; GUTS (+5 attack once) and TOXIC_BOOST (+10 once) react; a Pecha Berry holder eats the berry. While poisoned the attacker takes TRUE damage of 5% max HP per stack per tick (reduced by rain, Assault Vest, TOXIC_BOOST, water effects).",
+    "evidence": [
+     "bb-poison",
+     "poison-trig",
+     "poison-max",
+     "poison-dur",
+     "poison-react",
+     "tick",
+     "tick-true",
+     "conf-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MAREANIE": 1,
+    "TOXAPEX": 2
+   },
+   "declaredRawDamage": {
+    "MAREANIE": 10,
+    "TOXAPEX": 20
+   },
+   "note": "Only the retaliation damage depends on stars (index stars-1 of the caster at retaliation time). Protect duration, effect duration, poison and taunt are star-independent. 30 (3 stars) and 50 (4 stars / fallback) are not reachable by the listed units at their bare factory stars.",
+   "evidence": [
+    "bb-table",
+    "unit-mareanie",
+    "unit-toxapex"
+   ]
+  },
+  "positionalConditions": "Taunt reaches only the 8 surrounding cells at cast time. Retaliation requires Chebyshev distance exactly 1 between the caster and the attacker at the moment of each attack; the caster can move during the 2000 ms.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and adds its own effect object removed after 2000 ms by a DelayedCommand (advanced by the caster's state update). A recast while protect is still running does not re-apply or extend protect, but adds a second retaliation effect, so overlapping effects each fire.",
+  "rawVsResolved": "Requested: protect 2000 ms; retaliation damage 10 (Mareanie, 1 star) / 20 (Toxapex, 2 stars); poison 1 stack, 3000 ms. Applied damage = requested x (1 + AP/100) x optional DOUBLE_DAMAGE / steam, no crit (literal false), then SPE_DEF division, round up and minimum 1; takenDamage includes shield damage and is not used by the strategy. Applied protect only if not already protected/enraged. Applied poison duration after the attacker's reductions, stack capped, blocked by immunity/rune protect.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which units attack the bunker and when in a real fight - only the onAttack path (pokemon-state.ts:284, pokemon-entity.ts:953) was read",
+   "The full list of callers of onAttack (whether any ability or special attack route calls it) was not enumerated",
+   "Crit resolution of the cast - irrelevant to the retaliation, which passes crit false; only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling), the retargeting behaviour after the taunt and the poison tick's later branches were not read",
+   "What enraged status is and where it is set was not traced"
+  ],
+  "unresolved": [
+   "Whether a basic attack that the protect nullified still counts as received for retaliation: onAttack is documented as called after every attack, successful or not, and the effect runs from it, so it is read as yes; not exercised",
+   "Retaliation uses the bunker's stars at retaliation time (not cast time); only matters if stars can change within 2000 ms, not examined",
+   "Routing: the queue record lists no routing uncertainty for this identifier",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-mareanie",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20354,
+     20368
+    ],
+    "symbol": "class Mareanie",
+    "expect": "skill = Ability.BANEFUL_BUNKER",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-toxapex",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20370,
+     20383
+    ],
+    "symbol": "class Toxapex",
+    "expect": "skill = Ability.BANEFUL_BUNKER",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     758,
+     758
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.BANEFUL_BUNKER]: new BanefulBunkerStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bb-class",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     9,
+     10
+    ],
+    "symbol": "BanefulBunkerStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed; canCritByDefault inherited false"
+   },
+   {
+    "id": "bb-super",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "bb-dur",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "process",
+    "expect": "pokemon.status.triggerProtect(duration)",
+    "note": "duration 2000 ms; protect on the caster"
+   },
+   {
+    "id": "bb-effect",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "process",
+    "expect": "const bunkerEffect = new OnAttackReceivedEffect(",
+    "note": "retaliation effect created per cast"
+   },
+   {
+    "id": "bb-dist",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     17,
+     24
+    ],
+    "symbol": "bunkerEffect",
+    "expect": "=== 1",
+    "note": "retaliates only when Chebyshev distance bunker-attacker is exactly 1"
+   },
+   {
+    "id": "bb-table",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "bunkerEffect",
+    "expect": "const damage = [10, 20, 30, 50][pokemon.stars - 1] ?? 50",
+    "note": "requested SPECIAL damage by the bunker's stars at retaliation time"
+   },
+   {
+    "id": "bb-hit",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     26,
+     32
+    ],
+    "symbol": "bunkerEffect",
+    "expect": "attacker.handleSpecialDamage(",
+    "note": "SPECIAL damage to the attacker, bunker as attacker, crit false"
+   },
+   {
+    "id": "bb-poison",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "bunkerEffect",
+    "expect": "attacker.status.triggerPoison(3000, attacker, pokemon)",
+    "note": "one poison stack, 3000 ms, origin = bunker"
+   },
+   {
+    "id": "bb-add",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "process",
+    "expect": "pokemon.effectsSet.add(bunkerEffect)",
+    "note": "effect registered on the caster"
+   },
+   {
+    "id": "bb-remove",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     38,
+     43
+    ],
+    "symbol": "process",
+    "expect": "() => pokemon.effectsSet.delete(bunkerEffect)",
+    "note": "removed by a DelayedCommand after the 2000 ms duration"
+   },
+   {
+    "id": "bb-taunt",
+    "file": "app/core/abilities/baneful-bunker.ts",
+    "lines": [
+     45,
+     55
+    ],
+    "symbol": "process",
+    "expect": "cell.value.setTarget(pokemon)",
+    "note": "every adjacent enemy retargets the caster immediately at cast"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "8 neighbouring on-board cells, row-major, centre excluded"
+   },
+   {
+    "id": "dist-c",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "set-target",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     323,
+     327
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "this.targetEntityId = target.id",
+    "note": "sets target entity id and coordinates"
+   },
+   {
+    "id": "on-attack-recv",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     953,
+     965
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "target.getEffects(OnAttackReceivedEffect).forEach((effect) => {",
+    "note": "called from the ATTACKER's onAttack after every attack, successful or not; effects of the attacked unit run with attacker = this"
+   },
+   {
+    "id": "on-attack-doc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     910,
+     910
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "called after every attack, no matter if it's successful or not",
+    "note": ""
+   },
+   {
+    "id": "on-attack-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     284,
+     294
+    ],
+    "symbol": "AttackingState attack",
+    "expect": "pokemon.onAttack({",
+    "note": "onAttack is called after damage handling of a basic attack"
+   },
+   {
+    "id": "get-effects",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1793,
+     1801
+    ],
+    "symbol": "PokemonEntity.getEffects",
+    "expect": "effect instanceof effectClass",
+    "note": "effects of the class in effectsSet, sorted by priority"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     873
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "entity commands are advanced each update"
+   },
+   {
+    "id": "cmd-delay",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "executes when delay drops below 0"
+   },
+   {
+    "id": "protect-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect is not applied (or stacked) when already protected or enraged"
+   },
+   {
+    "id": "protect-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "if (this.protectCooldown - dt <= 0) {",
+    "note": "protect ends when the cooldown runs out"
+   },
+   {
+    "id": "protect-basic",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "AttackingState attack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a protected target takes no damage from basic attacks (attack counted unsuccessful)"
+   },
+   {
+    "id": "protect-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "no healing while protected"
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "origin = bunker; cap 3 (4 VENOMOUS, 5 TOXIC on origin); one stack per call"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "poison-react",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "GUTS +5 attack, TOXIC_BOOST +10 attack once; a Pecha Berry holder eats the berry"
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick 5% max HP per stack"
+   },
+   {
+    "id": "tick-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     651,
+     657
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "attackType: AttackType.TRUE",
+    "note": "TRUE tick with the poison origin as attacker"
+   },
+   {
+    "id": "conf-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then Odd Keystone"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "canCast false => no cast; crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ms-gate",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     40,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "requiresTarget false: cast from the moving state with target null once pp >= maxPP and canCast"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     255
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "silence, Nullify Bandanna, TELEPORT_NEXT_ATTACK stop casting"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once, effect then removed"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   }
+  ]
+ }
+}
