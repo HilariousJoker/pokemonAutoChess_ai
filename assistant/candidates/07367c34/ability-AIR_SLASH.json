@@ -1,0 +1,412 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AIR_SLASH",
+ "kind": "ability",
+ "identifier": "AIR_SLASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T114135Z"
+ },
+ "record": {
+  "ability": "AIR_SLASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "TAILLOW and SWELLOW declare AIR_SLASH (passive NONE in the catalog). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "TAILLOW",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "AIR_SLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWELLOW",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "AIR_SLASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TAILLOW": {
+    "evidence": [
+     "unit-taillow"
+    ]
+   },
+   "SWELLOW": {
+    "evidence": [
+     "unit-swellow"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AIR_SLASH] = new AirSlashStrategy()",
+   "strategy": "AirSlashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-as",
+    "as-class",
+    "base-flags",
+    "base-pp",
+    "as-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage (25/50/100/200 raw by stars; 25 for TAILLOW 1 star, 50 for SWELLOW 2 stars) plus a 7000 ms flinch on the cast target. The flinch is requested FIRST and unconditionally (it does not depend on the damage dealt, so it is also requested when the hit is then blocked by protect / skydiving / magicBounce), and the damage comes second: a target that already has a shield therefore takes this very hit under the flinch rule, with the reduced damage split into ceil(0.5 x reduced) on the shield and ceil(0.5 x reduced) on HP.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "as-class",
+    "base-flags",
+    "as-flinch",
+    "as-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "as-flinch",
+    "as-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "TAILLOW": 25,
+     "SWELLOW": 50
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. When the target's shield is above 0 and the flinch from this cast is already set, the reduced damage is split 50/50 with ceil on shield and HP, so an odd amount puts one more in total than reduced. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the flinch was already requested. The takenDamage return value is not read by this strategy; its accounting is documented in the BITE record.",
+    "evidence": [
+     "as-dmg",
+     "as-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "flinch-shield"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "the target",
+    "declaredRaw": {
+     "duration": 7000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "before the damage call, unconditional",
+    "guards": "not applied if the target has runeProtect; the duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
+    "combatEffect": "while flinched and while the target's shield is above 0, handleDamage splits the reduced damage into ceil(0.5 x reduced) on the shield and ceil(0.5 x reduced) on HP (BITE record: the only use of status.flinch found in app/core and app/models outside status.ts)",
+    "evidence": [
+     "as-flinch",
+     "flinch-trig",
+     "flinch-shield"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TAILLOW": 1,
+    "SWELLOW": 2
+   },
+   "declaredRawDamage": {
+    "TAILLOW": 25,
+    "SWELLOW": 50
+   },
+   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). maxPP 80 and range 1 for both.",
+   "evidence": [
+    "as-dmg",
+    "unit-taillow",
+    "unit-swellow"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats flinch and damage; a new flinch only extends the timer if longer.",
+  "rawVsResolved": "Declared raw: damage 25/50 (TAILLOW/SWELLOW), flinch 7000 ms requested. Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1), with the flinch shield split when the target has a shield. Flinch duration is reduced by applyStatusDurationReductions and is skipped under runeProtect.",
+  "sourceTables": [
+   {
+    "id": "airSlashDamage",
+    "file": "app/core/abilities/air-slash.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1, the protect / skydiving / magicBounce block and the flinch shield split were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "applyStatusDurationReductions (what shortens the 7000 ms)"
+  ],
+  "unresolved": [
+   "Whether the flinch has other combat effects in files outside app/core and app/models that were searched",
+   "Resurrection and other death-cancelling effects on the target were not enumerated",
+   "Consulted: Status.triggerFlinch, PokemonState.handleDamage flinch/shield branch, handleSpecialDamage, sibling BITE record (flinch and takenDamage accounting)",
+   "TAILLOW and SWELLOW have no passive in the catalog; no other unit sharing the identifier exists in the queue",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-taillow",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14685,
+     14698
+    ],
+    "symbol": "class Taillow",
+    "expect": "skill = Ability.AIR_SLASH",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-swellow",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14700,
+     14712
+    ],
+    "symbol": "class Swellow",
+    "expect": "skill = Ability.AIR_SLASH",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     737,
+     737
+    ],
+    "symbol": "AbilityStrategies[Ability.AIR_SLASH]",
+    "expect": "[Ability.AIR_SLASH]: new AirSlashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "as-class",
+    "file": "app/core/abilities/air-slash.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AirSlashStrategy",
+    "expect": "class AirSlashStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "as-super",
+    "file": "app/core/abilities/air-slash.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "AirSlashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "as-dmg",
+    "file": "app/core/abilities/air-slash.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AirSlashStrategy.process",
+    "expect": "[25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "as-flinch",
+    "file": "app/core/abilities/air-slash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "AirSlashStrategy.process",
+    "expect": "target.status.triggerFlinch(7000, target, pokemon)",
+    "note": "unconditional, requested BEFORE the damage call"
+   },
+   {
+    "id": "as-hit",
+    "file": "app/core/abilities/air-slash.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AirSlashStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, apBoost default true; return value not used"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "flinch-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     986
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "duration > this.flinchCooldown",
+    "note": "not applied with runeProtect; duration reduced by applyStatusDurationReductions; replaces remaining time only if longer"
+   },
+   {
+    "id": "flinch-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     628
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "while flinched, damage on a shield is halved and the other half goes to HP (only use of status.flinch found in core/models besides status.ts)"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
