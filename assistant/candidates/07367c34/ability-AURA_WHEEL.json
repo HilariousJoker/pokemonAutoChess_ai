@@ -1,0 +1,527 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AURA_WHEEL",
+ "kind": "ability",
+ "identifier": "AURA_WHEEL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T174005Z"
+ },
+ "record": {
+  "ability": "AURA_WHEEL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare AURA_WHEEL: Morpeko and Morpeko Hangry (both 3 stars, maxPP 50, range 1, passive HUNGER_SWITCH). The strategy is shared; the form is chosen at cast time from pokemon.name, so each unit casts the same code and flips to the other form.",
+  "appliesTo": [
+   {
+    "key": "MORPEKO",
+    "stars": 3,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "AURA_WHEEL",
+    "declaredPassive": "HUNGER_SWITCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MORPEKO_HANGRY",
+    "stars": 3,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "AURA_WHEEL",
+    "declaredPassive": "HUNGER_SWITCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MORPEKO": {
+    "evidence": [
+     "unit-morpeko"
+    ]
+   },
+   "MORPEKO_HANGRY": {
+    "evidence": [
+     "unit-hangry"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AURA_WHEEL] = new AuraWheelStrategy()",
+   "strategy": "AuraWheelStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-aw",
+    "aw-class",
+    "base-flags",
+    "base-pp",
+    "aw-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage on the cast target (raw 20/40/60/120 by caster stars: 60 for both 3-star units), plus three self effects: the caster toggles form (MORPEKO <-> MORPEKO_HANGRY by name/index), gains +10 speed for the fight, and has its attack cooldown reset to 500 divided by the speed factor (computed after the +10). The form change is visible to code that checks pokemon.name, e.g. the triple-attack branch applies paralysis for MORPEKO and wound for MORPEKO_HANGRY.",
+  "targeting": {
+   "who": "damage: the cast target passed to the strategy; the form change, speed and cooldown apply to the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "aw-class",
+    "base-flags",
+    "aw-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target (plus self effects)",
+   "evidence": [
+    "aw-hit",
+    "aw-form"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "formChange",
+    "target": "caster",
+    "declaredRaw": {
+     "MORPEKO": "MORPEKO_HANGRY",
+     "other": "MORPEKO"
+    },
+    "scaling": "none",
+    "resolution": "Assigns pokemon.name and pokemon.index; when switching to Hangry and a player reference exists, MORPEKO_HANGRY is added to pokemonsPlayed. Stats, stars, items and PP are not touched by this code (the entity keeps its own fields).",
+    "evidence": [
+     "aw-form",
+     "hangry-wound"
+    ]
+   },
+   {
+    "kind": "statBuff",
+    "stat": "speed",
+    "target": "caster",
+    "declaredRaw": {
+     "speed": 10
+    },
+    "scaling": "requested +10 with apBoost 0 and no crit, so AP and crit do not change it. Applied: Big Eater Belt holder gets floor(10 x 1.25) = 12; Twist Band does not alter a positive value; the clamp keeps speed within 0..300 (MAX_SPEED); not permanent, so it lasts for this fight only. The MELMETAL passive branch of addSpeed does not apply (declared passive is HUNGER_SWITCH).",
+    "resolution": "requested +10 -> applied after applyBigEaterBeltStatBuff / applyTwistBandBuff and the clamp. Each cast adds again (no cap other than 300).",
+    "evidence": [
+     "aw-speed",
+     "addspeed",
+     "addspeed-clamp",
+     "max-speed",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "MORPEKO": 60,
+     "MORPEKO_HANGRY": 60
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost passed explicitly as true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false). The damage is requested after the speed gain, but speed does not enter the formula.",
+    "resolution": "Requested = table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, minimum 1, among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the form change, speed gain and cooldown reset still happen. The takenDamage return value is not read.",
+    "evidence": [
+     "aw-table",
+     "aw-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "cooldownReset",
+    "target": "caster",
+    "declaredRaw": {
+     "baseDuration": 500
+    },
+    "scaling": "cooldown = round(500 / (0.4 + speed x 0.007)) with the caster's speed after the +10 (and after a Big Eater Belt bonus or the 300 clamp, if relevant).",
+    "resolution": "Set at the end of process, replacing the cooldown the attacking state set before the cast; the next action therefore comes sooner than a normal attack slot.",
+    "evidence": [
+     "aw-cd",
+     "cd-fn"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "speed",
+    "amount": 10,
+    "target": "caster",
+    "permanent": false,
+    "evidence": [
+     "aw-speed",
+     "addspeed"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MORPEKO": 3,
+    "MORPEKO_HANGRY": 3
+   },
+   "declaredRawDamage": {
+    "MORPEKO": 60,
+    "MORPEKO_HANGRY": 60
+   },
+   "note": "indexed by the casting entity's stars; both units are 3 stars at the factory, so index 3 (60) applies; 20 and 40 are not reachable at the factory star count, 120 is the fallback for 4+ stars.",
+   "evidence": [
+    "aw-table",
+    "unit-morpeko",
+    "unit-hangry"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "Two modes selected by pokemon.name: a cast always flips the form (MORPEKO -> MORPEKO_HANGRY -> MORPEKO ...). Each cast adds another +10 speed (cumulative within the fight) and does the same damage in both forms. The cast condition tests the name exactly against MORPEKO; any other name takes the else branch.",
+  "rawVsResolved": "Declared raw: damage 60 (3 stars), speed +10, cooldown base 500. Requested = raw; applied speed = 10 (12 with Big Eater Belt, clamped to 300 total); applied damage = 60 x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage; cooldown uses the speed after the buff.",
+  "sourceTables": [
+   {
+    "id": "auraWheelDamage",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "The passive HUNGER_SWITCH declared by both units has its own passive record in the queue; whether it also toggles the form was not read here, so the interaction with this cast is unverified",
+   "Which game systems besides the triple-attack branch read pokemon.name (client display, scribbles.ts, evolution/stat lookup by index) was not enumerated; the code here only assigns name and index",
+   "Whether a different stats block is loaded when the name changes: this strategy assigns no stats, and no other code was read for that",
+   "Consulted: addSpeed with applyBigEaterBeltStatBuff / applyTwistBandBuff, resetCooldown, handleSpecialDamage, handleDamage SPECIAL defence step and minimum, sibling AIR_SLASH record",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-morpeko",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13709,
+     13722
+    ],
+    "symbol": "class Morpeko",
+    "expect": "skill = Ability.AURA_WHEEL",
+    "note": "unit class block: stars 3, maxPP 50, range 1, passive HUNGER_SWITCH"
+   },
+   {
+    "id": "unit-hangry",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13724,
+     13737
+    ],
+    "symbol": "class MorpekoHangry",
+    "expect": "skill = Ability.AURA_WHEEL",
+    "note": "unit class block: stars 3, maxPP 50, range 1, passive HUNGER_SWITCH"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-aw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     753,
+     753
+    ],
+    "symbol": "AbilityStrategies[Ability.AURA_WHEEL]",
+    "expect": "[Ability.AURA_WHEEL]: new AuraWheelStrategy()",
+    "note": ""
+   },
+   {
+    "id": "aw-class",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AuraWheelStrategy",
+    "expect": "export class AuraWheelStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "aw-super",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AuraWheelStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "aw-form",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     15,
+     24
+    ],
+    "symbol": "form toggle",
+    "expect": "pokemon.name = Pkm.MORPEKO_HANGRY",
+    "note": "MORPEKO becomes MORPEKO_HANGRY (name and index; the player's pokemonsPlayed gets the Hangry name); any other name (in practice MORPEKO_HANGRY) becomes MORPEKO"
+   },
+   {
+    "id": "aw-speed",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "speed gain",
+    "expect": "pokemon.addSpeed(10, pokemon, 0, false)",
+    "note": "+10 speed on the caster, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "aw-table",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [20, 40, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw damage by caster stars, 120 fallback"
+   },
+   {
+    "id": "aw-hit",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     28,
+     35
+    ],
+    "symbol": "AuraWheelStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target, crit flag passed, apBoost argument true (same as the default)"
+   },
+   {
+    "id": "aw-cd",
+    "file": "app/core/abilities/aura-wheel.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "cooldown reset",
+    "expect": "pokemon.resetCooldown(500)",
+    "note": "after the cast the caster's attack cooldown is set from 500 and its current speed"
+   },
+   {
+    "id": "cd-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "PokemonEntity.resetCooldown",
+    "expect": "this.cooldown = Math.round(baseDuration / (0.4 + speed * 0.007))",
+    "note": "cooldown = 500 / (0.4 + speed x 0.007), rounded, using the speed after the +10"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     774
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "stat helper: Big Eater Belt and Twist Band adjust the value, then (non-MELMETAL passive) AP/crit scaling, then speed clamped to 0..MAX_SPEED"
+   },
+   {
+    "id": "addspeed-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "clamp"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value on a Big Eater Belt holder is multiplied by 1.25 and rounded down to an integer (nbDigits 0): +10 becomes +12"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "only affects negative values; +10 is unchanged"
+   },
+   {
+    "id": "hangry-wound",
+    "file": "app/core/effects/synergies.ts",
+    "lines": [
+     173,
+     175
+    ],
+    "symbol": "triple attack branch",
+    "expect": "pokemon.name === Pkm.MORPEKO_HANGRY && target",
+    "note": "outside this strategy: the form name selects which status the triple-attack (HUNGER_SWITCH-related) branch applies; read only to show why the toggle matters"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   }
+  ]
+ }
+}
