@@ -1,0 +1,444 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ARM_THRUST",
+ "kind": "ability",
+ "identifier": "ARM_THRUST",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T114135Z"
+ },
+ "record": {
+  "ability": "ARM_THRUST",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "PANCHAM and PANGORO declare ARM_THRUST (both with passive PARTING_SHOT, which is not covered by this record). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "PANCHAM",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ARM_THRUST",
+    "declaredPassive": "PARTING_SHOT",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PANGORO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ARM_THRUST",
+    "declaredPassive": "PARTING_SHOT",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PANCHAM": {
+    "evidence": [
+     "unit-pancham"
+    ]
+   },
+   "PANGORO": {
+    "evidence": [
+     "unit-pangoro"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ARM_THRUST] = new ArmThrustStrategy()",
+   "strategy": "ArmThrustStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-at",
+    "at-class",
+    "base-flags",
+    "base-pp",
+    "at-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "A burst of 2 to 5 immediate hits on the cast target, each requested as caster atk x (1, 1, 2, 4 by stars; 1 for PANCHAM 1 star, 1 for PANGORO 2 stars) of PHYSICAL type routed through handleSpecialDamage, so each hit is scaled by the caster's AP (apBoost default true) and mitigated by the target's DEF. The atk is read once at cast time. The hit count is clamp(floor(2 + random x 4 x (1 + luck/100)), 2, 5): at luck 0 each of 2, 3, 4, 5 has probability 1/4, and luck shifts it upward. Every hit rolls its own crit with chance(critChance/100, caster), independent of ABILITY_CRIT and of the cast's crit flag; a crit hit is multiplied by 1 + (critPower - 1) x the target's crit reduction factor.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "at-class",
+    "base-flags",
+    "at-loop"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, repeated hits",
+   "evidence": [
+    "at-loop",
+    "at-anim"
+   ],
+   "note": "The cast broadcasts its own animation with delay = number of hits; the damage calls are made in one loop."
+  },
+  "effects": [
+   {
+    "kind": "damage (multi-hit)",
+    "damageType": "PHYSICAL",
+    "target": "the cast target (per hit)",
+    "declaredRaw": {
+     "damageFactorByStars": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 4,
+      "fallback": 4
+     },
+     "perHit": "caster atk x factor, read once before the loop",
+     "hits": "clamp(floor(2 + random x 4 x (1 + luck/100)), 2, 5)"
+    },
+    "perUnitRaw": {
+     "PANCHAM": "1 x atk",
+     "PANGORO": "1 x atk"
+    },
+    "scaling": "requested per hit = atk x factor at the moment of the cast (same value for every hit; later atk changes do not apply). handleSpecialDamage adds damage x AP/100 (apBoost true; AP is read per call), x2 once and consumed if the caster has DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side, and for a crit hit x(1 + (critPower - 1) x critReductionFactor) (Rocky Helmet on the target makes the factor 0, each Black Augurite held by the target's player lowers it by 0.1, floor 0). Hit count: independent of AP; luck raises it.",
+    "resolution": "Applied per hit by PokemonState.handleDamage: enraged attacker x2, attacker fields x1.2, Blood Moon weather x1.2 for PHYSICAL, then divided by 1 + 0.05 x DEF (def halved and rounded under armorReduction; def and speDef swapped under WONDER_ROOM), then non-TRUE flat reductions (Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching flat block, Wonder Guard 20), rounded up with a minimum of 1 per hit; the shield absorbs before HP. A target with the reflect status turns each hit into reflected SPECIAL damage on the caster (unless the caster holds Protective Pads) and takes no damage. protect, skydiving and magicBounce on the target block each hit entirely (magicBounce reflection applies only to SPECIAL attack types, so a PHYSICAL hit is simply blocked). The requested total is up to 5 x atk x factor before mitigation; the applied total depends on the number of hits that were not blocked.",
+    "evidence": [
+     "at-factor",
+     "at-hits",
+     "at-loop",
+     "chance",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "hd-protect",
+     "hd-def",
+     "hd-reflect",
+     "hd-phys",
+     "hd-flat",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PANCHAM": 1,
+    "PANGORO": 2
+   },
+   "declaredRawFactor": {
+    "PANCHAM": 1,
+    "PANGORO": 1
+   },
+   "note": "indexed by the casting entity's stars; factors 2 (3 stars) and 4 (4 stars, fallback) are not reachable by the two units' bare star counts (1, 2). The hit count does not depend on stars. maxPP 100 and range 1 for both.",
+   "evidence": [
+    "at-factor",
+    "unit-pancham",
+    "unit-pangoro"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true). All hits are issued in the same call, not delayed.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast rolls a new hit count and new crit rolls.",
+  "rawVsResolved": "Declared raw: per hit atk x 1 (PANCHAM and PANGORO), 2 to 5 hits (uniform 2..5 at luck 0). Each hit: raw x (1 + AP/100) [x crit factor] [x field/weather factors], divided by 1 + 0.05 x DEF, flat reductions, ceil, at least 1. The animation broadcast carries delay = nbHits.",
+  "sourceTables": [
+   {
+    "id": "armThrustFactor",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "pattern": "const damageFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.damageFactorByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, resurrection, shields and takenDamage accounting, on-damage hooks); only the PHYSICAL def division, flat reductions, reflect and the minimum of 1 were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "The luck stat (its source and range) and critChance were not traced; the hit count and crit formulas are stated as written",
+   "magicBounce handling of a PHYSICAL hit: read in handleSpecialDamage (bounce only for SPECIAL; the hit is still blocked)"
+  ],
+  "unresolved": [
+   "The PARTING_SHOT passive on both units is a separate record (passive/PARTING_SHOT) and is not described here; whether it interacts with the cast was not read",
+   "Whether the Math.random hit count and chance() are seeded or reproducible in the simulation was not checked",
+   "Consulted: handleSpecialDamage, PokemonState.handleDamage (def step, reflect, flat reductions, minimum 1), chance(); the sibling FURY_SWIPES record for the PHYSICAL handleDamage description",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-pancham",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12890,
+     12905
+    ],
+    "symbol": "class Pancham",
+    "expect": "skill = Ability.ARM_THRUST",
+    "note": "unit class block (passive PARTING_SHOT)"
+   },
+   {
+    "id": "unit-pangoro",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12907,
+     12921
+    ],
+    "symbol": "class Pangoro",
+    "expect": "skill = Ability.ARM_THRUST",
+    "note": "unit class block (passive PARTING_SHOT)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-at",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     745,
+     745
+    ],
+    "symbol": "AbilityStrategies[Ability.ARM_THRUST]",
+    "expect": "[Ability.ARM_THRUST]: new ArmThrustStrategy()",
+    "note": ""
+   },
+   {
+    "id": "at-class",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "ArmThrustStrategy",
+    "expect": "class ArmThrustStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "at-super",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim true; the strategy broadcasts its own animation below"
+   },
+   {
+    "id": "at-factor",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "const damage = pokemon.atk * damageFactor",
+    "note": "damageFactor [1, 1, 2, 4] by stars, fallback 4; read once from the caster's current atk"
+   },
+   {
+    "id": "at-hits",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     21,
+     25
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "Math.floor(2 + Math.random() * 4 * (1 + pokemon.luck / 100))",
+    "note": "hit count clamp(...,2,5); luck widens the random term"
+   },
+   {
+    "id": "at-anim",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     26,
+     29
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "skill: Ability.ARM_THRUST",
+    "note": "own animation broadcast with delay: nbHits"
+   },
+   {
+    "id": "at-loop",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     30,
+     38
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "chance(pokemon.critChance / 100, pokemon)",
+    "note": "nbHits immediate handleSpecialDamage calls, PHYSICAL, caster as attacker, apBoost default true, independent crit roll per hit"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability 0 -> false; luck is an exponent shift; capped at 1"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving)",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     511
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "def halved and rounded under armorReduction"
+   },
+   {
+    "id": "hd-reflect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     522,
+     522
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.reflect && attackType === AttackType.PHYSICAL) {",
+    "note": "reflect turns PHYSICAL damage into reflected SPECIAL damage on the attacker; the target takes none"
+   },
+   {
+    "id": "hd-phys",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     560,
+     561
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "PHYSICAL uses def, not speDef"
+   },
+   {
+    "id": "hd-flat",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     570,
+     594
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.items.has(Item.POKE_DOLL)) {",
+    "note": "non-TRUE flat reductions: Poke Doll x0.7, Guts/Sturdy/Defiant/Coaching flat block, Wonder Guard 20"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
