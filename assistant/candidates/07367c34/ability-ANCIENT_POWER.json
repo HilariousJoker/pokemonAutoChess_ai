@@ -1,0 +1,490 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ANCIENT_POWER",
+ "kind": "ability",
+ "identifier": "ANCIENT_POWER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T114135Z"
+ },
+ "record": {
+  "ability": "ANCIENT_POWER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "GASTRODON_EAST_SEA and SHELLOS_EAST_SEA declare ability ANCIENT_POWER (passive NONE in the catalog). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "GASTRODON_EAST_SEA",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ANCIENT_POWER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHELLOS_EAST_SEA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ANCIENT_POWER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SHELLOS_EAST_SEA": {
+    "evidence": [
+     "unit-shellos"
+    ]
+   },
+   "GASTRODON_EAST_SEA": {
+    "evidence": [
+     "unit-gastrodon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ANCIENT_POWER] = new AncientPowerStrategy()",
+   "strategy": "AncientPowerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ap",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "sup",
+    "pp-gate",
+    "enum-ability",
+    "enum-effect",
+    "effect-sim"
+   ]
+  },
+  "summary": "Single-target special damage (40/80/120/200 raw by stars; 40 for SHELLOS_EAST_SEA 1 star, 80 for GASTRODON_EAST_SEA 2 stars), then the caster gains a requested +25 ability power. The AP gain happens AFTER the damage call, so this cast's damage does not benefit from it (later casts do). With no Big Eater Belt and no Nullify Bandanna the gain is exactly +25 (apBoost 0, crit false: no AP or crit scaling); Big Eater Belt makes it 31 (25 x 1.25 rounded down); Nullify Bandanna replaces it with round(0.2 x 25) = 5 attack and no AP. The gained AP lasts for the combat entity only (not permanent).",
+  "targeting": {
+   "who": "damage: the cast target passed to the strategy (the caster's current target); AP gain: the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "cls",
+    "base-flags",
+    "hit",
+    "addap-call"
+   ]
+  },
+  "geometry": {
+   "shape": "single target for damage; self for the AP gain",
+   "evidence": [
+    "hit",
+    "addap-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 120,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "SHELLOS_EAST_SEA": 40,
+     "GASTRODON_EAST_SEA": 80
+    },
+    "scaling": "AP: damage x (1 + AP/100) using the caster's AP at the time of the damage call, i.e. before this cast's +25 (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the AP gain still follows. takenDamage is not read by this strategy (accounting is in the BITE record).",
+    "evidence": [
+     "dmg",
+     "hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "stat buff (ability power, self)",
+    "declaredRaw": {
+     "requestedAP": 25
+    },
+    "scaling": "none from AP or crit (apBoost 0, crit false); inside addAbilityPower the value is rounded, then Big Eater Belt (x1.25 rounded down) and Twist Band hooks run; Twist Band does not apply to this positive self-buff",
+    "resolution": "Applied change is +25, or +31 with Big Eater Belt; AP floor is -100 (not reachable by a gain). With a Nullify Bandanna the AP is NOT raised: addAttack(round(0.2 x 25) = 5, apBoost 0) is used instead (Big Eater Belt applies inside addAttack as well, see the helper; not traced here). Applies to the combat entity only (permanent false). Always requested, even if the damage was blocked.",
+    "evidence": [
+     "addap-call",
+     "addap-null",
+     "addap-val",
+     "addap-upd",
+     "belt",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "ability power",
+    "target": "caster",
+    "declaredRaw": "+25 requested per cast",
+    "duration": "none found in this strategy: stays for the rest of the fight unless something else changes it; stacks per cast",
+    "evidence": [
+     "addap-call",
+     "addap-upd"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SHELLOS_EAST_SEA": 1,
+    "GASTRODON_EAST_SEA": 2
+   },
+   "declaredRawDamage": {
+    "SHELLOS_EAST_SEA": 40,
+    "GASTRODON_EAST_SEA": 80
+   },
+   "note": "indexed by the casting entity's stars; 120 and 200 (fallback) are not reachable by the two units' bare star counts (1, 2). The AP gain (25) does not depend on stars. maxPP 80 and range 1 for both.",
+   "evidence": [
+    "dmg",
+    "addap-call",
+    "unit-shellos",
+    "unit-gastrodon"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast adds another +25 AP to the caster (stacking, no cap in this strategy), which raises later casts' damage and other AP scaling.",
+  "rawVsResolved": "Declared raw: damage 40/80 (SHELLOS_EAST_SEA / GASTRODON_EAST_SEA), AP +25 requested. Damage dealt = raw x (1 + AP_before/100) [x crit factor], then SPE_DEF division (ceil, at least 1). AP applied = 25 (31 with Big Eater Belt; with Nullify Bandanna 5 attack instead of AP).",
+  "sourceTables": [
+   {
+    "id": "ancientPowerDamage",
+    "file": "app/core/abilities/ancient-power.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "addAttack (reached only with Nullify Bandanna) was not traced in detail"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: the units declare Ability.ANCIENT_POWER (registry line 739 -> AncientPowerStrategy); EffectEnum.ANCIENT_POWER is a different enum member of the FOSSIL synergy effects (synergies.ts 136-140), which the simulation only adds to the entity's effects set when it has the FOSSIL type (simulation.ts 828-834). Neither unit is listed with a FOSSIL type in the blocks read (AQUATIC / ROCK / AMORPHOUS), and AncientPowerStrategy does not read the effect. What the FOSSIL ANCIENT_POWER effect does elsewhere was not traced and is outside this record",
+   "Whether any duration or cap limits the stacked AP was not searched",
+   "Consulted: addAbilityPower, applyBigEaterBeltStatBuff, applyTwistBandBuff, handleSpecialDamage, handleDamage speDef step; sibling records ACCELEROCK / AGILITY candidates for the speed helper pattern",
+   "GASTRODON_EAST_SEA and SHELLOS_EAST_SEA have no passive in the catalog; both are regional units (isInRegion); regional availability is not covered here",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-shellos",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15709,
+     15738
+    ],
+    "symbol": "class ShellosEastSea",
+    "expect": "skill = Ability.ANCIENT_POWER",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-gastrodon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15740,
+     15769
+    ],
+    "symbol": "class GastrodonEastSea",
+    "expect": "skill = Ability.ANCIENT_POWER",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ap",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     739,
+     739
+    ],
+    "symbol": "AbilityStrategies[Ability.ANCIENT_POWER]",
+    "expect": "[Ability.ANCIENT_POWER]: new AncientPowerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "enum-ability",
+    "file": "app/types/enum/Ability.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "Ability.ANCIENT_POWER",
+    "expect": "ANCIENT_POWER = \"ANCIENT_POWER\"",
+    "note": "the ability enum member the units declare"
+   },
+   {
+    "id": "enum-effect",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     84,
+     84
+    ],
+    "symbol": "EffectEnum.ANCIENT_POWER",
+    "expect": "ANCIENT_POWER = \"ANCIENT_POWER\"",
+    "note": "separate Fossil-synergy effect enum member with the same name"
+   },
+   {
+    "id": "effect-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     828,
+     834
+    ],
+    "symbol": "Simulation effect switch",
+    "expect": "case EffectEnum.ANCIENT_POWER:",
+    "note": "the synergy effect only adds the effect to FOSSIL-type entities; unrelated to AncientPowerStrategy"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/ancient-power.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AncientPowerStrategy",
+    "expect": "class AncientPowerStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "sup",
+    "file": "app/core/abilities/ancient-power.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "AncientPowerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/ancient-power.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AncientPowerStrategy.process",
+    "expect": "[40, 80, 120, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/ancient-power.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "AncientPowerStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, apBoost default true; return value not used"
+   },
+   {
+    "id": "addap-call",
+    "file": "app/core/abilities/ancient-power.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AncientPowerStrategy.process",
+    "expect": "pokemon.addAbilityPower(25, pokemon, 0, false)",
+    "note": "after the damage call; apBoost 0, crit false, not permanent"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "addap-null",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     628,
+     631
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "if (this.items.has(Item.NULLIFY_BANDANNA))",
+    "note": "NULLIFY_BANDANNA: AP gain becomes round(0.2 x value) attack instead and nothing is added to AP"
+   },
+   {
+    "id": "addap-val",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     633,
+     637
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "value rounded, then Big Eater Belt then Twist Band hooks"
+   },
+   {
+    "id": "addap-upd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     639,
+     646
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "floor -100; permanent false so only the combat entity changes"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value with BIG_EATER_BELT: x1.25 rounded down to 0 digits"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "only negative values from enemy/environment; never triggers for this positive self-buff"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
