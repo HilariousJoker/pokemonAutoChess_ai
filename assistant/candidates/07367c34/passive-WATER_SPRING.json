@@ -1,0 +1,273 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/WATER_SPRING",
+ "kind": "passive",
+ "identifier": "WATER_SPRING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T054118Z"
+ },
+ "record": {
+  "passive": "WATER_SPRING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "MARSHTOMP",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MUDKIP",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWAMPERT",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "MUD_BUBBLE",
+    "declaredPassive": "WATER_SPRING",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MARSHTOMP": {
+    "evidence": [
+     "hook-marshtomp"
+    ]
+   },
+   "MUDKIP": {
+    "evidence": [
+     "hook-mudkip"
+    ]
+   },
+   "SWAMPERT": {
+    "evidence": [
+     "hook-swampert"
+    ]
+   }
+  },
+  "kind": "no PassiveEffects entry; beforeSimulationStart on the unit classes adds EffectEnum.WATER_SPRING to the opponent team's effect set, which gives opposing units a shared OnAbilityCastEffect",
+  "summary": "Passive.WATER_SPRING has no PassiveEffects entry. Instead each of MUDKIP, MARSHTOMP and SWAMPERT overrides beforeSimulationStart to add EffectEnum.WATER_SPRING to the opponent's effect set (the hook is called for every unit on a player's board, bench included, before entities are built). When the opponent's entities are added, applySynergyEffects runs every effect in the team set through applyEffect; the WATER_SPRING case adds the shared WaterSpringEffect (an OnAbilityCastEffect with origin Passive.WATER_SPRING) to every opposing unit's effectsSet. Afterwards, whenever one of those opposing units finishes castAbility (and was able to cast), the effect scans the board and for every unit with passive WATER_SPRING that is on a different team than the caster calls addPP(5, itself, 0, false) and broadcasts that unit's skill animation. The amount is the same for all three evolutions (stars do not scale it). The +5 is a requested amount: addPP rounds it, halves it under fatigue, and does not apply it at all when the receiver is silenced, protected (Rune Protect), has NO_PP_GAIN or is resurrecting; the result is clamped to 0..2 x maxPP - 1 (maxPP 60 here, so up to 119). Twist Band only changes negative values and Big Eater Belt is not used by addPP, so neither alters +5. Each cast of any opposing unit grants +5 to each Water Spring unit; two holders each gain separately, and the effect is added to the enemy team once per entity even if several Water Spring units exist.",
+  "triggers": [
+   "Simulation construction: beforeSimulationStart on MUDKIP / MARSHTOMP / SWAMPERT adds the effect flag for the opposing side",
+   "Entity creation: applySynergyEffects installs WaterSpringEffect on each opposing unit",
+   "After any ability cast by an opposing unit (castAbility, when canCast is true)"
+  ],
+  "effects": [
+   {
+    "kind": "pp_gain_on_enemy_cast",
+    "declaredRaw": "+5 PP to each Water Spring unit for every ability cast by an opposing unit",
+    "scaling": "none (apBoost 0, crit false); same for 1 / 2 / 3 stars",
+    "resolution": "requested +5; applied by addPP: rounded, halved by fatigue, blocked by silence / protect / NO_PP_GAIN / resurrecting, clamped to 0..2 x maxPP - 1; receiver is the Water Spring unit itself and the caster argument is itself",
+    "evidence": [
+     "effect",
+     "addpp",
+     "effect-class",
+     "cast"
+    ]
+   },
+   {
+    "kind": "effect_installation",
+    "declaredRaw": "flag added to the opponent's effect set at simulation start, then shared effect added to every opposing entity",
+    "scaling": "none",
+    "resolution": "installed on all opposing units created with synergy effects applied (skipSynergyEffects false); benched Water Spring units also add the flag since the hook runs before the bench check; the flag exists whether or not the Water Spring unit is on the fighting board",
+    "evidence": [
+     "hook-mudkip",
+     "hook-marshtomp",
+     "hook-swampert",
+     "sim-hook",
+     "apply-all",
+     "add-pokemon",
+     "apply-ws",
+     "enum",
+     "passive-enum"
+    ]
+   },
+   {
+    "kind": "animation_broadcast",
+    "declaredRaw": "broadcastAbility with the Water Spring unit's own skill",
+    "scaling": "none",
+    "resolution": "visual broadcast only; it is not a cast and is not passed through castAbility",
+    "evidence": [
+     "effect"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only casts by opposing units (team different from the Water Spring unit) count; the Water Spring unit's own and allies' casts do not.",
+   "The PP goes to every Water Spring unit on the board at that moment, not only the one that caused the flag.",
+   "The casting unit must have been able to cast (castAbility returns early otherwise)."
+  ],
+  "resetBehaviour": "No counters or cooldown; every qualifying cast grants +5 again.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether abilities that cast other abilities or summoned units (spawns created with skipSynergyEffects) carry WaterSpringEffect was not traced",
+   "When a unit that reaches full PP casts MUD_BUBBLE after gaining PP here (attack-state PP check) was not read",
+   "The MUD_BUBBLE ability body (separate record)"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: no PassiveEffects entry; completeness checked by grepping app/ (excluding public/ and precomputed data) for WATER_SPRING / WaterSpring: passives.ts (effect), simulation.ts (import and applyEffect case), the three unit classes and the two enums.",
+   "NAME_SHARED_WITH_EFFECT: the passive and EffectEnum.WATER_SPRING share a name; this record follows both (the passive marks the units, the effect enum carries the flag on the opponent's set).",
+   "Other castAbility callers that bypass OnAbilityCastEffect, and whether synergy-effect removal ever deletes WaterSpringEffect by its origin Passive.WATER_SPRING, were not traced.",
+   "Entities added with skipSynergyEffects true do not receive the effect through applySynergyEffects; which callers pass true was not audited.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     332,
+     339
+    ],
+    "symbol": "WaterSpringEffect",
+    "expect": "pkm?.passive === Passive.WATER_SPRING && pkm.team !== pokemon.team",
+    "note": "OnAbilityCastEffect: after a unit carrying it casts, every opposing-team unit with passive WATER_SPRING gets addPP(5, itself, 0, false) and an ability broadcast"
+   },
+   {
+    "id": "effect-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     332,
+     350
+    ],
+    "symbol": "OnAbilityCastEffect",
+    "expect": "export class OnAbilityCastEffect extends Effect",
+    "note": "callback receives (casting pokemon, board, target, crit)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     8,
+     31
+    ],
+    "symbol": "castAbility",
+    "expect": "pokemon.getEffects(OnAbilityCastEffect).forEach((effect) => {",
+    "note": "runs after abilityStrategy.process; skipped entirely if pokemon.canCast is false"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "fatigue halves a positive amount and rounds; silence, protect, NO_PP_GAIN, resurrecting block a positive gain; clamp 0..2 x maxPP - 1"
+   },
+   {
+    "id": "hook-mudkip",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3986,
+     4009
+    ],
+    "symbol": "Mudkip",
+    "expect": "opponentEffects.add(EffectEnum.WATER_SPRING)",
+    "note": "MUDKIP: 1 star, maxPP 60, range 1, skill MUD_BUBBLE, regional; beforeSimulationStart adds WATER_SPRING to the opponent's effect set"
+   },
+   {
+    "id": "hook-marshtomp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4011,
+     4034
+    ],
+    "symbol": "Marshtomp",
+    "expect": "opponentEffects.add(EffectEnum.WATER_SPRING)",
+    "note": "MARSHTOMP: 2 stars, maxPP 60, range 1, skill MUD_BUBBLE, regional; same hook"
+   },
+   {
+    "id": "hook-swampert",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4036,
+     4058
+    ],
+    "symbol": "Swampert",
+    "expect": "opponentEffects.add(EffectEnum.WATER_SPRING)",
+    "note": "SWAMPERT: 3 stars, maxPP 60, range 1, skill MUD_BUBBLE, regional; same hook"
+   },
+   {
+    "id": "sim-hook",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     146,
+     170
+    ],
+    "symbol": "Simulation constructor",
+    "expect": "pokemon.beforeSimulationStart({",
+    "note": "each player's board units (bench included) call the hook with teamEffects and opponentEffects = the other side's set"
+   },
+   {
+    "id": "apply-all",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     532,
+     548
+    ],
+    "symbol": "Simulation.applySynergyEffects",
+    "expect": "allyEffects.forEach((effect) => {",
+    "note": "without a single type, every effect in the team's effect set (not only synergy effects) goes through applyEffect for each new entity"
+   },
+   {
+    "id": "add-pokemon",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     340,
+     350
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "if (!skipSynergyEffects) this.applySynergyEffects(pokemonEntity)",
+    "note": "effects are applied when each entity is added unless skipSynergyEffects"
+   },
+   {
+    "id": "apply-ws",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1269,
+     1272
+    ],
+    "symbol": "Simulation.applyEffect WATER_SPRING case",
+    "expect": "pokemon.effectsSet.add(WaterSpringEffect)",
+    "note": "adds the shared WaterSpringEffect object to the entity's effectsSet (a Set, so once per entity)"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     153,
+     153
+    ],
+    "symbol": "EffectEnum.WATER_SPRING",
+    "expect": "WATER_SPRING = \"WATER_SPRING\"",
+    "note": "effect enum member with the same name as the passive (NAME_SHARED_WITH_EFFECT)"
+   },
+   {
+    "id": "passive-enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "Passive.WATER_SPRING",
+    "expect": "WATER_SPRING = \"WATER_SPRING\"",
+    "note": "passive enum member; also the effect origin"
+   }
+  ]
+ }
+}
