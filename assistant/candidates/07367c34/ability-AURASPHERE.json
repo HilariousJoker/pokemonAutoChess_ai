@@ -1,0 +1,576 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AURASPHERE",
+ "kind": "ability",
+ "identifier": "AURASPHERE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T174005Z"
+ },
+ "record": {
+  "ability": "AURASPHERE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare AURASPHERE: Riolu (1 star) and Lucario (2 stars); both have maxPP 80, range 2 and no declared passive. The strategy is shared; the only unit difference is the star count (table index). Registry key is AURASPHERE; the class is AuraSphereStrategy in aura-sphere.ts.",
+  "appliesTo": [
+   {
+    "key": "RIOLU",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "AURASPHERE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LUCARIO",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "AURASPHERE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "RIOLU": {
+    "evidence": [
+     "unit-riolu"
+    ]
+   },
+   "LUCARIO": {
+    "evidence": [
+     "unit-lucario"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AURASPHERE] = new AuraSphereStrategy()",
+   "strategy": "AuraSphereStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "as-class",
+    "as-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by stars) to every enemy-team unit on a straight line from the caster through the cast target, extended to the board edge, and silences each unit hit for a base 3000 ms. There is no roll: every enemy on the line is silenced, whether or not the damage was blocked or dealt.",
+  "targeting": {
+   "who": "every enemy-team entity on the cells of the supercover line from the caster's cell toward the cast target and on to a point 12 cells away along the same angle (clipped to the board); the caster's own cell is filtered out as same-team",
+   "needsTarget": true,
+   "note": "The target only fixes the line's angle: it is hit only if its cell lies on the computed line (the rounding of the 12-cell end point could in principle miss it; effectInLine has no fall-back that touches the original target). Enemies behind the target are hit too. Allies are skipped.",
+   "evidence": [
+    "as-line",
+    "as-filter",
+    "el-class",
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster through the cast target to the board edge; every touched cell counts, diagonal crossings included",
+   "evidence": [
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team unit on the line (each cell visited once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "RIOLU": 25,
+     "LUCARIO": 50
+    },
+    "scaling": "requested = table[stars-1] per enemy hit, no falloff along the line. handleSpecialDamage: x(1 + AP/100) (apBoost defaults to true); x critPower (reduced by the hit unit's critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. The return value is not read by the strategy.",
+    "evidence": [
+     "as-table",
+     "as-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "silence",
+    "target": "each enemy-team unit on the line",
+    "declaredRaw": {
+     "durationMs": 3000
+    },
+    "scaling": "none by AP or crit: the duration is the literal 3000 (requested). Applied: Rune Protect or a tree target prevents it; MURKY weather x1.3; SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 (first matching); ODD_KEYSTONE on the hit unit's player multiplies by (1 - 0.1 x stones); the timer only replaces a shorter remaining silence.",
+    "resolution": "Silenced units have canCast false. Silence is requested even when the damage was blocked by protect / skydiving / magicBounce (those only stop the damage call). Silence ends when its timer runs out (updateSilence).",
+    "evidence": [
+     "as-silence",
+     "sil-fn",
+     "sil-red",
+     "sil-update",
+     "cancast"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "silence 3000 ms (requested) on every enemy hit, unconditional",
+    "evidence": [
+     "as-silence",
+     "sil-fn",
+     "sil-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "RIOLU": 1,
+    "LUCARIO": 2
+   },
+   "declaredRawDamage": {
+    "RIOLU": 25,
+    "LUCARIO": 50
+   },
+   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). Silence duration does not depend on stars.",
+   "evidence": [
+    "as-table",
+    "unit-riolu",
+    "unit-lucario"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point); needs a target within the unit's range 2 to cast, because requiresTarget is true.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the line; a new silence only extends the timer if longer.",
+  "rawVsResolved": "Declared raw: damage 25/50 (RIOLU/LUCARIO) per enemy on the line, silence 3000 ms. Requested = raw; applied damage = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage; applied silence = 3000 after MURKY / duration reductions / ODD_KEYSTONE, unless Rune Protect or tree stops it.",
+  "sourceTables": [
+   {
+    "id": "auraSphereDamage",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read",
+   "Board.getEntityOnCell / isOnBoard and what `cells` holds for dead units were not read for the line's cell values (getCellsBetween reads this.cells directly)"
+  ],
+  "unresolved": [
+   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "What the `tree` flag in triggerSilence refers to (a status field; its setters were not searched)",
+   "Whether a unit killed by the damage still receives the silence call (the callback calls triggerSilence right after handleSpecialDamage regardless of death; the effect on a dead entity was not traced)",
+   "Consulted: effectInLine / getCellsBetween and the sibling AURORA_BEAM record, Status.triggerSilence / updateSilence / applyStatusDurationReductions, PokemonEntity.canCast, handleSpecialDamage and handleDamage",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-riolu",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     568,
+     586
+    ],
+    "symbol": "class Riolu",
+    "expect": "skill = Ability.AURASPHERE",
+    "note": "unit class block: stars 1, maxPP 80, range 2, no passive"
+   },
+   {
+    "id": "unit-lucario",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     588,
+     603
+    ],
+    "symbol": "class Lucario",
+    "expect": "skill = Ability.AURASPHERE",
+    "note": "unit class block: stars 2, maxPP 80, range 2, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "el-class",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     920
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": ""
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target; line is extended 12 cells beyond the caster along that angle"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": ""
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     938,
+     938
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped); each cell carries the entity on it"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     754,
+     754
+    ],
+    "symbol": "AbilityStrategies[Ability.AURASPHERE]",
+    "expect": "[Ability.AURASPHERE]: new AuraSphereStrategy()",
+    "note": "the registry key is AURASPHERE, the class is spelled AuraSphereStrategy in file aura-sphere.ts"
+   },
+   {
+    "id": "as-class",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AuraSphereStrategy",
+    "expect": "export class AuraSphereStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "as-super",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "AuraSphereStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "as-table",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "as-line",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "AuraSphereStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "callback runs for every cell on the line"
+   },
+   {
+    "id": "as-filter",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AuraSphereStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "only enemy-team entities are affected"
+   },
+   {
+    "id": "as-hit",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     17,
+     23
+    ],
+    "symbol": "AuraSphereStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, default apBoost, crit flag passed; return value not used"
+   },
+   {
+    "id": "as-silence",
+    "file": "app/core/abilities/aura-sphere.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "AuraSphereStrategy.process",
+    "expect": "cell.value.status.triggerSilence(3000, cell.value, pokemon)",
+    "note": "3000 ms silence on each enemy hit, requested after the damage and independent of it (no roll, no check that damage was dealt)"
+   },
+   {
+    "id": "sil-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     536
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "not applied under Rune Protect or on a tree; MURKY weather x1.3; duration reductions; flag set, timer replaced only if longer"
+   },
+   {
+    "id": "sil-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then ODD_KEYSTONE: x(1 - 0.1 per stone) for a player's board"
+   },
+   {
+    "id": "sil-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     538,
+     546
+    ],
+    "symbol": "Status.updateSilence",
+    "expect": "if (this.silenceCooldown - dt <= 0) {",
+    "note": "silence ends when the timer runs out"
+   },
+   {
+    "id": "cancast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     256
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "a silenced unit cannot cast (canCast false); this is how silence matters for abilities"
+   }
+  ]
+ }
+}
