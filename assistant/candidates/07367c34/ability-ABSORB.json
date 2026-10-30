@@ -1,0 +1,475 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ABSORB",
+ "kind": "ability",
+ "identifier": "ABSORB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T114135Z"
+ },
+ "record": {
+  "ability": "ABSORB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "PARAS and PARASECT declare ABSORB (passive NONE in the catalog). Strategy is shared; differences are stars and stats. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "PARAS",
+    "stars": 1,
+    "maxPP": 110,
+    "range": 1,
+    "declaredSkill": "ABSORB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PARASECT",
+    "stars": 2,
+    "maxPP": 110,
+    "range": 1,
+    "declaredSkill": "ABSORB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PARAS": {
+    "evidence": [
+     "unit-paras"
+    ]
+   },
+   "PARASECT": {
+    "evidence": [
+     "unit-parasect"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ABSORB] = new AbsorbStrategy()",
+   "strategy": "AbsorbStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-absorb",
+    "abs-class",
+    "base-flags",
+    "base-pp",
+    "abs-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage (30/60/120/240 raw by stars). Independently of the damage result, every same-team entity standing in the 3x3 block around the CASTER (the caster's own cell included) is sent a heal request of 0.1 x the raw table amount (3/6 for PARAS 1 star / PARASECT 2 stars), with apBoost 1 and the cast's crit flag, so the heal scales with the caster's AP and critPower (requested amount, before handleHeal modifiers). The heal does not use takenDamage: it is the same whether the hit is blocked (protect / skydiving / magicBounce), absorbed by a shield or kills the target. Each recipient then passes handleHeal: a wounded recipient gets no HP heal (Blood Moon + Blood Stone can still request a shield), burn / enraged halve it, rounding and the missing-HP cap apply.",
+  "targeting": {
+   "who": "damage: the cast target passed to the strategy (the caster's current target); heal: allies adjacent to the caster, not to the target",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "abs-class",
+    "base-flags",
+    "abs-hit",
+    "abs-cells"
+   ]
+  },
+  "geometry": {
+   "shape": "single target for damage; 3x3 block centered on the caster (clipped at board edges, center included) for the heal",
+   "evidence": [
+    "abs-hit",
+    "abs-cells",
+    "adj-cells"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "PARAS": 30,
+     "PARASECT": 60
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. handleSpecialDamage returns 0 and deals nothing when the target is protected, skydiving or has magicBounce. The takenDamage return value (shield part plus HP loss) is NOT read by this strategy; the heal below is independent of it. Shield, flinch, Shiny Charm, Fossil and Cover Band accounting of takenDamage is documented in the BITE record and not repeated here because it does not feed any ABSORB effect.",
+    "evidence": [
+     "abs-dmg",
+     "abs-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "heal (caster and adjacent allies)",
+    "declaredRaw": {
+     "fractionOfRawTableAmount": 0.1,
+     "perUnitRequested": {
+      "PARAS": 3,
+      "PARASECT": 6
+     }
+    },
+    "scaling": "requested = 0.1 x the raw table amount (before AP and before the target's defenses); handleHeal multiplies by (1 + AP/100) with the CASTER's ap (apBoost 1) and by the caster's critPower when the cast crit, then x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather on the recipient/weather",
+    "resolution": "Applied heal per recipient = round(modified request) capped at that recipient's missing HP (healReceived); the excess is overheal, which adds 0.4 x overheal max HP on a GRASS-synergy recipient. A wounded recipient receives 0 HP heal (healReceived 0); with weather BLOODMOON and a BLOOD_STONE held by the recipient's player, the same call first requests a shield of round(0.3 x stones x heal) via addShield. Nothing for a recipient at 0 hp or protected. The 3x3 cell list includes the caster's own cell, so the caster is healed too (unless wounded / protected). Only entities whose team equals the caster's team are healed; the target itself is not healed unless it is a same-team entity in that block (not expected for an enemy target).",
+    "evidence": [
+     "abs-heal",
+     "abs-cells",
+     "adj-cells",
+     "heal-entity",
+     "heal-wound",
+     "heal-ap",
+     "heal-mods",
+     "heal-overheal"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PARAS": 1,
+    "PARASECT": 2
+   },
+   "declaredRawDamage": {
+    "PARAS": 30,
+    "PARASECT": 60
+   },
+   "requestedHealPerRecipient": {
+    "PARAS": 3,
+    "PARASECT": 6
+   },
+   "note": "indexed by the casting entity's stars; 3 (120) and 4 (240, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 110 and range 1 for both.",
+   "evidence": [
+    "abs-dmg",
+    "abs-heal",
+    "unit-paras",
+    "unit-parasect"
+   ]
+  },
+  "positionalConditions": "Heal depends on same-team occupants of the 3x3 block around the caster at cast time; the damage needs a target in range (requiresTarget true). Cells outside the board are skipped.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage and heal; nothing accumulates.",
+  "rawVsResolved": "Declared raw: damage 30/60 (PARAS/PARASECT), heal request 3/6 (10 % of the raw table amount, not of damage dealt). Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1). Heal received = round(request x (1 + AP/100) [x critPower] x item/status/weather factors) capped at each recipient's missing HP, 0 if wounded or protected. The heal is unaffected by the target's defense, shield or death.",
+  "sourceTables": [
+   {
+    "id": "absorbDamage",
+    "file": "app/core/abilities/absorb.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side and heal-side multipliers were read"
+  ],
+  "unresolved": [
+   "Whether the cell value type allows non-PokemonEntity occupants that would affect the team check (cell.value.team === pokemon.team was read as written)",
+   "Resurrection and other death-cancelling effects on the target do not affect the heal (takenDamage is unused) but may affect the damage; not enumerated",
+   "Whether any item or synergy effect changes ABSORB beyond what is listed; consulted: handleSpecialDamage, PokemonState.handleDamage (speDef step, minimum 1) and PokemonState.handleHeal (wound, AP, crit, burn, enraged, weather, overheal), the sibling BITE record for takenDamage accounting",
+   "PARAS and PARASECT have no passive in the catalog; no other unit sharing the identifier exists in the queue",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-paras",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9159,
+     9173
+    ],
+    "symbol": "class Paras",
+    "expect": "skill = Ability.ABSORB",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-parasect",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9175,
+     9188
+    ],
+    "symbol": "class Parasect",
+    "expect": "skill = Ability.ABSORB",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-absorb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     729,
+     729
+    ],
+    "symbol": "AbilityStrategies[Ability.ABSORB]",
+    "expect": "[Ability.ABSORB]: new AbsorbStrategy()",
+    "note": ""
+   },
+   {
+    "id": "abs-class",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AbsorbStrategy",
+    "expect": "class AbsorbStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "abs-super",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "AbsorbStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "abs-dmg",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "AbsorbStrategy.process",
+    "expect": "[30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": ""
+   },
+   {
+    "id": "abs-hit",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "AbsorbStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, attacker = caster, crit passed, apBoost default true; return value not used"
+   },
+   {
+    "id": "abs-cells",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     17,
+     21
+    ],
+    "symbol": "AbsorbStrategy.process",
+    "expect": "board.getAdjacentCells(",
+    "note": "caster's own cell included (third argument true)"
+   },
+   {
+    "id": "abs-heal",
+    "file": "app/core/abilities/absorb.ts",
+    "lines": [
+     22,
+     26
+    ],
+    "symbol": "AbsorbStrategy.process",
+    "expect": "cell.value.handleHeal(damage * 0.1, pokemon, 1, crit)",
+    "note": "every occupant of a same-team cell, including the caster; heal request is 10 % of the RAW table amount, apBoost 1, cast crit flag"
+   },
+   {
+    "id": "adj-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 block around the caster clipped to the board; center included when requested"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "heal-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": ""
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded recipient receives 0 healing; Blood Moon / Blood Stone shield exception"
+   },
+   {
+    "id": "heal-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     339
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP scaling uses the caster's ap (apBoost 1); crit multiplies by the caster's critPower"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2, rounded, capped at missing HP"
+   },
+   {
+    "id": "heal-overheal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
+    "note": "overheal on a GRASS-synergy recipient adds 0.4 x overheal max HP"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
