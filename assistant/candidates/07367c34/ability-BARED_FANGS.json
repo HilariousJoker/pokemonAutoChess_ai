@@ -1,0 +1,559 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BARED_FANGS",
+ "kind": "ability",
+ "identifier": "BARED_FANGS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T233953Z"
+ },
+ "record": {
+  "ability": "BARED_FANGS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare BARED_FANGS: Basculin Blue and Basculin Red, both 3 stars, maxPP 80, range 1, passive BASCULIN_RED_BLUE (the passive is not described here). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BASCULIN_BLUE",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BARED_FANGS",
+    "declaredPassive": "BASCULIN_RED_BLUE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BASCULIN_RED",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BARED_FANGS",
+    "declaredPassive": "BASCULIN_RED_BLUE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BASCULIN_BLUE": {
+    "evidence": [
+     "unit-blue"
+    ]
+   },
+   "BASCULIN_RED": {
+    "evidence": [
+     "unit-red"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BARED_FANGS] = new BaredFangsStrategy()",
+   "strategy": "BaredFangsStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bf-class",
+    "base",
+    "base-flags",
+    "cast",
+    "can-cast"
+   ]
+  },
+  "summary": "Single-target. Deals SPECIAL damage to the cast target (requested round(caster's current ATK x 1.6) at 3 stars; multiplier table 1.2/1.4/1.6/3.2 by stars; 24 with the base ATK 15 and no ATK changes), then, unless the target holds a Twist Band, requests -10 speed on the target and +10 speed on the caster (both scaled by the caster's AP and by crit; the steal happens even if the damage killed the target). The two speed changes are applied independently, so they need not be equal.",
+  "targeting": {
+   "who": "the cast target only (speed gain on the caster)",
+   "needsTarget": true,
+   "note": "No geometry beyond the target the caster already has; the damage and steal are both applied to the cast target and the caster.",
+   "evidence": [
+    "bf-class",
+    "bf-hit",
+    "bf-sub",
+    "bf-add"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area, no movement",
+   "evidence": [
+    "bf-class",
+    "bf-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1.2,
+      "2": 1.4,
+      "3": 1.6,
+      "4": 3.2,
+      "fallback": 3.2
+     },
+     "label": "requested damage multiplier of the caster's current ATK"
+    },
+    "perUnitRaw": {
+     "BASCULIN_BLUE": 1.6,
+     "BASCULIN_RED": 1.6
+    },
+    "scaling": "requested = Math.round(caster.atk x table[stars-1]) using the caster's current atk (buffs/debuffs included, not the catalog base). handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, shield absorbs first; takenDamage (not stored by this strategy) = shield damage + HP damage, 0 for protect / skydiving / magicBounce. With the catalog base ATK 15 and no ATK change the requested value is 24 (illustration of the formula, not a combat claim).",
+    "evidence": [
+     "bf-table",
+     "bf-dmg",
+     "bf-hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "bf-comment"
+    ]
+   },
+   {
+    "kind": "stat_change",
+    "stat": "speed",
+    "target": "the cast target (-10) and the caster (+10)",
+    "declaredRaw": {
+     "value": 10,
+     "label": "requested speed amount (target -10, caster +10)"
+    },
+    "perUnitRaw": {
+     "BASCULIN_BLUE": 10,
+     "BASCULIN_RED": 10
+    },
+    "scaling": "both calls use apBoost 1 and the cast crit flag: value x (1 + AP/100) x (critPower if the cast crit), not rounded. The caster's call first goes through applyBigEaterBeltStatBuff: a Big Eater Belt holder's +10 becomes 12 (x1.25, rounded down to 0 digits) before AP/crit scaling. The target's -10 gets no Big Eater Belt effect (the caster is on the other team, the helper only touches positive values or negative values from a same-team caster). applyTwistBandBuff does not change the caster's positive value; a target holding Twist Band skips both changes (explicit guard).",
+    "resolution": "applied change = new speed clamped to [0, 300]: the target cannot go below 0, so a target with less than the requested speed loses less than the caster gains; the caster cannot exceed 300. A MELMETAL-passive holder on either side gets half the (post-helper) value as ATTACK change (via addAttack) instead of any speed change, so its speed does not move. Not permanent (only the combat entity changes).",
+    "evidence": [
+     "bf-steal",
+     "bf-twist",
+     "bf-sub",
+     "bf-add",
+     "add-speed",
+     "add-speed-melmetal",
+     "add-speed-scale",
+     "max-speed",
+     "bigeater",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BASCULIN_BLUE": 3,
+    "BASCULIN_RED": 3
+   },
+   "declaredRawDamageMultiplier": {
+    "BASCULIN_BLUE": 1.6,
+    "BASCULIN_RED": 1.6
+   },
+   "note": "Only the damage multiplier depends on stars (index stars-1 of the caster). The speed amount is star-independent. 1.2, 1.4 and 3.2 are not reachable by the listed 3-star units at their bare factory stars.",
+   "evidence": [
+    "bf-table",
+    "unit-blue",
+    "unit-red"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Speed changes are cumulative across casts within a fight up to the clamp and are not undone by the strategy.",
+  "rawVsResolved": "Requested: damage = round(ATK x 1.6); speed -10 on the target and +10 on the caster. Applied damage = requested x (1 + AP/100) x optional DOUBLE_DAMAGE / steam / crit multipliers, then SPE_DEF division, round up and minimum 1; takenDamage includes shield damage and is not used by the strategy. Applied speed = requested x (1 + AP/100) x crit (unrounded), Big Eater Belt x1.25 down on the caster's gain, then clamped to [0, 300] on each side; none for a Twist Band target; attack instead of speed for a MELMETAL holder.",
+  "sourceTables": [
+   {
+    "id": "mult",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "pattern": "const damageMultiplier = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How the cast target is chosen and when the cast fires in a real fight - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read",
+   "How speed translates into attack cadence was not read"
+  ],
+  "unresolved": [
+   "The BASCULIN_RED_BLUE passive and the basculinOnAcquired hook are not described in this ability record",
+   "Whether other effects change the caster's atk before the cast (the damage uses its current value) is not enumerated",
+   "Routing: the queue record lists no routing uncertainty for this identifier",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-red",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19395,
+     19409
+    ],
+    "symbol": "class BasculinRed",
+    "expect": "skill = Ability.BARED_FANGS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-blue",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19411,
+     19425
+    ],
+    "symbol": "class BasculinBlue",
+    "expect": "skill = Ability.BARED_FANGS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     760,
+     760
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.BARED_FANGS]: new BaredFangsStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bf-class",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     7,
+     14
+    ],
+    "symbol": "BaredFangsStrategy",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "target required (requiresTarget stays true); canCritByDefault inherited false; base process spends maxPP"
+   },
+   {
+    "id": "bf-comment",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "process",
+    "expect": "Deal [120,140,160,320]% of ATK as SPECIAL damage",
+    "note": "developer comment, agrees with the code"
+   },
+   {
+    "id": "bf-table",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "process",
+    "expect": "const damageMultiplier = [1.2, 1.4, 1.6, 3.2][pokemon.stars - 1] ?? 3.2",
+    "note": "requested damage multiplier of ATK by caster stars"
+   },
+   {
+    "id": "bf-dmg",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "process",
+    "expect": "const damage = Math.round(pokemon.atk * damageMultiplier)",
+    "note": "requested damage = round(caster's current atk x multiplier)"
+   },
+   {
+    "id": "bf-steal",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "process",
+    "expect": "const speedSteal = 10",
+    "note": "requested speed amount"
+   },
+   {
+    "id": "bf-hit",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, caster as attacker, cast crit flag"
+   },
+   {
+    "id": "bf-twist",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "process",
+    "expect": "if (target.items.has(Item.TWIST_BAND) === false) {",
+    "note": "the steal is skipped entirely when the target holds Twist Band"
+   },
+   {
+    "id": "bf-sub",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "process",
+    "expect": "target.addSpeed(-speedSteal, pokemon, 1, crit)",
+    "note": "requested -10 speed on the target, apBoost 1, cast crit flag"
+   },
+   {
+    "id": "bf-add",
+    "file": "app/core/abilities/bared-fangs.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addSpeed(speedSteal, pokemon, 1, crit)",
+    "note": "requested +10 speed on the caster, apBoost 1, cast crit flag"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "Big Eater Belt and Twist Band helpers, MELMETAL redirects to attack, AP/crit scaling, clamp to [0, MAX_SPEED]; permanent only when asked"
+   },
+   {
+    "id": "add-speed-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     763
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "this.addAttack(value * 0.5, caster, apBoost, crit, permanent)",
+    "note": "a MELMETAL passive holder gets half the value as attack instead of speed"
+   },
+   {
+    "id": "add-speed-scale",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     765,
+     770
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "AP and crit scaling, no rounding"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a holder's buff (value > 0, or a negative value from a same-team caster) x1.25 rounded down to the digit count (0)"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "canCast false => no cast; crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     255
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "silence, Nullify Bandanna, TELEPORT_NEXT_ATTACK stop casting"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once, effect then removed"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "Twist Band holder: a negative value from an enemy caster becomes positive"
+   }
+  ]
+ }
+}
