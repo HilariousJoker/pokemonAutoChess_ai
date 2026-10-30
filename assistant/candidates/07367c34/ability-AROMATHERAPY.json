@@ -1,0 +1,484 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AROMATHERAPY",
+ "kind": "ability",
+ "identifier": "AROMATHERAPY",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T174005Z"
+ },
+ "record": {
+  "ability": "AROMATHERAPY",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare AROMATHERAPY: Petilil (1 star) and Lilligant (2 stars); both have maxPP 100, range 1 and no declared passive. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "PETILIL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AROMATHERAPY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LILIGANT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AROMATHERAPY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PETILIL": {
+    "evidence": [
+     "unit-petilil"
+    ]
+   },
+   "LILIGANT": {
+    "evidence": [
+     "unit-lilligant"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AROMATHERAPY] = new AromatherapyStrategy()",
+   "strategy": "AromatherapyStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "The strategy does not override requiresTarget or canCritByDefault, so the base defaults (target required, no crit unless the caster has ability crit) apply. The target passed to process is not used.",
+   "evidence": [
+    "reg",
+    "reg-ar",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ar-class",
+    "ar-super"
+   ]
+  },
+  "summary": "After spending PP, every allied unit standing in one of the 8 cells adjacent to the caster has its negative-status cooldowns cleared and is then healed by raw 20/40/80/160 (by caster stars; AP-scaled, crit only with ability crit). The caster itself is not in the area (the adjacent-cell list excludes the centre) and nothing moves.",
+  "targeting": {
+   "who": "allies (same team) in the 8 cells adjacent to the caster's current cell; the caster is excluded",
+   "needsTarget": true,
+   "note": "Unlike AQUA_RING there is no relocation: the area is centred on the caster where it stands. The enemy target that satisfied the cast gate is not used by the effect. Empty cells and enemies in the area are skipped.",
+   "evidence": [
+    "ar-cells",
+    "ar-ally",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "ring of up to 8 cells around the caster (3x3 block without the centre), clipped to the board",
+   "evidence": [
+    "ar-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "cleanse",
+    "target": "each adjacent ally (not the caster)",
+    "declaredRaw": {
+     "note": "clearNegativeStatus(ally, caster) before each heal"
+    },
+    "scaling": "none",
+    "resolution": "Status.clearNegativeStatus zeroes the cooldowns of the listed negative statuses (it does not itself set the boolean flags; those are reset by the status update step, e.g. updateWound).",
+    "evidence": [
+     "ar-clear",
+     "clear-fn",
+     "wound-upd"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "each adjacent ally (not the caster)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "PETILIL": 20,
+     "LILIGANT": 40
+    },
+    "scaling": "requested = table value. applied by PokemonState.handleHeal: x(1 + AP/100) with apBoost 1; x critPower if the cast crit; x1.3 with BUFF_HEAL_RECEIVED; x0.5 when burning; x0.5 when enraged; x1.2 under ZENITH weather; rounded; capped to the target's missing HP (the remainder is overheal). No heal on a wounded target or a protected / dead one.",
+    "resolution": "requested (raw table) -> applied (after modifiers and rounding) -> healReceived (after the missing-HP cap). Each adjacent ally is healed once; full-HP allies receive 0.",
+    "evidence": [
+     "ar-table",
+     "ar-heal",
+     "ent-heal",
+     "hh-fn",
+     "hh-wound",
+     "hh-prot",
+     "hh-scale",
+     "hh-crit",
+     "hh-mods",
+     "hh-round",
+     "hh-cap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "negative statuses cleared (cooldowns zeroed) on each adjacent ally",
+    "evidence": [
+     "ar-clear",
+     "clear-fn"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PETILIL": 1,
+    "LILIGANT": 2
+   },
+   "declaredRawHeal": {
+    "PETILIL": 20,
+    "LILIGANT": 40
+   },
+   "note": "indexed by the casting entity's stars; 80 and 160 are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ar-table",
+    "unit-petilil",
+    "unit-lilligant"
+   ]
+  },
+  "positionalConditions": "Only allies in the cells adjacent to the caster at cast time receive anything; a caster with no adjacent ally heals and cleanses nobody (PP is still spent). The caster does not heal itself.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast reads the current neighbours.",
+  "rawVsResolved": "Declared raw: heal 20/40 (1/2 stars). Requested = raw; applied = raw x (1 + AP/100) x crit factor x the status/weather modifiers listed, rounded; healReceived is capped by missing HP. Cleansing happens before the heal for each ally, but a wounded ally still reads status.wound = true at that moment (see unresolved), so the heal may be 0.",
+  "sourceTables": [
+   {
+    "id": "heal",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Which statuses count as negative beyond the list in clearNegativeStatus (only that function was read)"
+  ],
+  "unresolved": [
+   "Whether the wound flag of a wounded ally is still true when handleHeal runs right after clearNegativeStatus: clearNegativeStatus zeroes woundCooldown but updateWound (which sets wound = false) runs in the status update; the order within a tick was not traced, so a wounded adjacent ally may get 0 heal from this cast",
+   "Whether the cast gate needs an enemy in range for these range-1 units: requiresTarget keeps the base default (true), but the moving-state walk-to-target logic was not re-read for this record",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-petilil",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16060,
+     16083
+    ],
+    "symbol": "class Petilil",
+    "expect": "skill = Ability.AROMATHERAPY",
+    "note": "unit class block: stars 1, maxPP 100, range 1"
+   },
+   {
+    "id": "unit-lilligant",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16085,
+     16098
+    ],
+    "symbol": "class Lilligant",
+    "expect": "skill = Ability.AROMATHERAPY",
+    "note": "unit class block: stars 2, maxPP 100, range 1"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-ar",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     747,
+     747
+    ],
+    "symbol": "AbilityStrategies[Ability.AROMATHERAPY]",
+    "expect": "[Ability.AROMATHERAPY]: new AromatherapyStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ar-class",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "AromatherapyStrategy",
+    "expect": "export class AromatherapyStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ar-super",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "AromatherapyStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ar-table",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "heal table",
+    "expect": "const heal = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "raw heal by caster stars, 160 fallback"
+   },
+   {
+    "id": "ar-cells",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     14,
+     16
+    ],
+    "symbol": "affected cells",
+    "expect": "getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the 8 neighbours of the caster's own cell; the caster's cell is not included (no includesCenter argument)"
+   },
+   {
+    "id": "ar-ally",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "ally filter",
+    "expect": "cell.value && cell.value.team === pokemon.team",
+    "note": "only same-team occupants of those neighbouring cells"
+   },
+   {
+    "id": "ar-clear",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "cleanse",
+    "expect": "cell.value.status.clearNegativeStatus(cell.value, pokemon)",
+    "note": "negative status cooldowns cleared before the heal"
+   },
+   {
+    "id": "ar-heal",
+    "file": "app/core/abilities/aroma-therapy.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "heal call",
+    "expect": "cell.value.handleHeal(heal, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag passed, caster as healer"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, on-board only, center excluded by default"
+   },
+   {
+    "id": "clear-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     97,
+     122
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity)",
+    "note": "zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armorReduction, locked, blind; curse is handled specially (+2000 ms on an active curse)"
+   },
+   {
+    "id": "wound-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     893,
+     899
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "updateWound(dt: number) {",
+    "note": "the wound flag is reset in the status update, when woundCooldown - dt <= 0"
+   },
+   {
+    "id": "hh-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     302,
+     308
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "handleHeal(",
+    "note": ""
+   },
+   {
+    "id": "hh-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "handleHeal wound",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "a wounded target receives no heal (returns 0)"
+   },
+   {
+    "id": "hh-prot",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "handleHeal guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "no heal on a dead or protected target"
+   },
+   {
+    "id": "hh-scale",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     335,
+     335
+    ],
+    "symbol": "handleHeal AP",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "hh-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     338,
+     338
+    ],
+    "symbol": "handleHeal crit",
+    "expect": "heal *= caster.critPower",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "hh-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     328,
+     341
+    ],
+    "symbol": "handleHeal modifiers",
+    "expect": "heal *= 1.3",
+    "note": "BUFF_HEAL_RECEIVED x1.3; burn x0.5; enraged x0.5; ZENITH weather x1.2"
+   },
+   {
+    "id": "hh-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     353
+    ],
+    "symbol": "handleHeal rounding",
+    "expect": "heal = Math.round(heal)",
+    "note": ""
+   },
+   {
+    "id": "hh-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     354,
+     355
+    ],
+    "symbol": "handleHeal cap",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "healReceived is capped to missing HP; the rest is overheal"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     475,
+     475
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to state.handleHeal"
+   }
+  ]
+ }
+}
