@@ -1,0 +1,280 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/GEARS",
+ "kind": "passive",
+ "identifier": "GEARS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T054118Z"
+ },
+ "record": {
+  "passive": "GEARS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "KLANG",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KLINK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KLINKLANG",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "GEAR_GRIND",
+    "declaredPassive": "GEARS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KLANG": {
+    "evidence": [
+     "unit-klang"
+    ]
+   },
+   "KLINK": {
+    "evidence": [
+     "unit-klink"
+    ]
+   },
+   "KLINKLANG": {
+    "evidence": [
+     "unit-klinklang"
+    ]
+   }
+  },
+  "kind": "OnSimulationStartEffect that installs a PeriodicEffect (+1 speed) on every same-team unit",
+  "summary": "Passive.GEARS has a PassiveEffects entry with one OnSimulationStartEffect. At simulation start, for each Gears holder, it walks the whole board and, for every unit of the holder's team (the holder itself included), adds a new PeriodicEffect to that unit's effectsSet. The period depends on the holder's stars: 3000 / 2000 / 1000 ms for 1 / 2 / 3 stars (KLINK / KLANG / KLINKLANG; fallback 1000). Each firing calls pokemon.addSpeed(1, pokemon, 0, false) on the receiving ally, but only if the holder (the closure variable entity) still has hp > 0. The +1 is the requested amount: addSpeed first applies Big Eater Belt (+25% on a buff, rounded down to an integer, so 1 stays 1 for a single unit) and Twist Band (negative values only, so no effect), then, because the caster is the receiver itself with apBoost 0 and crit false, applies no AP or crit scaling, and clamps speed to 0..300; a receiver with passive MELMETAL gets the value as attack x 0.5 instead of speed. The change is not permanent (permanent false). Each holder installs its own effect objects, so two holders (even of different stars) stack independently on the same ally. Allies that join the board after simulation start do not receive the effect.",
+  "triggers": [
+   "Simulation start (OnSimulationStartEffect) installs the periodic effects",
+   "Each PeriodicEffect fires when its timer reaches 0 during PokemonState.update of the receiving unit, then resets to its interval"
+  ],
+  "effects": [
+   {
+    "kind": "periodic_speed_to_team",
+    "declaredRaw": "+1 speed every 3 / 2 / 1 seconds by holder stars 1 / 2 / 3, to each same-team unit including the holder",
+    "scaling": "none (apBoost 0, crit false); interval table [3000, 2000, 1000] indexed by holder stars - 1",
+    "resolution": "requested +1; applied by addSpeed: Big Eater Belt x1.25 rounded down to integer (stays 1), Twist Band no effect on positive, MELMETAL receiver converts to attack +0.5, speed clamped to 0..MAX_SPEED 300; first tick after one full interval",
+    "evidence": [
+     "gears-entry",
+     "gears-guard",
+     "periodic",
+     "periodic-update",
+     "addspeed",
+     "bigeater",
+     "twistband",
+     "max-speed"
+    ]
+   },
+   {
+    "kind": "holder_alive_guard",
+    "declaredRaw": "tick does nothing once the holder's hp is 0 or less",
+    "scaling": "none",
+    "resolution": "checked at each tick against the holder entity, not the receiver; the effect objects stay on the allies but become no-ops",
+    "evidence": [
+     "gears-guard"
+    ]
+   },
+   {
+    "kind": "install_at_simulation_start",
+    "declaredRaw": "applied once to units on the board at simulation start, team match by entity.team",
+    "scaling": "none",
+    "resolution": "simulation.board.forEach over cells; units added later (summons, resurrection into new entities) are not covered by this entry",
+    "evidence": [
+     "gears-entry",
+     "sim-start",
+     "onsimstart-class",
+     "passive-install"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only units of the holder's team on the simulation board at start receive the effect.",
+   "Holder must have hp > 0 at each tick.",
+   "Interval comes from the holder's stars, not the receiver's."
+  ],
+  "resetBehaviour": "Timers start at the full interval at simulation start; no reset on cast or damage. Each PeriodicEffect keeps its own timer and count.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How speed converts to attack-cooldown (not read here; see core-mechanics.md for attack speed)",
+   "The GEAR_GRIND ability body (separate record)"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: grepping app/ (excluding public/ and precomputed locale data) for GEARS found only the PassiveEffects entry (passives.ts 1541-1559), the Passive enum and the three unit classes; the other references reported by the inventory are locale strings.",
+   "Whether PeriodicEffect timers are affected by the receiver being frozen/asleep (PokemonState.update runs the periodic effects before the idle-state check, but the simulation tick that calls update for such units was not read).",
+   "Whether a unit that is dead at start of the update loop still has update called was not read.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "gears-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1541,
+     1560
+    ],
+    "symbol": "PassiveEffects[Passive.GEARS]",
+    "expect": "const interval = [3000, 2000, 1000][entity.stars - 1] ?? 1000",
+    "note": "OnSimulationStartEffect: for every same-team unit on the board adds a PeriodicEffect granting +1 speed"
+   },
+   {
+    "id": "gears-guard",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1546,
+     1556
+    ],
+    "symbol": "PeriodicEffect callback",
+    "expect": "if (entity.hp > 0) {",
+    "note": "tick applies only while the Gears holder (closure variable entity) is alive; pokemon.addSpeed(1, pokemon, 0, false)"
+   },
+   {
+    "id": "periodic",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     261,
+     285
+    ],
+    "symbol": "PeriodicEffect",
+    "expect": "this.timer = this.intervalMs",
+    "note": "timer starts at intervalMs, counts down by dt, fires and resets"
+   },
+   {
+    "id": "periodic-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     899
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "if (effect instanceof PeriodicEffect) {",
+    "note": "every PeriodicEffect in effectsSet is updated each state update of its owner"
+   },
+   {
+    "id": "sim-start",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     254,
+     261
+    ],
+    "symbol": "Simulation start loop",
+    "expect": "entity.getEffects(OnSimulationStartEffect).forEach((effect) => {",
+    "note": "OnSimulationStartEffect applied once per team entity at simulation start"
+   },
+   {
+    "id": "onsimstart-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     168,
+     176
+    ],
+    "symbol": "OnSimulationStartEffect",
+    "expect": "export class OnSimulationStartEffect extends Effect",
+    "note": "effect class used by the entry"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "helper: Big Eater Belt and Twist Band adjustments, MELMETAL redirect to attack, caster is the receiver itself (apBoost 0), clamp 0..MAX_SPEED"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "+25% on buffs, rounded down to 0 digits: 1 * 1.25 = 1.25 rounds down to 1"
+   },
+   {
+    "id": "twistband",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only acts on negative values, so it does not change +1"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": "speed ceiling"
+   },
+   {
+    "id": "unit-klink",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19482,
+     19496
+    ],
+    "symbol": "Klink",
+    "expect": "passive = Passive.GEARS",
+    "note": "KLINK: 1 star, maxPP 100, range 3, skill GEAR_GRIND"
+   },
+   {
+    "id": "unit-klang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19498,
+     19512
+    ],
+    "symbol": "Klang",
+    "expect": "passive = Passive.GEARS",
+    "note": "KLANG: 2 stars, maxPP 100, range 3, skill GEAR_GRIND"
+   },
+   {
+    "id": "unit-klinklang",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19514,
+     19528
+    ],
+    "symbol": "Klinklang",
+    "expect": "passive = Passive.GEARS",
+    "note": "KLINKLANG: 3 stars, maxPP 100, range 3, skill GEAR_GRIND"
+   },
+   {
+    "id": "passive-install",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1768,
+     1790
+    ],
+    "symbol": "PokemonEntity.updatePassive (passive effect install)",
+    "expect": "const newPassiveEffects = PassiveEffects[newPassive] ?? []",
+    "note": "passive effects from PassiveEffects are added to effectsSet, so getEffects(OnSimulationStartEffect) finds the entry"
+   }
+  ]
+ }
+}
