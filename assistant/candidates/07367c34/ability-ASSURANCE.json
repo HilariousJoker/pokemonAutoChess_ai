@@ -1,0 +1,402 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ASSURANCE",
+ "kind": "ability",
+ "identifier": "ASSURANCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T174005Z"
+ },
+ "record": {
+  "ability": "ASSURANCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare the ability ASSURANCE: Scraggy (1 star) and Scrafty (2 stars); both have maxPP 80, range 1 and declare the passive MOXIE. The strategy is shared; the only unit difference is the star count (table index). The name ASSURANCE is also an EffectEnum (Dark synergy: crit buff); this record covers only Ability.ASSURANCE.",
+  "appliesTo": [
+   {
+    "key": "SCRAGGY",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ASSURANCE",
+    "declaredPassive": "MOXIE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SCRAFTY",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "ASSURANCE",
+    "declaredPassive": "MOXIE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SCRAGGY": {
+    "evidence": [
+     "unit-scraggy"
+    ]
+   },
+   "SCRAFTY": {
+    "evidence": [
+     "unit-scrafty"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ASSURANCE] = new AssuranceStrategy()",
+   "strategy": "AssuranceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "Routing: Ability.ASSURANCE (this strategy) is distinct from EffectEnum.ASSURANCE (Dark synergy effect in simulation.ts, crit stats). The strategy file never references the effect enum, so the synergy buff is not part of this ability's behaviour, although a Dark unit may hold both.",
+   "evidence": [
+    "reg",
+    "reg-as",
+    "as-class",
+    "base-flags",
+    "base-pp",
+    "as-super",
+    "pp-gate",
+    "effect-enum",
+    "syn-dark"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage on the cast target: raw 25/50/100/200 by caster stars, doubled when the caster's current HP is below 50% of its max HP at cast time (so 50 for Scraggy and 100 for Scrafty when low). AP scales it, crit applies only with ability crit. No status or movement.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "as-class",
+    "base-flags",
+    "as-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "as-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "lowHpRule": "x2 when pokemon.hp / pokemon.maxHP < 0.5"
+    },
+    "perUnitRaw": {
+     "SCRAGGY": 25,
+     "SCRAFTY": 50
+    },
+    "scaling": "requested = table value, or twice that when the caster is below 50% HP at cast time (strict <). AP: x(1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
+    "resolution": "Requested amount is the (possibly doubled) raw value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, minimum 1, among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce. The takenDamage return value is not read by this strategy.",
+    "evidence": [
+     "as-dmg",
+     "as-half",
+     "as-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SCRAGGY": 1,
+    "SCRAFTY": 2
+   },
+   "declaredRawDamage": {
+    "SCRAGGY": 25,
+    "SCRAFTY": 50
+   },
+   "declaredRawDamageBelowHalfHp": {
+    "SCRAGGY": 50,
+    "SCRAFTY": 100
+   },
+   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). maxPP 80 and range 1 for both.",
+   "evidence": [
+    "as-dmg",
+    "as-half",
+    "unit-scraggy",
+    "unit-scrafty"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true). The only condition is the caster's HP fraction, not any board position.",
+  "repeatedCastsAndModes": "No stored state, no modes. The HP check is made fresh at every cast.",
+  "rawVsResolved": "Declared raw: 25/50 (SCRAGGY/SCRAFTY), 50/100 below 50% HP. Requested = raw (doubled or not); applied = requested x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage. Shield handling and takenDamage are in handleDamage and are not read by this strategy.",
+  "sourceTables": [
+   {
+    "id": "assuranceDamage",
+    "file": "app/core/abilities/assurance.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: Ability.ASSURANCE maps to AssuranceStrategy (abilities.ts), while EffectEnum.ASSURANCE (Dark synergy, +40% crit chance / +60% crit power in simulation.ts) is a separate mechanism not referenced by this strategy",
+   "The passive MOXIE declared by both units is not covered here (it has its own passive record in the queue); its interaction with this cast was not read",
+   "Whether the maxHP used in the 50% check includes later max-HP changes: the code reads pokemon.maxHP at cast time, which was not traced further",
+   "Consulted: handleSpecialDamage (block, AP, crit), handleDamage SPECIAL defence step and minimum, sibling AIR_SLASH record",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-scraggy",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12956,
+     12971
+    ],
+    "symbol": "class Scraggy",
+    "expect": "skill = Ability.ASSURANCE",
+    "note": "unit class block: stars 1, maxPP 80, range 1, passive MOXIE"
+   },
+   {
+    "id": "unit-scrafty",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12973,
+     12988
+    ],
+    "symbol": "class Scrafty",
+    "expect": "skill = Ability.ASSURANCE",
+    "note": "unit class block: stars 2, maxPP 80, range 1, passive MOXIE"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-as",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     749,
+     749
+    ],
+    "symbol": "AbilityStrategies[Ability.ASSURANCE]",
+    "expect": "[Ability.ASSURANCE]: new AssuranceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "as-class",
+    "file": "app/core/abilities/assurance.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AssuranceStrategy",
+    "expect": "export class AssuranceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "as-super",
+    "file": "app/core/abilities/assurance.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "AssuranceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "as-dmg",
+    "file": "app/core/abilities/assurance.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "raw damage by caster stars, 200 fallback"
+   },
+   {
+    "id": "as-half",
+    "file": "app/core/abilities/assurance.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "low-HP doubling",
+    "expect": "pokemon.hp / pokemon.maxHP < 0.5 ? damage * 2 : damage",
+    "note": "raw amount is doubled when the caster's current HP fraction is strictly below 0.5, evaluated at cast time after super.process"
+   },
+   {
+    "id": "as-hit",
+    "file": "app/core/abilities/assurance.ts",
+    "lines": [
+     15,
+     21
+    ],
+    "symbol": "AssuranceStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target, apBoost default true, crit flag passed; return value not used"
+   },
+   {
+    "id": "effect-enum",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     812,
+     818
+    ],
+    "symbol": "Simulation synergy effect switch",
+    "expect": "case EffectEnum.ASSURANCE:",
+    "note": "a different thing with the same name: the Dark-synergy EffectEnum.ASSURANCE grants +40 crit chance / +60 crit power; it is not called from AssuranceStrategy"
+   },
+   {
+    "id": "syn-dark",
+    "file": "app/config/game/synergies.ts",
+    "lines": [
+     46,
+     50
+    ],
+    "symbol": "SynergyEffects[DARK]",
+    "expect": "EffectEnum.ASSURANCE",
+    "note": "EffectEnum.ASSURANCE sits in the Dark synergy effect list"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   }
+  ]
+ }
+}
