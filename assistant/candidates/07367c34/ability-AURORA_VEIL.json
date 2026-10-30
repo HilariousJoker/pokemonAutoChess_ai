@@ -1,0 +1,482 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AURORA_VEIL",
+ "kind": "ability",
+ "identifier": "AURORA_VEIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T174005Z"
+ },
+ "record": {
+  "ability": "AURORA_VEIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare AURORA_VEIL: Alolan Vulpix (1 star) and Alolan Ninetales (2 stars); both have maxPP 80, range 2 and no declared passive. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "ALOLAN_VULPIX",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "AURORA_VEIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ALOLAN_NINETALES",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "AURORA_VEIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ALOLAN_VULPIX": {
+    "evidence": [
+     "unit-vulpix"
+    ]
+   },
+   "ALOLAN_NINETALES": {
+    "evidence": [
+     "unit-ninetales"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AURORA_VEIL] = new AuroraVeilStrategy()",
+   "strategy": "AuroraVeilStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "av-class",
+    "av-req",
+    "av-super"
+   ]
+  },
+  "summary": "Needs no target. Every on-board unit of the caster's team (the caster included, anywhere on the board) gains a shield of raw 5/10/20/50 (by caster stars; AP-scaled, crit only with ability crit) and Rune Protect for a flat 1000 ms, which also clears its negative-status cooldowns and makes status triggers that test runeProtect do nothing while it lasts.",
+  "targeting": {
+   "who": "all allies on the board (team equality with the caster), the caster included; no range or position limit",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so process runs with target null. Dead units are not on the board; an ally with hp 0 still present would get no shield (addShield requires hp > 0) but would receive the Rune Protect call.",
+   "evidence": [
+    "av-req",
+    "av-loop",
+    "board-foreach",
+    "state-shield"
+   ]
+  },
+  "geometry": {
+   "shape": "whole team (every cell of the board is scanned)",
+   "evidence": [
+    "av-loop",
+    "board-foreach"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "each ally on the board, caster included",
+    "declaredRaw": {
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 50,
+      "fallback": 50
+     }
+    },
+    "perUnitRaw": {
+     "ALOLAN_VULPIX": 5,
+     "ALOLAN_NINETALES": 10
+    },
+    "scaling": "requested = table value. applied per ally: Big Eater Belt on that ally x1.25 rounded down (PokemonEntity.addShield); then x(1 + AP/100) with AP of the caster (apBoost 1), x critPower if the cast crit, x0.5 if the receiving ally is enraged, rounded (PokemonState.addShield); shield = max(0, shield + value). Nothing is added to an ally with hp 0.",
+    "resolution": "requested (table) -> belt-adjusted -> applied (after AP, crit, enraged, rounding) -> shield added. The belt and enraged state depend on each receiving ally, not on the caster, so the applied amount can differ between allies. No timer or removal here; later damage consumes the shield.",
+    "evidence": [
+     "av-table",
+     "av-loop",
+     "av-shield",
+     "add-shield",
+     "state-shield",
+     "belt-fn"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "RUNE_PROTECT",
+    "target": "each ally on the board, caster included",
+    "declaredRaw": {
+     "durationMs": 1000
+    },
+    "scaling": "none: the duration is the literal 1000 and is not changed by AP, crit or duration reductions (triggerRuneProtect applies none). The timer is only replaced if longer than the ally's remaining Rune Protect.",
+    "resolution": "triggerRuneProtect sets runeProtect, calls clearNegativeStatus (cooldowns of the listed negative statuses zeroed; the boolean flags are reset by the status update), and the timer runs in the status update. While it is set, status triggers that guard on runeProtect (e.g. silence, shown) are ignored. Applied after the shield for each ally.",
+    "evidence": [
+     "av-dur",
+     "av-rune",
+     "rp-trigger",
+     "rp-clear",
+     "rp-update",
+     "rp-tick",
+     "rp-example"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "Rune Protect 1000 ms on each ally, with negative-status cooldowns cleared at application",
+    "evidence": [
+     "av-dur",
+     "av-rune",
+     "rp-trigger",
+     "rp-clear"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "each ally",
+    "requestedByStars": {
+     "1": 5,
+     "2": 10,
+     "3": 20,
+     "4": 50
+    },
+    "evidence": [
+     "av-table",
+     "av-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "ALOLAN_VULPIX": 1,
+    "ALOLAN_NINETALES": 2
+   },
+   "declaredRawShield": {
+    "ALOLAN_VULPIX": 5,
+    "ALOLAN_NINETALES": 10
+   },
+   "note": "indexed by the casting entity's stars; 20 and 50 are not reached at the bare factory star counts of these units. Rune Protect duration does not depend on stars.",
+   "evidence": [
+    "av-table",
+    "unit-vulpix",
+    "unit-ninetales"
+   ]
+  },
+  "positionalConditions": "None: allies anywhere on the board are affected. Needs no enemy in range, because requiresTarget is false.",
+  "repeatedCastsAndModes": "No stored state or modes. Shields stack additively with existing shields; Rune Protect timer only extends if longer.",
+  "rawVsResolved": "Declared raw: shield 5/10 (1/2 stars) and Rune Protect 1000 ms. Requested = raw; applied shield = raw [x1.25 down for a Big Eater Belt holder] x (1 + AP/100) [x crit factor] [x0.5 if the receiver is enraged], rounded, per ally. Rune Protect is 1000 ms exactly. The cleansing happens inside triggerRuneProtect.",
+  "sourceTables": [
+   {
+    "id": "auroraVeilShield",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which status triggers besides the ones sampled test runeProtect (only silence was cited; the list in status.ts was not enumerated one by one)",
+   "Whether non-status effects (damage, displacement, forced actions) honour Rune Protect - only the status guards in status.ts were seen",
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "How the shield is consumed by handleDamage (shield-first order) was not re-read for this record"
+  ],
+  "unresolved": [
+   "The remaining part of PokemonState.addShield after the shield update (broadcast, shieldDone, OnShieldDepletedEffect on negative values) was not needed for a positive shield and is not described",
+   "Whether dead entities can still be present in board cells at cast time (Board.forEach reads this.cells directly)",
+   "Consulted: PokemonEntity.addShield and PokemonState.addShield (belt, AP, crit, enraged, hp > 0 gate), applyBigEaterBeltStatBuff, Status.triggerRuneProtect / clearNegativeStatus / updateRuneProtect, sibling COTTON_GUARD record",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-vulpix",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10413,
+     10426
+    ],
+    "symbol": "class AlolanVulpix",
+    "expect": "skill = Ability.AURORA_VEIL",
+    "note": "unit class block: stars 1, maxPP 80, range 2, no passive (regional, isInRegion follows)"
+   },
+   {
+    "id": "unit-ninetales",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10438,
+     10450
+    ],
+    "symbol": "class AlolanNinetales",
+    "expect": "skill = Ability.AURORA_VEIL",
+    "note": "unit class block: stars 2, maxPP 80, range 2, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "plain function; buff on a holder x1.25 rounded down"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     756,
+     756
+    ],
+    "symbol": "AbilityStrategies[Ability.AURORA_VEIL]",
+    "expect": "[Ability.AURORA_VEIL]: new AuroraVeilStrategy()",
+    "note": ""
+   },
+   {
+    "id": "av-class",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "AuroraVeilStrategy",
+    "expect": "export class AuroraVeilStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "av-req",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "AuroraVeilStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without a target; process receives null"
+   },
+   {
+    "id": "av-super",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AuroraVeilStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "av-dur",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "rune protect duration",
+    "expect": "const runeProtectDuration = 1000",
+    "note": "literal 1000 ms"
+   },
+   {
+    "id": "av-table",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "shield table",
+    "expect": "const shield = [5, 10, 20, 50][pokemon.stars - 1] ?? 50",
+    "note": "raw shield by caster stars, 50 fallback"
+   },
+   {
+    "id": "av-loop",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     12,
+     13
+    ],
+    "symbol": "team scan",
+    "expect": "if (tg && pokemon.team == tg.team) {",
+    "note": "every on-board entity of the caster's team, anywhere on the board, the caster included"
+   },
+   {
+    "id": "av-shield",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "shield call",
+    "expect": "tg.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag from the cast, caster as source"
+   },
+   {
+    "id": "av-rune",
+    "file": "app/core/abilities/aurora-veil.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "rune protect call",
+    "expect": "tg.status.triggerRuneProtect(runeProtectDuration, tg, pokemon)",
+    "note": "Rune Protect on each ally"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "callback(x, y, this.cells[this.columns * y + x])",
+    "note": "visits every cell with its occupant (or undefined)"
+   },
+   {
+    "id": "add-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt applied first (positive value x1.25, rounded down), then delegates to PokemonState.addShield"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     397
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.hp > 0) {",
+    "note": "only if hp > 0: x(1 + AP x apBoost/100), x critPower if crit, halved if enraged (positive value), rounded; shield = max(0, shield + value)"
+   },
+   {
+    "id": "rp-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.runeProtect = true",
+    "note": "sets the flag, clears negative statuses, timer replaced only if longer"
+   },
+   {
+    "id": "rp-clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     142
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity) {",
+    "note": "zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armorReduction, locked, blind; curse flag cleared (cooldown +2000 if active); possession kept when it came from the same team"
+   },
+   {
+    "id": "rp-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     968,
+     974
+    ],
+    "symbol": "Status.updateRuneProtect",
+    "expect": "if (this.runeProtectCooldown - dt <= 0) {",
+    "note": "Rune Protect ends when its timer runs out"
+   },
+   {
+    "id": "rp-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     226,
+     228
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateRuneProtect(dt)",
+    "note": "the timer runs in the status update"
+   },
+   {
+    "id": "rp-example",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "example of the guard: trigger methods test !this.runeProtect and do nothing while it is set (also seen in other status triggers; not all enumerated)"
+   }
+  ]
+ }
+}
