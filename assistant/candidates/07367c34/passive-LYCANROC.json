@@ -1,0 +1,239 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/LYCANROC",
+ "kind": "passive",
+ "identifier": "LYCANROC",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T054118Z"
+ },
+ "record": {
+  "passive": "LYCANROC",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "LYCANROC_DAY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LYCANROC_DUSK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LYCANROC_NIGHT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ACCELEROCK",
+    "declaredPassive": "LYCANROC",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LYCANROC_DAY": {
+    "evidence": [
+     "unit-day"
+    ]
+   },
+   "LYCANROC_DUSK": {
+    "evidence": [
+     "unit-dusk"
+    ]
+   },
+   "LYCANROC_NIGHT": {
+    "evidence": [
+     "unit-night"
+    ]
+   }
+  },
+  "kind": "marker passive with no PassiveEffects entry; behaviour is a beforeSimulationStart override on the three Lycanroc classes (weather form switch)",
+  "summary": "Passive.LYCANROC has no PassiveEffects entry and no combat effect. Its only behaviour is the beforeSimulationStart override shared by LycanrocDusk, LycanrocNight and LycanrocDay. Before a simulation's entities are built, the Simulation constructor calls that hook for every unit on each player's board with the simulation weather. updateLycanroc picks a target form: weather NIGHT gives LYCANROC_NIGHT, weather ZENITH gives LYCANROC_DAY, any other weather gives none and nothing happens. If the unit is already that form nothing happens; otherwise player.transformPokemon replaces it with the new form (same position, permanent stats carried over, dishes kept, items re-given, synergies recomputed). The form therefore changes only in NIGHT or ZENITH weather and persists afterwards: there is no switch back in neutral weather, and DUSK is only reached by evolving from Rockruff. Forms differ only by synergy types (DAY adds LIGHT, NIGHT adds DARK, DUSK has neither); base stats, ability ACCELEROCK, maxPP 100 and range 1 are identical in the three classes.",
+  "triggers": [
+   "Simulation construction: beforeSimulationStart for each board unit (bench included), before entities exist"
+  ],
+  "effects": [
+   {
+    "kind": "weather_form_switch",
+    "declaredRaw": "NIGHT weather -> LYCANROC_NIGHT; ZENITH weather -> LYCANROC_DAY; other weather -> no change",
+    "scaling": "none",
+    "resolution": "permanent change of the player's board unit via Player.transformPokemon, not a temporary combat effect; no-op if already in the target form",
+    "evidence": [
+     "upd",
+     "unit-day",
+     "unit-dusk",
+     "unit-night",
+     "hook-default",
+     "sim-hook",
+     "transform",
+     "weather-enum"
+    ]
+   },
+   {
+    "kind": "effect_timing",
+    "declaredRaw": "transformation happens before the simulation entities are generated",
+    "scaling": "none",
+    "resolution": "entities are built from the board after the hooks, so the transformed form is the one that fights; benched Lycanroc also transform",
+    "evidence": [
+     "sim-hook",
+     "sim-entities"
+    ]
+   }
+  ],
+  "conditions": [
+   "Weather must be NIGHT or ZENITH for any change.",
+   "Applies to units on the player's board including the bench (hook is called before the bench check)."
+  ],
+  "targeting": "the unit itself only",
+  "resetBehaviour": "No counters. The change is persistent; nothing reverts it when the weather is neutral or different.",
+  "registration": {
+   "evidence": [
+    "hook-default",
+    "unit-day"
+   ],
+   "note": "No PassiveEffects entry; the passive field only marks the three classes."
+  },
+  "formSwitch": {
+   "evidence": [
+    "upd",
+    "rockruff"
+   ],
+   "note": "Rockruff evolves into LYCANROC_DUSK (Rockruff itself is not covered by this record)."
+  },
+  "dependsOnUnverifiedGenericCombat": [
+   "Which weather a given round receives (selection of Weather for a simulation) was not read",
+   "Details of PokemonFactory.createPokemonFromName, carryOverPermanentStats and onAcquired inside transformPokemon were not read beyond the lines cited",
+   "The ACCELEROCK ability body (separate record)"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: no PassiveEffects entry; completeness checked by grepping app/core, app/models and app/utils for LYCANROC: only the three unit classes, the Passive enum and Pokemon enum/data tables.",
+   "transformPokemon is called while the simulation constructor iterates player.board.forEach and replaces entries (delete + set) in that MapSchema; how forEach behaves under that mutation was not read, so whether every unit is visited exactly once is unresolved.",
+   "Whether the Lycanroc passive is also evaluated for the red player in ghost or PvE battles (redPlayer undefined) follows from the player check in the constructor and was not tested.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "upd",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14758,
+     14768
+    ],
+    "symbol": "updateLycanroc",
+    "expect": "player.transformPokemon(pokemon, weatherForm)",
+    "note": "NIGHT -> LYCANROC_NIGHT, ZENITH -> LYCANROC_DAY, any other weather leaves weatherForm undefined and returns; also returns if already that form"
+   },
+   {
+    "id": "unit-day",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14808,
+     14825
+    ],
+    "symbol": "LycanrocDay",
+    "expect": "passive = Passive.LYCANROC",
+    "note": "LYCANROC_DAY: 2 stars, maxPP 100, range 1, skill ACCELEROCK, types WILD ROCK LIGHT; hook calls updateLycanroc"
+   },
+   {
+    "id": "unit-dusk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14770,
+     14787
+    ],
+    "symbol": "LycanrocDusk",
+    "expect": "passive = Passive.LYCANROC",
+    "note": "LYCANROC_DUSK: 2 stars, maxPP 100, range 1, skill ACCELEROCK, types WILD ROCK; hook calls updateLycanroc"
+   },
+   {
+    "id": "unit-night",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14789,
+     14806
+    ],
+    "symbol": "LycanrocNight",
+    "expect": "passive = Passive.LYCANROC",
+    "note": "LYCANROC_NIGHT: 2 stars, maxPP 100, range 1, skill ACCELEROCK, types WILD ROCK DARK; hook calls updateLycanroc"
+   },
+   {
+    "id": "rockruff",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14743,
+     14756
+    ],
+    "symbol": "Rockruff",
+    "expect": "evolution = Pkm.LYCANROC_DUSK",
+    "note": "Rockruff evolves into the DUSK form; Rockruff itself has no passive (separate from this record)"
+   },
+   {
+    "id": "hook-default",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     193,
+     201
+    ],
+    "symbol": "Pokemon.beforeSimulationStart",
+    "expect": "// called at simulation start before entities are generated",
+    "note": "base hook is a no-op; the Lycanroc classes override it"
+   },
+   {
+    "id": "sim-hook",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     146,
+     170
+    ],
+    "symbol": "Simulation constructor",
+    "expect": "pokemon.beforeSimulationStart({",
+    "note": "called for every unit of each player's board (bench included) with the simulation weather, before entities are built"
+   },
+   {
+    "id": "sim-entities",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     200,
+     209
+    ],
+    "symbol": "Simulation constructor entity creation",
+    "expect": "if (!isOnBench(pokemon)) {",
+    "note": "entities are created after the hooks, from the (possibly transformed) board; bench units get no entity"
+   },
+   {
+    "id": "transform",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     333,
+     352
+    ],
+    "symbol": "Player.transformPokemon",
+    "expect": "carryOverPermanentStats(newPokemon, [pokemon])",
+    "note": "creates the new form, carries permanent stats, dishes and position, swaps it on the board, re-gives items, recomputes synergies"
+   },
+   {
+    "id": "weather-enum",
+    "file": "app/types/enum/Weather.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "Weather enum",
+    "expect": "ZENITH = \"ZENITH\"",
+    "note": "NIGHT and ZENITH are the two weathers used by updateLycanroc"
+   }
+  ]
+ }
+}
