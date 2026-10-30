@@ -1,0 +1,683 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/AXE_KICK",
+ "kind": "ability",
+ "identifier": "AXE_KICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T233953Z"
+ },
+ "record": {
+  "ability": "AXE_KICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare AXE_KICK: Lokix (2 stars) and Nymble (1 star). The strategy is shared; unit differences are the star count only (both maxPP 100, range 1). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "LOKIX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AXE_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NYMBLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "AXE_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LOKIX": {
+    "evidence": [
+     "unit-lokix"
+    ]
+   },
+   "NYMBLE": {
+    "evidence": [
+     "unit-nymble"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.AXE_KICK] = new AxeKickStrategy()",
+   "strategy": "AxeKickStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "ak-class",
+    "ak-super",
+    "ak-comment",
+    "base",
+    "base-flags",
+    "cast",
+    "ms-gate",
+    "can-cast"
+   ]
+  },
+  "summary": "Needs no target: a unit with pp >= maxPP that can cast casts it from the moving state with target null. The caster selects the enemy-team entity with the highest current pp (any enemy on the board, no targettability or range check; ties keep board cell order, row-major), moves itself (non-forced, so Heavy Duty Boots / locked / skydiving on the caster do not matter) to the empty cell closest to that enemy, deals SPECIAL damage (requested 25 at 1 star, 50 at 2 stars; 100 at 3 stars or as the ?? fallback) to it, requests -15 PP on it (AP-scaled, crit-scaled), then with probability 0.3 (luck-adjusted) tries to confuse it for 3000 ms. If an enemy has no free cell the next-highest-pp enemy is tried; if the board has no empty cell (or no enemy exists) nothing happens after the PP is spent. The in-source comment states different numbers ([30,60,100,200,SP] damage, [15,15,30,60,SP] PP, [30,LK]%); the code, not the comment, is described here.",
+  "targeting": {
+   "who": "the enemy-team entity with the highest pp (single target); fallback to the next one only when no empty cell exists",
+   "needsTarget": false,
+   "note": "Enemies are collected from board.cells (row-major) with team !== caster team, then sorted by pp descending; Array.sort is stable in current JS engines, so equal-pp enemies keep board order (this stability is an engine property, not read from the repo). The destination is board.getClosestAvailablePlace(enemy x, y): the empty cell with the smallest distanceM, first in row-major order on ties, on either side of the board. It is computed before the move, and the same helper is the only source of destinations, so if it returns null for one enemy it returns null for all (full board) and the loop ends with no action. If the loop exits because only one candidate remained, the last shifted enemy is still used when it has a spot.",
+   "evidence": [
+    "ak-select",
+    "ak-loop",
+    "closest",
+    "closest-dist",
+    "cells",
+    "board-dims"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area; the caster relocates to the empty cell nearest the target (not necessarily adjacent)",
+   "evidence": [
+    "ak-loop",
+    "ak-move",
+    "closest",
+    "move",
+    "swap"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the highest-pp enemy",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "fallback": 100
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "LOKIX": 50,
+     "NYMBLE": 25
+    },
+    "scaling": "requested = table[stars-1] ?? 100. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault is false, so only with ABILITY_CRIT).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies further modifiers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage (not stored by this strategy) = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. Damage is dealt after the caster has moved.",
+    "evidence": [
+     "ak-table",
+     "ak-hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "pp_change",
+    "target": "the same enemy",
+    "declaredRaw": {
+     "value": -15,
+     "label": "requested PP change"
+    },
+    "perUnitRaw": {
+     "LOKIX": -15,
+     "NYMBLE": -15
+    },
+    "scaling": "addPP(-15, caster, apBoost 1, crit): value = round(-15 x (1 + AP/100) x (critPower if the cast crit)); the fatigue halving applies only to positive base values, so it does not apply here.",
+    "resolution": "applied: a target holding Twist Band turns the negative value into a positive one (so the target GAINS that PP); otherwise the target loses it. The change is skipped while the target has the tree status or is resurrecting; silence / protect / NO_PP_GAIN block only gains (so they would block a Twist Band gain). The result is clamped to [0, 2*maxPP-1]. Big Eater Belt is not applied by addPP. The PP removal happens after the damage and does not depend on the damage surviving.",
+    "evidence": [
+     "ak-pp",
+     "addpp",
+     "addpp-gate",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "CONFUSION",
+    "target": "the same enemy",
+    "durationMs": 3000,
+    "probability": 0.3,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "chance": 0.3,
+     "label": "requested duration and base chance"
+    },
+    "perUnitRaw": {
+     "LOKIX": 3000,
+     "NYMBLE": 3000
+    },
+    "scaling": "chance = 0.3^(1 - luck/100) capped at 1 (caster luck); duration not scaled by AP (apBoost default false) or stars.",
+    "resolution": "applied only if the target is not already confused, has no runeProtect and lacks IMMUNITY_CONFUSION; duration x1.3 in SANDSTORM, then reduced by SWIFT_SWIM (x0.7) / HYDRATION (x0.5) / WATER_VEIL or SURGE_SURFER (x0.3) and by Odd Keystone (x(1-0.1 per stone) for a player-owned target), rounded; a held Persim Berry is eaten on application. An already-confused target keeps its current timer. The confusion effect on the target's attacks is not described here.",
+    "evidence": [
+     "ak-conf",
+     "chance",
+     "conf-trig",
+     "conf-sand",
+     "conf-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "LOKIX": 2,
+    "NYMBLE": 1
+   },
+   "declaredRawDamage": {
+    "LOKIX": 50,
+    "NYMBLE": 25
+   },
+   "note": "Only damage depends on stars (index stars-1). The 100 value is reached at 3 stars and as the ?? fallback; neither listed unit has 3 stars at its bare factory value. PP change (-15), confusion chance and duration are star-independent. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ak-table",
+    "unit-lokix",
+    "unit-nymble"
+   ]
+  },
+  "positionalConditions": "The target is chosen by pp, not by distance; the caster's destination is the empty cell nearest the target, which can be anywhere on the board and may differ from the cell a normal approach would reach. No condition on the caster's own position.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP, re-evaluates the highest-pp enemy (the previous target's pp has just been reduced by 15 unless blocked or reversed by Twist Band) and moves again.",
+  "rawVsResolved": "Requested: damage 25 (Nymble, 1 star) / 50 (Lokix, 2 stars), PP -15, confusion 30% for 3000 ms. Applied damage = requested x (1 + AP/100) x optional DOUBLE_DAMAGE / steam / crit multipliers, then SPE_DEF division, round up and minimum 1; takenDamage (shield included) is what handleDamage reports and is not used by this strategy. Applied PP change = round(-15 x (1 + AP/100) x crit), flipped by Twist Band, skipped for tree/resurrecting, clamped at 0 from below. Applied confusion = 3000 ms after sandstorm / reductions, only if the chance roll and the target guards pass.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/axe-kick.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which enemy is highest in pp in a real fight and when the cast fires (PP gain sources) - only the pp >= maxPP && canCast gate in the moving state was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and the effect of confusion on the confused unit's attacks were not read",
+   "Array.prototype.sort stability for equal-pp ties is an engine property, not read from the repository"
+  ],
+  "unresolved": [
+   "The in-source comment ([30,60,100,200,SP] damage, [15,15,30,60,SP] PP, [30,LK]% chance) disagrees with the code ([25,50,100], flat -15 PP, 0.3); the code is described, which numbers are intended was not decided",
+   "Whether moveTo with forcedDisplacement false has any other side effect on the caster beyond toMovingState, the cell swap and cooldown = 100 was read only as written",
+   "Whether the three-star value 100 is reachable by a listed unit (only 1- and 2-star bare units are listed)",
+   "Routing: the queue record lists no routing uncertainty for this identifier",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-nymble",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19045,
+     19059
+    ],
+    "symbol": "class Nymble",
+    "expect": "skill = Ability.AXE_KICK",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-lokix",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19061,
+     19074
+    ],
+    "symbol": "class Lokix",
+    "expect": "skill = Ability.AXE_KICK",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     757,
+     757
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.AXE_KICK]: new AxeKickStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "ak-class",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     7,
+     9
+    ],
+    "symbol": "AxeKickStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed; canCritByDefault inherited false"
+   },
+   {
+    "id": "ak-super",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "AxeKickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process spends maxPP"
+   },
+   {
+    "id": "ak-comment",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     11,
+     12
+    ],
+    "symbol": "comment in process",
+    "expect": "Leap to the enemy with the highest PP",
+    "note": "developer comment; its numbers differ from the code (see unresolved)"
+   },
+   {
+    "id": "ak-select",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     13,
+     17
+    ],
+    "symbol": "highestPPEnemies",
+    "expect": "b!.pp - a!.pp",
+    "note": "all enemy-team entities on board.cells, sorted by pp descending (no targettability filter)"
+   },
+   {
+    "id": "ak-loop",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     18,
+     28
+    ],
+    "symbol": "do/while",
+    "expect": "freeSpot = highestPPEnemy",
+    "note": "candidate enemy and closest empty cell; falls through to the next enemy while no spot"
+   },
+   {
+    "id": "ak-move",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     30,
+     31
+    ],
+    "symbol": "process",
+    "expect": "pokemon.moveTo(freeSpot.x, freeSpot.y, board, false)",
+    "note": "non-forced move of the caster"
+   },
+   {
+    "id": "ak-table",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "damage",
+    "expect": "const damage = [25, 50, 100][pokemon.stars - 1] ?? 100",
+    "note": "requested SPECIAL damage by caster stars"
+   },
+   {
+    "id": "ak-hit",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     33,
+     39
+    ],
+    "symbol": "process",
+    "expect": "highestPPEnemy.handleSpecialDamage(",
+    "note": "SPECIAL damage, caster as attacker, cast crit flag"
+   },
+   {
+    "id": "ak-pp",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "process",
+    "expect": "highestPPEnemy.addPP(-15, pokemon, 1, crit)",
+    "note": "requested -15 PP, apBoost 1, cast crit flag"
+   },
+   {
+    "id": "ak-conf",
+    "file": "app/core/abilities/axe-kick.ts",
+    "lines": [
+     41,
+     43
+    ],
+    "symbol": "process",
+    "expect": "chance(0.3, pokemon)",
+    "note": "30% (luck-adjusted) confusion of 3000 ms"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "canCast false => no cast; crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ms-gate",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     40,
+     45
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "requiresTarget false: cast from the moving state with target null once pp >= maxPP and canCast"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     255
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "silence, Nullify Bandanna, TELEPORT_NEXT_ATTACK stop casting"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once, effect then removed"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     521
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "value = round(base x (1 + apBoost x AP/100) x crit x fatigue-halving of gains); then Twist Band"
+   },
+   {
+    "id": "addpp-gate",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     531
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "negative value blocked by tree or resurrecting; result clamped to [0, maxPP*2-1]; silence/protect/NO_PP_GAIN only block gains"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "Twist Band holder: a negative value from an enemy caster becomes positive"
+   },
+   {
+    "id": "move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "forcedDisplacement false skips canBeMoved checks; swaps with the (empty) cell; cooldown = 100"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": ""
+   },
+   {
+    "id": "closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     566
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "candidateCells.sort((a, b) => a.distance - b.distance)",
+    "note": "closest EMPTY cell (any side of the board) by distanceM, ties keep row-major order; null if board full"
+   },
+   {
+    "id": "closest-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     559,
+     559
+    ],
+    "symbol": "getClosestAvailablePlace",
+    "expect": "distance: distanceM(x, y, targetX, targetY)",
+    "note": ""
+   },
+   {
+    "id": "cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     17,
+     26
+    ],
+    "symbol": "class Board",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": "cells stored row-major: index columns*y + x"
+   },
+   {
+    "id": "board-dims",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "8 columns x 6 rows"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability^(1 - luck/100), capped at 1"
+   },
+   {
+    "id": "conf-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     806,
+     835
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "!this.runeProtect &&",
+    "note": "not applied when already confused, runeProtect, IMMUNITY_CONFUSION; sandstorm x1.3; duration reductions; sets confusionCooldown"
+   },
+   {
+    "id": "conf-sand",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     818,
+     820
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "duration *= 1.3",
+    "note": "SANDSTORM weather lengthens it"
+   },
+   {
+    "id": "conf-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then x(1-0.1 per Odd Keystone)"
+   }
+  ]
+ }
+}
