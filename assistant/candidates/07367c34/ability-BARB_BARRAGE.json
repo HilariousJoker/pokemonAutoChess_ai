@@ -1,0 +1,689 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BARB_BARRAGE",
+ "kind": "ability",
+ "identifier": "BARB_BARRAGE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261030T233953Z"
+ },
+ "record": {
+  "ability": "BARB_BARRAGE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare BARB_BARRAGE: Hisuian Qwilfish (3 stars, passive HISUIAN_QWILFISH) and Overqwil (4 stars, no passive). The strategy is shared; unit differences are the star count and the passive (the passive is not described here). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "HISUIAN_QWILFISH",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BARB_BARRAGE",
+    "declaredPassive": "HISUIAN_QWILFISH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "OVERQWIL",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BARB_BARRAGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HISUIAN_QWILFISH": {
+    "evidence": [
+     "unit-hqwilfish"
+    ]
+   },
+   "OVERQWIL": {
+    "evidence": [
+     "unit-overqwil"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BARB_BARRAGE] = new BarbBarrageStrategy()",
+   "strategy": "BarbBarrageStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bq-class",
+    "bq-super",
+    "base",
+    "base-flags",
+    "cast",
+    "can-cast"
+   ]
+  },
+  "summary": "Casts on a target. The caster moves (non-forced) to the empty cell that has the most opponent-team units among its 8 neighbours, anywhere on the board; that cell is NOT tied to the cast target. Then the cast target and every unit on the target's team standing in the 8 cells around the TARGET'S position each receive one poison stack (3000 ms, origin = caster) and then SPECIAL damage (requested 45 for Hisuian Qwilfish at 3 stars, 60 for Overqwil at 4 stars; table 15/30/45/60/120 by stars). Allies of the target adjacent to the target are hit; the order is adjacent units in row-major order, then the target. If the board has no empty cell, the caster does not move and only the target takes the damage, without poison.",
+  "targeting": {
+   "who": "the cast target and the same-team units adjacent to the cast target",
+   "needsTarget": true,
+   "note": "getMostSurroundedCoordinateAvailablePlace(opponentTeam, board) counts, for every empty cell, the neighbours (8 cells) whose team equals the opponent team, sorts descending (stable, so ties keep row-major order, first cell wins; stable sort is an engine property, not read from the repo), and returns the first; undefined only if no cell is empty. The caster is moved there with moveTo(..., false), then getAdjacentCells(target.positionX, target.positionY) is read, so the caster's new cell is on the board but excluded by the team filter. The hit set is computed from the target's position, which may not be adjacent to the caster's new cell.",
+   "evidence": [
+    "bq-ms",
+    "ms-fn",
+    "ms-count",
+    "bq-opp",
+    "bq-move",
+    "bq-adj",
+    "bq-filter",
+    "adj",
+    "bq-else"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block around the target (target plus adjacent same-team units); caster relocation to the empty cell with most opponent neighbours",
+   "evidence": [
+    "bq-adj",
+    "bq-filter",
+    "adj",
+    "bq-move",
+    "bq-ms",
+    "ms-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target and each same-team unit adjacent to it (in the else branch: the cast target only)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 45,
+      "4": 60,
+      "5": 120,
+      "fallback": 120
+     },
+     "label": "requested damage (raw), per unit hit"
+    },
+    "perUnitRaw": {
+     "HISUIAN_QWILFISH": 45,
+     "OVERQWIL": 60
+    },
+    "scaling": "requested = table[stars-1] ?? 120. handleSpecialDamage for each unit hit: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE (the effect is removed after the first hit, so with several units hit only the first one in the order gets it); x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, shield absorbs first; takenDamage (not stored by this strategy) = shield damage + HP damage, 0 for protect / skydiving / magicBounce. Poison is applied before the damage in the same iteration.",
+    "evidence": [
+     "bq-table",
+     "bq-hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "bq-bcast"
+    ]
+   },
+   {
+    "kind": "relocation",
+    "target": "the caster",
+    "declaredRaw": {
+     "description": "moveTo(empty cell with most opponent-team neighbours), forcedDisplacement false"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "non-forced move: the caster's own canBeMoved restrictions (Heavy Duty Boots, locked, skydiving) are not checked; the cell is empty so no swap partner; sets cooldown 100. The move happens before any damage.",
+    "evidence": [
+     "bq-ms",
+     "ms-fn",
+     "ms-count",
+     "bq-move",
+     "move",
+     "swap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "POISON",
+    "target": "the cast target and each same-team unit adjacent to it (not applied in the no-empty-cell branch)",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "stacks": 1,
+     "label": "requested duration and stacks per unit hit"
+    },
+    "perUnitRaw": {
+     "HISUIAN_QWILFISH": 3000,
+     "OVERQWIL": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "triggerPoison does nothing if the unit has IMMUNITY_POISON or runeProtect. Otherwise poisonOrigin = the caster, stacks + 1 up to 3 (4 with VENOMOUS, 5 with TOXIC on the origin), duration through the unit's reductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per Odd Keystone), timer replaced only if longer; GUTS +5 attack once and TOXIC_BOOST +10 once; a Pecha Berry holder eats the berry. While poisoned the unit takes TRUE damage of 5% max HP per stack per tick (reduced by rain, Assault Vest, TOXIC_BOOST, water effects).",
+    "evidence": [
+     "bq-poison",
+     "poison-trig",
+     "poison-max",
+     "poison-dur",
+     "poison-react",
+     "tick",
+     "tick-true",
+     "conf-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HISUIAN_QWILFISH": 3,
+    "OVERQWIL": 4
+   },
+   "declaredRawDamage": {
+    "HISUIAN_QWILFISH": 45,
+    "OVERQWIL": 60
+   },
+   "note": "Only damage depends on stars (index stars-1 of the caster). Poison, relocation and hit set are star-independent. The 15, 30 and 120 entries are not reachable by the listed units at their bare factory stars.",
+   "evidence": [
+    "bq-table",
+    "unit-hqwilfish",
+    "unit-overqwil"
+   ]
+  },
+  "positionalConditions": "The destination depends on opponent-team positions around every empty cell (not on the target). The hit set depends on the target's position and on which same-team units stand next to it. With no empty cell on the board the caster does not move, no poison is applied and only the target is damaged.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and re-evaluates the destination and hit set. Poison stacks accumulate across casts up to the cap.",
+  "rawVsResolved": "Requested: damage 45 (Hisuian Qwilfish) / 60 (Overqwil) per unit hit; poison 1 stack, 3000 ms per unit hit. Applied damage = requested x (1 + AP/100) x optional DOUBLE_DAMAGE (first unit only) / steam / crit multipliers, then SPE_DEF division, round up and minimum 1; takenDamage includes shield damage and is not used by the strategy. Applied poison blocked by IMMUNITY_POISON / runeProtect, stack capped, duration after reductions.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How the cast target is chosen and when the cast fires in a real fight - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and the poison tick's later branches were not read",
+   "Array.prototype.sort stability for equal-neighbour ties is an engine property, not read from the repository"
+  ],
+  "unresolved": [
+   "The HISUIAN_QWILFISH passive of the 3-star unit is not described in this ability record (no passive record read here)",
+   "The ally-of-target hit set uses the target's position, not the caster's new cell; read as written, not exercised",
+   "If a hit unit dies from the damage before later iterations, later iterations still run (the list was built beforehand); not exercised",
+   "Whether the cast target can be an ally of the caster (then the hit set would be the caster's team) was not traced",
+   "Routing: the queue record lists no routing uncertainty for this identifier",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-hqwilfish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13567,
+     13592
+    ],
+    "symbol": "class HisuianQwilfish",
+    "expect": "skill = Ability.BARB_BARRAGE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-overqwil",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13594,
+     13609
+    ],
+    "symbol": "class Overqwil",
+    "expect": "skill = Ability.BARB_BARRAGE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     759,
+     759
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.BARB_BARRAGE]: new BarbBarrageStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bq-class",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     6,
+     12
+    ],
+    "symbol": "BarbBarrageStrategy",
+    "expect": "target: PokemonEntity",
+    "note": "target required (requiresTarget stays true); canCritByDefault inherited false"
+   },
+   {
+    "id": "bq-super",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process spends maxPP; default cast animation suppressed (preventDefaultAnim true), a per-hit broadcast is sent instead"
+   },
+   {
+    "id": "bq-table",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "const damage = [15, 30, 45, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "requested SPECIAL damage by caster stars"
+   },
+   {
+    "id": "bq-opp",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "process",
+    "expect": "pokemon.team === Team.BLUE_TEAM ? Team.RED_TEAM : Team.BLUE_TEAM",
+    "note": "opponent team of the caster"
+   },
+   {
+    "id": "bq-ms",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     17,
+     21
+    ],
+    "symbol": "process",
+    "expect": "pokemon.state.getMostSurroundedCoordinateAvailablePlace(",
+    "note": "destination: empty cell with most opponent-team neighbours"
+   },
+   {
+    "id": "bq-move",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     23,
+     29
+    ],
+    "symbol": "process",
+    "expect": "pokemon.moveTo(",
+    "note": "non-forced move of the caster to that cell"
+   },
+   {
+    "id": "bq-adj",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     30,
+     34
+    ],
+    "symbol": "process",
+    "expect": ".getAdjacentCells(target.positionX, target.positionY)",
+    "note": ".filter team === target.team (the cast target's adjacent same-team entities) then .concat(target)"
+   },
+   {
+    "id": "bq-filter",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     32,
+     34
+    ],
+    "symbol": "process",
+    "expect": ".filter((v) => v?.team === target.team)",
+    "note": "only entities on the target's team; then the target is appended last"
+   },
+   {
+    "id": "bq-poison",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "process",
+    "expect": "v.status.triggerPoison(3000, v, pokemon)",
+    "note": "one poison stack, 3000 ms, origin = caster, applied before the damage"
+   },
+   {
+    "id": "bq-hit",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     38,
+     44
+    ],
+    "symbol": "process",
+    "expect": "v.handleSpecialDamage(",
+    "note": "SPECIAL damage, caster as attacker, cast crit flag"
+   },
+   {
+    "id": "bq-bcast",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     45,
+     49
+    ],
+    "symbol": "process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "per-hit animation broadcast"
+   },
+   {
+    "id": "bq-else",
+    "file": "app/core/abilities/barb-barrage.ts",
+    "lines": [
+     52,
+     60
+    ],
+    "symbol": "process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "fallback when no empty cell exists: damage to the cast target only, no poison, no move"
+   },
+   {
+    "id": "ms-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1241,
+     1275
+    ],
+    "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+    "expect": "emptyPlaces.sort((a, b) => {",
+    "note": "empty cells counted by opponent-team neighbours in the 8 cells, sorted descending; first wins; undefined if the board is full"
+   },
+   {
+    "id": "ms-count",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1252,
+     1256
+    ],
+    "symbol": "getMostSurroundedCoordinateAvailablePlace",
+    "expect": "cell.value.team === team",
+    "note": "counts neighbours of the given team"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "8 neighbouring on-board cells, row-major, centre excluded"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "canCast false => no cast; crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     255
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "silence, Nullify Bandanna, TELEPORT_NEXT_ATTACK stop casting"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once, effect then removed"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "forcedDisplacement false skips canBeMoved checks; swaps with the (empty) cell; cooldown = 100"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": ""
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "origin = bunker; cap 3 (4 VENOMOUS, 5 TOXIC on origin); one stack per call"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "poison-react",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "GUTS +5 attack, TOXIC_BOOST +10 attack once; a Pecha Berry holder eats the berry"
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick 5% max HP per stack"
+   },
+   {
+    "id": "tick-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     651,
+     657
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "attackType: AttackType.TRUE",
+    "note": "TRUE tick with the poison origin as attacker"
+   },
+   {
+    "id": "conf-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then x(1-0.1 per Odd Keystone)"
+   }
+  ]
+ }
+}
