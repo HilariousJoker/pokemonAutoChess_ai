@@ -1,0 +1,516 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CAMOUFLAGE",
+ "kind": "ability",
+ "identifier": "CAMOUFLAGE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T113948Z"
+ },
+ "record": {
+  "ability": "CAMOUFLAGE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare CAMOUFLAGE: Kecleon (3 stars, passive PROTEAN2) and Kecleon Purple (3 stars, no passive); both maxPP 100, range 1, base atk 22 / def 6 / speDef 6. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "KECLEON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CAMOUFLAGE",
+    "declaredPassive": "PROTEAN2",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KECLEON_PURPLE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CAMOUFLAGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KECLEON": {
+    "evidence": [
+     "unit-kecleon"
+    ]
+   },
+   "KECLEON_PURPLE": {
+    "evidence": [
+     "unit-kecleon-purple"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CAMOUFLAGE] = new CamouflageStrategy()",
+   "strategy": "CamouflageStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "cm-class",
+    "cm-super"
+   ]
+  },
+  "summary": "Heals the caster (flat 15/25/35/70 by stars, times (2 + AP/100); the 3-star Kecleons request 35 x 2 = 70 at 0 AP) and then, if the cast target exists and is not INANIMATE, copies the target: the caster takes the target's index, raises atk, def and speDef to the target's values if those are higher, and takes the target's range (a larger own range first sends the caster to the moving state). The stat copies are plain field assignments, not stat-helper calls.",
+  "targeting": {
+   "who": "heal: the caster; copy: the cast target (read only, not changed)",
+   "needsTarget": true,
+   "note": "The heal happens regardless of the target; the copy block requires target && target.canBeCopied (passive other than INANIMATE).",
+   "evidence": [
+    "cm-heal",
+    "cm-gate",
+    "ent-copy",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "self heal plus single-target copy; no area, no displacement",
+   "evidence": [
+    "cm-heal",
+    "cm-gate"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 25,
+      "3": 35,
+      "4": 70,
+      "fallback": 70
+     },
+     "label": "flat base heal (raw), before the (2 + AP/100) factor"
+    },
+    "perUnitRaw": {
+     "KECLEON": 35,
+     "KECLEON_PURPLE": 35
+    },
+    "scaling": "requested = flatHeal x (2 + AP/100) computed in the strategy (70 at 0 AP for the 3-star Kecleons); handleHeal is called with apBoost 0, so the AP term is NOT applied a second time. In handleHeal: x critPower if the cast crit (canCritByDefault false, needs ABILITY_CRIT); x1.3 with BUFF_HEAL_RECEIVED; x0.5 while the caster is burning; x0.5 while enraged; x1.2 in ZENITH weather; rounded.",
+    "resolution": "applied = requested after those multipliers; healReceived = min(applied, missing HP), the remainder is overheal; zero while the caster has the wound status (handleHeal returns 0/0) or protect, or is dead. Burning matters here: a caster burning from another source heals half.",
+    "evidence": [
+     "cm-table",
+     "cm-ap",
+     "cm-heal",
+     "ent-heal",
+     "hs-wound",
+     "hs-gate",
+     "hs-ap",
+     "hs-crit",
+     "hs-buff",
+     "hs-burn",
+     "hs-enraged",
+     "hs-zenith",
+     "hs-round",
+     "hs-cap"
+    ]
+   },
+   {
+    "kind": "copy",
+    "target": "the caster (reads the cast target)",
+    "declaredRaw": {
+     "description": "index = target.index; atk/def/speDef = max(own, target's); range = target's range"
+    },
+    "scaling": "none from stars, AP or crit; no clamp except the Math.max on atk, def and speDef.",
+    "resolution": "only if target exists and passive != INANIMATE. The stat values are read from the target's current fields and written straight into the caster's fields, so Big Eater Belt / Twist Band effects of the stat adders (addAttack etc.) are not involved; the stat is a one-time snapshot (no later link to the target). Range is overwritten even if lower, and when the caster's range was larger it enters the moving state first (skipped for INANIMATE or tree-status casters).",
+    "evidence": [
+     "cm-gate",
+     "cm-index",
+     "cm-stats",
+     "cm-range",
+     "ent-copy",
+     "ent-moving"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KECLEON": 3,
+    "KECLEON_PURPLE": 3
+   },
+   "declaredRawHeal": {
+    "KECLEON": 35,
+    "KECLEON_PURPLE": 35
+   },
+   "note": "Heal base is indexed by the caster's stars; the 1-, 2- and 4-star values (15, 25, 70, also the ?? fallback) are not reachable by these units' bare factory star count. The copy does not depend on stars.",
+   "evidence": [
+    "cm-table",
+    "unit-kecleon",
+    "unit-kecleon-purple"
+   ]
+  },
+  "positionalConditions": "None read in the strategy; which unit is the cast target comes from the generic targeting step.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (100) of PP and heals again. Repeat casts re-apply the copy using max() against the already raised stats, so stats never go down; the range and index are overwritten each time.",
+  "rawVsResolved": "Requested: heal 35 x (2 + AP/100) (70 at 0 AP for the 3-star Kecleons); copy atk/def/speDef = max(own, target). Applied heal = requested x optional crit / BUFF_HEAL_RECEIVED / burn / enraged / ZENITH multipliers, rounded, capped at missing HP (the rest is overheal), 0 with wound/protect. Applied stats = the plain max() result (no helper adjustments).",
+  "sourceTables": [
+   {
+    "id": "heal",
+    "file": "app/core/abilities/camouflage.ts",
+    "pattern": "const flatHeal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "What the changed pokemon.index does elsewhere (display/sprite and any index-keyed logic) was not traced",
+   "Effects of the new range on target selection after toMovingState (MovingState / AttackingState) were not read",
+   "The PROTEAN2 passive (Kecleon only) changes synergies/typing in synergies.ts; it does not touch this strategy, and its interaction was not examined"
+  ],
+  "unresolved": [
+   "Whether copied atk/def/speDef/range persist for the whole fight or are reset by later events was not examined",
+   "Whether the two units ever reach another star count than the bare factory value was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     788,
+     788
+    ],
+    "symbol": "AbilityStrategies[Ability.CAMOUFLAGE]",
+    "expect": "[Ability.CAMOUFLAGE]: new CamouflageStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cm-class",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "CamouflageStrategy",
+    "expect": "export class CamouflageStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "cm-super",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP of PP"
+   },
+   {
+    "id": "cm-table",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "const flatHeal = [15, 25, 35, 70][pokemon.stars - 1] ?? 70",
+    "note": "flat base heal by caster stars"
+   },
+   {
+    "id": "cm-ap",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "const healWithAP = flatHeal * (2 + pokemon.ap / 100)",
+    "note": "the AP term is applied here; factor 2 + AP/100"
+   },
+   {
+    "id": "cm-heal",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "pokemon.handleHeal(healWithAP, pokemon, 0, crit)",
+    "note": "self heal, apBoost argument 0, crit flag passed"
+   },
+   {
+    "id": "cm-gate",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "if (target && target.canBeCopied) {",
+    "note": "copy block only with a target that can be copied"
+   },
+   {
+    "id": "cm-index",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "pokemon.index = target.index",
+    "note": "caster takes the target's index"
+   },
+   {
+    "id": "cm-stats",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     18,
+     20
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "pokemon.atk = Math.max(pokemon.atk, target.atk)",
+    "note": "atk, def, speDef raised to the target's value if lower; plain field assignments (no addAttack / addDefense / addSpecialDefense helper)"
+   },
+   {
+    "id": "cm-range",
+    "file": "app/core/abilities/camouflage.ts",
+    "lines": [
+     21,
+     24
+    ],
+    "symbol": "CamouflageStrategy.process",
+    "expect": "pokemon.range = target.range",
+    "note": "range set to the target's (can also lower it); toMovingState first when the caster's range is larger"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "ent-copy",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     266,
+     268
+    ],
+    "symbol": "PokemonEntity.canBeCopied",
+    "expect": "return this.passive !== Passive.INANIMATE",
+    "note": "only INANIMATE-passive units cannot be copied"
+   },
+   {
+    "id": "ent-moving",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     487
+    ],
+    "symbol": "PokemonEntity.toMovingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": "moving state is skipped for INANIMATE or tree-status units"
+   },
+   {
+    "id": "hs-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wound: no heal (healReceived 0)"
+   },
+   {
+    "id": "hs-gate",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "protect or dead: no heal"
+   },
+   {
+    "id": "hs-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     334,
+     336
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "apBoost multiplier; CAMOUFLAGE passes 0, so this branch is skipped"
+   },
+   {
+    "id": "hs-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     337,
+     339
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= caster.critPower",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "hs-buff",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     342
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.effects.has(EffectEnum.BUFF_HEAL_RECEIVED)",
+    "note": "x1.3"
+   },
+   {
+    "id": "hs-burn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     345
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.burn) {",
+    "note": "x0.5 while burning"
+   },
+   {
+    "id": "hs-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     346,
+     348
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.enraged) {",
+    "note": "x0.5 while enraged"
+   },
+   {
+    "id": "hs-zenith",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     349,
+     351
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.simulation.weather === Weather.ZENITH",
+    "note": "x1.2 in ZENITH weather"
+   },
+   {
+    "id": "hs-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     353
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "rounded"
+   },
+   {
+    "id": "hs-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     355,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "received heal capped at missing HP; the rest is overheal"
+   },
+   {
+    "id": "unit-kecleon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6397,
+     6410
+    ],
+    "symbol": "class Kecleon",
+    "expect": "skill = Ability.CAMOUFLAGE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-kecleon-purple",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6412,
+     6424
+    ],
+    "symbol": "class KecleonPurple",
+    "expect": "skill = Ability.CAMOUFLAGE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
