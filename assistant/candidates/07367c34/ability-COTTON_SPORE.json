@@ -1,0 +1,366 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/COTTON_SPORE",
+ "kind": "ability",
+ "identifier": "COTTON_SPORE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T173941Z"
+ },
+ "record": {
+  "ability": "COTTON_SPORE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "COTTONEE (1 star) and WHIMSICOTT (2 stars), the queued units; maxPP 80, range 2 for both. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "COTTONEE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "COTTON_SPORE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WHIMSICOTT",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "COTTON_SPORE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "COTTONEE": {
+    "evidence": [
+     "unit-cottonee"
+    ]
+   },
+   "WHIMSICOTT": {
+    "evidence": [
+     "unit-whimsicott"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.COTTON_SPORE] = new CottonSporeStrategy()",
+   "strategy": "CottonSporeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-cs",
+    "base",
+    "cs-impl"
+   ]
+  },
+  "summary": "Multi-target speed debuff plus a one-shot sleep marker. The caster does not use the cast target: it picks the up-to-3 enemy-team entities nearest to itself (Chebyshev distance, anywhere on the board) and calls addSpeed(-requested, caster, 1, crit) on each, with a requested reduction of 10 / 20 / 30 / 50 by caster stars (10 for COTTONEE, 20 for WHIMSICOTT). It also places the COTTON_BALL board effect on each of those enemies' cells; unless the enemy holds Heavy Duty Boots this adds the COTTON_BALL effect to the entity, and on that entity's next status update, if it is not already asleep and has no Heavy Duty Boots, it falls asleep for a requested 1000 ms and the COTTON_BALL effect is removed. No damage is dealt. The default ability animation is suppressed (preventDefaultAnim true) and one broadcastAbility per hit enemy replaces it.",
+  "targeting": {
+   "who": "up to 3 enemy-team entities nearest to the caster",
+   "needsTarget": true,
+   "note": "the passed target is ignored. Candidates are board cells holding any entity whose team differs from the caster's (no isTargettableBy / untargettable check). requiresTarget is the default true, so the caster still needs a target in range (range 2) to start the cast. Ties in distance keep the filter order of board.cells (Array.sort is stable in current engines; the exact tie order was not traced further).",
+   "evidence": [
+    "cs-impl",
+    "base",
+    "board-cells"
+   ]
+  },
+  "geometry": {
+   "shape": "the 3 nearest enemies by Chebyshev distance (distanceC), no range limit",
+   "detail": "all enemies are sorted by distanceC from the caster and the first 3 are taken; fewer than 3 enemies means all of them",
+   "evidence": [
+    "cs-impl",
+    "distance-c"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "stat debuff (speed)",
+    "target": "each of the up-to-3 nearest enemies",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 30,
+      "4": 50,
+      "fallback": 50
+     },
+     "unit": "speed points (requested negative value)"
+    },
+    "perUnitRaw": {
+     "COTTONEE": 10,
+     "WHIMSICOTT": 20
+    },
+    "scaling": "requested amount: enemy.addSpeed(-speedDebuff, pokemon, 1, crit); apBoost 1 multiplies the (negative) value by (1 + caster AP/100), and by critPower when the cast crit (needs ABILITY_CRIT: canCritByDefault is false). The debuff therefore grows with AP.",
+    "resolution": "applied change: PokemonEntity.addSpeed first runs applyBigEaterBeltStatBuff (a negative value on an enemy is NOT multiplied: the x1.25 applies only to positive values or to negative values from a caster on the holder's own team) and then applyTwistBandBuff: an enemy holding Twist Band has the negative value flipped to positive, so the debuff becomes a speed buff of the same size. Then, unless the target has the MELMETAL passive (which converts value x0.5 into addAttack instead), speed becomes clamp(speed + value, 0, 300), so the applied change is smaller when the target is near 0. Applied to the combat entity only (permanent false).",
+    "evidence": [
+     "cs-impl",
+     "addspeed",
+     "bigeater",
+     "twist",
+     "max-speed"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "sleep (via COTTON_BALL effect)",
+    "target": "each of the up-to-3 nearest enemies, only when it does not hold Heavy Duty Boots",
+    "declaredRaw": {
+     "durationMs": 1000
+    },
+    "perUnitRaw": {
+     "COTTONEE": 1000,
+     "WHIMSICOTT": 1000
+    },
+    "scaling": "none: the 1000 ms is a constant in Status.updateAllStatus; no AP or crit scaling and the same for every star.",
+    "resolution": "deferred and conditional: board.addBoardEffect adds EffectEnum.COTTON_BALL to the entity's effects (not for Heavy Duty Boots holders) and the board cell. On a later updateAllStatus tick, if the entity has COTTON_BALL, is not already asleep and has no Heavy Duty Boots, triggerSleep(1000) runs and COTTON_BALL is deleted. triggerSleep does nothing if the target is already asleep, has Rune Protect, is skydiving, has IMMUNITY_SLEEP or has ccCooldown > 0; the duration is x1.3 at NIGHT weather, x0.7 at ZENITH, halved if enraged, then the Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reductions, rounded; a Chesto Berry holder eats it.",
+    "evidence": [
+     "cs-impl",
+     "add-board-effect",
+     "cotton-ball-update",
+     "trigger-sleep",
+     "duration-reductions"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "sleep",
+    "who": "the nearest-3 enemies without Heavy Duty Boots",
+    "declaredRawDurationMs": {
+     "COTTONEE": 1000,
+     "WHIMSICOTT": 1000
+    },
+    "combatEffect": "set by triggerSleep(1000 raw) on the entity's next status update, after COTTON_BALL has been added; the combat consequences of sleep were not read in this record",
+    "evidence": [
+     "cotton-ball-update",
+     "trigger-sleep"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "COTTONEE": 1,
+    "WHIMSICOTT": 2
+   },
+   "declaredRawSpeedDebuff": {
+    "COTTONEE": 10,
+    "WHIMSICOTT": 20
+   },
+   "note": "the table is indexed by the caster's stars (stars-1); the 30 and 50 entries and the fallback are not reached by the two listed units. The number of targets (3) and the sleep duration (1000 ms) do not depend on stars.",
+   "evidence": [
+    "cs-impl",
+    "unit-cottonee",
+    "unit-whimsicott"
+   ]
+  },
+  "positionalConditions": "Targets are chosen by distance from the caster at cast time, not by the cast target; no range limit.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Speed debuffs stack additively (down to 0). COTTON_BALL is a set, so it is added once per entity; it is removed when it triggers sleep, and a Heavy Duty Boots holder never receives it.",
+  "rawVsResolved": "Requested: speed -10 (COTTONEE) / -20 (WHIMSICOTT) on up to 3 nearest enemies, plus a marker for 1000 ms sleep. Applied speed change = requested x (1 + AP/100) x crit factor, sign flipped for a Twist Band holder, bounded by the 0..300 clamp; Big Eater Belt does not amplify it on enemies. Applied sleep = 1000 ms after weather, enrage, status reductions, only if the sleep guards pass. No damage, so no takenDamage.",
+  "sourceTables": [
+   {
+    "id": "csSpeed",
+    "file": "app/core/abilities/cotton-spore.ts",
+    "pattern": "const speedDebuff = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "What speed means for attack/cast rate in a real fight (only the stat change was read)",
+   "Combat effect of the sleep status (not read; only its application)"
+  ],
+  "unresolved": [
+   "Exact tie-breaking order among equidistant enemies (depends on board.cells order and sort stability)",
+   "Whether other items or synergies change COTTON_SPORE beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-cs",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     808,
+     808
+    ],
+    "symbol": "AbilityStrategies[Ability.COTTON_SPORE]",
+    "expect": "[Ability.COTTON_SPORE]: new CottonSporeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "cs-impl",
+    "file": "app/core/abilities/cotton-spore.ts",
+    "lines": [
+     14,
+     51
+    ],
+    "symbol": "CottonSporeStrategy.process",
+    "expect": "const speedDebuff = [10, 20, 30, 50][pokemon.stars - 1] ?? 50",
+    "note": "nearest-3 selection, addSpeed, COTTON_BALL board effect"
+   },
+   {
+    "id": "board-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "Board.cells",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": ""
+   },
+   {
+    "id": "distance-c",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Big Eater Belt, Twist Band, MELMETAL, AP and crit, clamp"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain function; only positive values or own-team negative values"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "plain function; enemy-caster negative value flipped"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "add-board-effect",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     645
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.items.has(Item.HEAVY_DUTY_BOOTS) === false",
+    "note": "adds the effect to the entity unless Heavy Duty Boots"
+   },
+   {
+    "id": "cotton-ball-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     218,
+     225
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "pokemon.effects.has(EffectEnum.COTTON_BALL) &&",
+    "note": "COTTON_BALL triggers triggerSleep(1000) once and is removed"
+   },
+   {
+    "id": "trigger-sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     786
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+    "note": "guards, weather, enraged, reductions, Chesto Berry"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone"
+   },
+   {
+    "id": "unit-cottonee",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18328,
+     18342
+    ],
+    "symbol": "Cottonee",
+    "expect": "skill = Ability.COTTON_SPORE",
+    "note": ""
+   },
+   {
+    "id": "unit-whimsicott",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18344,
+     18357
+    ],
+    "symbol": "Whimsicott",
+    "expect": "skill = Ability.COTTON_SPORE",
+    "note": ""
+   }
+  ]
+ }
+}
