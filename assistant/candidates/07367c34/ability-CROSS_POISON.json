@@ -1,0 +1,318 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CROSS_POISON",
+ "kind": "ability",
+ "identifier": "CROSS_POISON",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T173941Z"
+ },
+ "record": {
+  "ability": "CROSS_POISON",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "CROAGUNK (1 star) and TOXICROAK (2 stars), the queued units; maxPP 85, range 1 for both. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "CROAGUNK",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "CROSS_POISON",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TOXICROAK",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "CROSS_POISON",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CROAGUNK": {
+    "evidence": [
+     "unit-croagunk"
+    ]
+   },
+   "TOXICROAK": {
+    "evidence": [
+     "unit-toxicroak"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CROSS_POISON] = new CrossPoisonStrategy()",
+   "strategy": "CrossPoisonStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-cp",
+    "base",
+    "cp-impl"
+   ]
+  },
+  "summary": "Special damage plus one poison stack on the cast target and on every enemy-team entity in the up-to-8 cells adjacent to the target (a 3x3 block centred on the TARGET, centre included, not on the caster). Each affected enemy takes requested special damage 30 / 60 / 120 / 240 by caster stars (30 CROAGUNK, 60 TOXICROAK) through handleSpecialDamage with the cast's crit flag and apBoost true, so it is scaled by the caster's AP and crit and then reduced by that enemy's special defense; immediately afterwards triggerPoison(2000, enemy, caster) adds one poison stack (max 3; 4 if the caster has the VENOMOUS effect, 5 with TOXIC) and sets the poison duration to at least 2000 ms (before status-duration reductions). The poison is applied even if the special damage was blocked by protect / skydiving / magicBounce, because the strategy calls triggerPoison unconditionally; it is not applied to a Rune Protect or IMMUNITY_POISON target. The poison damages the enemy over time as a separate effect (see statusEffects).",
+  "targeting": {
+   "who": "the cast target and enemy-team entities adjacent to it",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true: the caster needs a target in range (range 1). The area is the 3x3 block around the target; cells are filtered to entities whose team differs from the caster's.",
+   "evidence": [
+    "cp-impl",
+    "base",
+    "adjacent"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block centred on the target, centre included, clipped to the board",
+   "detail": "board.getAdjacentCells(target.x, target.y, true) includes the centre cell; only cells holding an entity of another team than the caster are hit",
+   "evidence": [
+    "cp-impl",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team entity in the 3x3 block around the target (target included)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "CROAGUNK": 30,
+     "TOXICROAK": 60
+    },
+    "scaling": "requested amount: handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit, true): x(1 + AP/100); crit factor when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), none against a Rocky Helmet target and reduced by the target player's Black Augurite stones; DOUBLE_DAMAGE on the caster doubles one hit and is consumed; STRANGE_STEAM_BOARD_EFFECT x1.2.",
+    "resolution": "applied: per enemy, skipped (spellBlockedCount++, takenDamage 0) if it is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit at the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage resolves special defense, shield absorption and the minimum of 1 (shared reference core-mechanics \u00a7A); takenDamage includes shield damage. A Power Lens holder reflects the blocked portion back at the caster.",
+    "evidence": [
+     "cp-impl",
+     "special-damage",
+     "state-handledamage"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "poison",
+    "target": "each enemy-team entity in the 3x3 block around the target (target included)",
+    "declaredRaw": {
+     "durationMs": 2000,
+     "stacksPerCast": 1
+    },
+    "perUnitRaw": {
+     "CROAGUNK": 2000,
+     "TOXICROAK": 2000
+    },
+    "scaling": "none: duration 2000 ms and one stack are constants in the strategy for every star; no AP and no crit scaling.",
+    "resolution": "applied: triggerPoison does nothing on a Rune Protect target or one with IMMUNITY_POISON. Stacks = min(stacks + 1, 3), or 4 with the caster's VENOMOUS effect, 5 with TOXIC; the poison origin is set to the caster; the duration goes through the Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reductions and the status keeps the longer of old and new cooldown. A GUTS target gains +5 attack once, a TOXIC_BOOST target +10 attack once, a Pecha Berry holder eats the berry (which clears the poison and grants IMMUNITY_POISON).",
+    "evidence": [
+     "cp-impl",
+     "trigger-poison",
+     "duration-reductions"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison",
+    "who": "each enemy hit",
+    "declaredRawDurationMs": {
+     "CROAGUNK": 2000,
+     "TOXICROAK": 2000
+    },
+    "combatEffect": "on each poison tick (poisonDamageCooldown reaches 0, every 1000 ms) the target takes TRUE damage of round(maxHP x 5% x stacks) through handleDamage with minimum 1 (GLISCOR passive uses stacks-2 and can heal when negative); that tick damage is x0.7 in RAIN, x0.5 with Assault Vest, x0.5 for TOXIC_BOOST, and x0.7 / x0.5 / x0.3 under Swift Swim / Hydration / Water Veil or Surge Surfer; the origin of the damage is the poison origin; when poisonCooldown runs out the stacks and origin are cleared",
+    "evidence": [
+     "update-poison",
+     "trigger-poison"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CROAGUNK": 1,
+    "TOXICROAK": 2
+   },
+   "declaredRawDamage": {
+    "CROAGUNK": 30,
+    "TOXICROAK": 60
+   },
+   "note": "the damage table is indexed by the caster's stars (stars-1); the 120 / 240 entries and fallback are not reached by the two listed units. The poison duration (2000 ms) and the one stack do not depend on stars.",
+   "evidence": [
+    "cp-impl",
+    "unit-croagunk",
+    "unit-toxicroak"
+   ]
+  },
+  "positionalConditions": "The block is centred on the target, not on the caster, so enemies adjacent to the target but not to the caster are also hit; allies in the block are skipped.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Each cast adds another poison stack up to the cap and extends the poison duration if longer; poison tick damage scales with the stack count at each tick.",
+  "rawVsResolved": "Requested: special damage 30 (CROAGUNK) / 60 (TOXICROAK) plus one poison stack for 2000 ms on every enemy in the 3x3 block. Applied damage = requested x (1+AP/100) x crit factor, then special-defense reduction, shield absorption and minimum 1 in handleDamage; takenDamage includes shield damage; blocked by protect / skydiving / magicBounce while the poison stack is still applied. Applied poison duration = 2000 ms after the status-duration reductions; poison tick damage is a separate TRUE-damage effect of 5% max HP per stack per second.",
+  "sourceTables": [
+   {
+    "id": "cpDamage",
+    "file": "app/core/abilities/cross-poison.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "The remaining body of updatePoison after the poison cooldown expiry (GUTS cleanup) was only skimmed"
+  ],
+  "unresolved": [
+   "Whether non-enemy, non-allied entity teams can occupy adjacent cells (the check is only team !== caster team)",
+   "Whether any other item or synergy changes CROSS_POISON beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-cp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     811,
+     811
+    ],
+    "symbol": "AbilityStrategies[Ability.CROSS_POISON]",
+    "expect": "[Ability.CROSS_POISON]: new CrossPoisonStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "cp-impl",
+    "file": "app/core/abilities/cross-poison.ts",
+    "lines": [
+     13,
+     29
+    ],
+    "symbol": "CrossPoisonStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table, 3x3 block around the target, damage then triggerPoison(2000)"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "includesCenter true keeps the centre"
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     466
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "protect / skydiving / magicBounce block, AP, double damage, crit, handleDamage, Power Lens"
+   },
+   {
+    "id": "state-handledamage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "trigger-poison",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     615
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "stack cap 3/4/5, duration, Guts, Toxic Boost, Pecha Berry"
+   },
+   {
+    "id": "update-poison",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     671
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "tick damage and its modifiers"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone"
+   },
+   {
+    "id": "unit-croagunk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9853,
+     9871
+    ],
+    "symbol": "Croagunk",
+    "expect": "skill = Ability.CROSS_POISON",
+    "note": ""
+   },
+   {
+    "id": "unit-toxicroak",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9873,
+     9891
+    ],
+    "symbol": "Toxicroak",
+    "expect": "skill = Ability.CROSS_POISON",
+    "note": ""
+   }
+  ]
+ }
+}
