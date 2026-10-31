@@ -1,0 +1,521 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BITTER_MALICE",
+ "kind": "ability",
+ "identifier": "BITTER_MALICE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T054014Z"
+ },
+ "record": {
+  "ability": "BITTER_MALICE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Hisuian Zorua (1 star) and Hisuian Zoroark (2 stars), both with passive ILLUSION, declare BITTER_MALICE. The Zorua / Zoroark pair uses NIGHT_DAZE, a different ability, and is not covered here.",
+  "appliesTo": [
+   {
+    "key": "HISUI_ZOROARK",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "BITTER_MALICE",
+    "declaredPassive": "ILLUSION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HISUI_ZORUA",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "BITTER_MALICE",
+    "declaredPassive": "ILLUSION",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HISUI_ZOROARK": {
+    "evidence": [
+     "unit-hisui-zoroark"
+    ]
+   },
+   "HISUI_ZORUA": {
+    "evidence": [
+     "unit-hisui-zorua"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BITTER_MALICE] = new BitterMaliceStrategy()",
+   "strategy": "BitterMaliceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bm-class",
+    "base-flags",
+    "base-pp",
+    "bm-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Special damage (25/50/100/200 raw by stars) to the cast target plus FATIGUE for 3000 ms (raw, scaled by the caster's AP, then reduced by the victim's duration reductions). If the caster is disguised (its index differs from its own PkmIndex, set by the ILLUSION passive copying the left neighbour during the pick phase), the ability instead hits EVERY enemy of the caster on the 3x3 block centred on the target (centre included), each with the same damage and fatigue. The index is reset to the unit's own on every cast, so a disguise is broken whether or not it was active. Fatigue is applied to each hit target even if the damage was blocked (protect / skydiving / magicBounce) or killed it. Fatigue's only combat effect found is that the victim's positive PP gain is halved.",
+  "targeting": {
+   "who": "the cast target passed to the strategy; when disguised, every non-allied entity in the 3x3 block centred on that target (the target itself included only if it is not an ally of the caster)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true. How the target is chosen before the cast was not read.",
+   "evidence": [
+    "bm-class",
+    "base-flags",
+    "bm-targets",
+    "bm-loop",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; when disguised, the 3x3 block around the target (up to 9 cells, centre included, clipped to the board)",
+   "evidence": [
+    "bm-targets",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "HISUI_ZORUA": 25,
+     "HISUI_ZOROARK": 50
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); crit multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT). No atk term.",
+    "resolution": "requested amount = the raw table value; applied change = after AP / crit, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps; the returned takenDamage is discarded by this strategy. Blocked (0) by protect / skydiving / magicBounce; a dead or resurrecting target takes nothing. Repeated once per target in the target list.",
+    "evidence": [
+     "bm-dmg",
+     "bm-loop",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "fatigue",
+    "target": "each target in the target list",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "triggerFatigue is called with apBoost = true, so the requested duration becomes 3000 x (1 + caster AP/100); crit does not scale it. The source comment says [3, SP] seconds; the code applies the fixed 3000 ms with this AP factor.",
+    "applicationOrder": "for each target, right after its damage call, unconditionally (not gated on damage dealt, blocked, or the target surviving)",
+    "guards": "not applied if the target has runeProtect; the duration then passes applyStatusDurationReductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil / Surge Surfer x0.3; then Odd Keystone x(1 - 0.1 per stone held by the target's player)); a new fatigue replaces the remaining time only if longer",
+    "combatEffect": "while fatigued, addPP multiplies a positive PP gain by 0.5 before rounding (value = round(base x (1 + AP factor) x crit x 0.5)); this is the only use of status.fatigue in app/core found by name search; the flag is cleared by updateFatigue when the timer runs out. Requested vs applied: the PP reduction is also subject to the Twist Band step and the silence / protect / NO_PP_GAIN / resurrecting / tree checks in addPP, which were not traced further.",
+    "evidence": [
+     "bm-fat",
+     "bm-loop",
+     "fat-trig",
+     "fat-reduc",
+     "fat-tick",
+     "fat-pp"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "HISUI_ZORUA": 1,
+    "HISUI_ZOROARK": 2
+   },
+   "declaredRawDamage": {
+    "HISUI_ZORUA": 25,
+    "HISUI_ZOROARK": 50
+   },
+   "note": "indexed by the casting entity's stars; the 100 and 200 entries are not reachable by the two units' bare star counts (1, 2). Fatigue duration does not depend on stars. maxPP is 85 and range 1 for both.",
+   "evidence": [
+    "bm-dmg",
+    "unit-hisui-zorua",
+    "unit-hisui-zoroark"
+   ]
+  },
+  "positionalConditions": {
+   "evidence": [
+    "bm-disg",
+    "bm-break",
+    "pkmindex",
+    "illusion-set",
+    "illusion-bm"
+   ],
+   "text": "The disguise state decides the target list: disguised (index != own PkmIndex) -> all enemies in the 3x3 block around the target; not disguised -> the target only. The disguise is set by ILLUSION when the unit is placed on the pick-phase board to the right of an ally (the left neighbour's index is copied) and is not set again in combat."
+  },
+  "repeatedCastsAndModes": "After the first cast the index equals the unit's own, so later casts are single-target unless the disguise is re-applied (the only setter found acts during the pick phase). Fatigue timers are not stacked: the longer remaining time wins.",
+  "rawVsResolved": "Declared raw: damage 25 (Hisuian Zorua) / 50 (Hisuian Zoroark) per target and fatigue 3000 ms. Damage is then scaled by AP and crit and reduced by SPE_DEF (ceil, min 1) and shields; fatigue duration is 3000 x (1 + AP/100) before the victim's reductions; PP gain is halved while fatigued.",
+  "sourceTables": [
+   {
+    "id": "bitterMaliceDamage",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPE_DEF division with min 1 and the block/dead gates were cited",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence)",
+   "Crit resolution: only the damage-side multiplier and the canCritByDefault gate were read",
+   "Other code paths that read status.fatigue outside app/core (the client UI) were not searched"
+  ],
+  "unresolved": [
+   "Whether a unit can enter combat disguised (ILLUSION acts on position change during the pick phase; the simulation's copy of index at construction was seen but how the board state carries a disguise into a fight was not traced further)",
+   "Whether the unit's own PkmIndex for the evolved or shiny form always equals PkmIndex[pokemon.name] (a mismatch would count as disguised); the Hisuian entries are 0570-0001 and 0571-0001",
+   "Whether the damage of one target in the AoE can kill/move another before it is processed (the target list is built before the loop; dead entities are filtered only by handleDamage)",
+   "Whether any item or synergy effect changes BITTER_MALICE beyond what is listed",
+   "Verified only by reading source and the shared mechanical checks, not in a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     766,
+     766
+    ],
+    "symbol": "AbilityStrategies[Ability.BITTER_MALICE]",
+    "expect": "[Ability.BITTER_MALICE]: new BitterMaliceStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bm-class",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "BitterMaliceStrategy",
+    "expect": "class BitterMaliceStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "bm-super",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "bm-dmg",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "star-indexed raw damage"
+   },
+   {
+    "id": "bm-fat",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "const fatigueDuration = 3000",
+    "note": "fatigue duration, ms (the source comment says [3, SP] seconds)"
+   },
+   {
+    "id": "bm-disg",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "const isDisguised = pokemon.index !== PkmIndex[pokemon.name]",
+    "note": "disguise test: current index differs from the unit's own index"
+   },
+   {
+    "id": "bm-break",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "pokemon.index = PkmIndex[pokemon.name] // break the disguise",
+    "note": "index reset on every cast"
+   },
+   {
+    "id": "bm-targets",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     22,
+     30
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "const targets = isDisguised",
+    "note": "target list: disguised -> enemies in the 3x3 block around the target (centre included); otherwise only the target"
+   },
+   {
+    "id": "bm-loop",
+    "file": "app/core/abilities/bitter-malice.ts",
+    "lines": [
+     32,
+     41
+    ],
+    "symbol": "BitterMaliceStrategy.process",
+    "expect": "targets.forEach((enemy) => {",
+    "note": "per target: special damage, then fatigue"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     164
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "on-board cells of the 3x3 block, centre included when asked; value may be undefined"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "signature"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPE_DEF division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil, min 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead / resurrecting target takes nothing"
+   },
+   {
+    "id": "fat-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     547,
+     561
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "triggerFatigue(",
+    "note": "rune-protect guard, AP scaling when apBoost, duration reductions, longer-timer-wins"
+   },
+   {
+    "id": "fat-reduc",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "Swift Swim 0.7, Hydration 0.5, Water Veil / Surge Surfer 0.3 (exclusive), Odd Keystone 0.1 each"
+   },
+   {
+    "id": "fat-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     564,
+     570
+    ],
+    "symbol": "Status.updateFatigue",
+    "expect": "updateFatigue(dt: number)",
+    "note": "timer countdown clears the flag"
+   },
+   {
+    "id": "fat-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     513,
+     519
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "a fatigued unit's positive PP gain is multiplied by 0.5 (then rounded)"
+   },
+   {
+    "id": "pkmindex",
+    "file": "app/types/enum/Pokemon.ts",
+    "lines": [
+     1923,
+     1923
+    ],
+    "symbol": "PkmIndex",
+    "expect": "[Pkm.HISUI_ZORUA]: \"0570-0001\"",
+    "note": "unit's own index"
+   },
+   {
+    "id": "illusion-set",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1804,
+     1806
+    ],
+    "symbol": "Passive.ILLUSION effect",
+    "expect": "pokemon.index = allyOnTheLeft.index",
+    "note": "the only disguise setter found: copies the left neighbour's index during pick phase"
+   },
+   {
+    "id": "illusion-bm",
+    "file": "app/core/abilities/night-daze.ts",
+    "lines": [
+     19,
+     20
+    ],
+    "symbol": "NightDazeStrategy.process",
+    "expect": "pokemon.index = PkmIndex[pokemon.name] // break the disguise",
+    "note": "sibling Zorua/Zoroark ability uses the same disguise logic"
+   },
+   {
+    "id": "unit-hisui-zorua",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11685,
+     11708
+    ],
+    "symbol": "HisuiZorua extends",
+    "expect": "skill = Ability.BITTER_MALICE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-hisui-zoroark",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11710,
+     11732
+    ],
+    "symbol": "HisuiZoroark extends",
+    "expect": "skill = Ability.BITTER_MALICE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
