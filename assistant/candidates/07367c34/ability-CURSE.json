@@ -1,0 +1,409 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CURSE",
+ "kind": "ability",
+ "identifier": "CURSE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T234024Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare CURSE: Galar Corsola (1 star) and Cursola (2 stars); both range 1, maxPP 100, no passive. The strategy is shared; the only unit difference is the star index into the delay table.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CURSE] = new CurseStrategy()",
+   "strategy": "CurseStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "super",
+    "cast"
+   ]
+  },
+  "summary": "Needs no target and no cast animation from the base class. Among all enemies on the board it picks one at random from those with the highest maxHP and applies the Curse status to it with a delay of 8000 ms (1 star) / 5000 ms (2 stars), shortened by AP and by crit power if the cast crit. When the delay runs out the cursed unit takes 9999 TRUE damage. Rune Protect blocks it; an already cursed target dies immediately; a cleansed curse keeps its remaining time plus 2000 ms. Crit is only rolled when the caster has the ABILITY_CRIT effect. Nothing happens beyond the PP spend if no enemy exists.",
+  "targeting": {
+   "who": "one enemy: random among enemies whose maxHP equals the highest enemy maxHP, anywhere on the board",
+   "needsTarget": false,
+   "note": "enemies are every non-empty board cell with a different team; selection uses maxHP (not current HP). With no enemies, Math.max of an empty list is -Infinity, the filter is empty, pickRandomIn returns undefined and the guard skips the curse.",
+   "evidence": [
+    "enemies",
+    "hp",
+    "pick",
+    "pick-fn",
+    "guard"
+   ]
+  },
+  "geometry": {
+   "shape": "single unit, whole board, no distance limit",
+   "evidence": [
+    "enemies",
+    "hp"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "the picked enemy",
+    "declaredRaw": {
+     "status": "curse",
+     "delayMsByStars": {
+      "1": 8000,
+      "2": 5000,
+      "3": 3000,
+      "4": 1000,
+      "fallback": 1000
+     }
+    },
+    "perUnitRaw": {
+     "GALAR_CORSOLA": 8000,
+     "CURSOLA": 5000
+    },
+    "byStars": {
+     "1": 8000,
+     "2": 5000,
+     "3": 3000,
+     "4": 1000,
+     "fallback": 1000
+    },
+    "scaling": "requested delay = table value x (1 - 0.2 x AP/100) x (crit ? 1 - (critPower - 1) x 0.2 : 1), clamped to >= 0 by min(0). AP and critPower are the caster's at cast time. The delay is a duration, not damage; Big Eater Belt and Twist Band do not touch it.",
+    "resolution": "requested delay -> applied timer in triggerCurse: blocked entirely by Rune Protect; if the target is already cursed the cooldown is set to 0 (curse resolves on its next update); if the curse flag is off but a leftover cooldown > 0 exists (cleansed earlier) the timer becomes min(leftover, requested); otherwise the timer is requested + 1000 ms per Odd Keystone in the target player's items (only if the target has a player).",
+    "evidence": [
+     "table",
+     "min",
+     "trigger",
+     "trig-fn"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "the cursed enemy when its curse cooldown reaches 0",
+    "declaredRaw": {
+     "amount": 9999,
+     "attackType": "TRUE",
+     "attacker": null
+    },
+    "scaling": "none (fixed 9999; the caster's AP is not applied to the damage)",
+    "resolution": "requested 9999 -> pokemon.handleDamage with attackType TRUE and no attacker: defenses do not apply and no attacker bookkeeping occurs; shields, takenDamage and the minimum of 1 are handled by handleDamage as in core-mechanics §A (not re-traced here). The CURSE_EFFECT animation is broadcast afterwards.",
+    "evidence": [
+     "upd-fn",
+     "upd-call"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "curse: flag on the picked enemy, resolves into 9999 TRUE damage when curseCooldown <= 0; blocked by Rune Protect; clearNegativeStatus clears the flag but keeps the cooldown +2000 ms",
+    "evidence": [
+     "trig-fn",
+     "upd-fn",
+     "clear"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GALAR_CORSOLA": 1,
+    "CURSOLA": 2
+   },
+   "declaredRawDelayMs": {
+    "GALAR_CORSOLA": 8000,
+    "CURSOLA": 5000
+   },
+   "note": "table index is the casting entity's stars; 3000 and 1000 ms are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-galar-corsola",
+    "unit-cursola"
+   ]
+  },
+  "positionalConditions": "None; the target can be anywhere on the board. Only enemies with the highest maxHP are eligible.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Casting again on a target that is already cursed (possible when it is still the highest-maxHP enemy) sets its cooldown to 0, so the second cast resolves the curse on the next status update.",
+  "rawVsResolved": "Declared raw: delay 8000 / 5000 ms (1 / 2 stars). Requested = raw x AP factor x crit factor (>= 0); applied = requested, or min(leftover, requested) after a cleanse, or requested + 1000 ms per Odd Keystone, or 0 if the target is already cursed, or nothing under Rune Protect. The eventual damage is a fixed 9999 TRUE; takenDamage as reported by handleDamage was not traced here.",
+  "sourceTables": [
+   {
+    "id": "delay",
+    "file": "app/core/abilities/curse.ts",
+    "pattern": "\\(\\[([0-9, ]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.delayMsByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the castAbility gate was read",
+   "Crit resolution - only the ABILITY_CRIT gate in castAbility was read; handleDamage internals for TRUE damage were not re-traced beyond core-mechanics §A"
+  ],
+  "unresolved": [
+   "Whether the 9999 TRUE damage can be fully prevented by shields or other effects inside handleDamage (looked up in core-mechanics §A, not re-traced here)",
+   "Which statuses besides Rune Protect and clearNegativeStatus can end a curse early (not searched exhaustively)",
+   "Whether the three-star and four-star delays are reachable for these units",
+   "Targets with a player-owned Odd Keystone only matter when the target entity has a player reference (not verified for enemy-side units)",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "CURSE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GALAR_CORSOLA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CURSE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CURSOLA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CURSE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALAR_CORSOLA": {
+    "evidence": [
+     "unit-galar-corsola"
+    ]
+   },
+   "CURSOLA": {
+    "evidence": [
+     "unit-cursola"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-galar-corsola",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14102,
+     14119
+    ],
+    "symbol": "class GalarCorsola",
+    "expect": "skill = Ability.CURSE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-cursola",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14121,
+     14138
+    ],
+    "symbol": "class Cursola",
+    "expect": "skill = Ability.CURSE",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     815,
+     815
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.CURSE]: new CurseStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "CurseStrategy",
+    "expect": "requiresTarget = false",
+    "note": "class and requiresTarget flag (canCritByDefault inherited false)"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base flags"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, cast log; broadcast skipped when preventDefaultAnim"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only if ABILITY_CRIT effect or canCritByDefault; blocked when canCast is false"
+   },
+   {
+    "id": "enemies",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     11,
+     13
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "(p) => p && p.team !== pokemon.team",
+    "note": "enemy list = every occupied board cell of another team"
+   },
+   {
+    "id": "hp",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     14,
+     15
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "const highestHp = Math.max(...enemies.map((p) => p.maxHP))",
+    "note": "highest maxHP among enemies; tie set"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "pickRandomIn(enemiesWithHighestHP)",
+    "note": "random pick among ties"
+   },
+   {
+    "id": "pick-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     47
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "list[Math.floor(Math.random() * list.length)]",
+    "note": "empty list returns undefined"
+   },
+   {
+    "id": "guard",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "if (cursedEnemy) {",
+    "note": "no enemy -> no curse"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "[8000, 5000, 3000, 1000][pokemon.stars - 1] ?? 1000",
+    "note": "delay table by caster stars, AP and crit reduction, floor 0"
+   },
+   {
+    "id": "min",
+    "file": "app/utils/number.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "min",
+    "expect": "Math.max(minimum, value)",
+    "note": "min(0) clamps to >= 0"
+   },
+   {
+    "id": "trigger",
+    "file": "app/core/abilities/curse.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "CurseStrategy.process",
+    "expect": "cursedEnemy.status.triggerCurse(curseDelay, cursedEnemy)",
+    "note": "applies curse to the picked enemy"
+   },
+   {
+    "id": "trig-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1066,
+     1085
+    ],
+    "symbol": "Status.triggerCurse",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect blocks; already cursed -> cooldown 0; cleared status -> min(remaining, timer); else timer + 1000 per Odd Keystone owned by the target's player"
+   },
+   {
+    "id": "upd-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1087,
+     1105
+    ],
+    "symbol": "Status.updateCurse",
+    "expect": "damage: 9999",
+    "note": "when cooldown <= 0: curse false and 9999 TRUE damage via handleDamage, attacker null"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     315,
+     317
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateCurse(dt, board, pokemon)",
+    "note": "called every status update while curse is true"
+   },
+   {
+    "id": "clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     135,
+     138
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.curseCooldown += 2000",
+    "note": "cleansing removes the flag, adds 2000 ms to the remaining cooldown and keeps it"
+   }
+  ]
+ }
+}
