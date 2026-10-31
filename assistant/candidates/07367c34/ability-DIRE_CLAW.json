@@ -1,0 +1,434 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DIRE_CLAW",
+ "kind": "ability",
+ "identifier": "DIRE_CLAW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T234024Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare DIRE_CLAW: Hisuian Sneasel (1 star) and Sneasler (2 stars); both range 1, maxPP 50, no passive. The strategy is shared; unit differences are the star index into the damage table.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DIRE_CLAW] = new DireClawStrategy()",
+   "strategy": "DireClawStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Inherits requiresTarget = true. On the target it first applies ONE status chosen uniformly at random from poison, sleep and paralysis (each with a base duration of 3000 ms), then deals SPECIAL damage of 15 (1 star) / 30 (2 stars) through handleSpecialDamage (AP-boosted, crit only with ABILITY_CRIT). The status can be blocked or shortened by the target's immunities, Rune Protect, weather, water effects and Odd Keystones, independently of the damage.",
+  "targeting": {
+   "who": "the single target passed to process",
+   "needsTarget": true,
+   "note": "The target is the caster's current attack target; no other unit is affected.",
+   "evidence": [
+    "cls",
+    "base",
+    "pick",
+    "hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "the target",
+    "declaredRaw": {
+     "choice": [
+      "poison",
+      "sleep",
+      "paralysis"
+     ],
+     "durationMs": 3000,
+     "probability": "1/3 each (pickRandomIn on a 3-element array)"
+    },
+    "scaling": "duration is NOT scaled by the caster's AP or crit: poison and sleep take the raw 3000; paralysis is called with apBoost false. Requested 3000 ms -> applied duration after reductions (below).",
+    "resolution": "requested 3000 -> triggerX: poison: +1 stack (max 3, 4 with VENOMOUS, 5 with TOXIC on the caster), duration after applyStatusDurationReductions, cooldown raised only if longer; sleep: weather NIGHT x1.3 / ZENITH x0.7, enraged target halves it, then reductions, rounded; not applied if already asleep or ccCooldown > 0; paralysis: STORM weather x1.3 (less with Electric Quartz), reductions, rounded, cooldown raised only if longer. Rune Protect and the matching IMMUNITY effect block each one. Poison then ticks as TRUE damage of 5% of the target's maxHP per stack (before the modifiers listed in updatePoison).",
+    "evidence": [
+     "pick",
+     "sw-poison",
+     "sw-sleep",
+     "sw-para",
+     "trig-poison",
+     "tick-poison",
+     "trig-sleep",
+     "trig-para",
+     "reduce"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "the target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "attackType": "SPECIAL"
+    },
+    "perUnitRaw": {
+     "HISUI_SNEASEL": 15,
+     "SNEASLER": 30
+    },
+    "scaling": "requested = table value. Applied special damage = requested x (1 + AP/100), then crit: x(1 + (critPower - 1) x critReductionFactor), the target's Rocky Helmet sets the factor to 0 and each Black Augurite lowers it by 0.1 (min 0). Then handleDamage applies special defense and shields; its takenDamage includes shield damage.",
+    "resolution": "requested (table) -> applied specialDamage (AP, crit) -> handleDamage (special defense, shield, floor of 1) -> takenDamage. protect / skydiving / magicBounce on the target yield 0, and magicBounce reflects SPECIAL damage to the caster. The damage is dealt after the status call in the same process, so a status applied first (e.g. sleep) does not stop it.",
+    "evidence": [
+     "table",
+     "hit",
+     "hsd-guard",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-dmg"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "poison OR sleep OR paralysis (one, random), 3000 ms base",
+    "evidence": [
+     "pick",
+     "sw-poison",
+     "sw-sleep",
+     "sw-para"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HISUI_SNEASEL": 1,
+    "SNEASLER": 2
+   },
+   "declaredRawDamage": {
+    "HISUI_SNEASEL": 15,
+    "SNEASLER": 30
+   },
+   "note": "table index is the casting entity's stars; 60 and 120 are not reached at the factory star counts of these units. The status duration does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-sneasel",
+    "unit-sneasler"
+   ]
+  },
+  "positionalConditions": "None beyond reaching the target (range 1).",
+  "repeatedCastsAndModes": "No stored state. Repeated poison adds stacks (capped); an already asleep target keeps its sleep; paralysis only extends if longer.",
+  "rawVsResolved": "Declared raw: 3000 ms status (random of three) and 15 / 30 SPECIAL damage (1 / 2 stars). Requested = raw; applied status duration = 3000 after weather, enraged, water and Odd Keystone adjustments (poison also gains a stack instead of a time change); applied damage = raw x (1 + AP/100) x crit factor; takenDamage after special defense and shields.",
+  "sourceTables": [
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/dire-claw.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, range check for a requiresTarget ability) - only the castAbility gate was read",
+   "handleDamage internals (special defense, shield, floor of 1) - taken from core-mechanics §A, not re-traced here"
+  ],
+  "unresolved": [
+   "What sleeping or paralysed targets lose in combat (attack/move effects of the statuses) was not traced",
+   "Whether damage from the poison tick is affected by other items beyond those listed in updatePoison",
+   "Whether the two units reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "DIRE_CLAW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "HISUI_SNEASEL",
+    "stars": 1,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "DIRE_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SNEASLER",
+    "stars": 2,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "DIRE_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HISUI_SNEASEL": {
+    "evidence": [
+     "unit-sneasel"
+    ]
+   },
+   "SNEASLER": {
+    "evidence": [
+     "unit-sneasler"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-sneasel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9765,
+     9792
+    ],
+    "symbol": "class HisuiSneasel",
+    "expect": "skill = Ability.DIRE_CLAW",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-sneasler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9794,
+     9820
+    ],
+    "symbol": "class Sneasler",
+    "expect": "skill = Ability.DIRE_CLAW",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     828,
+     828
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.DIRE_CLAW]: new DireClawStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     7,
+     14
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "no requiresTarget override -> inherited true; default animation"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, default animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "pickRandomIn([\"poison\", \"sleep\", \"paralysis\"])",
+    "note": "one of three statuses, uniformly (array pick)"
+   },
+   {
+    "id": "sw-poison",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     17,
+     19
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "target.status.triggerPoison(3000, target, pokemon)",
+    "note": "poison case: duration 3000, origin = caster"
+   },
+   {
+    "id": "sw-sleep",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "target.status.triggerSleep(3000, target)",
+    "note": "sleep case: duration 3000"
+   },
+   {
+    "id": "sw-para",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     23,
+     25
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "target.status.triggerParalysis(3000, target, pokemon)",
+    "note": "paralysis case: duration 3000, apBoost left at default false"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "[15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table by caster stars"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/dire-claw.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "DireClawStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the target after the status, default apBoost = true"
+   },
+   {
+    "id": "trig-poison",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     615
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "blocked by IMMUNITY_POISON or Rune Protect; +1 stack up to 3 (4 VENOMOUS, 5 TOXIC on the origin); duration reductions; cooldown = max(current, duration)"
+   },
+   {
+    "id": "tick-poison",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     625
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick: 5% of target maxHP per stack each second as TRUE damage (reductions and passives listed there)"
+   },
+   {
+    "id": "trig-sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     781
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleepCooldown = Math.round(duration)",
+    "note": "blocked if already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP or ccCooldown > 0; weather x1.3 NIGHT / x0.7 ZENITH; halved when enraged; reductions"
+   },
+   {
+    "id": "trig-para",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     939
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "blocked by Rune Protect or IMMUNITY_PARALYSIS; STORM weather x1.3; reductions; cooldown only raised if longer"
+   },
+   {
+    "id": "reduce",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then Odd Keystone -10% each"
+   },
+   {
+    "id": "hsd-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "target with protect / skydiving / magicBounce takes nothing (magicBounce reflects SPECIAL)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     401
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "let specialDamage =",
+    "note": "damage x (1 + attacker AP / 100) when apBoost is true"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier; Rocky Helmet sets factor 0, Black Augurite -0.1 each"
+   },
+   {
+    "id": "hsd-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     443
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "special defense, shields, takenDamage via handleDamage (core-mechanics §A)"
+   }
+  ]
+ }
+}
