@@ -1,0 +1,584 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BURN_UP",
+ "kind": "ability",
+ "identifier": "BURN_UP",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T113948Z"
+ },
+ "record": {
+  "ability": "BURN_UP",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare BURN_UP: Centiskorch (2 stars) and Sizzlipede (1 star); both maxPP 90, range 1. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "CENTISKORCH",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "BURN_UP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SIZZLIPEDE",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "BURN_UP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CENTISKORCH": {
+    "evidence": [
+     "unit-centiskorch"
+    ]
+   },
+   "SIZZLIPEDE": {
+    "evidence": [
+     "unit-sizzlipede"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BURN_UP] = new BurnUpStrategy()",
+   "strategy": "BurnUpStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "bu-class",
+    "bu-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage to the cast target (raw 50/100/200/400 by the caster's stars; 50 for 1-star Sizzlipede, 100 for 2-star Centiskorch), then applies BURN to the CASTER ITSELF (not the target) for a requested 3000 ms with the caster as burn origin. The self-burn call comes after the damage call, so the damage is not affected by it. The burn deals 5% of the caster's own max HP per second as TRUE damage unless the caster has Well Baked, a Magmarizer, or immunity/rune protection prevents the burn.",
+  "targeting": {
+   "who": "damage: the cast target only; burn: the caster only",
+   "needsTarget": true,
+   "note": "No area, no second target. process receives the cast target; pokemon.status.triggerBurn(3000, pokemon, pokemon) passes the caster as both the burned unit and the origin.",
+   "evidence": [
+    "bu-hit",
+    "bu-burn",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target damage; self-applied status; no displacement, no area",
+   "evidence": [
+    "bu-hit",
+    "bu-burn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "CENTISKORCH": 100,
+     "SIZZLIPEDE": 50
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT (the last three read in the record BLAZE_KICK that cites the same function).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The caster's own burn is applied after this call and does not change the damage.",
+    "evidence": [
+     "bu-table",
+     "bu-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BURN",
+    "target": "the caster (self-inflicted)",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "CENTISKORCH": 3000,
+     "SIZZLIPEDE": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "applied to the caster only if it lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the caster's own duration reductions; replaces the running burn timer (and origin) only if longer than the remaining time, so a longer existing burn is left alone. While burning the caster takes TRUE damage of 5% of its own max HP each second (x1.3 in DROUGHT, x0.7 in RAIN, x0.5 with Assault Vest, reduced by SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER; zero with the WELL_BAKED passive or a Magmarizer). Helper exceptions on the caster: WELL_BAKED gains +20 defense and a MAGMARIZER +30 speed on the first burn only (not if already burning); a Rawst Berry is eaten as soon as the burn is applied. The burn ends when its timer expires (healBurn).",
+    "evidence": [
+     "bu-burn",
+     "burn-trig",
+     "burn-already",
+     "burn-red",
+     "burn-set",
+     "burn-origin",
+     "burn-wellbaked",
+     "burn-magma",
+     "burn-rawst",
+     "burn-tick",
+     "burn-true",
+     "burn-zero",
+     "burn-heal"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CENTISKORCH": 2,
+    "SIZZLIPEDE": 1
+   },
+   "declaredRawDamage": {
+    "CENTISKORCH": 100,
+    "SIZZLIPEDE": 50
+   },
+   "note": "Damage is indexed by the casting entity's stars; the 3-star (200) and 4-star (400, also the ?? fallback) values are not reachable by the bare factory star counts of these two units. Burn duration does not depend on stars.",
+   "evidence": [
+    "bu-table",
+    "unit-centiskorch",
+    "unit-sizzlipede"
+   ]
+  },
+  "positionalConditions": "None read: the ability needs a target (requiresTarget true) but no cell condition appears in the strategy.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (90) of PP. A repeat cast while the caster still burns only extends the burn if the new 3000 ms exceeds the remaining time; Well Baked / Magmarizer first-burn bonuses do not repeat while already burning.",
+  "rawVsResolved": "Requested: damage 50 (Sizzlipede) / 100 (Centiskorch); burn 3000 ms on the caster. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 when the target is protected. Applied burn duration = requested after the caster's reductions, kept only if longer than the running timer; burn tick damage is separate TRUE damage to the caster and 0 for Well Baked / Magmarizer.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/burn-up.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read",
+   "Status.applyStatusDurationReductions (the exact reductions to the caster's burn duration) was not read; Rawst Berry's eatBerry effect beyond the call was not read"
+  ],
+  "unresolved": [
+   "Whether the self-burn on the caster is intended is not asserted; recorded as written (triggerBurn(3000, pokemon, pokemon))",
+   "Whether the two units ever reach 3 or 4 stars (200/400 damage) was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and origin; a shorter one keeps the existing"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second as TRUE damage (weather / items / passives modify it)"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": ""
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     786,
+     786
+    ],
+    "symbol": "AbilityStrategies[Ability.BURN_UP]",
+    "expect": "[Ability.BURN_UP]: new BurnUpStrategy()",
+    "note": ""
+   },
+   {
+    "id": "bu-class",
+    "file": "app/core/abilities/burn-up.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BurnUpStrategy",
+    "expect": "export class BurnUpStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "bu-super",
+    "file": "app/core/abilities/burn-up.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BurnUpStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP of PP, ult count, broadcast"
+   },
+   {
+    "id": "bu-table",
+    "file": "app/core/abilities/burn-up.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BurnUpStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "requested damage by caster stars"
+   },
+   {
+    "id": "bu-hit",
+    "file": "app/core/abilities/burn-up.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "BurnUpStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage to the cast target, caster as attacker, crit flag passed through"
+   },
+   {
+    "id": "bu-burn",
+    "file": "app/core/abilities/burn-up.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "BurnUpStrategy.process",
+    "expect": "pokemon.status.triggerBurn(3000, pokemon, pokemon)",
+    "note": "burn on the CASTER (pokemon.status, pkm = pokemon), duration 3000 ms, origin = caster; runs after the damage call"
+   },
+   {
+    "id": "burn-already",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     402,
+     402
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "const alreadyBurning = this.burn",
+    "note": "captured before the burn flag is set (used by Well Baked / Magmarizer)"
+   },
+   {
+    "id": "burn-origin",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     415,
+     415
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "this.burnOrigin = origin",
+    "note": "origin recorded only when the new duration is longer"
+   },
+   {
+    "id": "burn-wellbaked",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     427,
+     429
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.passive === Passive.WELL_BAKED && !alreadyBurning",
+    "note": "WELL_BAKED: +20 defense on first burn; burn damage 0 (see burn-zero)"
+   },
+   {
+    "id": "burn-magma",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     430,
+     432
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.items.has(Item.MAGMARIZER) && !alreadyBurning",
+    "note": "Magmarizer: +30 speed on first burn"
+   },
+   {
+    "id": "burn-rawst",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     434,
+     436
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.items.has(Item.RAWST_BERRY)",
+    "note": "Rawst Berry is eaten as soon as the burn is applied"
+   },
+   {
+    "id": "burn-zero",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     471,
+     476
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "pkm.passive === Passive.WELL_BAKED ||",
+    "note": "Well Baked / Magmarizer: burn tick damage 0"
+   },
+   {
+    "id": "burn-heal",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     503,
+     505
+    ],
+    "symbol": "Status.healBurn",
+    "expect": "healBurn(pkm: PokemonEntity) {",
+    "note": "burn ends when burnCooldown runs out (updateBurn)"
+   },
+   {
+    "id": "unit-sizzlipede",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16926,
+     16940
+    ],
+    "symbol": "class Sizzlipede",
+    "expect": "skill = Ability.BURN_UP",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-centiskorch",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16942,
+     16955
+    ],
+    "symbol": "class Centiskorch",
+    "expect": "skill = Ability.BURN_UP",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
