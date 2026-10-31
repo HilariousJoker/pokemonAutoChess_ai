@@ -1,0 +1,509 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BONEMERANG",
+ "kind": "ability",
+ "identifier": "BONEMERANG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T054014Z"
+ },
+ "record": {
+  "ability": "BONEMERANG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Cubone (1 star) and Marowak (2 stars), both with passive NONE, declare BONEMERANG. Alolan Marowak is a separate unit with its own skill declaration and is not covered.",
+  "appliesTo": [
+   {
+    "key": "CUBONE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BONEMERANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MAROWAK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BONEMERANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CUBONE": {
+    "evidence": [
+     "unit-cubone"
+    ]
+   },
+   "MAROWAK": {
+    "evidence": [
+     "unit-marowak"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BONEMERANG] = new BonemerangStrategy()",
+   "strategy": "BonemerangStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bo-class",
+    "base-flags",
+    "base-pp",
+    "bo-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Line attack: on the cast and again 1000 ms later, every entity not on the caster's team along a straight line from the caster through the cast target to the board edge takes one special hit (15/30/60/120 raw by stars). The line is not stopped by the first enemy: all enemies on it are hit in each pass. The second pass re-reads the caster's and target's positions when it runs, so the line may differ if either has moved (or the target died, in which case its last coordinates are used). The second pass is queued on the caster, so it does not happen if the caster dies before the 1000 ms elapse. No status, movement or heal.",
+  "targeting": {
+   "who": "every entity whose team differs from the caster's on the line cells; the cast target defines only the direction",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "bo-class",
+    "base-flags",
+    "bo-hit",
+    "line"
+   ]
+  },
+  "geometry": {
+   "shape": "line from the caster's cell toward the target and beyond (rounded endpoint 12 cells away, supercover cells, on-board only; width one cell, diagonal when the angle gives an exact tie); the caster's own cell is part of the line but is skipped as an ally. The board is 8 columns x 6 rows.",
+   "evidence": [
+    "bo-hit",
+    "line",
+    "between",
+    "board-size",
+    "sim-board"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "hitsPerEnemyOnLine": 2,
+     "secondHitDelayMs": 1000
+    },
+    "perUnitRaw": {
+     "CUBONE": 15,
+     "MAROWAK": 30
+    },
+    "scaling": "AP: damage x (1 + AP/100) per hit (apBoost defaults to true), with the AP value read at each hit; crit multiplies by critPower (reduced by each target's critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT); the same crit flag is reused for the second pass. No atk term.",
+    "resolution": "requested amount per hit = the raw table value; applied change per hit = after AP / crit, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps; the returned takenDamage is discarded. Blocked (0) by protect / skydiving / magicBounce per hit; a dead or resurrecting target takes nothing. Nominal total per enemy that stays on the line for both passes: 2 x the per-hit value before defences (30 for Cubone, 60 for Marowak, at AP 0 and no crit) - illustrative arithmetic, not a measured value.",
+    "evidence": [
+     "bo-dmg",
+     "bo-hit",
+     "bo-first",
+     "bo-second",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "CUBONE": 1,
+    "MAROWAK": 2
+   },
+   "declaredRawDamage": {
+    "CUBONE": 15,
+    "MAROWAK": 30
+   },
+   "note": "indexed by the casting entity's stars; the 60 and 120 entries are not reachable by the two units' bare star counts (1, 2). maxPP is 80 and range 1 for both.",
+   "evidence": [
+    "bo-dmg",
+    "unit-cubone",
+    "unit-marowak"
+   ]
+  },
+  "positionalConditions": {
+   "text": "The line starts at the caster and runs through the target; the second pass uses the positions at execution time. If the caster dies before the 1000 ms elapse, its pending command is no longer ticked and the second pass does not run.",
+   "evidence": [
+    "bo-second",
+    "line",
+    "delayed",
+    "cmd-tick",
+    "state-update",
+    "team-update",
+    "death-remove",
+    "death-cell"
+   ]
+  },
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast schedules its own delayed second pass; casts overlapping in time each keep their own pending command.",
+  "rawVsResolved": "Declared raw: 15 (Cubone) / 30 (Marowak) per hit, two hits per enemy on the line 1000 ms apart. Per hit: scaled by AP (and crit if the cast crit), then reduced by SPE_DEF with ceil and min 1 and absorbed by shields in handleDamage. takenDamage is not consumed.",
+  "sourceTables": [
+   {
+    "id": "bonemerangDamage",
+    "file": "app/core/abilities/bonemerang.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPE_DEF division with min 1 and the block / dead gates were cited",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence)",
+   "Crit resolution: only the damage-side multiplier and the canCritByDefault gate were read",
+   "Whether the simulation tick keeps updating a unit in every state until it is removed from its team map (the claim that a dead caster's command is not ticked rests on triggerDeath removing it and Simulation.update iterating the team maps)"
+  ],
+  "unresolved": [
+   "Which cells the supercover line returns for every caster / target pair was read as an algorithm, not enumerated; exact tie behaviour at 45 degrees is a diagonal step",
+   "Whether a target that dies between passes changes the second pass: its position fields keep the last coordinates, so the line direction is recomputed from them",
+   "Whether any item or synergy effect changes BONEMERANG beyond what is listed",
+   "Alolan Marowak and other units sharing the skill name elsewhere are not covered",
+   "Verified only by reading source and the shared mechanical checks, not in a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     776,
+     776
+    ],
+    "symbol": "AbilityStrategies[Ability.BONEMERANG]",
+    "expect": "[Ability.BONEMERANG]: new BonemerangStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bo-class",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "BonemerangStrategy",
+    "expect": "class BonemerangStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "bo-super",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BonemerangStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "bo-dmg",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "BonemerangStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "star-indexed raw damage per hit"
+   },
+   {
+    "id": "bo-hit",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     17,
+     28
+    ],
+    "symbol": "BonemerangStrategy.process",
+    "expect": "const hit = () =>",
+    "note": "line effect: every non-allied entity on the line gets one special hit"
+   },
+   {
+    "id": "bo-first",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "BonemerangStrategy.process",
+    "expect": "hit()",
+    "note": "first pass immediately"
+   },
+   {
+    "id": "bo-second",
+    "file": "app/core/abilities/bonemerang.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "BonemerangStrategy.process",
+    "expect": "pokemon.commands.push(new DelayedCommand(hit, 1000))",
+    "note": "second identical pass after 1000 ms, same crit flag, line recomputed from the positions at that time"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "defaults (requiresTarget true)"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "line",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     940
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": "angle from caster to target, a point 12 cells along it (rounded), then getCellsBetween(caster, point) with the effect applied to each returned cell"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number)",
+    "note": "supercover grid line: includes the start cell, only on-board cells, diagonal step on exact ties"
+   },
+   {
+    "id": "board-size",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH",
+    "note": "8 columns x 6 rows"
+   },
+   {
+    "id": "sim-board",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "Simulation constructor",
+    "expect": "new Board(BOARD_HEIGHT, BOARD_WIDTH)",
+    "note": "board built as (rows = BOARD_HEIGHT, columns = BOARD_WIDTH)"
+   },
+   {
+    "id": "delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "class DelayedCommand extends SimulationCommand",
+    "note": "runs its function once delay has dropped below 0 on a ticked update"
+   },
+   {
+    "id": "cmd-tick",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "updateCommands(pokemon: PokemonEntity, dt: number)",
+    "note": "a unit's own commands are ticked from its state update"
+   },
+   {
+    "id": "state-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called inside the unit's update"
+   },
+   {
+    "id": "team-update",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1371,
+     1384
+    ],
+    "symbol": "Simulation.update",
+    "expect": "pkm.update(dt, this.board, this.redPlayer)",
+    "note": "only units still in blueTeam / redTeam are updated"
+   },
+   {
+    "id": "death-remove",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     863,
+     867
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "pokemon.simulation.redTeam.delete(pokemon.id)",
+    "note": "a dead unit is removed from the team maps, so its pending commands stop being ticked"
+   },
+   {
+    "id": "death-cell",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "board.setEntityOnCell(pokemon.positionX, pokemon.positionY, undefined)",
+    "note": "dead unit's cell is cleared (its position fields keep the last coordinates)"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "signature: AP boost default true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPE_DEF division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil, min 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead / resurrecting target takes nothing"
+   },
+   {
+    "id": "unit-cubone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2430,
+     2453
+    ],
+    "symbol": "Cubone extends",
+    "expect": "skill = Ability.BONEMERANG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-marowak",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2455,
+     2468
+    ],
+    "symbol": "Marowak extends",
+    "expect": "skill = Ability.BONEMERANG",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
