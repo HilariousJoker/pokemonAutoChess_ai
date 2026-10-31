@@ -1,0 +1,568 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CHLOROBLAST",
+ "kind": "ability",
+ "identifier": "CHLOROBLAST",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T113948Z"
+ },
+ "record": {
+  "ability": "CHLOROBLAST",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare CHLOROBLAST: Hisuian Electrode (2 stars, hp 150) and Hisuian Voltorb (1 star, hp 60); both maxPP 100, range 1. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "HISUI_ELECTRODE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CHLOROBLAST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HISUI_VOLTORB",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "CHLOROBLAST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HISUI_ELECTRODE": {
+    "evidence": [
+     "unit-electrode"
+    ]
+   },
+   "HISUI_VOLTORB": {
+    "evidence": [
+     "unit-voltorb"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CHLOROBLAST] = new ChloroblastStrategy()",
+   "strategy": "ChloroblastStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "cb-class",
+    "cb-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 50/100/200/400 by the caster's stars; 50 for 1-star Hisuian Voltorb, 100 for 2-star Hisuian Electrode) to every enemy on the 8 cells adjacent to the CASTER, then - unless the caster holds Protective Pads - deals TRUE damage equal to 50% of the caster's own max HP to the caster itself (skipped damage-wise only by the guards of handleSpecialDamage: protect, skydiving, magicBounce). The cast target is only used for PP/animation and is not necessarily hit.",
+  "targeting": {
+   "who": "every enemy unit standing on one of the 8 cells around the caster; then the caster itself",
+   "needsTarget": true,
+   "note": "getAdjacentCells(caster x, y) returns the 3x3 square minus the centre, clipped to the board. Only cells with a unit of a different team are hit. The cast target is not specifically selected: it is damaged only if it happens to be adjacent (it is normally in range 1, so it normally is, but the strategy does not enforce it).",
+   "evidence": [
+    "cb-cells",
+    "cb-enemy",
+    "cb-hit",
+    "board-adj",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square around the caster minus the centre (8 cells, clipped to the board); no displacement",
+   "evidence": [
+    "cb-cells",
+    "board-adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     },
+     "label": "requested damage (raw) per adjacent enemy"
+    },
+    "perUnitRaw": {
+     "HISUI_ELECTRODE": 100,
+     "HISUI_VOLTORB": 50
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage per enemy: x (1 + AP/100); x2 with DOUBLE_DAMAGE, which is deleted by the first call that uses it (so only the first enemy in cell order gets it; the caster's later self-damage does not); x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT). Enemies are processed in getAdjacentCells order (row by row from y-1 to y+1, x from left to right).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. A target holding POWER_LENS reflects the blocked part to the caster as SPECIAL damage unless the caster holds Protective Pads.",
+    "evidence": [
+     "cb-table",
+     "cb-cells",
+     "cb-enemy",
+     "cb-hit",
+     "board-adj",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-double",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "special-pl",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "self-damage",
+    "damageType": "TRUE",
+    "target": "the caster",
+    "declaredRaw": {
+     "description": "0.5 x caster max HP (requested), not a table value"
+    },
+    "perUnitRaw": {
+     "HISUI_ELECTRODE": "75 at hp 150 (0.5 x current maxHP)",
+     "HISUI_VOLTORB": "30 at hp 60 (0.5 x current maxHP)"
+    },
+    "scaling": "requested = 0.5 x maxHP read at cast time (the listed values use the unit's base hp and may differ with max-HP buffs). It then goes through handleSpecialDamage with the caster as its own attacker and apBoost true, so it is also multiplied by (1 + AP/100), by x1.2 with STRANGE_STEAM_BOARD_EFFECT, by x2 if a DOUBLE_DAMAGE effect is still present (not consumed by an earlier enemy hit), and by critPower if the cast crit (Rocky Helmet and Black Augurite do not reduce it for TRUE damage).",
+    "resolution": "applied = requested after those multipliers; handleDamage does not reduce TRUE damage by defenses (rounded up, minimum 1); the caster's shield absorbs first; takenDamage = shield damage + HP damage. Skipped entirely when the caster holds PROTECTIVE_PADS. Not dealt (takenDamage 0, spellBlockedCount incremented) if the caster has protect or skydiving or magicBounce at that moment. Whether the self-damage can kill the caster follows handleDamage's death handling, which was not read.",
+    "evidence": [
+     "cb-pads",
+     "cb-self",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-double",
+     "special-steam",
+     "special-crit",
+     "special-truecrit",
+     "special-aug",
+     "special-handle",
+     "hd-true",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HISUI_ELECTRODE": 2,
+    "HISUI_VOLTORB": 1
+   },
+   "declaredRawDamage": {
+    "HISUI_ELECTRODE": 100,
+    "HISUI_VOLTORB": 50
+   },
+   "note": "Enemy damage is indexed by the caster's stars; 3- and 4-star values (200, 400, also the ?? fallback) are not reachable by the bare factory star counts of these two units. The self-damage is a fraction of max HP and does not depend on stars.",
+   "evidence": [
+    "cb-table",
+    "unit-electrode",
+    "unit-voltorb"
+   ]
+  },
+  "positionalConditions": "Only enemies on the 8 cells around the caster's current cell are hit; cells off the board are skipped (a caster on an edge or corner has fewer neighbours). Allies and empty cells are ignored.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (100) of PP, hits the neighbours again and repeats the self-damage (50% of max HP each time unless Protective Pads), so a second cast can be fatal depending on healing.",
+  "rawVsResolved": "Requested: 50 (Hisuian Voltorb) / 100 (Hisuian Electrode) SPECIAL per adjacent enemy; 0.5 x maxHP TRUE to the caster. Applied enemy damage = requested x (1 + AP/100) x optional double-damage / steam / crit multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied self damage = requested x the same AP/double/steam/crit multipliers, no defense reduction, minimum 1, shield absorbs first.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/chloroblast.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (coverAlly redirection, Shiny Charm, Fossil shield, death handling) were not read",
+   "Whether the caster's death from its own self-damage is handled beyond the returned { death } value (the strategy ignores it)"
+  ],
+  "unresolved": [
+   "Whether the two units ever reach 3 or 4 stars (200/400 damage) was not examined",
+   "Whether max-HP changes during a fight shift the 0.5 x maxHP self-damage was not exercised",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     796,
+     796
+    ],
+    "symbol": "AbilityStrategies[Ability.CHLOROBLAST]",
+    "expect": "[Ability.CHLOROBLAST]: new ChloroblastStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cb-class",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "ChloroblastStrategy",
+    "expect": "export class ChloroblastStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "cb-super",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP of PP"
+   },
+   {
+    "id": "cb-table",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "requested damage to adjacent enemies by caster stars"
+   },
+   {
+    "id": "cb-cells",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the 8 neighbouring cells of the CASTER (not of the target)"
+   },
+   {
+    "id": "cb-enemy",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "occupied cells holding a unit of another team only"
+   },
+   {
+    "id": "cb-hit",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     20,
+     26
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage to each adjacent enemy, caster as attacker, crit flag passed"
+   },
+   {
+    "id": "cb-pads",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "if (!pokemon.items.has(Item.PROTECTIVE_PADS)) {",
+    "note": "self damage skipped when holding Protective Pads"
+   },
+   {
+    "id": "cb-self",
+    "file": "app/core/abilities/chloroblast.ts",
+    "lines": [
+     31,
+     37
+    ],
+    "symbol": "ChloroblastStrategy.process",
+    "expect": "0.5 * pokemon.maxHP,",
+    "note": "TRUE damage of 50% of the caster's own max HP to the caster, caster as attacker, crit flag passed"
+   },
+   {
+    "id": "board-adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     162
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 square around the cell, centre excluded, only cells on the board"
+   },
+   {
+    "id": "special-double",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "DOUBLE_DAMAGE x2 and the effect is consumed by the first damage call that sees it"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT on target or attacker: x1.2"
+   },
+   {
+    "id": "special-truecrit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     414,
+     415
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.items.has(Item.ROCKY_HELMET) && attackType !== AttackType.TRUE",
+    "note": "Rocky Helmet crit negation does not apply to TRUE damage"
+   },
+   {
+    "id": "special-aug",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     423,
+     428
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (attackType !== AttackType.TRUE) {",
+    "note": "Black Augurite reduction does not apply to TRUE damage"
+   },
+   {
+    "id": "special-pl",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     450
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.items.has(Item.POWER_LENS) &&",
+    "note": "POWER_LENS on the damaged enemy reflects blocked damage to the attacker unless it holds Protective Pads (SPECIAL only)"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE damage is not reduced by defenses"
+   },
+   {
+    "id": "unit-voltorb",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9638,
+     9665
+    ],
+    "symbol": "class HisuiVoltorb",
+    "expect": "skill = Ability.CHLOROBLAST",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-electrode",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9667,
+     9694
+    ],
+    "symbol": "class HisuiElectrode",
+    "expect": "skill = Ability.CHLOROBLAST",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
