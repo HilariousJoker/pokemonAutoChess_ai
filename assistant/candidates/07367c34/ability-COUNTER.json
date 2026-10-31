@@ -1,0 +1,312 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/COUNTER",
+ "kind": "ability",
+ "identifier": "COUNTER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T173941Z"
+ },
+ "record": {
+  "ability": "COUNTER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "WYNAUT (1 star) and WOBBUFFET (2 stars), the queued units; both declare passive WOBBUFFET; maxPP 100, range 1. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "WYNAUT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COUNTER",
+    "declaredPassive": "WOBBUFFET",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WOBBUFFET",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "COUNTER",
+    "declaredPassive": "WOBBUFFET",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "WYNAUT": {
+    "evidence": [
+     "unit-wynaut"
+    ]
+   },
+   "WOBBUFFET": {
+    "evidence": [
+     "unit-wobbuffet"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.COUNTER] = new CounterStrategy()",
+   "strategy": "CounterStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-counter",
+    "base",
+    "ct-impl"
+   ]
+  },
+  "summary": "Area special damage around the caster based on the HP the caster has lost. At cast time the requested damage is max(1, round((maxHP - hp) x factor)) with factor 0.5 for stars 1-3 (WYNAUT and WOBBUFFET) and 1 for 4 stars; it is dealt once to every enemy-team entity standing in the up-to-8 cells adjacent to the caster, each through handleSpecialDamage as AttackType.SPECIAL with the cast's crit flag, so the requested value is then scaled by the caster's AP (apBoost default true) and crit, and reduced by each target's special defense. Missing HP is read from the caster's own current hp and maxHP when the strategy runs, after the base process has spent PP (the base process does not change hp). The passive WOBBUFFET makes both units start as a tree (immobile, cannot attack, cannot lose PP) until PP reaches maxPP, which is what lets the unit stop being a tree and then cast. The cast target is not used.",
+  "targeting": {
+   "who": "enemy-team entities in the 8 cells adjacent to the caster",
+   "needsTarget": true,
+   "note": "the passed target is ignored by the effect. requiresTarget is the default true, so the cast still needs a target in range (range 1) to fire. The tree status from the passive means the unit does not move or attack by itself until it has full PP; how a PP-full ex-tree unit then acquires a target was not traced.",
+   "evidence": [
+    "ct-impl",
+    "base",
+    "wob-passive",
+    "tree-effect",
+    "tree-flags",
+    "tree-pp",
+    "tree-idle"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around the caster (centre excluded), clipped to the board",
+   "detail": "board.getAdjacentCells(x, y) with includesCenter = false; only cells holding an entity whose team differs from the caster's are hit",
+   "evidence": [
+    "ct-impl",
+    "adjacent"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team entity in the 8 adjacent cells",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.5,
+      "2": 0.5,
+      "3": 0.5,
+      "4": 1,
+      "fallback": 1
+     },
+     "unit": "fraction of missing HP (maxHP - hp)"
+    },
+    "perUnitRaw": {
+     "WYNAUT": 0.5,
+     "WOBBUFFET": 0.5
+    },
+    "scaling": "requested amount = max(1, Math.round((caster.maxHP - caster.hp) x factor)); the factor is 0.5, 0.5, 0.5, 1 by caster stars (0.5 for both listed units). Then handleSpecialDamage(damage, board, SPECIAL, caster, crit) with apBoost default true: x(1 + AP/100); crit factor when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), none against a Rocky Helmet target and reduced by the target player's Black Augurite stones; DOUBLE_DAMAGE on the caster doubles it once per target-call and is consumed by the first hit; STRANGE_STEAM_BOARD_EFFECT x1.2.",
+    "resolution": "applied: per target, skipped (spellBlockedCount++, takenDamage 0) if the target is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit at the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage resolves special defense, shield absorption and the minimum of 1 (shared reference core-mechanics \u00a7A); takenDamage reported includes shield damage. A Power Lens holder on the target reflects the blocked portion back to the caster. When the caster is at full hp the requested base is the floor 1, not 0.",
+    "evidence": [
+     "ct-impl",
+     "special-damage",
+     "state-handledamage"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "WYNAUT": 1,
+    "WOBBUFFET": 2
+   },
+   "declaredRawFactor": {
+    "WYNAUT": 0.5,
+    "WOBBUFFET": 0.5
+   },
+   "note": "the factor table is indexed by the caster's stars (stars-1); the 4-star entry (1) and fallback are not reached by the two listed units.",
+   "evidence": [
+    "ct-impl",
+    "unit-wynaut",
+    "unit-wobbuffet"
+   ]
+  },
+  "positionalConditions": "Only enemy-team entities in the up to 8 cells adjacent to the caster at cast time are hit. The amount depends on the caster's lost HP at cast time, not on damage taken since a specific moment.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Each cast recomputes from the current hp and maxHP. After the first cast the unit is no longer a tree (the idle state clears it when PP is full), so the passive's tree state is a start-of-fight condition; whether it returns later was not traced (other passives set tree elsewhere).",
+  "rawVsResolved": "Requested: round(missing HP x 0.5) with a floor of 1, for each adjacent enemy. Applied per target = requested x (1+AP/100) x crit factor, then special-defense reduction, shield absorption and minimum 1 in handleDamage; takenDamage includes shield damage; blocked entirely by protect / skydiving / magicBounce. No status, no heal.",
+  "sourceTables": [
+   {
+    "id": "ctFactor",
+    "file": "app/core/abilities/counter.ts",
+    "pattern": "const damageFactor = \\[([0-9., ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "How a Wynaut/Wobbuffet tree gains PP and when it first casts (only the idle-state untree condition was read)",
+   "Effects that change maxHP or hp before the cast (e.g. other passives, items) were not enumerated"
+  ],
+  "unresolved": [
+   "Whether non-enemy, non-allied entity teams can occupy adjacent cells (the check is only team !== caster team)",
+   "Whether any other item or synergy changes COUNTER beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-counter",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     809,
+     809
+    ],
+    "symbol": "AbilityStrategies[Ability.COUNTER]",
+    "expect": "[Ability.COUNTER]: new CounterStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "ct-impl",
+    "file": "app/core/abilities/counter.ts",
+    "lines": [
+     13,
+     31
+    ],
+    "symbol": "CounterStrategy.process",
+    "expect": "const damageFactor = [0.5, 0.5, 0.5, 1][pokemon.stars - 1] ?? 1",
+    "note": "missing-HP damage, adjacent enemy loop"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     466
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "protect / skydiving / magicBounce block, AP, double damage, crit, handleDamage, Power Lens"
+   },
+   {
+    "id": "state-handledamage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "wob-passive",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1426,
+     1426
+    ],
+    "symbol": "PassiveEffects[Passive.WOBBUFFET]",
+    "expect": "[Passive.WOBBUFFET]: [treeEffect]",
+    "note": "the passive only applies treeEffect"
+   },
+   {
+    "id": "tree-effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1015,
+     1018
+    ],
+    "symbol": "treeEffect",
+    "expect": "entity.status.tree = true",
+    "note": "on spawn: tree status and idle state"
+   },
+   {
+    "id": "tree-idle",
+    "file": "app/core/idle-state.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "IdleState.update",
+    "expect": "pokemon.status.tree &&",
+    "note": "tree is cleared when PP >= maxPP"
+   },
+   {
+    "id": "tree-flags",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     248
+    ],
+    "symbol": "PokemonEntity.canMove / canAttack",
+    "expect": "!this.status.tree",
+    "note": "a tree cannot move or attack"
+   },
+   {
+    "id": "tree-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     529
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "a tree cannot lose PP"
+   },
+   {
+    "id": "unit-wynaut",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7840,
+     7858
+    ],
+    "symbol": "Wynaut",
+    "expect": "skill = Ability.COUNTER",
+    "note": ""
+   },
+   {
+    "id": "unit-wobbuffet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7860,
+     7874
+    ],
+    "symbol": "Wobbuffet",
+    "expect": "skill = Ability.COUNTER",
+    "note": ""
+   }
+  ]
+ }
+}
