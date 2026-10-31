@@ -1,0 +1,402 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DEFENSE_CURL",
+ "kind": "ability",
+ "identifier": "DEFENSE_CURL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T234024Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare DEFENSE_CURL: Bronzor (1 star) and Bronzong (2 stars); both range 1, maxPP 80, no passive. The strategy is shared; unit differences are the star index into the buff table and speed (36 for both).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DEFENSE_CURL] = new DefenseCurlStrategy()",
+   "strategy": "DefenseCurlStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "super",
+    "cast"
+   ]
+  },
+  "summary": "Needs no target. The caster raises its own Defense and Special Defense by the same raw amount, 5 (1 star) / 10 (2 stars), each scaled by AP (apBoost 1) and by crit power if the cast crit (crit only rolled with the ABILITY_CRIT effect), plus a Big Eater Belt x1.25 (rounded down) when held; then its attack cooldown is reset to round(250 / (0.4 + speed x 0.007)) ms. The buffs persist for the rest of the fight in the code read (no expiry present in this strategy).",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": false,
+   "note": "process receives target null and only touches pokemon (the caster).",
+   "evidence": [
+    "cls",
+    "def",
+    "spedef"
+   ]
+  },
+  "geometry": {
+   "shape": "self",
+   "evidence": [
+    "def",
+    "spedef"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "buff",
+    "target": "caster: Defense",
+    "declaredRaw": {
+     "stat": "def",
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 40,
+      "fallback": 40
+     }
+    },
+    "perUnitRaw": {
+     "BRONZOR": 5,
+     "BRONZONG": 10
+    },
+    "scaling": "requested = table value. applied by addDefense: round(requested x (1 + AP/100) x (crit ? critPower : 1)); then Big Eater Belt: x1.25 rounded down if the caster holds it (value > 0); Twist Band does nothing for a positive self-buff; def = max(0, def + applied).",
+    "resolution": "requested (raw table) -> applied (after AP, crit, belt) -> new def value (clamped at 0; irrelevant for a positive buff).",
+    "evidence": [
+     "table",
+     "def",
+     "add-def",
+     "belt",
+     "twist"
+    ]
+   },
+   {
+    "kind": "buff",
+    "target": "caster: Special Defense",
+    "declaredRaw": {
+     "stat": "speDef",
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 20,
+      "4": 40,
+      "fallback": 40
+     }
+    },
+    "perUnitRaw": {
+     "BRONZOR": 5,
+     "BRONZONG": 10
+    },
+    "scaling": "same as Defense: round(requested x (1 + AP/100) x (crit ? critPower : 1)), Big Eater Belt x1.25 rounded down, Twist Band no effect; speDef = max(0, speDef + applied). The same crit flag is used for both stats.",
+    "resolution": "requested -> applied -> new speDef.",
+    "evidence": [
+     "table",
+     "spedef",
+     "add-spedef",
+     "belt",
+     "twist"
+    ]
+   },
+   {
+    "kind": "cooldown",
+    "target": "caster: attack cooldown",
+    "declaredRaw": {
+     "baseDurationMs": 250
+    },
+    "scaling": "cooldown = round(250 / (0.4 + speed x 0.007)) with the caster's current speed (36 for both units at base: about 250/0.652 = 383 ms before any speed change).",
+    "resolution": "overwrites the caster's cooldown (not additive).",
+    "evidence": [
+     "cd",
+     "reset-cd"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "def",
+    "target": "caster",
+    "permanentInFight": "no expiry in this strategy",
+    "evidence": [
+     "def",
+     "add-def"
+    ]
+   },
+   {
+    "stat": "speDef",
+    "target": "caster",
+    "permanentInFight": "no expiry in this strategy",
+    "evidence": [
+     "spedef",
+     "add-spedef"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BRONZOR": 1,
+    "BRONZONG": 2
+   },
+   "declaredRawBuff": {
+    "BRONZOR": 5,
+    "BRONZONG": 10
+   },
+   "note": "table index is the casting entity's stars; 20 and 40 are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-bronzor",
+    "unit-bronzong"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "No stored state; each cast adds the buff again (stacking, no cap other than the >= 0 floor) and resets the cooldown again.",
+  "rawVsResolved": "Declared raw: 5 / 10 to Def and SpeDef (1 / 2 stars). Requested = raw; applied = round(raw x (1 + AP/100) x crit factor) then x1.25 rounded down with Big Eater Belt. Twist Band has no effect on this positive self-buff. Both stats receive the same applied amount (same helper chain, same flags).",
+  "sourceTables": [
+   {
+    "id": "buff",
+    "file": "app/core/abilities/defense-curl.ts",
+    "pattern": "const buff = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the castAbility gate was read",
+   "How the new Def/SpeDef values are used in damage reduction (see core-mechanics §A, not re-traced)"
+  ],
+  "unresolved": [
+   "Whether an Aura/synergy or other effect later removes or caps the buff (not searched)",
+   "Whether resetCooldown(250) interacts with an ongoing attack animation (not traced)",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "DEFENSE_CURL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BRONZOR",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DEFENSE_CURL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BRONZONG",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "DEFENSE_CURL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BRONZOR": {
+    "evidence": [
+     "unit-bronzor"
+    ]
+   },
+   "BRONZONG": {
+    "evidence": [
+     "unit-bronzong"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-bronzor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9958,
+     9972
+    ],
+    "symbol": "class Bronzor",
+    "expect": "skill = Ability.DEFENSE_CURL",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-bronzong",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9974,
+     9990
+    ],
+    "symbol": "class Bronzong",
+    "expect": "skill = Ability.DEFENSE_CURL",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     824,
+     824
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.DEFENSE_CURL]: new DefenseCurlStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "DefenseCurlStrategy",
+    "expect": "requiresTarget = false",
+    "note": "class and requiresTarget (canCritByDefault inherited false)"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base flags"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, broadcast with the default animation (preventDefaultAnim not passed)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "DefenseCurlStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "DefenseCurlStrategy.process",
+    "expect": "[5, 10, 20, 40][pokemon.stars - 1] ?? 40",
+    "note": "buff table by caster stars"
+   },
+   {
+    "id": "def",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "DefenseCurlStrategy.process",
+    "expect": "pokemon.addDefense(buff, pokemon, 1, crit)",
+    "note": "Def buff on self, apBoost 1"
+   },
+   {
+    "id": "spedef",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "DefenseCurlStrategy.process",
+    "expect": "pokemon.addSpecialDefense(buff, pokemon, 1, crit)",
+    "note": "SpeDef buff on self, apBoost 1"
+   },
+   {
+    "id": "cd",
+    "file": "app/core/abilities/defense-curl.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "DefenseCurlStrategy.process",
+    "expect": "pokemon.resetCooldown(250)",
+    "note": "resets the attack cooldown"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "round(value x (1+AP/100) x crit), Big Eater Belt, Twist Band, def = max(0, def + value)"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "same for speDef"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "buff > 0 on a Big Eater Belt holder x1.25 rounded down (0 digits)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1865
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "only flips negative values from enemies/environment; no effect on a positive self-buff"
+   },
+   {
+    "id": "reset-cd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "PokemonEntity.resetCooldown",
+    "expect": "Math.round(baseDuration / (0.4 + speed * 0.007))",
+    "note": "cooldown = round(250 / (0.4 + speed x 0.007)) ms using the unit's current speed"
+   }
+  ]
+ }
+}
