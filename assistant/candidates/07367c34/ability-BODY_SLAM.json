@@ -1,0 +1,415 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BODY_SLAM",
+ "kind": "ability",
+ "identifier": "BODY_SLAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T054014Z"
+ },
+ "record": {
+  "ability": "BODY_SLAM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Munchlax (1 star) and Snorlax (2 stars), both with passive GLUTTON, declare BODY_SLAM. The strategy is shared; the units differ in stars and stats.",
+  "appliesTo": [
+   {
+    "key": "MUNCHLAX",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BODY_SLAM",
+    "declaredPassive": "GLUTTON",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SNORLAX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BODY_SLAM",
+    "declaredPassive": "GLUTTON",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MUNCHLAX": {
+    "evidence": [
+     "unit-munchlax"
+    ]
+   },
+   "SNORLAX": {
+    "evidence": [
+     "unit-snorlax"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BODY_SLAM] = new BodySlamStrategy()",
+   "strategy": "BodySlamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bs-class",
+    "base-flags",
+    "base-pp",
+    "bs-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage whose requested amount is a star-indexed fraction (0.3 / 0.3 / 0.5 / 0.8) of the CASTER's current maxHP, multiplied by (1 + AP/100) and rounded inside the strategy. The hit is then sent with apBoost = false, so AP is applied once (in the strategy), not twice; crit still multiplies in handleSpecialDamage when the cast crits. No status, movement or heal. The passive GLUTTON raises maxHP (berry, dish, cooking), which therefore raises this damage.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "bs-class",
+    "base-flags",
+    "bs-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "bs-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.3,
+      "2": 0.3,
+      "3": 0.5,
+      "4": 0.8,
+      "fallback": 0.8
+     },
+     "unit": "fraction of the caster's maxHP"
+    },
+    "perUnitRaw": {
+     "MUNCHLAX": 0.3,
+     "SNORLAX": 0.3
+    },
+    "scaling": "requested = round(fraction x caster.maxHP x (1 + AP/100)) in the strategy; handleSpecialDamage gets apBoost = false so it adds no second AP factor; a crit multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT). maxHP is the entity's current value (after addMaxHP changes and GLUTTON growth), not the catalog base. Illustration on the catalog base stats only (AP 0, no crit): Munchlax 0.3 x 120 = 36, Snorlax 0.3 x 300 = 90 requested - not measured values.",
+    "resolution": "requested amount = the rounded fraction of maxHP; applied change = after the optional crit factor, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps; the returned takenDamage is discarded. Blocked (0) by protect / skydiving / magicBounce; a dead or resurrecting target takes nothing.",
+    "evidence": [
+     "bs-mult",
+     "bs-dmg",
+     "bs-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead",
+     "maxhp-add",
+     "glutton-berry",
+     "glutton-dish",
+     "glutton-chef"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "MUNCHLAX": 1,
+    "SNORLAX": 2
+   },
+   "declaredRawFractions": {
+    "MUNCHLAX": 0.3,
+    "SNORLAX": 0.3
+   },
+   "note": "indexed by the casting entity's stars; the 0.5 and 0.8 entries are not reachable by the two units' bare star counts (1, 2). maxPP is 100 and range 1 for both.",
+   "evidence": [
+    "bs-mult",
+    "unit-munchlax",
+    "unit-snorlax"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes from the caster's maxHP at that moment, so damage can grow between casts as GLUTTON raises maxHP.",
+  "rawVsResolved": "Declared raw: fraction 0.3 of the caster's maxHP for both units. Requested amount = round(fraction x maxHP x (1 + AP/100)). Applied: x crit factor on crit, then SPE_DEF division (ceil, min 1) and shields in handleDamage. takenDamage is not consumed.",
+  "sourceTables": [
+   {
+    "id": "bodySlamFractions",
+    "file": "app/core/abilities/body-slam.ts",
+    "pattern": "const damageMultiplier = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPE_DEF division with min 1 and the block/dead gates were cited",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence)",
+   "Crit resolution: only the damage-side multiplier and the canCritByDefault gate were read",
+   "Every source that changes the caster's maxHP in a fight (only the addMaxHP helper and the three GLUTTON growth sites were cited)"
+  ],
+  "unresolved": [
+   "Exactly how the GLUTTON growth in the pick phase (applyStat on the board pokemon, dish and cooking increments) maps onto the in-fight entity's maxHP at spawn was not traced beyond the cited sites",
+   "Whether any item or synergy effect changes BODY_SLAM beyond what is listed",
+   "Verified only by reading source and the shared mechanical checks, not in a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "AbilityStrategies[Ability.BODY_SLAM]",
+    "expect": "[Ability.BODY_SLAM]: new BodySlamStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bs-class",
+    "file": "app/core/abilities/body-slam.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BodySlamStrategy",
+    "expect": "class BodySlamStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "bs-super",
+    "file": "app/core/abilities/body-slam.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BodySlamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "bs-mult",
+    "file": "app/core/abilities/body-slam.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "BodySlamStrategy.process",
+    "expect": "const damageMultiplier = [0.3, 0.3, 0.5, 0.8][pokemon.stars - 1] ?? 0.8",
+    "note": "star-indexed fraction of max HP"
+   },
+   {
+    "id": "bs-dmg",
+    "file": "app/core/abilities/body-slam.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "BodySlamStrategy.process",
+    "expect": "damageMultiplier * pokemon.maxHP * (1 + pokemon.ap / 100)",
+    "note": "requested damage = round(fraction x caster maxHP x (1 + AP/100)); AP applied here"
+   },
+   {
+    "id": "bs-hit",
+    "file": "app/core/abilities/body-slam.ts",
+    "lines": [
+     18,
+     25
+    ],
+    "symbol": "BodySlamStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "single special hit with apBoost = false (AP not applied a second time); return value discarded"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "signature"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP term is 0 when apBoost is false"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPE_DEF division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil, min 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead / resurrecting target takes nothing"
+   },
+   {
+    "id": "maxhp-add",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     574,
+     590
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.maxHP = min(1)(this.maxHP + value)",
+    "note": "how the entity's maxHP changes (AP/crit scaling, Big Eater Belt, Twist Band, floor 1)"
+   },
+   {
+    "id": "glutton-berry",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1716,
+     1721
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.applyStat(Stat.HP, 10, true)",
+    "note": "GLUTTON: +10 HP stat per berry eaten"
+   },
+   {
+    "id": "glutton-dish",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     591,
+     596
+    ],
+    "symbol": "Simulation (dish eating)",
+    "expect": "entity?.addMaxHP(20, entity, 0, false)",
+    "note": "GLUTTON: +20 max HP on the simulated entity when a dish is eaten"
+   },
+   {
+    "id": "glutton-chef",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     404,
+     409
+    ],
+    "symbol": "cooking",
+    "expect": "chef.addMaxHP(30)",
+    "note": "GLUTTON chef: +30 max HP"
+   },
+   {
+    "id": "unit-munchlax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9323,
+     9342
+    ],
+    "symbol": "Munchlax extends",
+    "expect": "skill = Ability.BODY_SLAM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-snorlax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9344,
+     9362
+    ],
+    "symbol": "Snorlax extends",
+    "expect": "skill = Ability.BODY_SLAM",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
