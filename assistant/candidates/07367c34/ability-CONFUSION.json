@@ -1,0 +1,430 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CONFUSION",
+ "kind": "ability",
+ "identifier": "CONFUSION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T173941Z"
+ },
+ "record": {
+  "ability": "CONFUSION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "BALTOY (1 star) and CLAYDOL (2 stars), the queued units; maxPP 70, range 2 for both. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "BALTOY",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "CONFUSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CLAYDOL",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "CONFUSION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BALTOY": {
+    "evidence": [
+     "unit-baltoy"
+    ]
+   },
+   "CLAYDOL": {
+    "evidence": [
+     "unit-claydol"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CONFUSION] = new ConfusionStrategy()",
+   "strategy": "ConfusionStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-conf",
+    "base",
+    "conf-impl"
+   ]
+  },
+  "summary": "Two-branch single-target cast on the current target. Branch A (target NOT currently confused): the target is silenced and confused for the same requested duration, 3000 / 5000 / 7000 / 10000 ms by caster stars (3000 for BALTOY, 5000 for CLAYDOL); no damage in this branch. Branch B (target ALREADY confused at cast time): no status is applied and the target takes requested special damage 75 / 150 / 300 / 500 by caster stars (75 BALTOY, 150 CLAYDOL) through handleSpecialDamage with the cast's crit flag, so it is scaled by the caster's AP (apBoost default true), a crit factor when the cast crit, and then reduced by the target's special defense in PokemonState.handleDamage. The statuses are applied via triggerSilence / triggerConfusion without AP or crit scaling of the duration (apBoost is not passed, so false). Applied status durations are modified: both are blocked by Rune Protect; silence is also blocked by the tree status and is x1.3 in MURKY weather, confusion is also blocked when the target has the IMMUNITY_CONFUSION effect (Persim Berry) and is x1.3 in SANDSTORM weather; both then pass the Swift Swim / Hydration / Water Veil / Surge Surfer reduction and Odd Keystone reduction. A confused unit retargets in the attacking state (50% chance it may pick allies too). Confusion ending clears the target.",
+  "targeting": {
+   "who": "the cast target only (single target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true, so the caster needs a target in range (range 2) to start the cast. The branch is chosen by target.status.confusion read at cast time.",
+   "evidence": [
+    "conf-impl",
+    "base"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "detail": "no area, no positional condition",
+   "evidence": [
+    "conf-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "status": "silence",
+    "target": "the cast target, only when it is not already confused",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 7000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "unit": "ms"
+    },
+    "perUnitRaw": {
+     "BALTOY": 3000,
+     "CLAYDOL": 5000
+    },
+    "scaling": "none: triggerSilence(confusionDuration, target, pokemon) receives the table value unchanged; no AP and no crit scaling.",
+    "resolution": "applied duration: nothing if the target has Rune Protect or the tree status; x1.3 in MURKY weather; then Swift Swim x0.7 or Hydration x0.5 or Water Veil / Surge Surfer x0.3 (first match), then Odd Keystone x(1 - 0.1 per stone) on the target's player; rounded after the reductions. The status keeps the longer of the old and new cooldown. Applied in the same branch and before triggerConfusion.",
+    "evidence": [
+     "conf-impl",
+     "trigger-silence",
+     "duration-reductions"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "confusion",
+    "target": "the cast target, only when it is not already confused",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 7000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "unit": "ms"
+    },
+    "perUnitRaw": {
+     "BALTOY": 3000,
+     "CLAYDOL": 5000
+    },
+    "scaling": "none: triggerConfusion(confusionDuration, target, pokemon) is called without apBoost (default false), so the origin's AP does not lengthen it.",
+    "resolution": "applied duration: only applied if the target is not already confused (always true in this branch), has no Rune Protect and no IMMUNITY_CONFUSION effect; x1.3 in SANDSTORM weather; then the Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reductions; Math.round. A Persim Berry holder eats it on being confused (clears the confusion at once, grants IMMUNITY_CONFUSION, heals 50 and +10 special defense). A PSYDUCK-passive target gains 100 AP when confused.",
+    "evidence": [
+     "conf-impl",
+     "trigger-confusion",
+     "duration-reductions",
+     "persim"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target, only when it is already confused",
+    "declaredRaw": {
+     "byStars": {
+      "1": 75,
+      "2": 150,
+      "3": 300,
+      "4": 500,
+      "fallback": 500
+     }
+    },
+    "perUnitRaw": {
+     "BALTOY": 75,
+     "CLAYDOL": 150
+    },
+    "scaling": "requested amount: handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit) with apBoost default true gives damage x(1 + AP/100); crit applies when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), reduced to no crit bonus if the target holds Rocky Helmet and lowered by Black Augurite stones of the target's player; DOUBLE_DAMAGE on the caster doubles it once and is consumed; STRANGE_STEAM_BOARD_EFFECT x1.2.",
+    "resolution": "applied: skipped entirely (spellBlockedCount++, takenDamage 0) if the target is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit back at the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage resolves special defense, shield absorption and the minimum of 1 (shared reference core-mechanics \u00a7A); takenDamage reported by handleDamage includes shield damage. A Power Lens holder on the target reflects the blocked portion back to the caster.",
+    "evidence": [
+     "conf-impl",
+     "special-damage",
+     "state-handledamage"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "silence",
+    "who": "the cast target when not already confused",
+    "declaredRawDurationMs": {
+     "BALTOY": 3000,
+     "CLAYDOL": 5000
+    },
+    "combatEffect": "canCast is false while silenced, and addPP ignores positive PP gains while silenced",
+    "evidence": [
+     "trigger-silence",
+     "cancast",
+     "addpp-silence"
+    ]
+   },
+   {
+    "status": "confusion",
+    "who": "the cast target when not already confused",
+    "declaredRawDurationMs": {
+     "BALTOY": 3000,
+     "CLAYDOL": 5000
+    },
+    "combatEffect": "in the attacking state a confused unit picks its target with getTargetWhenConfused (nearest candidates within distance range+1, allies also eligible when a 50% roll fails); when its position equals its target's, board orientation is random; when confusion expires the unit's target is cleared",
+    "evidence": [
+     "attack-confused",
+     "get-confused",
+     "orientation",
+     "trigger-confusion"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BALTOY": 1,
+    "CLAYDOL": 2
+   },
+   "declaredRawDurationMs": {
+    "BALTOY": 3000,
+    "CLAYDOL": 5000
+   },
+   "declaredRawDamage": {
+    "BALTOY": 75,
+    "CLAYDOL": 150
+   },
+   "note": "both tables are indexed by the caster's stars (stars-1); the 3-star and 4-star entries (7000/10000 ms, 300/500 damage) and the fallback are not reached by the two listed units.",
+   "evidence": [
+    "conf-impl",
+    "unit-baltoy",
+    "unit-claydol"
+   ]
+  },
+  "positionalConditions": "None positional. The branch depends on whether the target is confused at cast time.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Because a confused target takes the damage branch, a second cast on the same target while confusion lasts deals damage instead of refreshing the status; once confusion has expired the status branch runs again. Silence from the first cast may still be active in the damage branch (it is not re-applied there).",
+  "rawVsResolved": "Requested: silence and confusion 3000 ms (BALTOY) / 5000 ms (CLAYDOL), or damage 75 / 150. Applied duration = requested after Murky (silence) or Sandstorm (confusion) weather, Rune Protect / tree / IMMUNITY_CONFUSION blocks, status-duration reductions and Odd Keystone. Applied damage = requested x (1+AP/100) x crit factor, then special-defense reduction, shield absorption and minimum 1 inside handleDamage; takenDamage includes shield damage; blocked entirely by protect / skydiving / magicBounce. Neither branch heals or buffs.",
+  "sourceTables": [
+   {
+    "id": "confDuration",
+    "file": "app/core/abilities/confusion.ts",
+    "pattern": "const confusionDuration = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "confDamage",
+    "file": "app/core/abilities/confusion.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "Remaining body of getTargetWhenConfused after candidate collection (final pick among candidates) was not read"
+  ],
+  "unresolved": [
+   "Whether other items or synergies change CONFUSION beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-conf",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     803,
+     803
+    ],
+    "symbol": "AbilityStrategies[Ability.CONFUSION]",
+    "expect": "[Ability.CONFUSION]: new ConfusionStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "conf-impl",
+    "file": "app/core/abilities/confusion.ts",
+    "lines": [
+     13,
+     28
+    ],
+    "symbol": "ConfusionStrategy.process",
+    "expect": "const confusionDuration = [3000, 5000, 7000, 10000][pokemon.stars - 1] ?? 10000",
+    "note": "duration and damage tables, confused-target branch, silence + confusion branch"
+   },
+   {
+    "id": "trigger-silence",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     535
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "Murky x1.3; reductions; keeps the longer cooldown"
+   },
+   {
+    "id": "trigger-confusion",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     806,
+     831
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_CONFUSION)",
+    "note": "Sandstorm x1.3; reductions; Persim Berry; Psyduck passive"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone"
+   },
+   {
+    "id": "persim",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1648,
+     1654
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.effects.add(EffectEnum.IMMUNITY_CONFUSION)",
+    "note": "Persim Berry: clears confusion, heal 50, +10 special defense"
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     466
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "protect / skydiving / magicBounce block, AP, double damage, crit, handleDamage, Power Lens"
+   },
+   {
+    "id": "state-handledamage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "cancast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     256
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence",
+    "note": "silence blocks casting"
+   },
+   {
+    "id": "addpp-silence",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     524,
+     525
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.silence)",
+    "note": "silenced units gain no positive PP"
+   },
+   {
+    "id": "attack-confused",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     45,
+     46
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "} else if (pokemon.status.confusion) {",
+    "note": "confused unit retargets"
+   },
+   {
+    "id": "get-confused",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1302,
+     1310
+    ],
+    "symbol": "PokemonState.getTargetWhenConfused",
+    "expect": "const chanceToBypassConfusion = chance(0.5, pokemon)",
+    "note": "50% roll decides whether allies are eligible"
+   },
+   {
+    "id": "orientation",
+    "file": "app/core/board.ts",
+    "lines": [
+     119,
+     121
+    ],
+    "symbol": "Board.getOrientation",
+    "expect": "return pickRandomIn(Orientation)",
+    "note": "random orientation when confused and on the target cell"
+   },
+   {
+    "id": "unit-baltoy",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12820,
+     12838
+    ],
+    "symbol": "Baltoy",
+    "expect": "skill = Ability.CONFUSION",
+    "note": ""
+   },
+   {
+    "id": "unit-claydol",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12840,
+     12858
+    ],
+    "symbol": "Claydol",
+    "expect": "skill = Ability.CONFUSION",
+    "note": ""
+   }
+  ]
+ }
+}
