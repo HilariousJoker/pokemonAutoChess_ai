@@ -1,0 +1,511 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BEHEMOTH_BLADE",
+ "kind": "ability",
+ "identifier": "BEHEMOTH_BLADE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T054014Z"
+ },
+ "record": {
+  "ability": "BEHEMOTH_BLADE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Zacian (3 stars, passive ZACIAN) and Zacian Crowned (4 stars, passive NONE in the unit class block) declare BEHEMOTH_BLADE. The strategy is shared; the units differ in star index and stats. No other unit in the catalog uses it.",
+  "appliesTo": [
+   {
+    "key": "ZACIAN",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BEHEMOTH_BLADE",
+    "declaredPassive": "ZACIAN",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ZACIAN_CROWNED",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BEHEMOTH_BLADE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ZACIAN": {
+    "evidence": [
+     "unit-zacian"
+    ]
+   },
+   "ZACIAN_CROWNED": {
+    "evidence": [
+     "unit-zacian-crowned"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BEHEMOTH_BLADE] = new BehemothBladeStrategy()",
+   "strategy": "BehemothBladeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "bb-class",
+    "base-flags",
+    "base-pp",
+    "bb-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special hit: raw damage is a star-indexed table value (30/60/90/120/240) PLUS the caster's current atk at the moment of the cast. After the hit the caster is repositioned: the orientation from caster to target is computed from the current positions, the first EMPTY on-board cell next to the TARGET (tried along that orientation, then its two neighbouring orientations) is chosen, and the caster moves there, i.e. it ends up behind/beside the target on the far side. If no such cell exists the caster stays where it is. The hit's return value (takenDamage, death) is not used, so the move happens whether or not the hit was blocked or killed the target.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; both units have range 1, so the target is normally adjacent when cast. How the target is chosen before the cast was not read.",
+   "evidence": [
+    "bb-class",
+    "base-flags",
+    "bb-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, then a caster displacement to a free cell next to the target on the far side",
+   "evidence": [
+    "bb-hit",
+    "bb-orient",
+    "bb-knock",
+    "bb-move",
+    "orientation",
+    "knock-fn",
+    "knock-table",
+    "orient-vec"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 120,
+      "5": 240,
+      "fallback": 240
+     },
+     "plusCasterAtk": "pokemon.atk read at cast time (current value, includes buffs/debuffs applied before the cast)"
+    },
+    "perUnitRaw": {
+     "ZACIAN": "90 + atk",
+     "ZACIAN_CROWNED": "120 + atk"
+    },
+    "scaling": "the table value and the caster's atk are summed first; handleSpecialDamage then multiplies the SUM by (1 + AP/100) (apBoost defaults to true and is not overridden), and by the crit factor (1 + (critPower-1) x critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT). So atk is scaled by AP, unlike a flat additive bonus. With the catalog base atk 22 (no buffs, AP 0, no crit) the requested amount is 112 for Zacian and 142 for Zacian Crowned - illustrative arithmetic on the declared base stats, not a measured value.",
+    "resolution": "requested amount = table + atk (raw, before AP/crit); applied change = after AP/crit, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1) and applies shields, held items and other steps; takenDamage (shield part plus HP part) is returned by handleSpecialDamage but this strategy discards it. Blocked entirely (0) by protect / skydiving / magicBounce. A dead or resurrecting target takes nothing. The Power Lens retaliation branch in handleSpecialDamage can reflect part of the blocked damage to the caster when the target holds a Power Lens and the caster does not hold Protective Pads.",
+    "evidence": [
+     "bb-dmg",
+     "bb-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead"
+    ]
+   },
+   {
+    "kind": "displacement (self)",
+    "declaredRaw": {
+     "destination": "first empty on-board cell around the target, searched along orientation caster->target, then its two neighbours"
+    },
+    "scaling": "none (no AP, crit or stat scaling)",
+    "resolution": "Board.getKnockBackPlace(target.x, target.y, orientation) returns the first listed orientation whose neighbouring cell (target + OrientationVector) is on the board and has no entity; null if all three are blocked or off board. The caster's own cell is occupied, so it can never be chosen. moveTo(forcedDisplacement=false) skips the canBeMoved guards, swaps the two cells (the destination is empty, so this is a plain relocation), sets the caster to the moving state (unless INANIMATE or tree) and sets its cooldown to 100. The orientation is taken from the caster's and target's positions AFTER the damage call, so it uses the positions at that moment (a move caused by the hit itself, if any, was not traced).",
+    "guards": "no Rune Protect, shield or immobility check: forcedDisplacement is false, so a caster that cannot be moved by others is still relocated.",
+    "evidence": [
+     "bb-orient",
+     "bb-knock",
+     "bb-move",
+     "orientation",
+     "knock-fn",
+     "knock-table",
+     "orient-vec",
+     "cell-get",
+     "swap",
+     "move-to",
+     "moving-state"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "ZACIAN": 3,
+    "ZACIAN_CROWNED": 4
+   },
+   "declaredRawTable": {
+    "1": 30,
+    "2": 60,
+    "3": 90,
+    "4": 120,
+    "5": 240
+   },
+   "note": "indexed by the casting entity's stars: Zacian (3) uses 90, Zacian Crowned (4) uses 120. The 240 entry is index 5 and is also the fallback; neither unit's bare star count reaches it. maxPP is 100 and range 1 for both.",
+   "evidence": [
+    "bb-dmg",
+    "unit-zacian",
+    "unit-zacian-crowned"
+   ]
+  },
+  "positionalConditions": "Needs a target to cast. The displacement depends on free cells next to the target: with the primary cell and both neighbouring orientations occupied or off board the caster does not move. Edge-of-board targets are handled by the isOnBoard check.",
+  "repeatedCastsAndModes": "No stored state and no modes. Each cast repeats the hit and the relocation.",
+  "rawVsResolved": "Declared raw: 90 + atk (Zacian) / 120 + atk (Zacian Crowned), summed, then scaled by (1 + AP/100) and, on crit, critPower, then reduced by SPE_DEF (ceil, min 1) and shields in handleDamage. The self-displacement is a cell choice, not an amount. takenDamage is not consumed by this ability.",
+  "sourceTables": [
+   {
+    "id": "behemothBladeDamage",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPE_DEF division with min 1 and the block/dead gates were cited",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the damage-side multiplier and the canCritByDefault gate were read",
+   "What the catalog passive ZACIAN does for Zacian (see unresolved)"
+  ],
+  "unresolved": [
+   "Passive ZACIAN is declared by Zacian but no reference to it was found in app/core or app/models/colyseus-models by name search (only the enum, pokemon.ts, pools.ts, pve-stages.ts, locale/CSV data); whether any behaviour is attached through another mechanism was not established, so interactions with BEHEMOTH_BLADE are unknown",
+   "The precomputed CSV (app/models/precomputed/pokemons-data.csv) lists passive ZACIAN for ZACIAN_CROWNED too, while its class block and the catalog show NONE; the class block was taken as the reference for appliesTo",
+   "Whether the target's cell is still occupied or freed by death handling when getKnockBackPlace runs after a killing hit was not traced; the chosen cell is next to the target so the dead target's own cell is not a candidate in the primary case",
+   "Whether the hit itself can move either unit before the orientation is computed (e.g. via on-hit effects) was not traced",
+   "Whether any item or synergy effect changes BEHEMOTH_BLADE beyond what is listed",
+   "Verified only by reading source and the shared mechanical checks, not in a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     762,
+     762
+    ],
+    "symbol": "AbilityStrategies[Ability.BEHEMOTH_BLADE]",
+    "expect": "[Ability.BEHEMOTH_BLADE]: new BehemothBladeStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "bb-class",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BehemothBladeStrategy",
+    "expect": "class BehemothBladeStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "bb-super",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: PP spend and ability broadcast"
+   },
+   {
+    "id": "bb-dmg",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     14,
+     15
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "([30, 60, 90, 120, 240][pokemon.stars - 1] ?? 240) + pokemon.atk",
+    "note": "raw damage = star table + the caster's current atk"
+   },
+   {
+    "id": "bb-hit",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "single special hit; return value is discarded"
+   },
+   {
+    "id": "bb-orient",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     18,
+     25
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "const orientation = board.orientation(",
+    "note": "orientation caster -> target, computed after the hit from current positions"
+   },
+   {
+    "id": "bb-knock",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     27,
+     31
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "const destination = board.getKnockBackPlace(",
+    "note": "knock-back cell computed from the TARGET's cell and that orientation"
+   },
+   {
+    "id": "bb-move",
+    "file": "app/core/abilities/behemoth-blade.ts",
+    "lines": [
+     33,
+     35
+    ],
+    "symbol": "BehemothBladeStrategy.process",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": "the CASTER moves to the cell (non-forced displacement)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget / canCritByDefault defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "signature: AP boost default true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost applies to the whole sum (table + atk)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPE_DEF division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil, minimum 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "orientation",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx/dy sign -> one of 8 orientations; dx=dy=0 logs an error and returns DOWNRIGHT (random if the caster is confused)"
+   },
+   {
+    "id": "knock-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     709
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "getKnockBackPlace(",
+    "note": "first on-board EMPTY cell next to the given cell, tried along the orientation list, else null"
+   },
+   {
+    "id": "knock-table",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     66,
+     95
+    ],
+    "symbol": "OrientationKnockback",
+    "expect": "export const OrientationKnockback",
+    "note": "orientation -> [same, two neighbouring orientations]"
+   },
+   {
+    "id": "orient-vec",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "OrientationVector",
+    "expect": "[Orientation.UP]: [0, 1],",
+    "note": "orientation -> (dx, dy)"
+   },
+   {
+    "id": "cell-get",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "getEntityOnCell(x: number, y: number)",
+    "note": "undefined when the cell is free or off board"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     66,
+     72
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number)",
+    "note": "swaps the two cells' contents"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "swap cells, moving state, cooldown 100; forcedDisplacement=false skips the canBeMoved guards"
+   },
+   {
+    "id": "moving-state",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     487
+    ],
+    "symbol": "PokemonEntity.toMovingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": "no state change for INANIMATE or tree"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead / resurrecting target takes nothing"
+   },
+   {
+    "id": "unit-zacian",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18111,
+     18129
+    ],
+    "symbol": "Zacian extends",
+    "expect": "skill = Ability.BEHEMOTH_BLADE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-zacian-crowned",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18131,
+     18143
+    ],
+    "symbol": "ZacianCrowned extends",
+    "expect": "skill = Ability.BEHEMOTH_BLADE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
