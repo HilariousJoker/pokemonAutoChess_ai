@@ -1,0 +1,333 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CRUSH_CLAW",
+ "kind": "ability",
+ "identifier": "CRUSH_CLAW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T173941Z"
+ },
+ "record": {
+  "ability": "CRUSH_CLAW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "RUFFLET (1 star) and BRAVIARY (2 stars), the queued units; maxPP 80, range 1 for both. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "RUFFLET",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "CRUSH_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BRAVIARY",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "CRUSH_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "RUFFLET": {
+    "evidence": [
+     "unit-rufflet"
+    ]
+   },
+   "BRAVIARY": {
+    "evidence": [
+     "unit-braviary"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CRUSH_CLAW] = new CrushClawStrategy()",
+   "strategy": "CrushClawStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-cc",
+    "base",
+    "cc-impl"
+   ]
+  },
+  "summary": "Single-target defense shred followed by two physical hits. First the cast target's defense is lowered by a requested 5 / 10 / 15 / 20 by caster stars (5 RUFFLET, 10 BRAVIARY) with addDefense(-loss, caster, apBoost 0, crit false), so the reduction is not AP- or crit-scaled; the target's def cannot go below 0. Then the target takes TWO separate hits of requested damage caster.atk x factor, factor 1 / 1 / 2 / 4 by stars (factor 1 for both listed units), each through handleSpecialDamage as AttackType.PHYSICAL with the cast's crit flag and apBoost true, so each hit is scaled by the caster's AP and crit, then reduced by the target's defense (already lowered by the first step). The caster's atk is read at the moment of each call (its current attack stat including buffs). The defense loss is applied before both hits.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true: the caster needs a target in range (range 1).",
+   "evidence": [
+    "cc-impl",
+    "base"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "detail": "no area, no positional condition",
+   "evidence": [
+    "cc-impl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "stat debuff (defense)",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 15,
+      "4": 20,
+      "fallback": 20
+     }
+    },
+    "perUnitRaw": {
+     "RUFFLET": 5,
+     "BRAVIARY": 10
+    },
+    "scaling": "requested amount: target.addDefense(-defLoss, caster, 0, false): apBoost 0 and crit false, so the multiplier (1 + 0 x AP/100) x 1 leaves the value unchanged (rounded).",
+    "resolution": "applied change: PokemonEntity.addDefense runs applyBigEaterBeltStatBuff (does NOT multiply this negative value on an enemy; the x1.25 applies only to positive values or negative values from the holder's own team) and applyTwistBandBuff (a Twist Band holder on the enemy team has the negative value flipped to positive, so its defense rises instead). Then def = max(0, def + value), so the applied loss is smaller when the target's def is below the requested loss. Combat entity only (permanent false).",
+    "evidence": [
+     "cc-impl",
+     "adddefense",
+     "bigeater",
+     "twist"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "PHYSICAL",
+    "hits": 2,
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 4,
+      "fallback": 4
+     },
+     "unit": "multiplier of the caster's current atk per hit"
+    },
+    "perUnitRaw": {
+     "RUFFLET": 1,
+     "BRAVIARY": 1
+    },
+    "scaling": "requested amount per hit = caster.atk x factor (atk at the time of the call; RUFFLET base atk 7, BRAVIARY base atk 15 in the class definition, before buffs). Then handleSpecialDamage(damage, board, PHYSICAL, caster, crit, true): x(1 + AP/100); crit factor per hit when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), none against a Rocky Helmet target and reduced by the target player's Black Augurite stones; DOUBLE_DAMAGE on the caster doubles only the first hit (consumed); STRANGE_STEAM_BOARD_EFFECT x1.2.",
+    "resolution": "applied per hit: skipped (spellBlockedCount++, takenDamage 0) if the target is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit at the caster unless the caster holds Protective Pads; the attack type given to the check is PHYSICAL, so the bounce condition requiring SPECIAL does not fire). Otherwise PokemonState.handleDamage: x1.2 in BLOODMOON weather for PHYSICAL, then damage / (1 + ARMOR_FACTOR x def) using the target's CURRENT def (halved if armorReduction, swapped with speDef under WONDER_ROOM), reflect handling for a target with the reflect status, shield absorption and the minimum of 1; takenDamage includes shield damage (shared reference core-mechanics \u00a7A). The second hit sees the same lowered def; a target that dies on the first hit still receives the second call.",
+    "evidence": [
+     "cc-impl",
+     "special-damage",
+     "state-handledamage",
+     "armor-formula",
+     "def-select"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "RUFFLET": 1,
+    "BRAVIARY": 2
+   },
+   "declaredRawDefLoss": {
+    "RUFFLET": 5,
+    "BRAVIARY": 10
+   },
+   "declaredRawDamageFactor": {
+    "RUFFLET": 1,
+    "BRAVIARY": 1
+   },
+   "note": "both tables are indexed by the caster's stars (stars-1); the 3-star and 4-star entries (15 / 20 defense, factor 2 / 4) and fallbacks are not reached by the two listed units.",
+   "evidence": [
+    "cc-impl",
+    "unit-rufflet",
+    "unit-braviary"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "No stored state in the strategy. Defense loss stacks on repeated casts down to 0; the two hits are always issued together in one process call.",
+  "rawVsResolved": "Requested: defense -5 (RUFFLET) / -10 (BRAVIARY) with no AP or crit scaling, then 2 x (atk x 1) physical damage. Applied defense change = requested, flipped for a Twist Band holder and floored at def 0. Applied damage per hit = atk x (1+AP/100) x crit factor, divided by (1 + ARMOR_FACTOR x lowered def), plus shield absorption and the minimum of 1; takenDamage is reported per hit and includes shield damage; blocked entirely by protect / skydiving / magicBounce.",
+  "sourceTables": [
+   {
+    "id": "ccDefLoss",
+    "file": "app/core/abilities/crush-claw.ts",
+    "pattern": "const defLoss = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "ccFactor",
+    "file": "app/core/abilities/crush-claw.ts",
+    "pattern": "const damageFactor = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+   "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
+   "The caster's atk during a fight (buffs, items, synergies) is not enumerated; only that the current atk is used"
+  ],
+  "unresolved": [
+   "ARMOR_FACTOR value and the rest of handleDamage (shield and death handling) were consulted only through the shared core-mechanics reference, not re-read line by line",
+   "Whether any other item or synergy changes CRUSH_CLAW beyond what is listed",
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-cc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     813,
+     813
+    ],
+    "symbol": "AbilityStrategies[Ability.CRUSH_CLAW]",
+    "expect": "[Ability.CRUSH_CLAW]: new CrushClawStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process; requiresTarget true, canCritByDefault false (lines 7-8)"
+   },
+   {
+    "id": "cc-impl",
+    "file": "app/core/abilities/crush-claw.ts",
+    "lines": [
+     13,
+     26
+    ],
+    "symbol": "CrushClawStrategy.process",
+    "expect": "const defLoss = [5, 10, 15, 20][pokemon.stars - 1] ?? 20",
+    "note": "defense loss, then two physical hits of atk x factor"
+   },
+   {
+    "id": "adddefense",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "AP and crit multiplier, Big Eater Belt, Twist Band, floor at 0"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain function; only positive values or own-team negative values"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "plain function; enemy-caster negative value flipped"
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     466
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "protect / skydiving / magicBounce block, AP, double damage, crit, handleDamage, Power Lens"
+   },
+   {
+    "id": "state-handledamage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "def-select",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     520
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "armorReduction halves def; Wonder Room swaps def and speDef"
+   },
+   {
+    "id": "armor-formula",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "physical reduction by current def"
+   },
+   {
+    "id": "unit-rufflet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15770,
+     15784
+    ],
+    "symbol": "Rufflet",
+    "expect": "skill = Ability.CRUSH_CLAW",
+    "note": ""
+   },
+   {
+    "id": "unit-braviary",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15786,
+     15799
+    ],
+    "symbol": "Braviary",
+    "expect": "skill = Ability.CRUSH_CLAW",
+    "note": ""
+   }
+  ]
+ }
+}
