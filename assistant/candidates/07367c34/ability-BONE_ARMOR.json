@@ -1,0 +1,690 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/BONE_ARMOR",
+ "kind": "ability",
+ "identifier": "BONE_ARMOR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T054014Z"
+ },
+ "record": {
+  "ability": "BONE_ARMOR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Vullaby (1 star) and Mandibuzz (2 stars), both with passive NONE in the catalog, declare BONE_ARMOR. The strategy is shared; the units differ in stars and stats.",
+  "appliesTo": [
+   {
+    "key": "MANDIBUZZ",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BONE_ARMOR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VULLABY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BONE_ARMOR",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MANDIBUZZ": {
+    "evidence": [
+     "unit-mandibuzz"
+    ]
+   },
+   "VULLABY": {
+    "evidence": [
+     "unit-vullaby"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.BONE_ARMOR] = new BoneArmorStrategy()",
+   "strategy": "BoneArmorStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "ba-class",
+    "ba-flag",
+    "base-flags",
+    "base-pp",
+    "ba-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "The caster picks the enemy with the lowest hp / maxHP ratio on the whole board (not its own target). It first relocates to the closest free cell to that enemy (searched for its own team's side), then deals special damage (20/40/80/160 raw by stars) to that enemy. If the hit's takenDamage is above 0 the caster heals for exactly that amount (no AP, no crit); if the hit reports death, the caster gains DEF and SPE_DEF (4/8/12/24 by stars, no AP or crit). If there is no enemy at all nothing happens besides the base PP spend. The caster's move happens even when the hit is later blocked; the heal and buffs follow the returned takenDamage / death values only.",
+  "targeting": {
+   "who": "the enemy with the lowest hp / maxHP among all board entities whose team differs from the caster's (first in cell order on ties, as Array.sort is stable); independent of the caster's current target",
+   "needsTarget": false,
+   "note": "requiresTarget = false, so the cast does not require a target in range; the strategy receives target null.",
+   "evidence": [
+    "ba-class",
+    "ba-flag",
+    "ba-pick",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target anywhere on the board; the caster first moves next to it",
+   "evidence": [
+    "ba-pick",
+    "ba-cell",
+    "ba-move",
+    "closest-ent",
+    "closest",
+    "first-free",
+    "team-enum"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "displacement (self)",
+    "declaredRaw": {
+     "destination": "first empty on-board cell of a fixed offset list around the chosen enemy, dy mirrored for the caster's team; else the first free cell on the caster's home half"
+    },
+    "scaling": "none",
+    "resolution": "getClosestFreeCellToPokemonEntity(enemy, (enemy.team + 1) % 2) passes the opposing team of the enemy, i.e. the caster's team. getClosestFreeCellTo tries offsets (0,0) first (always occupied by the enemy), then (-1,0), (+1,0), (0,-1), (-1,-1), (+1,-1), (-1,+1), (+1,+1), (0,+1) and farther ones up to 3 cells, with dy multiplied by +1 for BLUE_TEAM and -1 for RED_TEAM (negative dy offsets are toward the caster's own side), returning the first on-board cell with no entity; the fallback getFirstFreeCell returns the first free cell of the team's home half (BLUE scans from y = 0 upward, x ascending; RED from the top row downward, x descending) or null. If a cell is returned the caster moves (moveTo non-forced: cells swapped, moving state, cooldown 100); if none, it stays and the rest still happens at the enemy from where it stands.",
+    "guards": "non-forced displacement: canBeMoved guards are skipped.",
+    "evidence": [
+     "ba-cell",
+     "ba-move",
+     "closest-ent",
+     "closest",
+     "first-free",
+     "team-enum",
+     "move-to"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "MANDIBUZZ": 40,
+     "VULLABY": 20
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); crit multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT). No atk term.",
+    "resolution": "requested amount = the raw table value; applied change = after AP / crit, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps. takenDamage = shield part plus HP lost (rounded), 0 if blocked (protect / skydiving / magicBounce, dead or resurrecting target, Shiny Charm branch), or the cover ally's result under Cover Band; death is true only when hp <= 0 and the target has no resurrection status. Both returned values drive the heal and the buff below.",
+    "evidence": [
+     "ba-dmg",
+     "ba-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead",
+     "td-shiny",
+     "td-cover",
+     "death-flag",
+     "td-return"
+    ]
+   },
+   {
+    "kind": "heal (self)",
+    "declaredRaw": {
+     "fractionOfTakenDamage": 1.0
+    },
+    "scaling": "heal = takenDamage exactly; apBoost 0 and crit false are passed, so neither AP nor crit scales it",
+    "resolution": "requested = takenDamage (only when > 0); applied = handleHeal: a wounded caster receives nothing (a Blood Moon / Blood Stone branch can still request a shield), a burned or enraged caster gets x0.5 each, BUFF_HEAL_RECEIVED x1.3, Zenith weather x1.2, then rounded and capped at missing HP; a protected or dead caster is not healed. The heal is applied after the caster has moved.",
+    "evidence": [
+     "ba-heal",
+     "heal-wound",
+     "heal-mods"
+    ]
+   },
+   {
+    "kind": "buff (self) DEF and SPE_DEF",
+    "declaredRaw": {
+     "byStars": {
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 24,
+      "fallback": 24
+     },
+     "unit": "flat DEF and SPE_DEF, each"
+    },
+    "perUnitRaw": {
+     "MANDIBUZZ": 8,
+     "VULLABY": 4
+    },
+    "scaling": "apBoost 0 and crit false: no AP or crit scaling",
+    "resolution": "requested = defBuff added to DEF and again to SPE_DEF only when the hit's death flag is true (a Cover Band cover ally's result counts, a resurrection does not); applied = after applyBigEaterBeltStatBuff (a caster holding a Big Eater Belt gets x1.25 rounded down for each of the two stats) and applyTwistBandBuff (no effect on a positive self-buff), floored at 0. The gain lasts for the fight (not permanent: the permanent flag is not set).",
+    "evidence": [
+     "ba-buff",
+     "ba-kill",
+     "add-def",
+     "add-spedef",
+     "beb",
+     "twist",
+     "death-flag",
+     "td-cover"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "VULLABY": 1,
+    "MANDIBUZZ": 2
+   },
+   "declaredRawDamage": {
+    "VULLABY": 20,
+    "MANDIBUZZ": 40
+   },
+   "declaredRawDefBuff": {
+    "VULLABY": 4,
+    "MANDIBUZZ": 8
+   },
+   "note": "indexed by the casting entity's stars; the 80/160 damage and 12/24 buff entries are not reachable by the two units' bare star counts (1, 2). maxPP is 100 and range 1 for both.",
+   "evidence": [
+    "ba-dmg",
+    "ba-buff",
+    "unit-vullaby",
+    "unit-mandibuzz"
+   ]
+  },
+  "positionalConditions": {
+   "text": "Needs at least one enemy on the board. The caster's destination depends on free cells around the chosen enemy; the order of offsets favours same-row neighbours and cells toward the caster's own side, then farther cells, then the home-half fallback.",
+   "evidence": [
+    "ba-pick",
+    "ba-cell",
+    "closest",
+    "first-free"
+   ]
+  },
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast re-picks the lowest-ratio enemy, so consecutive casts may target different enemies; DEF / SPE_DEF kills accumulate for the fight.",
+  "rawVsResolved": "Declared raw: damage 20 (Vullaby) / 40 (Mandibuzz), DEF and SPE_DEF buff 4 / 8, heal fraction 1.0 of takenDamage. Requested vs applied: damage after AP / crit and the SPE_DEF division with ceil and min 1; heal after wound / burn / enraged / buff / weather modifiers and the missing-HP cap; buff after Big Eater Belt (x1.25 down) on the caster. takenDamage is the shield part plus HP lost, not the pre-defence amount.",
+  "sourceTables": [
+   {
+    "id": "boneArmorDamage",
+    "file": "app/core/abilities/bone-armor.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   },
+   {
+    "id": "boneArmorBuff",
+    "file": "app/core/abilities/bone-armor.ts",
+    "pattern": "const defBuff = \\[([^\\]]+)\\]",
+    "recordPath": "effects.3.declaredRaw.byStars",
+    "unitValuesPath": "effects.3.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPE_DEF division with min 1 and the block / dead / Shiny Charm / Cover Band branches were cited",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence)",
+   "Crit resolution: only the damage-side multiplier and the canCritByDefault gate were read",
+   "Fossil-synergy and other takenDamage adjustments inside handleDamage that were not individually cited"
+  ],
+  "unresolved": [
+   "Whether dead enemies are removed from board.cells at once (the selection uses every non-allied cell entry; entities killed earlier are assumed absent)",
+   "Which side of the board each team occupies in a real fight, which decides what the negative-dy offsets mean on screen; only the code-level mirroring was read",
+   "The ordering of equal hp ratios follows cell order and relies on a stable sort",
+   "Whether any item or synergy effect changes BONE_ARMOR beyond what is listed",
+   "Verified only by reading source and the shared mechanical checks, not in a fight"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     775,
+     775
+    ],
+    "symbol": "AbilityStrategies[Ability.BONE_ARMOR]",
+    "expect": "[Ability.BONE_ARMOR]: new BoneArmorStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "ba-class",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "BoneArmorStrategy",
+    "expect": "class BoneArmorStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "ba-flag",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "BoneArmorStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target in range"
+   },
+   {
+    "id": "ba-super",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process (PP spend, broadcast with target -1,-1 because target is null)"
+   },
+   {
+    "id": "ba-pick",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     10,
+     14
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "const lowestHealthEnemy = (",
+    "note": "victim = the enemy with the lowest hp / maxHP ratio on the whole board"
+   },
+   {
+    "id": "ba-cell",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     17,
+     20
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "const coord = pokemon.simulation.getClosestFreeCellToPokemonEntity(",
+    "note": "closest free cell to that enemy, searched for the caster's own team"
+   },
+   {
+    "id": "ba-move",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     21,
+     23
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "pokemon.moveTo(coord.x, coord.y, board, false)",
+    "note": "caster moves there before the hit (non-forced)"
+   },
+   {
+    "id": "ba-dmg",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "star-indexed raw damage"
+   },
+   {
+    "id": "ba-buff",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "const defBuff = [4, 8, 12, 24][pokemon.stars - 1] ?? 24",
+    "note": "star-indexed DEF and SPE_DEF gain"
+   },
+   {
+    "id": "ba-hit",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     26,
+     32
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "const attack = lowestHealthEnemy.handleSpecialDamage(",
+    "note": "single special hit on the chosen enemy; result kept"
+   },
+   {
+    "id": "ba-heal",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     33,
+     35
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "pokemon.handleHeal(attack.takenDamage, pokemon, 0, false)",
+    "note": "heal the caster by takenDamage when > 0 (100 %, no AP or crit)"
+   },
+   {
+    "id": "ba-kill",
+    "file": "app/core/abilities/bone-armor.ts",
+    "lines": [
+     36,
+     39
+    ],
+    "symbol": "BoneArmorStrategy.process",
+    "expect": "if (attack.death) {",
+    "note": "on a kill: DEF and SPE_DEF buffs on the caster, apBoost 0, crit false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base default overridden by this strategy"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "closest-ent",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     491,
+     496
+    ],
+    "symbol": "Simulation.getClosestFreeCellToPokemonEntity",
+    "expect": "getClosestFreeCellToPokemonEntity(",
+    "note": "wrapper: closest free cell to the entity's position for the given team"
+   },
+   {
+    "id": "closest",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     423,
+     477
+    ],
+    "symbol": "Simulation.getClosestFreeCellTo",
+    "expect": "getClosestFreeCellTo(",
+    "note": "fixed offset priority list; dy mirrored by team; first on-board EMPTY cell; else getFirstFreeCell"
+   },
+   {
+    "id": "first-free",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     392,
+     421
+    ],
+    "symbol": "Simulation.getFirstFreeCell",
+    "expect": "getFirstFreeCell(team: Team)",
+    "note": "fallback: first free cell on the team's home half; null if none"
+   },
+   {
+    "id": "team-enum",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     160,
+     163
+    ],
+    "symbol": "Team",
+    "expect": "export enum Team",
+    "note": "BLUE_TEAM = 0, RED_TEAM = 1 (so (team + 1) % 2 is the opposing team)"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "swap cells, moving state, cooldown 100; non-forced skips canBeMoved guards"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "signature: AP boost default true (not overridden here)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0, death false)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPE_DEF division"
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil, min 1"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead / resurrecting target: death false, takenDamage 0"
+   },
+   {
+    "id": "td-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm branch resets death and takenDamage to 0"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band: the lethal hit is redirected and the cover ally's result {death, takenDamage} is returned"
+   },
+   {
+    "id": "death-flag",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     783,
+     799
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0) {",
+    "note": "death true only if hp <= 0 and no resurrection status; resurrection triggers instead"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     807
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "returned takenDamage is rounded"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded unit receives no HP heal (Blood Moon / Blood Stone branch can request a shield)"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     353
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "heal modifiers (+30 % BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 Zenith), rounding, capped at missing HP; protect / dead units are not healed"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "DEF change: AP/crit scaling only when apBoost/crit given, Big Eater Belt, Twist Band, floored at 0"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "SPE_DEF change, same helper chain"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "a holder's positive stat gain is multiplied by 1.25 and rounded down (nbDigits 0)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "only turns NEGATIVE changes from enemies/environment into gains; a positive self-buff is unaffected"
+   },
+   {
+    "id": "unit-vullaby",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17068,
+     17082
+    ],
+    "symbol": "Vullaby extends",
+    "expect": "skill = Ability.BONE_ARMOR",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-mandibuzz",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17084,
+     17097
+    ],
+    "symbol": "Mandibuzz extends",
+    "expect": "skill = Ability.BONE_ARMOR",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
