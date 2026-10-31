@@ -1,0 +1,861 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/CITY_SHUTTLE",
+ "kind": "ability",
+ "identifier": "CITY_SHUTTLE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T113948Z"
+ },
+ "record": {
+  "ability": "CITY_SHUTTLE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare CITY_SHUTTLE: Gogoat (2 stars, hp 300) and Skiddo (1 star, hp 140); both maxPP 90, range 1. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "GOGOAT",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "CITY_SHUTTLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKIDDO",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "CITY_SHUTTLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOGOAT": {
+    "evidence": [
+     "unit-gogoat"
+    ]
+   },
+   "SKIDDO": {
+    "evidence": [
+     "unit-skiddo"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.CITY_SHUTTLE] = new CityShuttleStrategy()",
+   "strategy": "CityShuttleStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "cs-class",
+    "cs-super"
+   ]
+  },
+  "summary": "The caster first walks (non-forced swap) to the empty cell nearest its closest living ally (the 'passenger'), if any. 300 ms later it dashes to the free cell next to the farthest targetable enemy (the cell farthest from the caster, Manhattan), the passenger is placed on the empty cell closest to that destination, and every cell on the supercover line from the start to the destination is hit after a delay proportional to its distance: SPECIAL damage = (base 10/20/40/80 by stars + the passenger's ATK read at cast time) to units on the cast target's team found in the cell snapshot. Then the caster and the passenger each get a shield of 20/40/80/160 by stars (apBoost 1, crit passed, Big Eater Belt applies). The shields are granted even if no destination was found.",
+  "targeting": {
+   "who": "damage: units on the cast target's team standing on the line cells when the line was computed; shield: the caster and the passenger",
+   "needsTarget": true,
+   "note": "The passenger is the closest living ally by Chebyshev distance (ties by cell order), not necessarily adjacent. 'Enemy' is decided as same team as the cast target, not by comparing with the caster. Damaged units come from the cell snapshot taken before the caster moved; a unit that has since moved is still hit by the stale cell entry and the unit now on that cell is not. The starting cell holds the caster (not the target's team) so it is never hit; the destination cell was free when chosen.",
+   "evidence": [
+    "cs-pass",
+    "cs-cells",
+    "cs-team",
+    "cs-hit",
+    "closest-ally",
+    "farthest",
+    "between",
+    "target-ok"
+   ]
+  },
+  "geometry": {
+   "shape": "supercover line (Board.getCellsBetween) from the caster's position after its first move to the chosen destination next to the farthest enemy; the caster and passenger are relocated by swaps; no area",
+   "evidence": [
+    "cs-near",
+    "cs-move1",
+    "cs-farthest",
+    "cs-cells",
+    "cs-dist",
+    "cs-move2",
+    "cs-drop",
+    "between",
+    "closest-place",
+    "farthest",
+    "dc"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "units of the cast target's team on the line cells (cell snapshot)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     },
+     "label": "requested base damage (raw), before the passenger's ATK is added"
+    },
+    "perUnitRaw": {
+     "GOGOAT": 20,
+     "SKIDDO": 10
+    },
+    "scaling": "requested = table[stars-1] + passenger.atk (the passenger's ATK read once at cast time, 0 without passenger; the passenger's ATK is the whole value, so 100% of it). handleSpecialDamage per hit then: x (1 + AP/100); x2 with DOUBLE_DAMAGE (consumed by the first hit that sees it); x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT). The AP and crit multipliers therefore also multiply the passenger's ATK part.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up, minimum 1, shield absorbs first; takenDamage = shield damage + HP damage (capped at current hp), 0 with protect / skydiving / magicBounce. Each cell's hit is its own delayed command at (Chebyshev distance from the start cell / Chebyshev distance start-to-destination) x 300 ms after the dash starts; the broadcast animation is per cell.",
+    "evidence": [
+     "cs-dmg",
+     "cs-pass",
+     "cs-atk",
+     "cs-total",
+     "cs-cells",
+     "cs-cmd",
+     "cs-team",
+     "cs-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "cmd-upd",
+     "cmd-class"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "the caster and the passenger",
+    "declaredRaw": {
+     "description": "caster: moveTo(cell nearest the passenger) at cast, then moveTo(destination) after 300 ms; passenger: moveTo(empty cell nearest the destination); all with forcedDisplacement false"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "each move is a non-forced swap (canBeMoved is not checked, so Heavy Duty Boots / skydiving / locked do not block it); moveTo puts both swapped units in the moving state (except INANIMATE / tree-status ones) and sets the mover's cooldown to 100. The destination is the free neighbour of the farthest targetable enemy that is farthest from the caster (Manhattan); with none free, the free cell closest to that enemy; with no enemy or no free cell, no dash happens and no line damage is done. The passenger is placed after the caster moved, on the empty cell closest to the destination (it may not end adjacent if cells are taken).",
+    "evidence": [
+     "cs-near",
+     "cs-move1",
+     "cs-farthest",
+     "cs-move2",
+     "cs-drop",
+     "moveto",
+     "moveto-swap",
+     "ent-moving",
+     "closest-place",
+     "farthest",
+     "target-ok"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "the caster and the passenger (if any)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested shield (raw) per recipient"
+    },
+    "perUnitRaw": {
+     "GOGOAT": 40,
+     "SKIDDO": 20
+    },
+    "scaling": "addShield(shield, caster = the Gogoat/Skiddo, apBoost 1, crit): the receiver's Big Eater Belt first (positive value x1.25, rounded down); then x (1 + casterAP/100); x critPower if the cast crit; x0.5 if the receiver is enraged; rounded and added to the receiver's shield with no cap. The passenger uses the CASTER's AP and crit but its own Big Eater Belt and enraged state.",
+    "resolution": "applied = requested after the helper steps above; granted 300 ms after the cast, whether or not a destination was found; the passenger is the ally chosen at cast time and may have died or moved meanwhile (not examined).",
+    "evidence": [
+     "cs-shield",
+     "cs-sh1",
+     "cs-sh2",
+     "ent-shield",
+     "beb",
+     "ps-shield",
+     "ps-shield-crit",
+     "ps-shield-enr",
+     "ps-shield-add",
+     "cs-delay"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GOGOAT": 2,
+    "SKIDDO": 1
+   },
+   "declaredRawDamage": {
+    "GOGOAT": 20,
+    "SKIDDO": 10
+   },
+   "declaredRawShield": {
+    "GOGOAT": 40,
+    "SKIDDO": 20
+   },
+   "note": "Both tables are indexed by the caster's stars; 3- and 4-star values (damage 40/80, shield 80/160, also the ?? fallbacks) are not reachable by these units' bare factory star counts. The passenger's ATK contribution does not depend on stars.",
+   "evidence": [
+    "cs-dmg",
+    "cs-shield",
+    "unit-gogoat",
+    "unit-skiddo"
+   ]
+  },
+  "positionalConditions": "Passenger = closest living ally (Chebyshev) excluding the caster; none if the caster is alone. Destination depends on the farthest targetable enemy and its free neighbours; no enemy or no free cell means no dash and no line damage (shields still granted).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (90) and repeats the whole sequence with a freshly chosen passenger, destination and ATK snapshot. Two casts overlapping within 300 ms would run independent delayed commands.",
+  "rawVsResolved": "Requested: damage 10 (Skiddo) / 20 (Gogoat) + passenger ATK per line cell; shield 20 / 40 per recipient. Applied damage = requested x (1 + AP/100) x optional double-damage / steam / crit multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied shield = requested x Big Eater Belt of the receiver x (1 + AP/100) x optional crit x enraged halving, rounded.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "shield",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "shields.0.declaredRaw.byStars",
+    "unitValuesPath": "shields.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (coverAlly, Shiny Charm, Fossil shield, death handling) were not read",
+   "Whether PokemonState.updateCommands runs for a caster that died or changed state before the 300 ms delay was not read",
+   "Board.swapCells side effects beyond the cell swap, and the Moving / Attacking state consequences of the moves, were not read"
+  ],
+  "unresolved": [
+   "The line damage uses the cell values snapshotted before the caster moved; the effect of units moving during the 300 ms was recorded as read, not exercised",
+   "Whether damage hits can include the caster's own allies is excluded by the same-team-as-target test only if the cast target is an enemy; a target ally (not normal for this strategy) was not examined",
+   "Whether the two units ever reach 3 or 4 stars was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "forced displacement is refused if the mover or the unit on the destination cannot be moved; otherwise swaps cells"
+   },
+   {
+    "id": "moveto-swap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     897,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "swap with whatever is on the destination (here empty by construction)"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     797,
+     797
+    ],
+    "symbol": "AbilityStrategies[Ability.CITY_SHUTTLE]",
+    "expect": "[Ability.CITY_SHUTTLE]: new CityShuttleStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cs-class",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "CityShuttleStrategy",
+    "expect": "export class CityShuttleStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "cs-super",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process: spends maxPP of PP; the last argument true = preventDefaultAnim (no default ability broadcast)"
+   },
+   {
+    "id": "cs-dmg",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "base path damage by caster stars"
+   },
+   {
+    "id": "cs-shield",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const shield = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "shield by caster stars"
+   },
+   {
+    "id": "cs-pass",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     21,
+     26
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const passenger = board.getClosestAlly(",
+    "note": "closest living ally other than the caster, read at cast time"
+   },
+   {
+    "id": "cs-atk",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const carriedAllyAttack = passenger ? passenger.atk : 0",
+    "note": "passenger ATK snapshot taken at cast time (0 without passenger)"
+   },
+   {
+    "id": "cs-near",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     33,
+     36
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const availablePlaceNearAlly = board.getClosestAvailablePlace(",
+    "note": "empty cell closest to the passenger"
+   },
+   {
+    "id": "cs-move1",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     39,
+     44
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "pokemon.moveTo(",
+    "note": "caster moves to that cell immediately (non-forced)"
+   },
+   {
+    "id": "cs-delay",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "the dash and the shields run in a delayed command"
+   },
+   {
+    "id": "cs-farthest",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     52,
+     52
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": "destination chosen when the delayed command runs (after the first move)"
+   },
+   {
+    "id": "cs-cells",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     56,
+     60
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "supercover line from the caster's current cell to the destination, values snapshotted before moving"
+   },
+   {
+    "id": "cs-dist",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     67,
+     71
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const totalDistance = distanceC(",
+    "note": "Chebyshev distance start -> destination"
+   },
+   {
+    "id": "cs-move2",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     75,
+     80
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "pokemon.moveTo(",
+    "note": "caster moves to the destination (non-forced)"
+   },
+   {
+    "id": "cs-drop",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     84,
+     93
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const closestAvailablePlace = board.getClosestAvailablePlace(",
+    "note": "passenger is moved to the empty cell closest to the destination (non-forced)"
+   },
+   {
+    "id": "cs-total",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     102,
+     102
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "const totalDamage = damage + carriedAllyAttack",
+    "note": "per-cell damage = base + passenger ATK snapshot"
+   },
+   {
+    "id": "cs-cmd",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     122,
+     122
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "(distance / totalDistance) * 300",
+    "note": "per-cell damage delayed by the cell's share of the 300 ms dash"
+   },
+   {
+    "id": "cs-team",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     113,
+     113
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "cell.value?.team === target.team &&",
+    "note": "only the unit stored in the cell snapshot, only if it is on the cast target's team"
+   },
+   {
+    "id": "cs-hit",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     114,
+     119
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, caster as attacker, crit flag passed"
+   },
+   {
+    "id": "cs-sh1",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     129,
+     129
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+    "note": "caster shield, apBoost 1, crit passed; runs even when no destination was found"
+   },
+   {
+    "id": "cs-sh2",
+    "file": "app/core/abilities/city-shuttle.ts",
+    "lines": [
+     130,
+     130
+    ],
+    "symbol": "CityShuttleStrategy.process",
+    "expect": "passenger?.addShield(shield, pokemon, 1, crit)",
+    "note": "passenger shield with the caster as the source, apBoost 1"
+   },
+   {
+    "id": "ent-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     504,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "PokemonEntity.addShield: Big Eater Belt of the shield receiver, then PokemonState.addShield"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1848,
+     1850
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "if (isBuffOrBuffLost && pokemon.items.has(Item.BIG_EATER_BELT)) {",
+    "note": "Big Eater Belt: positive value x1.25 (rounded down)"
+   },
+   {
+    "id": "ps-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "PokemonState.addShield: AP multiplier"
+   },
+   {
+    "id": "ps-shield-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "ps-shield-enr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "enraged receiver: x0.5"
+   },
+   {
+    "id": "ps-shield-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     395,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "rounded shield added; no cap"
+   },
+   {
+    "id": "closest-ally",
+    "file": "app/core/board.ts",
+    "lines": [
+     762,
+     779
+    ],
+    "symbol": "Board.getClosestAlly",
+    "expect": "getClosestAlly(",
+    "note": "Chebyshev-closest living ally of the team, excluding the id; ties by cell order"
+   },
+   {
+    "id": "closest-place",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     563
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "getClosestAvailablePlace(",
+    "note": "empty cell with the smallest Manhattan distance to the point; ties by cell order; null if none"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     612
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "farthest targetable enemy by Manhattan distance, then its free adjacent cell farthest from the caster; fallback to the closest free cell of that enemy"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     343
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line, start cell included"
+   },
+   {
+    "id": "dc",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "export function distanceC(",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "cmd-upd",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "pokemon commands are updated every tick; a command runs when delay < 0 and is then removed"
+   },
+   {
+    "id": "cmd-class",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": "runs delayedFunction after delay ms of updates"
+   },
+   {
+    "id": "ent-moving",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     485,
+     485
+    ],
+    "symbol": "PokemonEntity.toMovingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": "toMovingState skipped for INANIMATE / tree-status"
+   },
+   {
+    "id": "target-ok",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     280,
+     288
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "isTargettableBy: untargettable units are skipped as farthest target"
+   },
+   {
+    "id": "unit-skiddo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19696,
+     19710
+    ],
+    "symbol": "class Skiddo",
+    "expect": "skill = Ability.CITY_SHUTTLE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-gogoat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19712,
+     19726
+    ],
+    "symbol": "class Gogoat",
+    "expect": "skill = Ability.CITY_SHUTTLE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
