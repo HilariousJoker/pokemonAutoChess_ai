@@ -1,0 +1,750 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/COIL",
+ "kind": "ability",
+ "identifier": "COIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261031T113948Z"
+ },
+ "record": {
+  "ability": "COIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare COIL: Arbok (2 stars, hp 130) and Ekans (1 star, hp 60); both maxPP 90, range 1, types POISON/DARK. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ARBOK",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "COIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EKANS",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "COIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARBOK": {
+    "evidence": [
+     "unit-arbok"
+    ]
+   },
+   "EKANS": {
+    "evidence": [
+     "unit-ekans"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.COIL] = new CoilStrategy()",
+   "strategy": "CoilStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "co-class",
+    "co-super"
+   ]
+  },
+  "summary": "Applies LOCKED (requested 3000 ms) and then PARALYSIS (requested 3000 ms) to the cast target, then raises the caster's own ATK and DEF each by a raw 3/5/10/20 by stars (3 for 1-star Ekans, 5 for 2-star Arbok) through addAttack / addDefense with apBoost 1. No damage is dealt. The locked status is refused if the target is already locked, skydiving, rune-protected, IMMUNITY_LOCKED, or inside the post-CC cooldown, but the paralysis and the self buffs are not conditioned on it.",
+  "targeting": {
+   "who": "status: the cast target only; buffs: the caster",
+   "needsTarget": true,
+   "note": "Single target; no area, no displacement.",
+   "evidence": [
+    "co-lock",
+    "co-para",
+    "co-addatk",
+    "co-adddef",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target plus self; no area",
+   "evidence": [
+    "co-lock",
+    "co-para"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "crowd-control and self-buff (no damage)",
+    "target": "cast target (LOCKED, PARALYSIS); caster (ATK, DEF)",
+    "declaredRaw": {
+     "description": "LOCKED 3000 ms and PARALYSIS 3000 ms on the target; ATK and DEF + table[stars-1] on the caster; no damage or heal"
+    },
+    "scaling": "see statusEffects and buffs: durations are not AP-scaled; buffs use apBoost 1 and the crit flag",
+    "resolution": "order: triggerLocked, triggerParalysis, addAttack, addDefense; each is independent of whether an earlier one was accepted.",
+    "evidence": [
+     "co-lock",
+     "co-para",
+     "co-addatk",
+     "co-adddef"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "LOCKED",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "ARBOK": 3000,
+     "EKANS": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "applicationOrder": "first, before the paralysis and the self buffs",
+    "resolution": "applied only if the target is not already locked (no stacking, no refresh), is not skydiving, has no runeProtect, lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0; applied duration = requested (halved if the target is enraged) after the target's duration reductions, rounded, and SETS the lock timer. While locked the target cannot move (canMove), cannot be forcibly moved (canBeMoved), cannot dodge basic attacks, and its range is forced to 1 (sent to the moving state first if it was not 1). When the lock ends the range is recomputed from baseRange (+ Wide Lens / Long Wand) and ccCooldown is set to at least 1500 ms, during which a new lock is refused.",
+    "evidence": [
+     "co-lock",
+     "lock-trig",
+     "lock-guard",
+     "lock-enr",
+     "lock-red",
+     "lock-set",
+     "lock-range",
+     "lock-end",
+     "lock-cc",
+     "cc-const",
+     "lock-move",
+     "lock-moved",
+     "lock-dodge",
+     "reductions"
+    ]
+   },
+   {
+    "status": "PARALYSIS",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "ARBOK": 3000,
+     "EKANS": 3000
+    },
+    "scaling": "none from stars, AP or crit: the strategy leaves apBoost at its default false, so triggerParalysis does not multiply by (1 + AP/100)",
+    "applicationOrder": "second, after the lock request",
+    "resolution": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ of the target's player); then the target's duration reductions; the timer keeps the larger of the existing remaining time and the new request (rounded); a CHERI_BERRY holder eats the berry after a successful application. A paralysed target uses half speed for attacks and movement and cannot dodge basic attacks. It is independent of whether the lock was accepted.",
+    "evidence": [
+     "co-para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "para-atk",
+     "para-move",
+     "para-dodge",
+     "reductions"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "ATK",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 5,
+      "3": 10,
+      "4": 20,
+      "fallback": 20
+     },
+     "label": "requested ATK buff (raw)"
+    },
+    "perUnitRaw": {
+     "ARBOK": 5,
+     "EKANS": 3
+    },
+    "scaling": "addAttack(value, caster = itself, apBoost 1, crit): value = round(value x (1 + AP/100) x critPower if the cast crit); then Big Eater Belt (x1.25 rounded down on a positive value, since it is a buff on a unit holding the belt); then Twist Band does nothing for a positive value; atk = max(1, atk + value). Not permanent (permanent default false).",
+    "resolution": "applied change = the value after those steps; the helper is applied each cast, so repeat casts stack. canCritByDefault is false, so crit needs ABILITY_CRIT.",
+    "evidence": [
+     "co-atk",
+     "co-addatk",
+     "add-atk",
+     "beb"
+    ]
+   },
+   {
+    "stat": "DEF",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 5,
+      "3": 10,
+      "4": 20,
+      "fallback": 20
+     },
+     "label": "requested DEF buff (raw)"
+    },
+    "perUnitRaw": {
+     "ARBOK": 5,
+     "EKANS": 3
+    },
+    "scaling": "addDefense(value, caster = itself, apBoost 1, crit): same helper steps as ATK (AP, crit, Big Eater Belt); def = max(0, def + value). Not permanent.",
+    "resolution": "applied change = the value after those steps; repeat casts stack.",
+    "evidence": [
+     "co-def",
+     "co-adddef",
+     "add-def",
+     "beb"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ARBOK": 2,
+    "EKANS": 1
+   },
+   "declaredRawBuff": {
+    "ARBOK": 5,
+    "EKANS": 3
+   },
+   "note": "ATK and DEF buffs are indexed by the caster's stars; the 3- and 4-star values (10, 20, also the ?? fallback) are not reachable by these units' bare factory star counts. Status durations do not depend on stars.",
+   "evidence": [
+    "co-atk",
+    "co-def",
+    "unit-arbok",
+    "unit-ekans"
+   ]
+  },
+  "positionalConditions": "None read in the strategy.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (90). A second cast on a target that is still locked cannot re-lock it, and after the lock ends it is refused for 1500 ms (ccCooldown); paralysis only extends if longer. The ATK and DEF buffs stack on every cast.",
+  "rawVsResolved": "Requested: LOCKED 3000 ms and PARALYSIS 3000 ms on the target; ATK +3 (Ekans) / +5 (Arbok) and DEF +3 / +5 on the caster. Applied durations = requested after the target-side reductions (enraged also halves the lock), or not applied at all when a guard blocks it. Applied buffs = requested x (1 + AP/100) x optional crit, rounded, then Big Eater Belt x1.25 down on a belt holder; a Twist Band only acts on negative values.",
+  "sourceTables": [
+   {
+    "id": "atk",
+    "file": "app/core/abilities/coil.ts",
+    "pattern": "const atkBuff = \\[([^\\]]+)\\]",
+    "recordPath": "buffs.0.declaredRaw.byStars",
+    "unitValuesPath": "buffs.0.perUnitRaw"
+   },
+   {
+    "id": "def",
+    "file": "app/core/abilities/coil.ts",
+    "pattern": "const defBuff = \\[([^\\]]+)\\]",
+    "recordPath": "buffs.1.declaredRaw.byStars",
+    "unitValuesPath": "buffs.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Other uses of status.locked / status.paralysis (bug-buzz, force-palm, synergies, passives other than the ones cited) were not read",
+   "Status.eatBerry effect of Cheri Berry beyond the call was not read",
+   "The DARK-type jump in MovingState (checks !pokemon.status.locked on the unit that moves) concerns a locked unit's own movement and was not traced for the target"
+  ],
+  "unresolved": [
+   "Whether the two units ever reach 3 or 4 stars (buff 10 / 20) was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     800,
+     800
+    ],
+    "symbol": "AbilityStrategies[Ability.COIL]",
+    "expect": "[Ability.COIL]: new CoilStrategy()",
+    "note": ""
+   },
+   {
+    "id": "co-class",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "CoilStrategy",
+    "expect": "export class CoilStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "co-super",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP of PP"
+   },
+   {
+    "id": "co-lock",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "target.status.triggerLocked(3000, target)",
+    "note": "LOCKED on the cast target, requested 3000 ms, applied first"
+   },
+   {
+    "id": "co-para",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "target.status.triggerParalysis(3000, target, pokemon)",
+    "note": "PARALYSIS on the cast target, requested 3000 ms, apBoost left at its default false"
+   },
+   {
+    "id": "co-atk",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "const atkBuff = [3, 5, 10, 20][pokemon.stars - 1] ?? 20",
+    "note": "ATK buff by caster stars"
+   },
+   {
+    "id": "co-def",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "const defBuff = [3, 5, 10, 20][pokemon.stars - 1] ?? 20",
+    "note": "DEF buff by caster stars"
+   },
+   {
+    "id": "co-addatk",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "pokemon.addAttack(atkBuff, pokemon, 1, crit)",
+    "note": "self ATK buff, apBoost 1, crit passed"
+   },
+   {
+    "id": "co-adddef",
+    "file": "app/core/abilities/coil.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "CoilStrategy.process",
+    "expect": "pokemon.addDefense(defBuff, pokemon, 1, crit)",
+    "note": "self DEF buff, apBoost 1, crit passed"
+   },
+   {
+    "id": "lock-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1142
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "triggerLocked(duration: number, pkm: PokemonEntity) {",
+    "note": "Status.triggerLocked"
+   },
+   {
+    "id": "lock-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1144,
+     1148
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "not applied while already locked, skydiving, runeProtect, IMMUNITY_LOCKED, or ccCooldown > 0"
+   },
+   {
+    "id": "lock-enr",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1150,
+     1150
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "if (pkm.status.enraged) {",
+    "note": "enraged target: duration halved before reductions"
+   },
+   {
+    "id": "lock-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1154,
+     1154
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "lock-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1157,
+     1157
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "this.lockedCooldown = Math.round(duration)",
+    "note": "timer is SET (not max'd): locked cannot be re-applied while active"
+   },
+   {
+    "id": "lock-range",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1161,
+     1161
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "pkm.range = 1",
+    "note": "target range forced to 1 (and sent to the moving state if it was not 1)"
+   },
+   {
+    "id": "lock-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1179,
+     1179
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "pokemon.range = range",
+    "note": "at expiry range is restored from baseRange (+ Wide Lens / Long Wand); ccCooldown set to CC_COOLDOWN"
+   },
+   {
+    "id": "lock-cc",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     738,
+     738
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "after the lock ends, a new lock/CC is refused for CC_COOLDOWN"
+   },
+   {
+    "id": "cc-const",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": "1500 ms"
+   },
+   {
+    "id": "lock-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     235,
+     235
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!this.status.locked &&",
+    "note": "canMove is false while locked"
+   },
+   {
+    "id": "lock-moved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     261,
+     261
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.locked &&",
+    "note": "canBeMoved is false while locked (forced displacement refused)"
+   },
+   {
+    "id": "lock-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     107,
+     107
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.locked",
+    "note": "a locked target cannot dodge basic attacks"
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     181,
+     186
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "Status.triggerParalysis"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     554,
+     554
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "apBoost defaults to false, so the duration is not AP-scaled"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather x1.3, less 20% per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     935,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": "a CHERI_BERRY holder eats the berry after the application"
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     943,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": "paralysis healed when the timer runs out"
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysed units use half speed for the attack cooldown"
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "and for movement speed"
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": "a paralysed target cannot dodge"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "target-side reductions: SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3; then -10% per ODD_KEYSTONE of the target's player"
+   },
+   {
+    "id": "add-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     629,
+     650
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "addAttack(",
+    "note": "PokemonEntity.addAttack"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     695
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "addDefense(",
+    "note": "PokemonEntity.addDefense"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1848,
+     1850
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "if (isBuffOrBuffLost && pokemon.items.has(Item.BIG_EATER_BELT)) {",
+    "note": "Big Eater Belt: positive value x1.25 (rounded down); applies to a buff the unit gives itself"
+   },
+   {
+    "id": "unit-ekans",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11828,
+     11840
+    ],
+    "symbol": "class Ekans",
+    "expect": "skill = Ability.COIL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-arbok",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11844,
+     11855
+    ],
+    "symbol": "class Arbok",
+    "expect": "skill = Ability.COIL",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
