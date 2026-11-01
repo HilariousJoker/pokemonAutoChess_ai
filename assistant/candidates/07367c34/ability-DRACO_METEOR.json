@@ -1,0 +1,587 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRACO_METEOR",
+ "kind": "ability",
+ "identifier": "DRACO_METEOR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T053939Z"
+ },
+ "record": {
+  "ability": "DRACO_METEOR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare DRACO_METEOR but have different passives (RAYQUAZA: PRIMAL; MEGA_RAYQUAZA: AIRLOCK); neither passive was traced for this ability. The strategy is shared; differences are star count, range and stats.",
+  "appliesTo": [
+   {
+    "key": "MEGA_RAYQUAZA",
+    "stars": 4,
+    "maxPP": 120,
+    "range": 2,
+    "declaredSkill": "DRACO_METEOR",
+    "declaredPassive": "AIRLOCK",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RAYQUAZA",
+    "stars": 3,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "DRACO_METEOR",
+    "declaredPassive": "PRIMAL",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MEGA_RAYQUAZA": {
+    "evidence": [
+     "unit-mega-rayquaza"
+    ]
+   },
+   "RAYQUAZA": {
+    "evidence": [
+     "unit-rayquaza"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRACO_METEOR] = new DracoMeteorStrategy()",
+   "strategy": "DracoMeteorStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dm",
+    "dm-class",
+    "base-flags",
+    "base-pp",
+    "dm-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Delayed area SPECIAL damage: at cast time the target's cell (x, y) is captured; 1000 ms later the 3x3 block around that cell (centre included, clipped to the board) is scanned and every unit then standing there that belongs to the other team takes the requested amount (30/60/120/150/300 by the caster's stars) as SPECIAL damage with the caster as attacker and the cast's crit flag. After the scan, whether or not anything was hit, the caster receives an AP change of -20 (requested, via addAbilityPower with apBoost 0, no crit). The requested amount is raw: damage is x(1 + caster AP/100), reduced by SPE_DEF, ceil, min 1; the AP change can be altered by Big Eater Belt (-25), Nullify Bandanna (becomes an Attack change of -4, then -5 with a belt) and is floored at AP -100. The cell is fixed at cast time, so a target that moves is not followed; the occupants are read at execution time. Requested amounts: RAYQUAZA (3 stars) 120, MEGA_RAYQUAZA (4 stars) 150.",
+  "targeting": {
+   "who": "the cast target's cell at cast time; hits opposing-team units found in the 3x3 block around it when the command executes",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; target selection before the cast was not read.",
+   "evidence": [
+    "dm-class",
+    "base-flags",
+    "dm-pos",
+    "dm-cells",
+    "dm-team"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block (Chebyshev radius 1, centre included) around the target cell captured at cast time, clipped to the board",
+   "delayMs": 1000,
+   "evidence": [
+    "dm-pos",
+    "dm-cells",
+    "adj",
+    "dm-time",
+    "dm-delay",
+    "cmd",
+    "cmd-update"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 150,
+      "5": 300,
+      "fallback": 300
+     }
+    },
+    "perUnitRaw": {
+     "MEGA_RAYQUAZA": 150,
+     "RAYQUAZA": 120
+    },
+    "scaling": "requested raw amount; AP: x (1 + caster AP/100) at execution time (apBoost defaults to true; the caster's AP when the command runs, i.e. before the -20 of this cast); crit factor 1 + (critPower - 1) x critReductionFactor only if the cast crit (canCritByDefault false, needs ABILITY_CRIT); computed per victim, damage not split between victims",
+    "resolution": "applied change per victim: blocked by protect / skydiving / magicBounce on the victim (a magicBounce victim bounces SPECIAL damage back unless the caster holds Protective Pads); otherwise handleDamage divides by (1 + 0.05 x SPE_DEF) (halved under armorReduction), ceil, min 1, then shield/HP accounting and the Cover Band branch; the takenDamage return is discarded. Units that moved into or out of the block during the 1000 ms are judged by their position at execution.",
+    "evidence": [
+     "dm-dmg",
+     "dm-hit",
+     "dm-cells",
+     "dm-team",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-shield",
+     "td-cover"
+    ]
+   },
+   {
+    "kind": "self AP change",
+    "declaredRaw": {
+     "requested": -20
+    },
+    "scaling": "addAbilityPower(-20, caster = self, apBoost 0, crit false): value = round(-20 x 1 x 1) = -20 before helpers",
+    "resolution": "applied change: the caster's AP drops by 20, floored at -100; with Big Eater Belt on the caster the change is x1.25 rounded down = -25 (same-team negative change counts); Twist Band does not flip it (caster is on the same team); with Nullify Bandanna the AP change is replaced by addAttack(round(0.2 x -20) = -4, ...) (Attack floor 1, -5 with Big Eater Belt) and AP is not changed. Not permanent (permanent = false). It runs once per execution even if no enemy was in the block.",
+    "evidence": [
+     "dm-ap",
+     "ap-fn",
+     "ap-nullify",
+     "ap-round",
+     "ap-clamp",
+     "beb",
+     "twist",
+     "atk-fn"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MEGA_RAYQUAZA": 4,
+    "RAYQUAZA": 3
+   },
+   "declaredRawDamage": {
+    "MEGA_RAYQUAZA": 150,
+    "RAYQUAZA": 120
+   },
+   "note": "indexed by the casting entity's stars; the table has five entries (30, 60, 120, 150, 300); the 1-, 2- and 5-star values are not reachable by the listed units' bare star counts. Both have maxPP 120; range 1 (Rayquaza) and 2 (Mega Rayquaza).",
+   "evidence": [
+    "dm-dmg",
+    "unit-rayquaza",
+    "unit-mega-rayquaza"
+   ]
+  },
+  "positionalConditions": "The centre cell is the target's position when the cast starts; targets are judged by cell occupancy and team 1000 ms later. Allies and empty cells in the block are ignored.",
+  "repeatedCastsAndModes": "No stored state. Each cast queues its own delayed command; the -20 AP stacks per execution (floor -100). The command lives on the caster's own command list, so what happens to it if the caster dies or is removed during the 1000 ms was not traced beyond the updateCommands loop.",
+  "rawVsResolved": "Requested (raw): damage 120 / 150 (3 / 4 stars) per victim, AP -20 on the caster. Applied: damage x (1 + caster AP/100) [x crit], then / (1 + 0.05 x SPE_DEF) ceil min 1, blocked cases and shield accounting as listed; takenDamage not used. AP change: -20, or -25 with Big Eater Belt, or an Attack change instead with Nullify Bandanna, floored at AP -100.",
+  "sourceTables": [
+   {
+    "id": "dracoMeteorDamage",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - only SPE_DEF division, ceil/min 1, shield and Cover Band branches were located",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "Whether updateCommands still runs for a caster that died during the delay (the call site of updateCommands was not read)"
+  ],
+  "unresolved": [
+   "Passives PRIMAL (RAYQUAZA) and AIRLOCK (MEGA_RAYQUAZA) were not traced; whether either changes this ability is unknown (no search for them was made in this record)",
+   "Whether any other item or synergy effect changes DRACO_METEOR beyond what is listed",
+   "The magicBounce bounce on a victim was read only for its trigger condition (SPECIAL, damage > 0, no Protective Pads on the caster), not for its full effect",
+   "Not probed with the pinned-helper probe and not a fight; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-rayquaza",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6087,
+     6108
+    ],
+    "symbol": "unit-rayquaza",
+    "expect": "skill = Ability.DRACO_METEOR",
+    "note": "unit class block: stars 3, maxPP 120, range 1, passive PRIMAL"
+   },
+   {
+    "id": "unit-mega-rayquaza",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7585,
+     7598
+    ],
+    "symbol": "unit-mega-rayquaza",
+    "expect": "skill = Ability.DRACO_METEOR",
+    "note": "unit class block: stars 4, maxPP 120, range 2, passive AIRLOCK"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "reg",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dm",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     838,
+     838
+    ],
+    "symbol": "reg-dm",
+    "expect": "[Ability.DRACO_METEOR]: new DracoMeteorStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dm-class",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "dm-class",
+    "expect": "class DracoMeteorStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "dm-super",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "dm-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dm-dmg",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "dm-dmg",
+    "expect": "[30, 60, 120, 150, 300][pokemon.stars - 1] ?? 300",
+    "note": "requested damage by stars"
+   },
+   {
+    "id": "dm-pos",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "dm-pos",
+    "expect": "const x = target.positionX",
+    "note": "target cell captured at cast time"
+   },
+   {
+    "id": "dm-delay",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     18,
+     19
+    ],
+    "symbol": "dm-delay",
+    "expect": "new DelayedCommand(() => {",
+    "note": "effect is queued on the caster's commands"
+   },
+   {
+    "id": "dm-cells",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "dm-cells",
+    "expect": "board.getAdjacentCells(x, y, true)",
+    "note": "3x3 around the captured cell including the centre"
+   },
+   {
+    "id": "dm-team",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "dm-team",
+    "expect": "cell.value && pokemon.team !== cell.value.team",
+    "note": "only occupied cells holding an opposing-team unit (checked at execution time)"
+   },
+   {
+    "id": "dm-hit",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "dm-hit",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker = caster, cast crit flag, apBoost default true"
+   },
+   {
+    "id": "dm-ap",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "dm-ap",
+    "expect": "pokemon.addAbilityPower(-20, pokemon, 0, false)",
+    "note": "self AP loss, runs once after the loop even if nothing was hit"
+   },
+   {
+    "id": "dm-time",
+    "file": "app/core/abilities/draco-meteor.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "dm-time",
+    "expect": "}, 1000)",
+    "note": "1000 ms delay"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "adj",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "3x3 block clipped to the board"
+   },
+   {
+    "id": "cmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     19,
+     33
+    ],
+    "symbol": "cmd",
+    "expect": "class DelayedCommand extends SimulationCommand",
+    "note": "fires when delay drops below 0 (update subtracts dt)"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     868,
+     876
+    ],
+    "symbol": "cmd-update",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "per-entity commands are advanced in updateCommands"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "base-flags",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "base-pp",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "pp-gate",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "special",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "special-block",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0); magicBounce bounces only SPECIAL, and this hit is SPECIAL, so a bounce can fire unless the caster holds Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "special-ap",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "special-crit",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "def-step",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "def-min",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "armor-factor",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "ap-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "ap-fn",
+    "expect": "addAbilityPower(",
+    "note": "stat adder for AP"
+   },
+   {
+    "id": "ap-nullify",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     628,
+     631
+    ],
+    "symbol": "ap-nullify",
+    "expect": "this.items.has(Item.NULLIFY_BANDANNA)",
+    "note": "Nullify Bandanna: AP change becomes Attack round(0.2 x value)"
+   },
+   {
+    "id": "ap-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     633,
+     635
+    ],
+    "symbol": "ap-round",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100)",
+    "note": "apBoost 0 here: value unchanged except rounding"
+   },
+   {
+    "id": "ap-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     639,
+     641
+    ],
+    "symbol": "ap-clamp",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "AP floor -100"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "beb",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt x1.25 on buffs and on own-team negative changes (caster same team)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "twist",
+    "expect": "pokemon.items.has(Item.TWIST_BAND)",
+    "note": "Twist Band flips only changes from the environment or the other team; this self-change is not flipped"
+   },
+   {
+    "id": "atk-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     745
+    ],
+    "symbol": "atk-fn",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addAttack (used by the Nullify Bandanna branch) also applies Big Eater Belt; attack floor 1"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "td-shield",
+    "expect": "let residualDamage = reducedDamage",
+    "note": ""
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "td-cover",
+    "expect": "return coverAlly.handleDamage({",
+    "note": ""
+   }
+  ]
+ }
+}
