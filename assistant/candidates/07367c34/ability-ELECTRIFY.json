@@ -1,0 +1,504 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ELECTRIFY",
+ "kind": "ability",
+ "identifier": "ELECTRIFY",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T183956Z"
+ },
+ "record": {
+  "ability": "ELECTRIFY",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ELECTRIFY in this production reference: Yamper (1 star) and Boltund (2 stars), both ELECTRIC + FIELD, maxPP 100, range 1, no passive. The strategy is shared; nothing else uses it in the saved catalog.",
+  "appliesTo": [
+   {
+    "key": "BOLTUND",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ELECTRIFY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "YAMPER",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ELECTRIFY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BOLTUND": {
+    "evidence": [
+     "unit-boltund"
+    ]
+   },
+   "YAMPER": {
+    "evidence": [
+     "unit-yamper"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ELECTRIFY] = new ElectrifyStrategy()",
+   "strategy": "ElectrifyStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-electrify",
+    "class",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "super"
+   ]
+  },
+  "summary": "Self-centred team buff, no enemy target needed (requiresTarget false). On cast the caster spends its PP, then looks for allied units on the board that are not the caster, do not have the ELECTRIC type and do not already have the electricField status. The 'strongest' of them (most held items x100 + 10 per star + sell price; ties broken at random) becomes the recipient; if there is none, the caster itself is the recipient. The recipient gets the electricField status (once; no-op if already set) and a shield of raw 15 (1 star, Yamper) or 30 (2 stars, Boltund), scaled by the caster's AP (x(1+AP/100)), by crit when the cast crits, halved if the recipient is enraged, increased x1.25 (rounded down) before that if the recipient holds a Big Eater Belt, then rounded. If the recipient lacks the ELECTRIC type (the usual case for an ally recipient, never for the ELECTRIC caster itself in the self-cast fallback) it gains the ELECTRIC type for the fight, the team's active ELECTRIC synergy tier effect is applied to it if it lacks that effect, and a Cell Battery speed bonus (+2 per Cell Battery on the caster's player items) is added by the strategy (a second, separate Cell Battery grant exists inside applySynergyEffects for a unit with a player).",
+  "targeting": {
+   "who": "allied units on the board (team equal to the caster's, id differs from the caster's, no ELECTRIC type, electricField not true); one is chosen by getStrongestUnit; the caster itself if none qualifies",
+   "needsTarget": false,
+   "note": "the 'target' argument is null and unused; scan covers board.cells only",
+   "evidence": [
+    "class",
+    "filter",
+    "field-filter",
+    "strongest",
+    "score",
+    "pick"
+   ]
+  },
+  "geometry": {
+   "shape": "none (whole-board scan, single recipient)",
+   "adjacency": "no distance or range condition; any allied unit on the board qualifies",
+   "limits": "one recipient per cast",
+   "evidence": [
+    "filter",
+    "strongest",
+    "pick"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "recipient (strongest non-ELECTRIC ally without electricField, else the caster)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "YAMPER": 15,
+     "BOLTUND": 30
+    },
+    "scaling": "requested shield = table value by caster stars (4+ stars fall back to 120, not used by the listed units). Applied: PokemonEntity.addShield first multiplies by 1.25 rounded down if the recipient holds a Big Eater Belt (positive value), then PokemonState.addShield multiplies by (1 + caster AP/100) (apBoost 1), by the caster's critPower on crit (crit only with ABILITY_CRIT, canCritByDefault is false), by 0.5 if the recipient is enraged, and rounds; the recipient's shield is increased (floored at 0) only while its hp > 0. This is a shield amount, not damage, and is not reduced by SPE_DEF.",
+    "resolution": "requested amount (15 or 30) -> Big Eater Belt helper (recipient's belt) -> AP / crit / enraged factors -> Math.round -> added to recipient.shield; the caster's shieldDone grows by the same applied amount. Shield absorbs later damage inside PokemonState.handleDamage (core-mechanics section A).",
+    "evidence": [
+     "shield-table",
+     "add-shield",
+     "entity-shield",
+     "belt",
+     "state-shield",
+     "state-shield-enraged",
+     "base-flags",
+     "cast-crit"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "electricField",
+    "target": "recipient",
+    "scaling": "boolean status, no AP or crit scaling; setting it is a no-op if already true",
+    "resolution": "Status.addElectricField sets electricField = true; a SURGE_SURFER holder additionally gets +30 speed through addSpeed (Big Eater Belt / Twist Band helpers apply to it). The status makes damage dealt by that unit x1.2 in handleDamage; other readers of electricField (Shockwave range, items, passives) were not traced here.",
+    "evidence": [
+     "add-field",
+     "status-field",
+     "field-dmg"
+    ]
+   },
+   {
+    "kind": "type_and_synergy",
+    "target": "recipient, only if it lacks the ELECTRIC type",
+    "scaling": "none",
+    "resolution": "types.add(ELECTRIC) for the fight; simulation.applySynergyEffects(unit, ELECTRIC) applies the first of the ELECTRIC tier effects the caster's team has active, unless the unit already has it; then Cell Battery speed: +2 x (Cell Battery count in the caster's player items) added by the strategy via addSpeed(.., caster, 0, false) (item helpers apply), and applySynergyEffects adds its own +2 x count to an ELECTRIC unit that has a player. The contents of the ELECTRIC tier effects themselves were not traced.",
+    "evidence": [
+     "type-add",
+     "synergy-single",
+     "synergy-cell",
+     "cell"
+    ]
+   }
+  ],
+  "statusEffects": [
+   "electricField (set by this ability)"
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "amount": "15 (Yamper) / 30 (Boltund) raw",
+    "note": "see effects[0]"
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "YAMPER": 1,
+    "BOLTUND": 2
+   },
+   "declaredRawShield": {
+    "YAMPER": 15,
+    "BOLTUND": 30
+   },
+   "note": "table index is the casting entity's stars; the 3-star 60 and 4-star 120 entries exist in the source but no listed unit uses them",
+   "evidence": [
+    "shield-table"
+   ]
+  },
+  "positionalConditions": "None by position. Recipient choice depends on which allied units are on the board, their types, electricField status, held items, stars and sell price. With only ELECTRIC allies (or no other allies) the caster buffs itself: it already has the ELECTRIC type, so no type or synergy step happens and no Cell Battery bonus is added by the strategy; the shield and electricField still apply.",
+  "repeatedCastsAndModes": "Every cast repeats the selection. Allies that already have electricField are excluded, so successive casts normally pick different non-ELECTRIC allies (the recipient gains the ELECTRIC type too, which also excludes it). Once no eligible ally remains, further casts self-cast: the caster's electricField is a no-op after the first time but a new shield is added each cast. The type and field persist for the fight as far as this record reads; whether anything removes them (for example the death of an ELECTRIC_TERRAIN passive holder removes electricField from its team) was only noted, not traced.",
+  "rawVsResolved": "Declared raw shield: 15 (Yamper) / 30 (Boltund). Requested = that value. Applied = round(floor-rounded(requested x1.25 if recipient has Big Eater Belt) x (1 + AP/100) x critPower if crit x 0.5 if recipient enraged), added to the recipient's shield; applied amount is not clamped upward except that the shield cannot go below 0. No damage is dealt, so takenDamage is not involved. Rune Protect and Twist Band do not act on this shield (Twist Band only flips negative values); the optional Cell Battery speed goes through addSpeed where Big Eater Belt scales it x1.25 rounded down for a holder.",
+  "sourceTables": [
+   {
+    "id": "electrifyShield",
+    "file": "app/core/abilities/electrify.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage reduction by a shield in handleDamage (consulted via core-mechanics section A, not re-probed)",
+   "When the cast fires in a real fight (PP gain, silence, canCast): only the pp >= maxPP && canCast gate and castAbility were read",
+   "Content of the ELECTRIC synergy tier effects applied to the recipient"
+  ],
+  "unresolved": [
+   "The queue record lists no routing uncertainties; Yamper and Boltund are the only units listed for this identifier",
+   "Whether pokemon.player is set for PVE, ghost or bot teams (it gates the Cell Battery step)",
+   "Consequence of the Cell Battery bonus being added both by applySynergyEffects and by the strategy for a recipient with a player: read as two additions, not executed (the recipient is an allied unit, normally with the same player as the caster)",
+   "Other readers of electricField (Shockwave range, Terrain Pulse, items, passives) and what removes it were not traced; only the x1.2 damage multiplier in handleDamage and the SURGE_SURFER speed were read",
+   "Whether board.cells can contain dead or non-fighting entities that the filter would still select (not checked)",
+   "No pinned-helper probe was run for this record; the code was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-yamper",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20260,
+     20274
+    ],
+    "symbol": "class Yamper",
+    "expect": "skill = Ability.ELECTRIFY",
+    "note": "unit class block; 1 star, ELECTRIC + FIELD types, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "unit-boltund",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20276,
+     20289
+    ],
+    "symbol": "class Boltund",
+    "expect": "skill = Ability.ELECTRIFY",
+    "note": "unit class block; 2 stars, ELECTRIC + FIELD types, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-electrify",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     858,
+     858
+    ],
+    "symbol": "AbilityStrategies[Ability.ELECTRIFY]",
+    "expect": "[Ability.ELECTRIFY]: new ElectrifyStrategy()",
+    "note": ""
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     9,
+     10
+    ],
+    "symbol": "ElectrifyStrategy",
+    "expect": "requiresTarget = false",
+    "note": "strategy class; requiresTarget false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base default: no crit unless ABILITY_CRIT"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent in super.process"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     18,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT effect or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "filter",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     14,
+     21
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "entity.types.has(Synergy.ELECTRIC) === false",
+    "note": "candidate filter: same team, not the caster, not ELECTRIC, no electricField"
+   },
+   {
+    "id": "field-filter",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "entity.status.electricField !== true",
+    "note": ""
+   },
+   {
+    "id": "strongest",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "strongestAlly ?? pokemon",
+    "note": "self-cast fallback when no candidate"
+   },
+   {
+    "id": "score",
+    "file": "app/core/unit-score.ts",
+    "lines": [
+     5,
+     11
+    ],
+    "symbol": "getUnitScore",
+    "expect": "score += 100 * pokemon.items.size",
+    "note": "100 per held item + 10 per star + sell price"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/unit-score.ts",
+    "lines": [
+     13,
+     25
+    ],
+    "symbol": "getStrongestUnit",
+    "expect": "pickRandomIn(pokemons.filter((p, i) => pokemonScores[i] === bestScore))",
+    "note": "random tie-break among best scores; empty list yields undefined"
+   },
+   {
+    "id": "shield-table",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "[15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw shield by caster stars"
+   },
+   {
+    "id": "add-field",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "buffedUnit.status.addElectricField(buffedUnit)",
+    "note": ""
+   },
+   {
+    "id": "status-field",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1323,
+     1329
+    ],
+    "symbol": "Status.addElectricField",
+    "expect": "this.electricField = true",
+    "note": "no-op if already set; SURGE_SURFER holders gain +30 speed (addSpeed(30, entity, 0, false))"
+   },
+   {
+    "id": "add-shield",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "buffedUnit.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, caster = the Electrify caster"
+   },
+   {
+    "id": "entity-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt helper then state.addShield"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value x1.25 rounded down for a Big Eater Belt holder"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP, crit, enraged halving, rounding, floor 0, only while hp > 0"
+   },
+   {
+    "id": "state-shield-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": ""
+   },
+   {
+    "id": "type-add",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     27,
+     29
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "pokemon.simulation.applySynergyEffects(buffedUnit, Synergy.ELECTRIC)",
+    "note": "ELECTRIC type added for the fight, then singleType synergy effects applied"
+   },
+   {
+    "id": "synergy-single",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     532,
+     545
+    ],
+    "symbol": "Simulation.applySynergyEffects",
+    "expect": "SynergyTiers[singleType].find((e) => allyEffects.has(e))",
+    "note": "applies the team's active ELECTRIC tier effect once, if the unit lacks it"
+   },
+   {
+    "id": "synergy-cell",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     559,
+     566
+    ],
+    "symbol": "Simulation.applySynergyEffects",
+    "expect": "pokemon.addSpeed(2 * nbCellBatteries, pokemon, 0, false)",
+    "note": "Cell Battery speed also granted here to an ELECTRIC unit with a player"
+   },
+   {
+    "id": "cell",
+    "file": "app/core/abilities/electrify.ts",
+    "lines": [
+     30,
+     37
+    ],
+    "symbol": "ElectrifyStrategy.process",
+    "expect": "buffedUnit.addSpeed(2 * nbCellBatteries, pokemon, 0, false)",
+    "note": "Electrify's own Cell Battery speed, gated on the CASTER's player items"
+   },
+   {
+    "id": "field-dmg",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     462,
+     464
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.electricField)",
+    "note": "damage dealt by an attacker with electricField is multiplied by 1.2 (read here only to name the field's combat effect)"
+   }
+  ]
+ }
+}
