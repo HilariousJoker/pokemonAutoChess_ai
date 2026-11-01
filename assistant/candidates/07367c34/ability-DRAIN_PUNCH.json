@@ -1,0 +1,499 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRAIN_PUNCH",
+ "kind": "ability",
+ "identifier": "DRAIN_PUNCH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T053939Z"
+ },
+ "record": {
+  "ability": "DRAIN_PUNCH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare DRAIN_PUNCH (catalog passive NONE). The strategy is shared; differences are star count and ATK.",
+  "appliesTo": [
+   {
+    "key": "MIENFOO",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "DRAIN_PUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MIENSHAO",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "DRAIN_PUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MIENFOO": {
+    "evidence": [
+     "unit-mienfoo"
+    ]
+   },
+   "MIENSHAO": {
+    "evidence": [
+     "unit-mienshao"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRAIN_PUNCH] = new DrainPunchStrategy()",
+   "strategy": "DrainPunchStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dp",
+    "dp-class",
+    "base-flags",
+    "base-pp",
+    "dp-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage whose requested amount is the caster's current ATK x a star multiplier (x2 at 1 and 2 stars, x3 at 3, x4 at 4), then the caster requests a heal of 2 x the takenDamage returned by that damage call. takenDamage is what handleDamage reports (shield part plus HP part, 0 when blocked, reset by Shiny Charm, Fossil addition, or the Cover Band ally's result), so the heal follows the damage actually taken and not the requested amount. The damage is also multiplied by (1 + caster AP/100) (apBoost explicitly true) and by the crit factor if the cast crit, then reduced by the target's SPE_DEF (ceil, min 1). The heal request is not scaled by AP or crit (apBoost 0, crit false); it is then modified by handleHeal (wound = no heal, x1.3 heal-received effect, x0.5 burn, x0.5 enraged, x1.2 ZENITH, capped at missing HP). Both listed units have multiplier x2 (Mienfoo ATK-based amount is 2 x its ATK at cast time, as is Mienshao).",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; target selection before the cast was not read.",
+   "evidence": [
+    "dp-class",
+    "base-flags",
+    "dp-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "dp-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "atkMultiplierByStars": {
+      "1": 2,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "fallback": 4
+     }
+    },
+    "perUnitRaw": {
+     "MIENFOO": "2 x ATK at cast time (catalog ATK 9 -> 18 before AP and crit)",
+     "MIENSHAO": "2 x ATK at cast time (catalog ATK 18 -> 36 before AP and crit)"
+    },
+    "scaling": "requested amount = caster ATK (current value at cast, so ATK buffs count) x multiplier; then x (1 + caster AP/100) because apBoost is passed as true; then the cast's crit factor only if the cast crit (canCritByDefault false, needs ABILITY_CRIT)",
+    "resolution": "applied change: blocked by protect / skydiving / magicBounce (takenDamage 0, so no heal); otherwise handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, min 1, then shield, Shiny Charm, Fossil and Cover Band branches determine takenDamage, rounded. The catalog ATK is the base unit value; real ATK at cast time depends on items and buffs not traced here.",
+    "evidence": [
+     "dp-mult",
+     "dp-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead",
+     "td-shield",
+     "td-shiny",
+     "td-fossil",
+     "td-cover",
+     "td-return"
+    ]
+   },
+   {
+    "kind": "heal (self)",
+    "declaredRaw": {
+     "multiplierOfTakenDamage": 2
+    },
+    "scaling": "2 x takenDamage (the value returned by handleSpecialDamage); apBoost 0 and crit false are passed, so neither AP nor crit scales it",
+    "resolution": "handleHeal then applies: a wounded caster receives no HP heal (healReceived 0; with Blood Moon weather and a Blood Stone held by the caster's player a shield of round(0.3 x stones x heal) is requested instead); nothing for a caster at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP; overheal (heal beyond missing HP) is not added as HP, but on a unit with the GRASS synergy effect it adds 0.4 x overheal max HP (pokemon-state.ts:373-376). takenDamage 0 requests a heal of 0. healDone and a spectator broadcast are bookkeeping only.",
+    "evidence": [
+     "dp-heal-mult",
+     "dp-heal",
+     "heal-wound",
+     "heal-mods",
+     "heal-grass",
+     "td-dead"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MIENFOO": 1,
+    "MIENSHAO": 2
+   },
+   "declaredRawDamage": {
+    "MIENFOO": "2 x ATK",
+    "MIENSHAO": "2 x ATK"
+   },
+   "note": "the multiplier is indexed by the casting entity's stars; the 3-star (x3) and 4-star (x4, also the fallback) values are not reachable by the listed units' bare star counts. maxPP 60 and range 1 for both. The heal multiplier is 2 for every star.",
+   "evidence": [
+    "dp-mult",
+    "dp-heal-mult",
+    "unit-mienfoo",
+    "unit-mienshao"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage and heal; ATK changes between casts change the amount.",
+  "rawVsResolved": "Requested (raw): damage 2 x ATK (1 and 2 stars), heal 2 x takenDamage. Applied: damage x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting; takenDamage = shield part + HP part (0 if blocked/Shiny Charm, + Fossil addition, or the cover ally's result); the heal request 2 x takenDamage then passes handleHeal modifiers and the missing-HP cap, so HP actually restored can be much lower.",
+  "sourceTables": [
+   {
+    "id": "drainPunchMultiplier",
+    "file": "app/core/abilities/drain-punch.ts",
+    "pattern": "const damageMultiplier = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.atkMultiplierByStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - only SPE_DEF division, ceil/min 1 and the takenDamage branches were located",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "The caster's real ATK at cast time (items, synergies, buffs) - the ATK stat adders were not traced for this record"
+  ],
+  "unresolved": [
+   "Resurrection paths other than the cited branches and other death-cancelling effects on the target were not enumerated; they would change the returned takenDamage",
+   "Whether any other item or synergy effect changes DRAIN_PUNCH beyond what is listed",
+   "Both units have passive NONE; no routing uncertainty in the queue record; not probed and not a fight; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-mienfoo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8021,
+     8035
+    ],
+    "symbol": "unit-mienfoo",
+    "expect": "skill = Ability.DRAIN_PUNCH",
+    "note": "unit class block: stars 1, maxPP 60, range 1, passive none"
+   },
+   {
+    "id": "unit-mienshao",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8037,
+     8051
+    ],
+    "symbol": "unit-mienshao",
+    "expect": "skill = Ability.DRAIN_PUNCH",
+    "note": "unit class block: stars 2, maxPP 60, range 1, passive none"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "reg",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     846,
+     846
+    ],
+    "symbol": "reg-dp",
+    "expect": "[Ability.DRAIN_PUNCH]: new DrainPunchStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dp-class",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "dp-class",
+    "expect": "class DrainPunchStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "dp-super",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "dp-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dp-mult",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "dp-mult",
+    "expect": "[2,2,3,4][pokemon.stars - 1] ?? 4",
+    "note": "damage multiplier of the caster's ATK by stars"
+   },
+   {
+    "id": "dp-heal-mult",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "dp-heal-mult",
+    "expect": "const healMultiplier = 2",
+    "note": ""
+   },
+   {
+    "id": "dp-hit",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     16,
+     23
+    ],
+    "symbol": "dp-hit",
+    "expect": "pokemon.atk * damageMultiplier",
+    "note": "SPECIAL damage = caster ATK x multiplier; crit passed; apBoost explicitly true"
+   },
+   {
+    "id": "dp-heal",
+    "file": "app/core/abilities/drain-punch.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "dp-heal",
+    "expect": "pokemon.handleHeal(result.takenDamage * healMultiplier, pokemon, 0, false)",
+    "note": "heal = 2 x takenDamage, apBoost 0, crit false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "base-flags",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "base-pp",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "pp-gate",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "special",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "special-block",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "special-ap",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scales the already ATK-based amount"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "special-crit",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "def-step",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "def-min",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "armor-factor",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "td-dead",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead/resurrecting target: takenDamage 0"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "td-shield",
+    "expect": "let residualDamage = reducedDamage",
+    "note": "takenDamage = shield part + HP part"
+   },
+   {
+    "id": "td-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "td-shiny",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm resets takenDamage to 0"
+   },
+   {
+    "id": "td-fossil",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     663,
+     696
+    ],
+    "symbol": "td-fossil",
+    "expect": "pokemon.hasSynergyEffect(Synergy.FOSSIL) &&",
+    "note": "Fossil branch adds to takenDamage"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "td-cover",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band: returns the cover ally's result"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     807
+    ],
+    "symbol": "td-return",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": ""
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "heal-wound",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded caster receives 0 healing (Blood Moon + Blood Stone shield exception)"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     353
+    ],
+    "symbol": "heal-mods",
+    "expect": "heal = Math.round(heal)",
+    "note": "x1.3 BUFF_HEAL_RECEIVED, burn x0.5, enraged x0.5, ZENITH x1.2, rounded, capped at missing HP"
+   },
+   {
+    "id": "heal-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     376
+    ],
+    "symbol": "heal-grass",
+    "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
+    "note": "overheal on a GRASS-synergy unit adds 0.4 x overheal max HP"
+   }
+  ]
+ }
+}
