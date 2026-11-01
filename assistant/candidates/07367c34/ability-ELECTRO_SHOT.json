@@ -1,0 +1,495 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ELECTRO_SHOT",
+ "kind": "ability",
+ "identifier": "ELECTRO_SHOT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T183956Z"
+ },
+ "record": {
+  "ability": "ELECTRO_SHOT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ELECTRO_SHOT in this production reference: Archaludon (3 stars, no passive) and Duraludon (2 stars, passive DURALUDON). The strategy is shared. The DURALUDON passive was searched for by name in app/: Passive.DURALUDON occurs only in the Duraludon class block, no handler was found.",
+  "appliesTo": [
+   {
+    "key": "ARCHALUDON",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ELECTRO_SHOT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DURALUDON",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ELECTRO_SHOT",
+    "declaredPassive": "DURALUDON",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARCHALUDON": {
+    "evidence": [
+     "unit-archaludon"
+    ]
+   },
+   "DURALUDON": {
+    "evidence": [
+     "unit-duraludon"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ELECTRO_SHOT] = new ElectroShotStrategy()",
+   "strategy": "ElectroShotStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-es",
+    "class",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "super"
+   ]
+  },
+  "summary": "Delayed line shot. On cast the caster spends its PP; unless the weather is STORM its cooldown is set to 2000 and a charge animation plays. A DelayedCommand (2000 ms, or 0 in Storm) is queued on the caster. When it runs, the caster first gains +40 AP, then fires along the straight line from its own cell through the cast target's recorded position to the board edge: every unit of the other team on any cell the line touches takes SPECIAL damage of raw 80/100/120/240 by the caster's stars (Duraludon 2 stars: 100, Archaludon 3 stars: 120), scaled by the caster's AP (which already includes the +40) and by crit if the cast crit. Damage does not stop at the first enemy.",
+  "targeting": {
+   "who": "line from the caster through the cast target's position (read when the delayed command runs); every unit of the opposing team on the touched cells",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true; the target object is held in the closure, so its positionX / positionY are read at fire time even if it moved or died meanwhile (what the board holds then was not simulated)",
+   "evidence": [
+    "class",
+    "line",
+    "effect-in-line",
+    "supercover",
+    "team-check"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover), board-wide",
+   "adjacency": "the caster's own cell comes first in the cell list and is skipped by the team check; the line direction is atan2 to the target, endpoint rounded 12 cells away, cells off the board are dropped",
+   "limits": "no range limit, no pierce limit; all enemy-team units on the touched cells are hit once each",
+   "evidence": [
+    "effect-in-line",
+    "supercover",
+    "team-check",
+    "hit"
+   ],
+   "timing": {
+    "note": "2000 ms delay (0 in STORM weather); the delayed function also reads the damage table and applies the AP boost at that moment",
+    "evidence": [
+     "delay",
+     "cmd",
+     "cmd-update",
+     "dmg-table",
+     "ap-boost",
+     "storm",
+     "cooldown",
+     "cooldown-field"
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 80,
+      "2": 100,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "DURALUDON": 100,
+     "ARCHALUDON": 120
+    },
+    "scaling": "requested raw by caster stars (indexed [stars-1], 240 fallback; the 1-star 80 and 4-star 240 entries are not used by the listed units). In handleSpecialDamage: x(1 + attacker AP/100) using the AP at hit time, i.e. after this cast's +40 AP and every earlier +40 from previous casts, then x critPower scaled by each victim's crit reduction (Rocky Helmet to 0, Black Augurite -0.1 each) only if the cast crit (needs ABILITY_CRIT; one crit roll shared by all victims).",
+    "resolution": "requested amount -> AP / crit -> PokemonState.handleDamage (defenses, SPE_DEF reduction with the floor of 1, shield; core-mechanics sections A and H) per victim; applied HP loss and takenDamage (shield part included) differ per victim. Protect / skydiving / magicBounce victims take nothing (magicBounce reflects unless Protective Pads). The ability reads no takenDamage.",
+    "evidence": [
+     "dmg-table",
+     "line",
+     "hit",
+     "special-dmg",
+     "special-ap",
+     "special-crit",
+     "cast-crit",
+     "base-flags"
+    ]
+   },
+   {
+    "kind": "stat_change",
+    "stat": "AP",
+    "target": "caster",
+    "declaredRaw": 40,
+    "scaling": "requested +40 via addAbilityPower(40, self, 0, false): no AP or crit scaling. Applied: with a Nullify Bandanna the AP gain is replaced by Attack +round(0.2 x 40) = 8 (via addAttack, itself subject to its helpers); otherwise Big Eater Belt turns +40 into +50 (x1.25 rounded down), Twist Band does not act on a positive gain, and AP is floored at -100. The gain is not permanent (permanent false): it lasts for the fight and stacks on every cast.",
+    "resolution": "applied at the start of the delayed command, before any damage, so the damage of the same shot already uses the higher AP; also raises the AP of every later ability the caster uses.",
+    "evidence": [
+     "ap-boost",
+     "add-ap",
+     "special-ap"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "AP",
+    "raw": 40,
+    "note": "see effects[1]"
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DURALUDON": 2,
+    "ARCHALUDON": 3
+   },
+   "declaredRawDamage": {
+    "DURALUDON": 100,
+    "ARCHALUDON": 120
+   },
+   "note": "indexed by the casting entity's stars; the AP boost (40) is the same for every star level",
+   "evidence": [
+    "dmg-table"
+   ]
+  },
+  "positionalConditions": "The line depends on the caster's and target's positions when the delayed command runs, not when the cast starts. If the caster is at the target's cell the angle is 0 (a line along the row); not checked further. Units of the opposing team anywhere on the touched cells are hit regardless of distance.",
+  "repeatedCastsAndModes": "Weather STORM removes the 2000 ms charge (cooldown not set, delay 0). Outside Storm the cast sets cooldown to 2000 and the shot lands 2000 ms later. Each cast adds another +40 AP (no cap other than the -100 floor) and queues its own command, so overlapping commands are possible if PP refills fast; the damage table is re-read per command.",
+  "rawVsResolved": "Declared raw damage: 100 (Duraludon) / 120 (Archaludon). Requested = that value per victim. Applied = requested x (1 + (caster AP at hit time)/100) [x crit factor], then handleDamage per victim; shields, SPE_DEF and the floor of 1 apply. Declared AP gain: +40 requested; applied +40 normally, +50 with a Big Eater Belt, or Attack +8 instead of AP with a Nullify Bandanna.",
+  "sourceTables": [
+   {
+    "id": "electroShotDamage",
+    "file": "app/core/abilities/electro-shot.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (consulted via core-mechanics sections A and H, not re-probed)",
+   "When the cast fires in a real fight (PP gain, silence, canCast): only the pp >= maxPP && canCast gate and castAbility were read",
+   "How the entity's cooldown = 2000 is consumed by the update loop (the field and its default were read, the loop was not)",
+   "Whether the caster's command list keeps advancing if the caster dies or is removed before the delayed command (only PokemonState.updateCommands was read)"
+  ],
+  "unresolved": [
+   "The queue record lists no routing uncertainties; Archaludon and Duraludon are the only units listed for this identifier",
+   "The DURALUDON passive: Passive.DURALUDON was found only in the Duraludon class block (git grep in app/); no handler located, so any effect would have to live elsewhere (for example in evolution code) and is not covered",
+   "Behaviour when the target died or moved between cast and fire (its last recorded position is used)",
+   "Line direction when caster and target share a cell, and edge rounding for steep angles, were not exercised",
+   "Storm weather lightning (simulation.ts) is unrelated to this ability's own damage and was not traced",
+   "No pinned-helper probe was run for this record; the code was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-duraludon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17851,
+     17869
+    ],
+    "symbol": "class Duraludon",
+    "expect": "skill = Ability.ELECTRO_SHOT",
+    "note": "unit class block; 2 stars, DRAGON + STEEL, maxPP 100, range 2, passive DURALUDON"
+   },
+   {
+    "id": "unit-archaludon",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17871,
+     17887
+    ],
+    "symbol": "class Archaludon",
+    "expect": "skill = Ability.ELECTRO_SHOT",
+    "note": "unit class block; 3 stars, DRAGON + STEEL + ELECTRIC, maxPP 100, range 2, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-es",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     860,
+     860
+    ],
+    "symbol": "AbilityStrategies[Ability.ELECTRO_SHOT]",
+    "expect": "[Ability.ELECTRO_SHOT]: new ElectroShotStrategy()",
+    "note": ""
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "ElectroShotStrategy",
+    "expect": "class ElectroShotStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override: base defaults true / false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent in super.process"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     18,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled once at cast time, only with ABILITY_CRIT"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim true: no default cast animation"
+   },
+   {
+    "id": "storm",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     20,
+     27
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "pokemon.simulation.weather !== Weather.STORM",
+    "note": "outside Storm the caster's cooldown is set to 2000 and a charge animation is broadcast"
+   },
+   {
+    "id": "cooldown",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "pokemon.cooldown = 2000",
+    "note": ""
+   },
+   {
+    "id": "cooldown-field",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     126,
+     126
+    ],
+    "symbol": "PokemonEntity.cooldown",
+    "expect": "cooldown = 500",
+    "note": "per-entity action timer; its consumption in the update loop was not traced"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     52,
+     52
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "pokemon.simulation.weather === Weather.STORM ? 0 : 2000",
+    "note": "delay of the DelayedCommand: 0 in Storm, else 2000 ms"
+   },
+   {
+    "id": "cmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     5,
+     31
+    ],
+    "symbol": "SimulationCommand / DelayedCommand",
+    "expect": "if (this.delay < 0)",
+    "note": "runs once the accumulated dt exceeds the delay"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's own update advances its commands"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "[80, 100, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw damage by caster stars, read when the delayed command runs"
+   },
+   {
+    "id": "ap-boost",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     33,
+     34
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "pokemon.addAbilityPower(apBoost, pokemon, 0, false)",
+    "note": "+40 AP to the caster before the damage is dealt"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false)",
+    "note": "Nullify Bandanna converts the AP gain into round(0.2 x value) Attack; otherwise Big Eater Belt scaling, Twist Band flip, floor of -100"
+   },
+   {
+    "id": "line",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": ""
+   },
+   {
+    "id": "effect-in-line",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     940
+    ],
+    "symbol": "effectInLine",
+    "expect": "const distance = 12",
+    "note": "straight line from the caster through the target's position, extended to the board edge by a 12-cell reach"
+   },
+   {
+    "id": "supercover",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "includes the start cell and every cell the line touches that is on the board"
+   },
+   {
+    "id": "team-check",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "cell.value.team !== pokemon.team",
+    "note": "only occupied cells of the other team"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/electro-shot.ts",
+    "lines": [
+     42,
+     48
+    ],
+    "symbol": "ElectroShotStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage with the cast's crit flag"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce victims: spellBlockedCount, no damage; magicBounce SPECIAL damage > 0 reflects (500 ms) unless attacker has Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster's AP at the moment of the hit (after the +40)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor reduced by Rocky Helmet (to 0) and Black Augurite"
+   }
+  ]
+ }
+}
