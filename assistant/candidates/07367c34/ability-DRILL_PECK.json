@@ -1,0 +1,555 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRILL_PECK",
+ "kind": "ability",
+ "identifier": "DRILL_PECK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T053939Z"
+ },
+ "record": {
+  "ability": "DRILL_PECK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare DRILL_PECK (catalog passive NONE). The strategy is shared; differences are star count and stats.",
+  "appliesTo": [
+   {
+    "key": "DODRIO",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "DRILL_PECK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DODUO",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "DRILL_PECK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DODRIO": {
+    "evidence": [
+     "unit-dodrio"
+    ]
+   },
+   "DODUO": {
+    "evidence": [
+     "unit-doduo"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRILL_PECK] = new DrillPeckStrategy()",
+   "strategy": "DrillPeckStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-dp",
+    "dp-class",
+    "base-flags",
+    "base-pp",
+    "dp-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage (requested 30/60/120/240 by stars), then the caster moves into the target's cell, then a chain check. Order: the caster's orientation is set toward the target; the cell directly behind the target (target position + the orientation's unit step) is computed first; the target takes the damage; the caster is moved to the target's cell by moveTo with forcedDisplacement false (a swap: if the target is still alive it ends up in the caster's former cell, if it died its cell was already emptied so the caster simply moves in); finally, if the cell behind the target's ORIGINAL position is on the board and now holds a unit whose team equals target.team, the caster's target is set to that unit and the caster's PP is set to maxPP, so it can cast again as soon as the cast gate is checked, hitting that next unit. There is no heal, status or AP effect. The requested amount is raw: damage x (1 + caster AP/100) [x crit], reduced by SPE_DEF (ceil, min 1). Requested raw numbers: DODUO (1 star) 30, DODRIO (2 stars) 60.",
+  "targeting": {
+   "who": "the cast target passed to the strategy; the chain retargets the unit standing behind the target's original cell if it is on the target's team",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; target selection before the cast was not read.",
+   "evidence": [
+    "dp-class",
+    "base-flags",
+    "dp-chain",
+    "dp-vector"
+   ]
+  },
+  "geometry": {
+   "shape": "single target plus a straight-line chain step: the next cell is target position + the 8-direction unit step from caster to target (diagonals included)",
+   "movement": "caster swaps into the target's cell (not blocked by canBeMoved since forcedDisplacement is false); the target is displaced into the caster's old cell only if it survives",
+   "evidence": [
+    "dp-orient",
+    "dp-vector",
+    "orientation",
+    "orient-vec",
+    "dp-move",
+    "move-to",
+    "board-swap",
+    "board-get",
+    "can-be-moved",
+    "death",
+    "dp-chain"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "DODRIO": 60,
+     "DODUO": 30
+    },
+    "scaling": "requested raw amount; AP: x (1 + caster AP/100) (apBoost defaults to true); the cast's crit factor only if the cast crit (canCritByDefault false, needs ABILITY_CRIT)",
+    "resolution": "applied change: blocked by protect / skydiving / magicBounce on the target (takenDamage 0; a magicBounce bounce applies to SPECIAL damage unless the caster holds Protective Pads); otherwise handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, min 1, then shield, Shiny Charm, Fossil and Cover Band accounting. The returned takenDamage is not used by the strategy. If the hit is blocked, the target is not killed and the caster still swaps into its cell.",
+    "evidence": [
+     "dp-dmg",
+     "dp-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-shield",
+     "td-cover"
+    ]
+   },
+   {
+    "kind": "movement (self swap)",
+    "declaredRaw": {
+     "destination": "the target's cell"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(target.positionX, target.positionY, board, false): board.swapCells then toMovingState on the caster (and on the occupant if any); cooldown 100. Not conditional on the damage result and not blocked by canBeMoved / Heavy-Duty Boots on the caster (forcedDisplacement false). A target killed by the hit has been removed from the cell first, so the caster moves into an empty cell.",
+    "evidence": [
+     "dp-move",
+     "move-to",
+     "board-swap",
+     "death",
+     "can-be-moved"
+    ]
+   },
+   {
+    "kind": "chain (PP refill and retarget)",
+    "declaredRaw": {
+     "pp": "maxPP"
+    },
+    "scaling": "none",
+    "resolution": "if the cell behind the target's original position is on the board and holds a unit with team equal to target.team (read after the swap): targetX / targetY / targetEntityId are set to it and PP is set to maxPP. If that cell is empty, off the board or holds another team, PP stays at 0 after the base-class cost. The same-team test uses target.team after the damage, and a killed target has its team reset to its baseTeam at death.",
+    "evidence": [
+     "dp-chain",
+     "dp-pp",
+     "dp-vector",
+     "base-pp",
+     "death"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DODRIO": 2,
+    "DODUO": 1
+   },
+   "declaredRawDamage": {
+    "DODRIO": 60,
+    "DODUO": 30
+   },
+   "note": "indexed by the casting entity's stars; the 3- and 4-star values (120, 240, also the fallback) are not reachable by the listed units' bare star counts. maxPP 85 and range 1 for both. The chain does not depend on stars.",
+   "evidence": [
+    "dp-dmg",
+    "unit-dodrio",
+    "unit-doduo"
+   ]
+  },
+  "positionalConditions": "The chain depends on geometry: the cell behind the target along the caster-to-target direction (8 directions) must be on the board and occupied by a unit on the target's team. Diagonal casts chain diagonally. When the caster and target coincide in position (orientation error) the code returns DOWNRIGHT and logs an error.",
+  "repeatedCastsAndModes": "No stored state. A successful chain refills PP so the next cast can follow at once, repeating down the line while a same-team unit stands behind the previous victim.",
+  "rawVsResolved": "Requested (raw): 30 / 60 damage (1 / 2 stars). Applied: x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting; blocked cases give 0 but the swap and the chain check still run. takenDamage is not used. The PP refill is all-or-nothing (set to maxPP).",
+  "sourceTables": [
+   {
+    "id": "drillPeckDamage",
+    "file": "app/core/abilities/drill-peck.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - only SPE_DEF division, ceil/min 1 and the takenDamage branches were located",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "What the moving state and cooldown 100 do to the caster's next action, and how a retargeted unit is picked up by the attacking / moving states (not read)"
+  ],
+  "unresolved": [
+   "Whether the chain unit's targetEntityId set here is kept or overwritten by the unit's own targeting before the next cast (the targeting update loop was not read)",
+   "Resurrection or death-cancelling effects on the target were not enumerated; they would change whether the cell is emptied before the swap",
+   "Whether any other item or synergy effect changes DRILL_PECK beyond what is listed",
+   "Both units have passive NONE; no routing uncertainty in the queue record; not probed and not a fight; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-doduo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13231,
+     13245
+    ],
+    "symbol": "unit-doduo",
+    "expect": "skill = Ability.DRILL_PECK",
+    "note": "unit class block: stars 1, maxPP 85, range 1, passive none"
+   },
+   {
+    "id": "unit-dodrio",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13247,
+     13262
+    ],
+    "symbol": "unit-dodrio",
+    "expect": "skill = Ability.DRILL_PECK",
+    "note": "unit class block: stars 2, maxPP 85, range 1, passive none"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "reg",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     848,
+     848
+    ],
+    "symbol": "reg-dp",
+    "expect": "[Ability.DRILL_PECK]: new DrillPeckStrategy()",
+    "note": ""
+   },
+   {
+    "id": "dp-class",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "dp-class",
+    "expect": "class DrillPeckStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "dp-super",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "dp-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dp-dmg",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "dp-dmg",
+    "expect": "[30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "requested damage by stars"
+   },
+   {
+    "id": "dp-orient",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     17,
+     24
+    ],
+    "symbol": "dp-orient",
+    "expect": "pokemon.orientation = board.orientation(",
+    "note": "caster turns toward the target (caster position to target position)"
+   },
+   {
+    "id": "dp-vector",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     25,
+     28
+    ],
+    "symbol": "dp-vector",
+    "expect": "const nextX = target.positionX + dx",
+    "note": "the cell directly behind the target, computed BEFORE the damage and the move"
+   },
+   {
+    "id": "dp-hit",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "dp-hit",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, cast crit flag, apBoost default true"
+   },
+   {
+    "id": "dp-move",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "dp-move",
+    "expect": "pokemon.moveTo(target.positionX, target.positionY, board, false)",
+    "note": "caster moves into the target's cell (swap)"
+   },
+   {
+    "id": "dp-chain",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     33,
+     41
+    ],
+    "symbol": "dp-chain",
+    "expect": "nextEntity?.team === target.team",
+    "note": "if the cell behind holds a unit of the target's team: retarget it and refill PP to maxPP"
+   },
+   {
+    "id": "dp-pp",
+    "file": "app/core/abilities/drill-peck.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "dp-pp",
+    "expect": "pokemon.pp = pokemon.maxPP",
+    "note": ""
+   },
+   {
+    "id": "orientation",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "orientation",
+    "expect": "orientation(",
+    "note": "direction from caster to target position (8 directions); dx = dy = 0 logs an error and returns DOWNRIGHT (random if confused)"
+   },
+   {
+    "id": "orient-vec",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "orient-vec",
+    "expect": "[Orientation.UP]: [0, 1]",
+    "note": "unit step per orientation"
+   },
+   {
+    "id": "board-get",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "board-get",
+    "expect": "getEntityOnCell(x: number, y: number)",
+    "note": "undefined off the board"
+   },
+   {
+    "id": "board-swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "board-swap",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number)",
+    "note": ""
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "move-to",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "moveTo swaps the two cells (target goes to the caster's old cell if it is still on the board); cooldown set to 100"
+   },
+   {
+    "id": "death",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     810,
+     819
+    ],
+    "symbol": "death",
+    "expect": "board.setEntityOnCell(pokemon.positionX, pokemon.positionY, undefined)",
+    "note": "a killed target is removed from its cell (and its team reset to baseTeam) at death"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "base-flags",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "base-pp",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "pp-gate",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "special",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "special-block",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0); a magicBounce bounce applies to SPECIAL damage unless the caster holds Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "special-ap",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "special-crit",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "def-step",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "def-min",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "armor-factor",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "td-shield",
+    "expect": "let residualDamage = reducedDamage",
+    "note": ""
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "td-cover",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band redirect of a lethal hit"
+   },
+   {
+    "id": "can-be-moved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "can-be-moved",
+    "expect": "get canBeMoved(): boolean",
+    "note": "the forcedDisplacement=false call used here does not check canBeMoved"
+   }
+  ]
+ }
+}
