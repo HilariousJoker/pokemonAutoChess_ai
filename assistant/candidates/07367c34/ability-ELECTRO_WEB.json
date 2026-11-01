@@ -1,0 +1,471 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ELECTRO_WEB",
+ "kind": "ability",
+ "identifier": "ELECTRO_WEB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T183956Z"
+ },
+ "record": {
+  "ability": "ELECTRO_WEB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ELECTRO_WEB in this production reference: Joltik (1 star) and Galvantula (2 stars), both BUG + ELECTRIC, maxPP 100, range 1, no passive. The strategy is shared.",
+  "appliesTo": [
+   {
+    "key": "GALVANTULA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ELECTRO_WEB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "JOLTIK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ELECTRO_WEB",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALVANTULA": {
+    "evidence": [
+     "unit-galvantula"
+    ]
+   },
+   "JOLTIK": {
+    "evidence": [
+     "unit-joltik"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ELECTRO_WEB] = new ElectroWebStrategy()",
+   "strategy": "ElectroWebStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ew",
+    "class",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "super"
+   ]
+  },
+  "summary": "Adjacent-ring speed steal. On cast the caster spends its PP, then for each of the up to 8 cells around the caster (rows top to bottom, columns left to right) that holds a unit of the other team: that unit takes SPECIAL damage of raw 15 (1 star, Joltik) or 30 (2 stars, Galvantula), and, unless it holds a Twist Band, loses requested speed 15/30 while the caster gains requested speed 15/30, both scaled by the caster's AP and by crit if the cast crits. The cast target is not used: the ring around the caster is hit regardless of who the caster was targeting. The caster's gain is the full scaled amount even if the victim's speed is clamped at 0 and loses less, so repeated victims can raise the caster toward the 300 speed cap.",
+  "targeting": {
+   "who": "all units of the opposing team on the 8 cells adjacent to the caster's cell",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true so the caster approaches a target, but the target parameter is not read by process",
+   "evidence": [
+    "class",
+    "adjacent",
+    "loop"
+   ]
+  },
+  "geometry": {
+   "shape": "ring of 8 neighbours around the caster",
+   "adjacency": "all 8 neighbours including diagonals, centre excluded, cells off the board dropped",
+   "limits": "one pass per cast, each adjacent enemy once; speed steal skipped for Twist Band holders",
+   "evidence": [
+    "adjacent",
+    "loop",
+    "twist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "JOLTIK": 15,
+     "GALVANTULA": 30
+    },
+    "scaling": "requested raw by caster stars ([stars-1], 120 fallback; the 3- and 4-star entries are not used by the listed units). handleSpecialDamage multiplies by (1 + caster AP/100) and by critPower (reduced by the victim's Rocky Helmet / Black Augurite) only if the cast crit (needs ABILITY_CRIT; one roll shared by all victims).",
+    "resolution": "requested amount -> AP / crit -> PokemonState.handleDamage (defenses, SPE_DEF reduction with the floor of 1, shield; core-mechanics sections A and H) per victim; applied HP loss and takenDamage (shield part included) differ per victim. Protect / skydiving / magicBounce victims take nothing (magicBounce reflects unless Protective Pads), but the speed steal below still runs for them unless they hold a Twist Band. The ability reads no takenDamage.",
+    "evidence": [
+     "dmg-table",
+     "loop",
+     "hit",
+     "special-dmg",
+     "special-ap",
+     "special-crit",
+     "cast-crit",
+     "base-flags"
+    ]
+   },
+   {
+    "kind": "stat_change",
+    "stat": "speed",
+    "direction": "victim loses, caster gains",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "JOLTIK": 15,
+     "GALVANTULA": 30
+    },
+    "scaling": "requested amount = same table. Victim: addSpeed(-steal, caster, 1, crit): the helpers run before the scaling; Big Eater Belt does not act (negative value from another team) and Twist Band holders are excluded by the strategy; the request is then multiplied by (1 + caster AP/100) and by critPower on crit, and victim speed is clamped to 0..300. A victim with the MELMETAL passive instead loses Attack: addAttack(-steal x 0.5, caster, 1, crit), scaled by AP / crit, Attack floored at 1. Caster: addSpeed(+steal, self, 1, crit): a Big Eater Belt holder first gets x1.25 rounded down, then the same AP / crit scaling, clamp 0..300 (Twist Band does not act on a positive value).",
+    "resolution": "requested 15/30 -> (belt on the caster's gain) -> x AP x crit -> clamp; applied victim loss and applied caster gain are computed independently (the caster's gain is not limited to what the victim actually lost). The changes last for the rest of the fight (permanent false).",
+    "evidence": [
+     "steal-table",
+     "twist",
+     "steal",
+     "add-speed",
+     "add-attack",
+     "belt",
+     "twist-helper"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "speed",
+    "raw": "15 / 30 per adjacent enemy",
+    "note": "see effects[1]"
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "JOLTIK": 1,
+    "GALVANTULA": 2
+   },
+   "declaredRawDamage": {
+    "JOLTIK": 15,
+    "GALVANTULA": 30
+   },
+   "declaredRawSpeedSteal": {
+    "JOLTIK": 15,
+    "GALVANTULA": 30
+   },
+   "note": "both tables are indexed by the casting entity's stars and hold the same numbers",
+   "evidence": [
+    "dmg-table",
+    "steal-table"
+   ]
+  },
+  "positionalConditions": "The effect depends on which enemy units are on the cells next to the caster when it casts; with none adjacent only PP is spent. Cells are processed top row first, left to right; the caster's speed changes as each victim is processed but each step uses its own request.",
+  "repeatedCastsAndModes": "Each cast repeats the ring pass; speed changes stack across casts (not permanent, no reset in the strategy), limited by the 0..300 clamp.",
+  "rawVsResolved": "Declared raw: damage 15 / 30 and speed steal 15 / 30. Requested = those values per adjacent enemy. Applied damage = requested x (1 + AP/100) [x crit], then handleDamage. Applied speed: victim -= requested x (1 + AP/100) [x crit] (clamped at 0; a MELMETAL victim loses half that as Attack); caster += floor-rounded(requested x1.25 if Big Eater Belt) x (1 + AP/100) [x crit] (clamped at 300). Twist Band holders on the victim side take damage but no speed change.",
+  "sourceTables": [
+   {
+    "id": "electroWebDamage",
+    "file": "app/core/abilities/electro-web.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "electroWebSteal",
+    "file": "app/core/abilities/electro-web.ts",
+    "pattern": "const steal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (consulted via core-mechanics sections A and H, not re-probed)",
+   "When the cast fires in a real fight (PP gain, silence, canCast): only the pp >= maxPP && canCast gate and castAbility were read",
+   "How speed translates into attack and movement cooldown (resetCooldown uses speed; the formula was seen, the update loop was not traced)"
+  ],
+  "unresolved": [
+   "The queue record lists no routing uncertainties; Galvantula and Joltik are the only units listed for this identifier",
+   "Whether a victim killed by the damage of the same pass still receives the speed change (the strategy does not check; whether board cells keep dead units was not traced)",
+   "The Rune Protect or other guards on speed changes were not found in addSpeed; no such guard was read",
+   "No pinned-helper probe was run for this record; the code was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-joltik",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9129,
+     9142
+    ],
+    "symbol": "class Joltik",
+    "expect": "skill = Ability.ELECTRO_WEB",
+    "note": "unit class block; 1 star, BUG + ELECTRIC, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "unit-galvantula",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9144,
+     9158
+    ],
+    "symbol": "class Galvantula",
+    "expect": "skill = Ability.ELECTRO_WEB",
+    "note": "unit class block; 2 stars, BUG + ELECTRIC, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ew",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     861,
+     861
+    ],
+    "symbol": "AbilityStrategies[Ability.ELECTRO_WEB]",
+    "expect": "[Ability.ELECTRO_WEB]: new ElectroWebStrategy()",
+    "note": ""
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "ElectroWebStrategy",
+    "expect": "class ElectroWebStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override: base defaults true / false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent in super.process"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     18,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled once at cast time, only with ABILITY_CRIT"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "steal-table",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "const steal = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "requested speed amount by caster stars"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw damage by caster stars (same numbers as steal)"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "the 8 neighbours on the board, rows top to bottom, columns left to right; the centre excluded"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     17,
+     20
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": "every occupied adjacent cell of the other team, around the caster's own cell"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage with the cast's crit flag"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "cell.value.items.has(Item.TWIST_BAND) === false",
+    "note": "a Twist Band holder is skipped for the speed steal (the damage is already dealt)"
+   },
+   {
+    "id": "steal",
+    "file": "app/core/abilities/electro-web.ts",
+    "lines": [
+     29,
+     30
+    ],
+    "symbol": "ElectroWebStrategy.process",
+    "expect": "pokemon.addSpeed(steal, pokemon, 1, crit)",
+    "note": "victim addSpeed(-steal, caster, 1, crit) and caster addSpeed(+steal, self, 1, crit)"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "helpers, MELMETAL redirect to Attack, AP / crit scaling, clamp 0..MAX_SPEED"
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     751
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "MELMETAL path: AP / crit first, then helpers, Attack floored at 1"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value x1.25 rounded down for a Big Eater Belt holder"
+   },
+   {
+    "id": "twist-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "negative value from another team is flipped for a Twist Band holder"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce victims take no damage (magicBounce reflects unless Protective Pads)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   }
+  ]
+ }
+}
