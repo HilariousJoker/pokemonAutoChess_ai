@@ -1,0 +1,411 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ECHO",
+ "kind": "ability",
+ "identifier": "ECHO",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T124001Z"
+ },
+ "record": {
+  "ability": "ECHO",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Chingling (2 stars, passive CHINGLING) and Chimecho (3 stars, passive CHIMECHO) declare ECHO; both range 2, maxPP 75. The strategy is shared; unit differences are the star index and passive. The passives are not covered here.",
+  "appliesTo": [
+   {
+    "key": "CHIMECHO",
+    "stars": 3,
+    "maxPP": 75,
+    "range": 2,
+    "declaredSkill": "ECHO",
+    "declaredPassive": "CHIMECHO",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHINGLING",
+    "stars": 2,
+    "maxPP": 75,
+    "range": 2,
+    "declaredSkill": "ECHO",
+    "declaredPassive": "CHINGLING",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CHIMECHO": {
+    "evidence": [
+     "unit-chimecho"
+    ]
+   },
+   "CHINGLING": {
+    "evidence": [
+     "unit-chingling",
+     "chingling-pass"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ECHO] = new EchoStrategy()",
+   "strategy": "EchoStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-echo",
+    "base",
+    "base-flags",
+    "cast",
+    "echo-class"
+   ]
+  },
+  "summary": "Cast without a target. The base process first adds 1 to the caster's count.ult (the number of casts so far, this one included). ECHO then hits every enemy occupant in a circular area around the caster (centre excluded) with SPECIAL damage of count.ult x (3/6/9/12 by stars), so damage and radius both grow with each cast: radius is 2 + count.ult (floored, plus 0.5, strict squared-distance test). Example for the first cast (count.ult 1): radius 3, per-enemy raw damage 6 (Chingling) or 9 (Chimecho); the second cast: radius 4 and 12 / 18.",
+  "targeting": {
+   "who": "every occupant of cells in the radius whose team differs from the caster's",
+   "needsTarget": false,
+   "note": "Team inequality is the only filter: no isTargettableBy check is made, so any occupant of another team in the area is hit (including untargettable or non-attackable ones if such states exist; not traced). Every hit uses the same amount. The caster's own cell is excluded.",
+   "evidence": [
+    "echo-class",
+    "echo-area",
+    "echo-hit",
+    "radius"
+   ]
+  },
+  "geometry": {
+   "shape": "disc: cells with dx^2 + dy^2 < (floor(radius) + 0.5)^2 on the board, centre excluded; radius = 2 + count.ult (3 on the first cast, growing by 1 per cast)",
+   "evidence": [
+    "echo-range",
+    "echo-area",
+    "radius",
+    "base"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy in the disc, once",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 6,
+      "3": 9,
+      "4": 12,
+      "fallback": 12
+     },
+     "multiplier": "count.ult (after increment)"
+    },
+    "perUnitRaw": {
+     "CHIMECHO": 9,
+     "CHINGLING": 6
+    },
+    "scaling": "requested amount = count.ult x table value (table is per cast; count.ult is read after this cast incremented it). Then AP: x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies by critPower only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); the crit flag is shared by all targets of the cast.",
+    "resolution": "applied: per target division by (1 + ARMOR_FACTOR x SPE_DEF), shields and other untraced modifiers; takenDamage includes shield damage; minimum 1 after ceil. Blocked per target by protect / skydiving / magicBounce (magicBounce reflects SPECIAL damage to the caster unless Protective Pads). No falloff with distance.",
+    "evidence": [
+     "echo-dmg",
+     "echo-hit",
+     "base",
+     "count-ult",
+     "ult-reset",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "state-spe",
+     "state-floor"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CHIMECHO": 3,
+    "CHINGLING": 2
+   },
+   "declaredRawDamage": {
+    "CHIMECHO": 9,
+    "CHINGLING": 6
+   },
+   "note": "table value per unit at its factory stars, multiplied by count.ult at cast time. 1-star and 4-star columns are not reachable from the bare factory stars of the listed units. Whether other mechanics raise star counts was not examined.",
+   "evidence": [
+    "echo-dmg",
+    "unit-chimecho",
+    "unit-chingling"
+   ]
+  },
+  "positionalConditions": "The radius is centred on the caster's cell at the moment of the cast; only the caster's position and the board occupants matter. Cells off the board are skipped.",
+  "repeatedCastsAndModes": "State kept: count.ult, a uint8 counter on the entity, incremented by every cast (any ability, since the increment is in the base process) and reset to 0 only in the VOLT_SURGE revive path found; it is not reset for ECHO. Its starting value for a fight-created entity is the Count default 0 (entity construction not traced). The uint8 type would wrap after 255 casts (not reachable in practice, not verified).",
+  "rawVsResolved": "Requested: count.ult x 6 (Chingling) or x 9 (Chimecho) per enemy, e.g. 6 / 9 on the first cast and 12 / 18 on the second. Applied per target: x (1 + AP/100), crit factor if the cast crit, SPE_DEF division, minimum 1; takenDamage reported by handleDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/echo.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's shields, items, resurrection and field multipliers beyond the lines read",
+   "When the cast fires in a real fight (PP gain, silence, canCast); a targetless cast's trigger condition (range gate) was not read",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate",
+   "Whether untargettable occupants exist on the board during a cast"
+  ],
+  "unresolved": [
+   "No routing uncertainty was recorded for this identifier in the queue",
+   "The passives CHINGLING and CHIMECHO were not investigated (only the CHINGLING stack effect was located and not claimed to alter ECHO)",
+   "Whether other effects (items, synergies) change count.ult; only the base increment and the VOLT_SURGE reset were found by searching for 'count.ult' in app/core and app/models, and some uses (items.ts 995 and 1035, passives.ts 1269, synergies.ts 564, pokemon-state.ts 128) were located but not read",
+   "Whether other mechanics raise the listed units' star counts",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-chingling",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11938,
+     11954
+    ],
+    "symbol": "class Chingling",
+    "expect": "skill = Ability.ECHO",
+    "note": "unit class block: stars 2, maxPP 75, range 2, passive CHINGLING"
+   },
+   {
+    "id": "unit-chimecho",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11956,
+     11972
+    ],
+    "symbol": "class Chimecho",
+    "expect": "skill = Ability.ECHO",
+    "note": "unit class block: stars 3, maxPP 75, range 2, passive CHIMECHO"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-echo",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     854,
+     854
+    ],
+    "symbol": "AbilityStrategies[Ability.ECHO]",
+    "expect": "[Ability.ECHO]: new EchoStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.count.ult += 1",
+    "note": "base process spends maxPP of PP and increments count.ult BEFORE the subclass reads it"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "strategy does not override canCritByDefault; no crit roll without ABILITY_CRIT"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "echo-class",
+    "file": "app/core/abilities/echo.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "EchoStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target; super.process runs first with a null target"
+   },
+   {
+    "id": "echo-dmg",
+    "file": "app/core/abilities/echo.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "EchoStrategy.process",
+    "expect": "const damage = [3, 6, 9, 12][pokemon.stars - 1] ?? 12",
+    "note": "per-cast-count damage table by stars"
+   },
+   {
+    "id": "echo-range",
+    "file": "app/core/abilities/echo.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "EchoStrategy.process",
+    "expect": "const range = 2 + pokemon.count.ult",
+    "note": "radius grows with the number of casts, read after the increment"
+   },
+   {
+    "id": "echo-area",
+    "file": "app/core/abilities/echo.ts",
+    "lines": [
+     12,
+     14
+    ],
+    "symbol": "EchoStrategy.process",
+    "expect": ".getCellsInRadius(pokemon.positionX, pokemon.positionY, range, false)",
+    "note": "cells around the caster, centre excluded"
+   },
+   {
+    "id": "echo-hit",
+    "file": "app/core/abilities/echo.ts",
+    "lines": [
+     15,
+     23
+    ],
+    "symbol": "EchoStrategy.process",
+    "expect": "pokemon.count.ult * damage",
+    "note": "each enemy occupant takes SPECIAL damage of count.ult x table value"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     267,
+     289
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "distanceSquared < radiusSquared",
+    "note": "radius floored then +0.5; euclidean squared distance strictly less; on-board cells only; centre skipped when includesCenter false"
+   },
+   {
+    "id": "count-ult",
+    "file": "app/models/colyseus-models/count.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "Count.ult",
+    "expect": "@type(\"uint8\") ult = 0",
+    "note": "starts at 0; uint8"
+   },
+   {
+    "id": "ult-reset",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1552,
+     1554
+    ],
+    "symbol": "PokemonEntity (revive path)",
+    "expect": "this.count.ult = 0",
+    "note": "the only reset of count.ult found, limited to VOLT_SURGE users"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage for that target; magicBounce reflects SPECIAL damage unless the attacker holds Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applies to the already multiplied amount"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier with Rocky Helmet / Black Augurite reductions"
+   },
+   {
+    "id": "state-spe",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by SPE_DEF factor"
+   },
+   {
+    "id": "state-floor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 after ceil"
+   },
+   {
+    "id": "chingling-pass",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1126,
+     1136
+    ],
+    "symbol": "chinglingCountCastsEffect",
+    "expect": "Passive.CHINGLING",
+    "note": "Chingling's passive adds a stack on each ally cast; not part of this record (stacks drive its evolution, not the ECHO formula as read)"
+   }
+  ]
+ }
+}
