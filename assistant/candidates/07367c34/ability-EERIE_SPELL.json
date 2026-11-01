@@ -1,0 +1,477 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/EERIE_SPELL",
+ "kind": "ability",
+ "identifier": "EERIE_SPELL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T124001Z"
+ },
+ "record": {
+  "ability": "EERIE_SPELL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Galarian Slowpoke (1 star, maxPP 100, range 1, passive GALARIAN_SLOWPOKE) and Galarian Slowking (2 stars, maxPP 110, range 3, no declared passive) declare EERIE_SPELL. The strategy is shared; unit differences are the star index, range and maxPP. The Slowpoke passive is not covered.",
+  "appliesTo": [
+   {
+    "key": "GALARIAN_SLOWKING",
+    "stars": 2,
+    "maxPP": 110,
+    "range": 3,
+    "declaredSkill": "EERIE_SPELL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GALARIAN_SLOWPOKE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EERIE_SPELL",
+    "declaredPassive": "GALARIAN_SLOWPOKE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALARIAN_SLOWKING": {
+    "evidence": [
+     "unit-slowking"
+    ]
+   },
+   "GALARIAN_SLOWPOKE": {
+    "evidence": [
+     "unit-slowpoke"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.EERIE_SPELL] = new EerieSpellStrategy()",
+   "strategy": "EerieSpellStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-es",
+    "base",
+    "base-flags",
+    "cast",
+    "es-super"
+   ]
+  },
+  "summary": "Four-step chain. Step 1 hits the cast target; each following step goes to the unvisited entity on the whole board (either team, the caster included) with the lowest current HP. At each step an entity on the caster's team receives a heal (15/30/45/90 raw by stars, requested) and any other entity takes SPECIAL damage (raw 10/20/40/80 by stars). All four steps run immediately in one call; the 300 ms spacing exists only in the animation broadcasts. If the board has fewer than four reachable entities the loop simply ends early for the remaining steps.",
+  "targeting": {
+   "who": "step 1: the cast target (normally an enemy, so it takes damage); steps 2 to 4: lowest-current-HP unvisited entities from board.cells of either team, caster included",
+   "needsTarget": true,
+   "note": "The filter is only 'not null and not yet visited', with no team, targettable or alive-state check beyond board occupancy. Ordering is by absolute hp, not percentage; ties keep board scan order (stable sort, row by row). The caster is not in the visited set at the start, so it can be chosen as a bounce and heal itself; the cast target can only appear once. If the cast target is on the caster's team, step 1 heals it.",
+   "evidence": [
+    "es-state",
+    "es-loop",
+    "es-effect",
+    "es-next"
+   ]
+  },
+  "geometry": {
+   "shape": "no area: up to four single-entity steps with no distance limit",
+   "evidence": [
+    "es-loop",
+    "es-next",
+    "es-anim"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each non-allied entity chosen in the four steps (each at most once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "GALARIAN_SLOWKING": 20,
+     "GALARIAN_SLOWPOKE": 10
+    },
+    "scaling": "requested amount = raw table value per step, no decay along the chain. AP: x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies by critPower only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT).",
+    "resolution": "applied: per target division by (1 + ARMOR_FACTOR x SPE_DEF), shields and other untraced modifiers; takenDamage includes shield damage; minimum 1 after ceil. Blocked per target by protect / skydiving / magicBounce (magicBounce reflects SPECIAL damage to the caster unless Protective Pads).",
+    "evidence": [
+     "es-dmg",
+     "es-hit",
+     "es-effect",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "state-spe",
+     "state-floor"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "each same-team entity chosen in the four steps (caster included)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 45,
+      "4": 90,
+      "fallback": 90
+     }
+    },
+    "perUnitRaw": {
+     "GALARIAN_SLOWKING": 30,
+     "GALARIAN_SLOWPOKE": 15
+    },
+    "scaling": "requested amount = raw table value per step. handleHeal is called with apBoost 1, so heal x (1 + AP/100) of the caster, x critPower if the cast crit, then recipient modifiers: x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded.",
+    "resolution": "applied: a wounded recipient receives no HP (Blood Moon with Blood Stone can still add a shield), a recipient with protect receives none, the result is capped at the recipient's missing HP, and overheal is dropped; healed amount counts toward the caster's healDone. Requested, applied and reported amounts differ whenever any of these apply.",
+    "evidence": [
+     "es-tables",
+     "es-heal",
+     "es-effect",
+     "ent-heal",
+     "state-heal"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GALARIAN_SLOWKING": 2,
+    "GALARIAN_SLOWPOKE": 1
+   },
+   "declaredRawDamage": {
+    "GALARIAN_SLOWKING": 20,
+    "GALARIAN_SLOWPOKE": 10
+   },
+   "declaredRawHeal": {
+    "GALARIAN_SLOWKING": 30,
+    "GALARIAN_SLOWPOKE": 15
+   },
+   "note": "indexed by the casting entity's stars; the 3 and 4 star columns are not reachable from the bare factory stars of the listed units. Whether other mechanics raise star counts was not examined.",
+   "evidence": [
+    "es-tables",
+    "es-dmg",
+    "unit-slowking",
+    "unit-slowpoke"
+   ]
+  },
+  "positionalConditions": "None in the strategy; chain order depends only on current HP of board occupants. The cast target is hit first wherever it stands.",
+  "repeatedCastsAndModes": "No stored state or modes; the visited set is local to each cast, so every cast starts a fresh chain.",
+  "rawVsResolved": "Requested: damage 10/20 and heal 15/30 per step (1/2 stars). Applied damage: x (1 + AP/100), crit factor if the cast crit, SPE_DEF division, minimum 1. Applied heal: x (1 + AP/100), crit, recipient multipliers, rounding, cap at missing HP, zero for wounded or protected recipients. Reported takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "heal",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "pattern": "const healAmount = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's shields, items, resurrection and field multipliers beyond the lines read",
+   "Remaining tail of PokemonState.handleHeal after line 357 (lifesteal-like or heal-triggered effects) was not read",
+   "When the cast fires in a real fight (PP gain, targeting, silence); range gating for Slowking (3) versus Slowpoke (1)",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate"
+  ],
+  "unresolved": [
+   "No routing uncertainty was recorded for this identifier in the queue",
+   "The Galarian Slowpoke passive GALARIAN_SLOWPOKE was not investigated",
+   "Whether board.cells can hold entities that should not be chosen (dead, untargettable, summoned); only board occupancy is known",
+   "Whether other mechanics raise the listed units' star counts",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-slowpoke",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4289,
+     4313
+    ],
+    "symbol": "class GalarianSlowpoke",
+    "expect": "skill = Ability.EERIE_SPELL",
+    "note": "unit class block: stars 1, maxPP 100, range 1, passive GALARIAN_SLOWPOKE"
+   },
+   {
+    "id": "unit-slowking",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4348,
+     4364
+    ],
+    "symbol": "class GalarianSlowking",
+    "expect": "skill = Ability.EERIE_SPELL",
+    "note": "unit class block: stars 2, maxPP 110, range 3, no passive line"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-es",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     855,
+     855
+    ],
+    "symbol": "AbilityStrategies[Ability.EERIE_SPELL]",
+    "expect": "[Ability.EERIE_SPELL]: new EerieSpellStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     25
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; with preventDefaultAnim true the default broadcast is skipped"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "strategy does not override, so no crit roll without ABILITY_CRIT"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "es-super",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default animation suppressed; per-bounce broadcasts instead"
+   },
+   {
+    "id": "es-tables",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "const healAmount = [15, 30, 45, 90][pokemon.stars - 1] ?? 90",
+    "note": "damage and heal tables by stars"
+   },
+   {
+    "id": "es-dmg",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage table"
+   },
+   {
+    "id": "es-state",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     17,
+     19
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "let lastTarget: PokemonEntity = pokemon",
+    "note": "visited set, first target is the cast target"
+   },
+   {
+    "id": "es-loop",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     22,
+     25
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "for (let i = 0; i < 4; i++) {",
+    "note": "four iterations, all executed synchronously in this call"
+   },
+   {
+    "id": "es-anim",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     27,
+     33
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "delay: 300 * i",
+    "note": "the 300 ms delay is only on the animation broadcast, not on the effect"
+   },
+   {
+    "id": "es-effect",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     38,
+     48
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "if (currentTarget.team === pokemon.team) {",
+    "note": "same team as the caster: heal; otherwise special damage"
+   },
+   {
+    "id": "es-heal",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "currentTarget.handleHeal(healAmount, pokemon, 1, crit)",
+    "note": "heal with apBoost 1 and the cast's crit flag"
+   },
+   {
+    "id": "es-hit",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     41,
+     47
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": "currentTarget.handleSpecialDamage(",
+    "note": "SPECIAL damage to enemies"
+   },
+   {
+    "id": "es-next",
+    "file": "app/core/abilities/eerie-spell.ts",
+    "lines": [
+     51,
+     54
+    ],
+    "symbol": "EerieSpellStrategy.process",
+    "expect": ".sort((a, b) => a.hp - b.hp)[0]",
+    "note": "next target: unvisited entity of ANY team with the lowest current hp (sort is stable, ties keep board order)"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "state-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "wound blocks HP heal; protect blocks; AP, crit, 1.3 BUFF_HEAL_RECEIVED, 0.5 burn, 0.5 enraged, 1.2 ZENITH, round, cap at missing HP"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage; magicBounce reflects SPECIAL damage unless the attacker holds Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier with Rocky Helmet / Black Augurite reductions"
+   },
+   {
+    "id": "state-spe",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by SPE_DEF factor"
+   },
+   {
+    "id": "state-floor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 after ceil"
+   }
+  ]
+ }
+}
