@@ -1,0 +1,450 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/DRILL_RUN",
+ "kind": "ability",
+ "identifier": "DRILL_RUN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T124001Z"
+ },
+ "record": {
+  "ability": "DRILL_RUN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Drilbur (1 star) and Excadrill (2 stars) declare DRILL_RUN; both range 1, maxPP 100, no declared passive. The strategy is shared; unit differences are the star index only.",
+  "appliesTo": [
+   {
+    "key": "DRILBUR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRILL_RUN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "EXCADRILL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "DRILL_RUN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DRILBUR": {
+    "evidence": [
+     "unit-drilbur"
+    ]
+   },
+   "EXCADRILL": {
+    "evidence": [
+     "unit-excadrill"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.DRILL_RUN] = new DrillRunStrategy()",
+   "strategy": "DrillRunStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": true,
+   "evidence": [
+    "reg",
+    "reg-dr",
+    "base",
+    "dr-class",
+    "cast"
+   ]
+  },
+  "summary": "The caster faces the cast target, deals TRUE damage (raw 15/30/60/120 by stars, AP-scaled, crit-capable by default) to that single target, then swaps into the target's cell via moveTo (no canBeMoved check; the target is displaced to the caster's old cell). If the cell directly behind the target (target's pre-move cell plus the facing vector) is on the board and holds an entity of the target's team, the caster sets that entity as its target and its PP is set to maxPP, so it can cast again immediately.",
+  "targeting": {
+   "who": "the cast target (single enemy); the chain check looks at the cell behind the target along the caster-to-target orientation",
+   "needsTarget": true,
+   "note": "nextX/nextY are computed from the target's position BEFORE the damage and the swap. Orientation uses only the sign of dx and dy, so a non-straight line is rounded to one of eight directions. The chain condition tests entity.team === target.team, so it matches the target's team (an enemy of the caster), not allies.",
+   "evidence": [
+    "dr-orient",
+    "dr-next",
+    "orient",
+    "orient-vec",
+    "get-cell",
+    "dr-chain"
+   ]
+  },
+  "geometry": {
+   "shape": "single target plus one cell behind it along the (sign-rounded) caster-to-target direction; caster ends on the target's former cell",
+   "evidence": [
+    "dr-next",
+    "dr-move",
+    "orient",
+    "orient-vec",
+    "swap",
+    "move-to"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "DRILBUR": 15,
+     "EXCADRILL": 30
+    },
+    "scaling": "requested amount = raw table value; AP: damage x (1 + AP/100) (apBoost default true); if the cast crit (canCritByDefault true, chance from critChance), multiplied by 1 + (critPower - 1) x critReductionFactor, where Rocky Helmet and Black Augurite reductions do not apply to TRUE damage. Declared raw is not the applied amount.",
+    "resolution": "applied: handleDamage for TRUE skips the DEF / SPE_DEF division, then shields and other untraced modifiers; takenDamage (shield damage included) is what handleDamage reports; the result is ceiled and at least 1 when it lands. Protect / skydiving / magicBounce on the target blocks it entirely (magicBounce reflects only SPECIAL, so nothing is reflected for TRUE).",
+    "evidence": [
+     "dr-table",
+     "dr-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "state-true",
+     "state-floor"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "the caster",
+    "description": "moveTo(target cell, forcedDisplacement=false) swaps the caster and the target; the target ends on the caster's former cell. Runs after the damage, so a target killed by the damage is still on its cell until removed (death handling not traced).",
+    "evidence": [
+     "dr-move",
+     "move-to",
+     "swap"
+    ]
+   },
+   {
+    "kind": "pp-refill-and-retarget",
+    "target": "the caster",
+    "description": "If the cell behind the target (pre-move) is on board and its occupant is on the target's team, targetX/targetY/targetEntityId are set to it and pp = maxPP (applied value equals maxPP exactly; no stat helper such as addPP is used, so Big Eater Belt / Twist Band do not alter it).",
+    "evidence": [
+     "dr-next",
+     "dr-chain"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DRILBUR": 1,
+    "EXCADRILL": 2
+   },
+   "declaredRawDamage": {
+    "DRILBUR": 15,
+    "EXCADRILL": 30
+   },
+   "note": "indexed by the casting entity's stars; 3 and 4 star entries (60, 120) are not reachable from the bare factory stars of the listed units. Whether other mechanics raise stars was not examined.",
+   "evidence": [
+    "dr-table",
+    "unit-drilbur",
+    "unit-excadrill"
+   ]
+  },
+  "positionalConditions": "Chain refill only if the cell behind the target (target position + facing vector, computed before the swap) is on the board and occupied by an entity whose team equals the target's team. Orientation with dx == 0 and dy == 0 (caster and target on one cell) is an error path returning DOWNRIGHT, not expected in normal play.",
+  "repeatedCastsAndModes": "No stored state or modes. A chain sets pp to maxPP, so the next attack update can cast again at once; the repeated cast is gated by the normal pp >= maxPP && canCast check (not re-read here). moveTo sets the caster's cooldown to 100.",
+  "rawVsResolved": "Requested: TRUE damage 15/30 (1/2 stars). Applied: x (1 + AP/100), crit factor if the cast crit, no DEF / SPE_DEF reduction (TRUE), blocked by protect / skydiving / magicBounce. Reported takenDamage: from handleDamage, shield damage included, minimum 1 if it lands. PP refill: exactly maxPP when the chain condition holds.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/drill-run.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's shields, items, resurrection and field multipliers beyond the lines read",
+   "When the cast fires in a real fight (PP gain, targeting, silence): only the pp >= maxPP && canCast gate is known from siblings",
+   "Death handling and removal of a target killed by the TRUE damage before the swap",
+   "Board.orientation call with confusion (random orientation) beyond the line read"
+  ],
+  "unresolved": [
+   "No routing uncertainty was recorded for this identifier in the queue",
+   "Whether swapping into a cell with a target that died the same tick behaves differently (death handling not traced)",
+   "Whether the retargeted entity behind the target is attacked at once or after movement (only the targetX/Y/entity id assignment was read)",
+   "Whether other mechanics raise the listed units' star counts",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-drilbur",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18782,
+     18795
+    ],
+    "symbol": "class Drilbur",
+    "expect": "skill = Ability.DRILL_RUN",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-excadrill",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18798,
+     18811
+    ],
+    "symbol": "class Excadrill",
+    "expect": "skill = Ability.DRILL_RUN",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-dr",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     849,
+     849
+    ],
+    "symbol": "AbilityStrategies[Ability.DRILL_RUN]",
+    "expect": "[Ability.DRILL_RUN]: new DrillRunStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; requiresTarget = true by default"
+   },
+   {
+    "id": "dr-class",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "DrillRunStrategy",
+    "expect": "canCritByDefault = true",
+    "note": "class overrides canCritByDefault to true; requiresTarget stays default true"
+   },
+   {
+    "id": "dr-table",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "dr-orient",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     18,
+     26
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "const [dx, dy] = OrientationVector[pokemon.orientation]",
+    "note": "caster orientation set toward the target, then vector read"
+   },
+   {
+    "id": "dr-next",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     28,
+     29
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "const nextX = target.positionX + dx",
+    "note": "cell directly behind the target, computed before damage and move"
+   },
+   {
+    "id": "dr-hit",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.TRUE, pokemon, crit)",
+    "note": "single-target TRUE damage via handleSpecialDamage"
+   },
+   {
+    "id": "dr-move",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "pokemon.moveTo(target.positionX, target.positionY, board, false)",
+    "note": "caster swaps into the target's cell (target read after damage)"
+   },
+   {
+    "id": "dr-chain",
+    "file": "app/core/abilities/drill-run.ts",
+    "lines": [
+     34,
+     42
+    ],
+    "symbol": "DrillRunStrategy.process",
+    "expect": "pokemon.pp = pokemon.maxPP",
+    "note": "same-team-as-target entity behind the target: caster retargets it and PP is refilled"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     140
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx/dy sign to orientation; dx == 0 && dy == 0 logs an error and returns DOWNRIGHT (random if confused)"
+   },
+   {
+    "id": "orient-vec",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "OrientationVector",
+    "expect": "[Orientation.UPRIGHT]: [1, 1]",
+    "note": "vector per orientation; UP is [0, 1]"
+   },
+   {
+    "id": "get-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "getEntityOnCell(x: number, y: number)",
+    "note": "returns undefined when off board"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number)",
+    "note": "exchanges both cells' occupants"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "forcedDisplacement false: no canBeMoved check; swaps cells; cooldown 100"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "blocks the damage (magicBounce reflection applies to SPECIAL only, not TRUE)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier; Rocky Helmet / Black Augurite reductions do not apply to TRUE"
+   },
+   {
+    "id": "state-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage",
+    "note": "TRUE damage skips DEF / SPE_DEF division"
+   },
+   {
+    "id": "state-floor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 after ceil"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled when canCrit and (ABILITY_CRIT or canCritByDefault)"
+   }
+  ]
+ }
+}
