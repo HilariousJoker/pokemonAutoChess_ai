@@ -1,0 +1,450 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/EAR_DIG",
+ "kind": "ability",
+ "identifier": "EAR_DIG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T124001Z"
+ },
+ "record": {
+  "ability": "EAR_DIG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "Bunnelby (1 star) and Diggersby (2 stars) declare EAR_DIG; both range 1, maxPP 100, no declared passive. The strategy is shared; unit differences are the star index only.",
+  "appliesTo": [
+   {
+    "key": "BUNNELBY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EAR_DIG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DIGGERSBY",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "EAR_DIG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BUNNELBY": {
+    "evidence": [
+     "unit-bunnelby"
+    ]
+   },
+   "DIGGERSBY": {
+    "evidence": [
+     "unit-diggersby"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.EAR_DIG] = new EarDigStrategy()",
+   "strategy": "EarDigStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ed",
+    "base",
+    "base-flags",
+    "cast",
+    "ed-super"
+   ]
+  },
+  "summary": "Single-target cast: reads the ground-hole depth (0 to 5) stored for the target's cell, deals SPECIAL damage of base (30/60/120/240 by stars) plus depth x per-level (5/10/20/40 by stars), AP-scaled and SPE_DEF-reduced, then, if the cell had depth 0, digs a depth-1 hole there. The depth used for damage is the value before the dig, so a first hit on a flat cell gets no depth bonus. The hole array read and written is always the simulation's blue player's (target.simulation.bluePlayer), whichever team the target is on; if there is no blue player no hole is read or dug and depth counts as 0.",
+  "targeting": {
+   "who": "the cast target only; the hole state is looked up by the target's current cell",
+   "needsTarget": true,
+   "note": "Index = positionY x 8 + positionX into bluePlayer.groundHoles. The array is not selected by the target's or caster's team, so a red-team target is looked up in the same blue-player array. Holes dug by other effects (Ground synergy, HYPER_DRILL, a passive that sets depth 5) share the array and raise the depth read here.",
+   "evidence": [
+    "ed-player",
+    "ed-hit",
+    "holes-def",
+    "blue-player",
+    "board-width"
+   ]
+  },
+  "geometry": {
+   "shape": "single cell (the target's), no area",
+   "evidence": [
+    "ed-player",
+    "board-width"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "base": {
+      "byStars": {
+       "1": 30,
+       "2": 60,
+       "3": 120,
+       "4": 240,
+       "fallback": 240
+      }
+     },
+     "perHoleLevel": {
+      "byStars": {
+       "1": 5,
+       "2": 10,
+       "3": 20,
+       "4": 40,
+       "fallback": 40
+      }
+     }
+    },
+    "perUnitRaw": {
+     "BUNNELBY": 30,
+     "DIGGERSBY": 60
+    },
+    "perUnitPerHoleLevelRaw": {
+     "BUNNELBY": 5,
+     "DIGGERSBY": 10
+    },
+    "scaling": "requested amount = base + depth x per-level where depth is the cell's stored value read before the dig (0 if none or no blue player; the stored uint8 is documented elsewhere as capped at 5, not verified here). Then AP: x (1 + AP/100) over the whole sum (apBoost default true); the crit flag multiplies by critPower only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT). Examples at depth 0 / 5: Bunnelby 30 / 55 raw, Diggersby 60 / 110 raw.",
+    "resolution": "applied: then division by (1 + ARMOR_FACTOR x SPE_DEF), shields and other untraced modifiers; reported takenDamage includes shield damage; minimum 1 after ceil. Blocked entirely by protect / skydiving / magicBounce (magicBounce reflects it unless Protective Pads). If blocked, the hole is still dug afterwards, because the dig does not depend on the damage result.",
+    "evidence": [
+     "ed-base",
+     "ed-dmg",
+     "ed-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "state-spe",
+     "state-floor"
+    ]
+   },
+   {
+    "kind": "terrain",
+    "target": "the target's cell in the blue player's groundHoles",
+    "description": "After the damage, if depth was 0 and a blue player exists, the cell's depth is set to 1. No other change; deeper holes are not increased by this ability.",
+    "evidence": [
+     "ed-dig",
+     "ed-bcast",
+     "holes-def"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BUNNELBY": 1,
+    "DIGGERSBY": 2
+   },
+   "declaredRawDamage": {
+    "BUNNELBY": 30,
+    "DIGGERSBY": 60
+   },
+   "note": "indexed by the casting entity's stars; the 3 and 4 star columns are not reachable from the bare factory stars of the listed units. Whether other mechanics raise star counts was not examined.",
+   "evidence": [
+    "ed-base",
+    "ed-dmg",
+    "unit-bunnelby",
+    "unit-diggersby"
+   ]
+  },
+  "positionalConditions": "The damage bonus depends on the depth stored for the target's cell. The strategy does not check for any holes elsewhere or the caster's position.",
+  "repeatedCastsAndModes": "No stored mode. The hole state persists in the player's groundHoles array between casts (and, as far as the code read, this strategy neither resets nor deepens it beyond 0 to 1).",
+  "rawVsResolved": "Requested: base 30/60 plus 5/10 per depth level (1/2 stars). Applied: x (1 + AP/100) over the sum, crit factor if the cast crit, SPE_DEF division, minimum 1; takenDamage reported by handleDamage includes shield damage. The depth used is the value before this cast's own dig.",
+  "sourceTables": [
+   {
+    "id": "base",
+    "file": "app/core/abilities/ear-dig.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 240\\)",
+    "recordPath": "effects.0.declaredRaw.base.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "perlevel",
+    "file": "app/core/abilities/ear-dig.ts",
+    "pattern": "holeLevel \\* \\(\\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.perHoleLevel.byStars",
+    "unitValuesPath": "effects.0.perUnitPerHoleLevelRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's shields, items, resurrection and field multipliers beyond the lines read",
+   "When the cast fires in a real fight (PP gain, targeting, silence)",
+   "Crit resolution beyond the ABILITY_CRIT / canCritByDefault gate",
+   "What the client or other code does with the hole after this cast (the board-manager and replay code was only located, not read)"
+  ],
+  "unresolved": [
+   "No routing uncertainty was recorded for this identifier in the queue",
+   "Why the blue player's array is used for every target (whether red-team or opponent-side boards are meant to share it) was not investigated; the code reads it for any target",
+   "How the other writers (synergies.ts, hyper-drill.ts, passives.ts) change depth was located by name only, not read, so the maximum depth and persistence between rounds are not stated here",
+   "Whether other mechanics raise the listed units' star counts",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-bunnelby",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19727,
+     19740
+    ],
+    "symbol": "class Bunnelby",
+    "expect": "skill = Ability.EAR_DIG",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-diggersby",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19743,
+     19756
+    ],
+    "symbol": "class Diggersby",
+    "expect": "skill = Ability.EAR_DIG",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ed",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     853,
+     853
+    ],
+    "symbol": "AbilityStrategies[Ability.EAR_DIG]",
+    "expect": "[Ability.EAR_DIG]: new EarDigStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     25
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; with preventDefaultAnim true the default broadcast is skipped"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "strategy does not override, so no crit roll without ABILITY_CRIT"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "ed-super",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default animation suppressed; the strategy broadcasts its own"
+   },
+   {
+    "id": "ed-player",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     16,
+     18
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "const boardPlayer = target.simulation.bluePlayer",
+    "note": "holes are read from the simulation's BLUE player at the target's cell index"
+   },
+   {
+    "id": "ed-dmg",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     19,
+     21
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "holeLevel * ([5, 10, 20, 40][pokemon.stars - 1] ?? 40)",
+    "note": "damage = base table + holeLevel x per-level table, both by stars"
+   },
+   {
+    "id": "ed-base",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "([30, 60, 120, 240][pokemon.stars - 1] ?? 240)",
+    "note": "base damage table by stars"
+   },
+   {
+    "id": "ed-hit",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage uses the hole level read BEFORE digging"
+   },
+   {
+    "id": "ed-dig",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     23,
+     26
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "boardPlayer.groundHoles[index] = 1",
+    "note": "if the cell had no hole (level 0) a level-1 hole is dug after the damage"
+   },
+   {
+    "id": "ed-bcast",
+    "file": "app/core/abilities/ear-dig.ts",
+    "lines": [
+     27,
+     31
+    ],
+    "symbol": "EarDigStrategy.process",
+    "expect": "delay: holeLevel // delay will hold the ground hole depth info",
+    "note": "animation broadcast carries the hole level (1 if just dug)"
+   },
+   {
+    "id": "holes-def",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     149,
+     151
+    ],
+    "symbol": "Player.groundHoles",
+    "expect": "@type([\"uint8\"]) groundHoles: number[] = new Array(",
+    "note": "per-player array of BOARD_WIDTH x BOARD_HEIGHT depth values, filled with 0"
+   },
+   {
+    "id": "blue-player",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     109,
+     109
+    ],
+    "symbol": "Simulation.bluePlayer",
+    "expect": "bluePlayer: Player | undefined",
+    "note": "may be undefined type-wise"
+   },
+   {
+    "id": "board-width",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     1
+    ],
+    "symbol": "BOARD_WIDTH",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "index = y x 8 + x"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage; magicBounce reflects SPECIAL damage unless the attacker holds Protective Pads"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling applies to the whole sum (base + hole bonus)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier with Rocky Helmet / Black Augurite reductions"
+   },
+   {
+    "id": "state-spe",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by SPE_DEF factor"
+   },
+   {
+    "id": "state-floor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 after ceil"
+   }
+  ]
+ }
+}
