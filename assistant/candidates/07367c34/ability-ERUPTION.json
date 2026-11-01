@@ -1,0 +1,555 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ERUPTION",
+ "kind": "ability",
+ "identifier": "ERUPTION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261101T183956Z"
+ },
+ "record": {
+  "ability": "ERUPTION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ERUPTION in this production reference: Numel (1 star) and Camerupt (2 stars), both FIRE + FIELD + GROUND, maxPP 120, range 1, no passive. The strategy is shared. STEAM_ERUPTION is a different strategy and not covered.",
+  "appliesTo": [
+   {
+    "key": "CAMERUPT",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "ERUPTION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NUMEL",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "ERUPTION",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CAMERUPT": {
+    "evidence": [
+     "unit-camerupt"
+    ]
+   },
+   "NUMEL": {
+    "evidence": [
+     "unit-numel"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ERUPTION] = new EruptionStrategy()",
+   "strategy": "EruptionStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-er",
+    "class",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "super"
+   ]
+  },
+  "summary": "Random volley over the whole board. On cast the caster spends its PP and queues N delayed projectiles on itself (N = 20 for 1 star Numel, 30 for 2 stars Camerupt), projectile i firing i x 100 ms later (so the volley lasts about (N-1) x 100 ms: 1.9 s for Numel, 2.9 s for Camerupt, the first firing at once on the next update). Each projectile picks a uniformly random cell of the 8 x 6 board; if the unit currently on it belongs to the other team it takes SPECIAL damage of raw 30 (Numel) or 50 (Camerupt) scaled by the caster's AP and by crit if the cast crit, and then a 5000 ms burn is requested on it with the caster as origin. Cells that are empty or hold an ally do nothing. The same enemy can be picked by several projectiles. The target of the cast is not used.",
+  "targeting": {
+   "who": "random cells of the whole board, chosen independently per projectile at fire time; only the other team's unit on the chosen cell is affected",
+   "needsTarget": false,
+   "note": "requiresTarget false: the caster can cast without a target in range",
+   "evidence": [
+    "class",
+    "cell",
+    "random",
+    "board-size",
+    "get-entity",
+    "team-check"
+   ]
+  },
+  "geometry": {
+   "shape": "random single cells over the whole board (8 columns x 6 rows)",
+   "adjacency": "none; any cell, independent of the caster's position, with repetition",
+   "limits": "N projectiles per cast, N by stars",
+   "evidence": [
+    "board-size",
+    "cell",
+    "random",
+    "loop"
+   ],
+   "timing": {
+    "note": "projectile i has a DelayedCommand of i x 100 ms pushed on the caster; commands run when the accumulated dt exceeds the delay, through the caster's own update",
+    "evidence": [
+     "delay",
+     "cmd",
+     "cmd-update",
+     "loop"
+    ]
+   }
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 50,
+      "3": 70,
+      "4": 90,
+      "fallback": 90
+     }
+    },
+    "perUnitRaw": {
+     "NUMEL": 30,
+     "CAMERUPT": 50
+    },
+    "scaling": "requested raw per projectile by caster stars ([stars-1], 90 fallback; the 3- and 4-star entries are not used by the listed units). handleSpecialDamage multiplies by (1 + caster AP/100) with the AP at the moment of each hit, and by critPower (reduced by the victim's Rocky Helmet / Black Augurite) only if the cast crit (needs ABILITY_CRIT; one roll for the whole volley, so every projectile crits or none).",
+    "resolution": "requested amount -> AP / crit -> PokemonState.handleDamage (defenses, SPE_DEF reduction with the floor of 1, shield; core-mechanics sections A and H) per projectile; applied HP loss and takenDamage (shield part included) differ per hit. Protect / skydiving / magicBounce victims take nothing (magicBounce reflects unless Protective Pads) but the burn request below still runs for them. The ability reads no takenDamage.",
+    "evidence": [
+     "dmg-table",
+     "hit",
+     "special-dmg",
+     "special-ap",
+     "special-crit",
+     "cast-crit",
+     "base-flags"
+    ]
+   },
+   {
+    "kind": "projectile_count",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 30,
+      "3": 45,
+      "4": 60,
+      "fallback": 60
+     }
+    },
+    "perUnitRaw": {
+     "NUMEL": 20,
+     "CAMERUPT": 30
+    },
+    "scaling": "number of projectiles by caster stars ([stars-1], 60 fallback); no AP or crit scaling",
+    "resolution": "one DelayedCommand per projectile; each picks its own random cell when it runs",
+    "evidence": [
+     "count-table",
+     "loop",
+     "delay",
+     "anim"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "burn",
+    "target": "each enemy unit found on a chosen cell",
+    "declaredRaw": 5000,
+    "scaling": "requested duration 5000 ms; no AP or crit scaling. triggerBurn is refused by IMMUNITY_BURN, Rune Protect (runeProtect true) and the WATER_BUBBLE passive; otherwise burn is set and the duration is reduced by SWIFT_SWIM (x0.7), HYDRATION (x0.5), WATER_VEIL / SURGE_SURFER (x0.3) and then by 10% per Odd Keystone in the victim's player items; the reduced duration only replaces the remaining burn time (and the burn origin) if it is longer than what remains, so repeated hits do not stack duration.",
+    "resolution": "burn ticks every 1000 ms for 5% of max HP as TRUE damage with weather, item (Assault Vest, Well-Baked / Magmarizer holders take 0), effect and passive modifiers; the tick amount is not part of this ability's own numbers. Guts, Well-Baked, Magmarizer and Rawst Berry side effects of triggerBurn exist and were seen but not followed further.",
+    "evidence": [
+     "burn",
+     "trigger-burn",
+     "duration-red",
+     "burn-tick"
+    ]
+   }
+  ],
+  "statusEffects": [
+   "burn (5000 ms requested)"
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NUMEL": 1,
+    "CAMERUPT": 2
+   },
+   "declaredRawDamage": {
+    "NUMEL": 30,
+    "CAMERUPT": 50
+   },
+   "declaredProjectiles": {
+    "NUMEL": 20,
+    "CAMERUPT": 30
+   },
+   "note": "both tables are indexed by the casting entity's stars; burn duration is the same for every star level",
+   "evidence": [
+    "dmg-table",
+    "count-table"
+   ]
+  },
+  "positionalConditions": "None from the caster's position. Which enemies are hit depends on random cells at each projectile's fire time and on who stands where then; allied units and empty cells absorb projectiles without effect.",
+  "repeatedCastsAndModes": "A new cast adds another volley of commands; overlapping volleys are possible if PP refills before the previous volley ends. Damage numbers are re-read per cast, not per projectile.",
+  "rawVsResolved": "Declared raw: damage 30 (Numel) / 50 (Camerupt) per projectile, 20 / 30 projectiles, burn request 5000 ms. Requested = those. Applied damage per hit = requested x (1 + AP at hit time/100) [x crit factor], then handleDamage. Applied burn = refused (immunity, Rune Protect, Water Bubble) or reduced by Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystones, and only effective if longer than the remaining burn. No expected number of hits is claimed: it depends on random cells.",
+  "sourceTables": [
+   {
+    "id": "eruptionDamage",
+    "file": "app/core/abilities/eruption.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "eruptionProjectiles",
+    "file": "app/core/abilities/eruption.ts",
+    "pattern": "const numberOfProjectiles = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (consulted via core-mechanics sections A and H, not re-probed)",
+   "When the cast fires in a real fight (PP gain, silence, canCast): only the pp >= maxPP && canCast gate and castAbility were read",
+   "Burn tick details beyond the first lines of updateBurn (weather, items, effects) and the Guts / Well-Baked / Magmarizer / Rawst Berry side effects of triggerBurn"
+  ],
+  "unresolved": [
+   "The queue record lists no routing uncertainties; Camerupt and Numel are the only units listed for this identifier",
+   "Whether the caster's command list keeps advancing if the caster dies or is removed before the volley ends (only PokemonState.updateCommands was read)",
+   "Whether a unit that dies from an earlier projectile still occupies its cell when a later projectile selects it (board cleanup was not traced)",
+   "MegaCamerupt exists in pokemon.ts with skill = Ability.DEFAULT (the ERUPTION line is commented out there) and is absent from the saved catalog, so it is not covered",
+   "No pinned-helper probe was run for this record; the code was read, not executed"
+  ],
+  "evidence": [
+   {
+    "id": "unit-numel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     965,
+     979
+    ],
+    "symbol": "class Numel",
+    "expect": "skill = Ability.ERUPTION",
+    "note": "unit class block; 1 star, FIRE + FIELD + GROUND, maxPP 120, range 1, no passive"
+   },
+   {
+    "id": "unit-camerupt",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     981,
+     995
+    ],
+    "symbol": "class Camerupt",
+    "expect": "skill = Ability.ERUPTION",
+    "note": "unit class block; 2 stars, FIRE + FIELD + GROUND, maxPP 120, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-er",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     865,
+     865
+    ],
+    "symbol": "AbilityStrategies[Ability.ERUPTION]",
+    "expect": "[Ability.ERUPTION]: new EruptionStrategy()",
+    "note": ""
+   },
+   {
+    "id": "class",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     9,
+     10
+    ],
+    "symbol": "EruptionStrategy",
+    "expect": "requiresTarget = false",
+    "note": "requiresTarget false: cast from anywhere, no target used"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent in super.process"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     18,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled once at cast time, only with ABILITY_CRIT; the same flag is used for every projectile"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "const damage = [30, 50, 70, 90][pokemon.stars - 1] ?? 90",
+    "note": "raw damage per projectile by caster stars"
+   },
+   {
+    "id": "count-table",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "const numberOfProjectiles = [20,30,45,60][pokemon.stars - 1] ?? 60",
+    "note": "number of projectiles by caster stars"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     16,
+     18
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "for (let i = 0; i < numberOfProjectiles; i++)",
+    "note": "one DelayedCommand per projectile, pushed on the caster"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "}, i * 100)",
+    "note": "projectile i fires after i x 100 ms"
+   },
+   {
+    "id": "cmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     5,
+     31
+    ],
+    "symbol": "SimulationCommand / DelayedCommand",
+    "expect": "if (this.delay < 0)",
+    "note": "runs once the accumulated dt exceeds the delay"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the caster's own update advances its commands"
+   },
+   {
+    "id": "cell",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     19,
+     21
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "const value = board.getEntityOnCell(x, y)",
+    "note": "uniform random cell on the board, entity on it at that moment"
+   },
+   {
+    "id": "random",
+    "file": "app/utils/random.ts",
+    "lines": [
+     39,
+     41
+    ],
+    "symbol": "randomBetween",
+    "expect": "Math.floor(Math.random() * (max - min + 1) + min)",
+    "note": "inclusive integers"
+   },
+   {
+    "id": "board-size",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     2
+    ],
+    "symbol": "BOARD_WIDTH / BOARD_HEIGHT",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": "8 columns x 6 rows (BOARD_HEIGHT = 6)"
+   },
+   {
+    "id": "get-entity",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "return this.cells[this.columns * y + x]",
+    "note": "empty cell gives undefined"
+   },
+   {
+    "id": "team-check",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "value && value.team !== pokemon.team",
+    "note": "only a unit of the other team"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     23,
+     29
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "value.handleSpecialDamage(",
+    "note": "SPECIAL damage with the cast's crit flag"
+   },
+   {
+    "id": "burn",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "value.status.triggerBurn(5000, value, pokemon)",
+    "note": "burn request of 5000 ms with the caster as origin, after the damage call"
+   },
+   {
+    "id": "anim",
+    "file": "app/core/abilities/eruption.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "EruptionStrategy.process",
+    "expect": "pokemon.broadcastAbility({ targetX: x, targetY: y })",
+    "note": "animation for every projectile, hit or miss"
+   },
+   {
+    "id": "special-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce victims take no damage (magicBounce reflects unless Protective Pads)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "trigger-burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     418
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!this.runeProtect",
+    "note": "blocked by IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive; duration reduced; only replaces burnCooldown (and origin) if longer"
+   },
+   {
+    "id": "duration-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.3)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone -10% each"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     440,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "burn tick: 5% max HP every 1000 ms as TRUE damage (weather, item, effect and passive modifiers follow in the same method)"
+   }
+  ]
+ }
+}
