@@ -1,0 +1,631 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HYPER_DRILL",
+ "kind": "ability",
+ "identifier": "HYPER_DRILL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T184107Z"
+ },
+ "record": {
+  "ability": "HYPER_DRILL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HYPER_DRILL: Dunsparce (catalog stars 3, passive DUNSPARCE) and Dudunsparce (catalog stars 4, passive NONE). The strategy is shared; differences are star count and stats. The DUNSPARCE passive (stack gain on ability cast) is a separate mechanism that is not covered by this record. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "DUDUNSPARCE",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HYPER_DRILL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DUNSPARCE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HYPER_DRILL",
+    "declaredPassive": "DUNSPARCE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DUNSPARCE": {
+    "evidence": [
+     "unit-dunsparce"
+    ]
+   },
+   "DUDUNSPARCE": {
+    "evidence": [
+     "unit-dudunsparse"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HYPER_DRILL] = new HyperDrillStrategy()",
+   "strategy": "HyperDrillStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "hyd-class",
+    "hyd-super",
+    "dun-passive"
+   ]
+  },
+  "summary": "Single-target TRUE damage (raw 10/20/40/50/100 by caster stars; 40 for the listed Dunsparce, 50 for Dudunsparce). The strategy also digs in the ground-hole map of the simulation's blue player at the target's cell index: if that hole is already at depth 5 the damage is doubled and the depth stays 5, otherwise the depth is increased by 1 and the damage is not doubled (the hit that raises depth 4 to 5 is not doubled). This hole step is skipped when the simulation has no blue player (then no doubling either). Before the damage, the target's protect status is removed (status.protect = false, protectCooldown = 0), so protect does not block this hit; skydiving and magicBounce still block it inside handleSpecialDamage. TRUE damage ignores def / speDef and the flat damage reductions, but AP, DOUBLE_DAMAGE, steam board effect and crit multipliers still apply, and the final amount is rounded up with a minimum of 1.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "The hole index uses the target's own position, but the hole array is always that of simulation.bluePlayer, regardless of which team the target or the caster is on. Whether positions of both teams map to the same index space was not examined.",
+   "evidence": [
+    "hyd-player",
+    "hyd-index",
+    "hyd-if",
+    "blue-player",
+    "holes-decl",
+    "board-width",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; the ground-hole map is indexed y x 8 + x",
+   "evidence": [
+    "hyd-index",
+    "board-width"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 50,
+      "5": 100
+     },
+     "fallback": 100,
+     "label": "requested damage (raw), before the hole doubling"
+    },
+    "perUnitRaw": {
+     "DUNSPARCE": 40,
+     "DUDUNSPARCE": 50
+    },
+    "scaling": "requested = table[stars-1] x (2 if the target's cell hole was already at depth 5, else 1). handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once if the caster has DOUBLE_DAMAGE (effect consumed); x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT); for TRUE damage neither Rocky Helmet crit negation nor the Black Augurite reduction applies.",
+    "resolution": "applied = requested after those multipliers. PokemonState.handleDamage then does NOT divide by def / speDef for TRUE and skips the flat reductions (Poke Doll, Guts / Sturdy / Defiant / Coaching, Wonder Guard); it rounds up with a minimum of 1; the shield absorbs first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with skydiving / magicBounce (protect has been removed by this strategy before the call). This ability does not use the returned takenDamage or death.",
+    "evidence": [
+     "hyd-table",
+     "hyd-hit",
+     "hyd-true",
+     "special",
+     "special-ap",
+     "special-crit",
+     "crit-rocky",
+     "crit-augurite",
+     "special-handle",
+     "special-block",
+     "hd-true",
+     "hd-notrue",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "hd-protect"
+    ]
+   },
+   {
+    "kind": "groundHole",
+    "target": "the target's cell in the blue player's groundHoles array",
+    "declaredRaw": {
+     "description": "if depth === 5: doubleDamage; else depth = (depth ?? 0) + 1"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "the array is a per-player uint8 map of BOARD_WIDTH x BOARD_HEIGHT entries starting at 0, so a fresh cell needs five casts to reach depth 5 and the sixth is the first doubled one (from this ability alone; other writers exist, see unresolved). Skipped entirely without a blue player. The hole persistence between fights and rounds, and other writers (Ear Dig, passives, synergies), were not traced for this record.",
+    "evidence": [
+     "hyd-player",
+     "hyd-if",
+     "hyd-index",
+     "hyd-double",
+     "hyd-inc",
+     "hyd-bcast",
+     "holes-decl",
+     "board-width",
+     "blue-player"
+    ]
+   },
+   {
+    "kind": "statusRemoval",
+    "target": "the cast target",
+    "declaredRaw": {
+     "description": "status.protect = false; status.protectCooldown = 0 (only if protect was set)"
+    },
+    "scaling": "none",
+    "resolution": "runs after the hole step and before the damage; therefore the protect check at the top of handleSpecialDamage sees protect false and the hit lands. It does not touch skydiving or magicBounce.",
+    "evidence": [
+     "hyd-protect",
+     "hyd-protect-cd",
+     "special-block"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DUNSPARCE": 3,
+    "DUDUNSPARCE": 4
+   },
+   "declaredRawDamage": {
+    "DUNSPARCE": 40,
+    "DUDUNSPARCE": 50
+   },
+   "note": "Damage is indexed by the casting entity's stars (table of five values; ?? 100 fallback). The listed units are catalog stars 3 and 4, so 40 and 50; 10 / 20 / 100 are not reachable by their bare factory star counts. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "hyd-table",
+    "unit-dunsparce",
+    "unit-dudunsparse"
+   ]
+  },
+  "positionalConditions": "The hole depth is per board cell of the target: attacking a target standing on a cell whose hole is at depth 5 doubles the hit; a different cell has its own depth. A target that moves between casts changes cell.",
+  "repeatedCastsAndModes": "State is stored in the blue player's groundHoles (outside the entity). Repeated casts on the same cell raise the depth by 1 per cast up to 5; once at 5 every further cast on that cell is doubled. Each cast spends maxPP of PP in the base process.",
+  "rawVsResolved": "Requested: TRUE damage 40 (Dunsparce) / 50 (Dudunsparce), x2 on a depth-5 hole. Applied = requested x (1 + AP/100) x optional DOUBLE_DAMAGE / steam / crit multipliers, with no def / speDef division and no flat reductions, rounded up with a minimum of 1; takenDamage includes shield damage; skydiving / magicBounce give 0. Protect is removed before the call, so it does not give 0.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "Passive DUNSPARCE (OnAbilityCastEffect adding stacks to the Dunsparce family) is a separate mechanism not traced here; Dudunsparce declares passive NONE",
+   "Other writers of groundHoles (Ear Dig, passives.ts, synergies.ts) and the persistence of the hole map across rounds were not traced; the depth a fight starts with is unknown from this record",
+   "Whether simulation.bluePlayer is defined for every simulation type (PVE, ghost, bot teams) was not examined; when it is undefined the strategy neither digs nor doubles",
+   "Whether blue-team and red-team targets share one index space for the blue player's hole map (the strategy always uses the blue player's array) was not examined",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-dunsparce",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18913,
+     18929
+    ],
+    "symbol": "class Dunsparce",
+    "expect": "skill = Ability.HYPER_DRILL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-dudunsparse",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18931,
+     18943
+    ],
+    "symbol": "class Dudunsparse",
+    "expect": "skill = Ability.HYPER_DRILL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     976,
+     976
+    ],
+    "symbol": "AbilityStrategies[Ability.HYPER_DRILL]",
+    "expect": "[Ability.HYPER_DRILL]: new HyperDrillStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE damage is not divided by def / speDef"
+   },
+   {
+    "id": "hd-notrue",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     568
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attackType !== AttackType.TRUE) {",
+    "note": "flat reductions (Poke Doll, Guts/Sturdy/Defiant/Coaching, Wonder Guard) are skipped for TRUE"
+   },
+   {
+    "id": "crit-rocky",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     415,
+     415
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.items.has(Item.ROCKY_HELMET) && attackType !== AttackType.TRUE",
+    "note": "Rocky Helmet crit negation does not apply to TRUE damage"
+   },
+   {
+    "id": "crit-augurite",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     427,
+     427
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "critReductionFactor -= 0.1 * nbBlackAugurite",
+    "note": "Black Augurite reduction is inside an attackType !== TRUE branch"
+   },
+   {
+    "id": "hyd-class",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "HyperDrillStrategy",
+    "expect": "export class HyperDrillStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "hyd-super",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim true: the base broadcast is skipped"
+   },
+   {
+    "id": "hyd-table",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "const damage = [10, 20, 40, 50, 100][pokemon.stars - 1] ?? 100",
+    "note": "damage by caster stars; ?? 100 fallback"
+   },
+   {
+    "id": "hyd-player",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "const boardPlayer = target.simulation.bluePlayer",
+    "note": "always the blue player of the simulation, not the caster's or target's own player"
+   },
+   {
+    "id": "hyd-if",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "if (boardPlayer) {",
+    "note": "hole logic skipped when there is no blue player"
+   },
+   {
+    "id": "hyd-index",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "const index = target.positionY * BOARD_WIDTH + target.positionX",
+    "note": "hole index from the target's cell"
+   },
+   {
+    "id": "hyd-double",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "if (boardPlayer.groundHoles[index] === 5) {",
+    "note": "a hole already at depth 5 doubles the damage and is not incremented"
+   },
+   {
+    "id": "hyd-inc",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "(boardPlayer.groundHoles[index] ?? 0) + 1",
+    "note": "otherwise depth + 1 (no double)"
+   },
+   {
+    "id": "hyd-bcast",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "delay: boardPlayer.groundHoles[index]",
+    "note": "animation only: delay carries the hole depth"
+   },
+   {
+    "id": "hyd-protect",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "target.status.protect = false",
+    "note": "protect is removed before the damage call"
+   },
+   {
+    "id": "hyd-protect-cd",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "target.status.protectCooldown = 0",
+    "note": ""
+   },
+   {
+    "id": "hyd-hit",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "damage * (doubleDamage ? 2 : 1),",
+    "note": "requested damage x2 when doubleDamage"
+   },
+   {
+    "id": "hyd-true",
+    "file": "app/core/abilities/hyper-drill.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "HyperDrillStrategy.process",
+    "expect": "AttackType.TRUE,",
+    "note": "TRUE damage type, crit forwarded"
+   },
+   {
+    "id": "board-width",
+    "file": "app/config/game/board.ts",
+    "lines": [
+     1,
+     1
+    ],
+    "symbol": "BOARD_WIDTH",
+    "expect": "export const BOARD_WIDTH = 8",
+    "note": ""
+   },
+   {
+    "id": "holes-decl",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     149,
+     149
+    ],
+    "symbol": "Player.groundHoles",
+    "expect": "@type([\"uint8\"]) groundHoles: number[] = new Array(",
+    "note": "per-player uint8 array, BOARD_WIDTH x BOARD_HEIGHT entries, initially 0"
+   },
+   {
+    "id": "blue-player",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     109,
+     109
+    ],
+    "symbol": "Simulation.bluePlayer",
+    "expect": "bluePlayer: Player | undefined",
+    "note": "may be undefined"
+   },
+   {
+    "id": "dun-passive",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1766,
+     1766
+    ],
+    "symbol": "Passive.DUNSPARCE",
+    "expect": "[Passive.DUNSPARCE]: [",
+    "note": "separate OnAbilityCastEffect that adds stacks when a Dunsparce-family unit casts; not part of this record"
+   }
+  ]
+ }
+}
