@@ -1,0 +1,751 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/GUNK_SHOT",
+ "kind": "ability",
+ "identifier": "GUNK_SHOT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T124109Z"
+ },
+ "record": {
+  "ability": "GUNK_SHOT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare GUNK_SHOT: Trubbish (1 star) and Garbodor (2 stars); both have maxPP 100, range 1 and the passive RECYCLE, which is not covered here. The strategy is shared; the unit difference is the star count (table index) and stats.",
+  "appliesTo": [
+   {
+    "key": "GARBODOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GUNK_SHOT",
+    "declaredPassive": "RECYCLE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TRUBBISH",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GUNK_SHOT",
+    "declaredPassive": "RECYCLE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GARBODOR": {
+    "evidence": [
+     "unit-garbodor"
+    ]
+   },
+   "TRUBBISH": {
+    "evidence": [
+     "unit-trubbish"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.GUNK_SHOT] = new GunkShotStrategy()",
+   "strategy": "GunkShotStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-gunk",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "A single-target cast on the cast target: super.process spends maxPP and broadcasts, then handleSpecialDamage requests SPECIAL damage (raw 50 / 100 / 200 / 400 by stars: Trubbish 50, Garbodor 100) with the cast's crit flag, and, independently of that call's result, triggerPoison is called once on the same target with the caster as origin. The poison call adds one stack (cap 3, 4 with VENOMOUS, 5 with TOXIC on the caster) and a duration of raw 2000 / 4000 / 8000 / 16000 ms (Trubbish 2000, Garbodor 4000) x (1 + AP/100), x critPower if the cast crit, then the target's duration reductions; the timer is replaced only if longer. The strategy ignores the value returned by handleSpecialDamage, so the poison is applied even if the damage was blocked by protect / skydiving / Magic Bounce or killed the target; it is not applied if the target has IMMUNITY_POISON or Rune Protect (checked inside triggerPoison). The poison then ticks about every 1000 ms (requests, see statusEffects).",
+  "targeting": {
+   "who": "the cast target only (single enemy)",
+   "needsTarget": true,
+   "note": "No area, no team filter in the strategy: the target argument is used for both the damage and the poison. No allied/enemy check is made in the strategy itself; the target is whatever the attacking state selected.",
+   "evidence": [
+    "hit",
+    "trigger",
+    "base-flags",
+    "cls"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area",
+   "evidence": [
+    "hit",
+    "trigger"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     }
+    },
+    "perUnitRaw": {
+     "TRUBBISH": 50,
+     "GARBODOR": 100
+    },
+    "scaling": "REQUESTED amount = the raw table value (the strategy applies no AP itself). handleSpecialDamage then adds AP: damage x (1 + caster AP/100) (apBoost defaults to true), x2 if the caster carries DOUBLE_DAMAGE (consumed), x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side, and, when the cast crit, x (1 + (critPower - 1) x factor) where factor is 1, 0 with a Rocky Helmet on the target (SPECIAL is not TRUE), reduced by 0.1 per Black Augurite in the target player's items, floored at 0. The crit flag is rolled only if the caster has ABILITY_CRIT (canCritByDefault is false).",
+    "resolution": "APPLIED: handleDamage divides by (1 + ARMOR_FACTOR x speDef) (halved speDef under armorReduction), applies the non-TRUE reductions (Poke Doll, Guts / Sturdy / Defiant / Coaching, Wonder Guard) and floors the result at 1 after Math.ceil; shields absorb first. REPORTED: takenDamage counts shield damage plus HP damage, but the strategy discards it. Blocked entirely (0, no damage) by protect / skydiving; Magic Bounce also blocks and queues a delayed reflection unless the caster holds Protective Pads.",
+    "evidence": [
+     "damage",
+     "hit",
+     "hsd-block",
+     "hsd-bounce",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-spedef",
+     "hd-min1",
+     "hd-taken",
+     "base-flags",
+     "cast-crit"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison",
+    "target": "the cast target",
+    "declaredRaw": {
+     "requestedStacks": 1,
+     "baseDurationMsByStars": {
+      "1": 2000,
+      "2": 4000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     },
+     "durationMsByStars": {
+      "1": 2000,
+      "2": 4000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     }
+    },
+    "perUnitRaw": {
+     "TRUBBISH": {
+      "stars": 1,
+      "requestedStacks": 1,
+      "durationMsRaw": 2000
+     },
+     "GARBODOR": {
+      "stars": 2,
+      "requestedStacks": 1,
+      "durationMsRaw": 4000
+     }
+    },
+    "scaling": "requested duration = Math.round(raw x (1 + AP/100) x (critPower if the cast crit)); unlike the damage, the crit factor here is the caster's full critPower (no Rocky Helmet / Black Augurite reduction). The stack count (1) is not scaled by AP or crit.",
+    "applicationOrder": "after the damage call, in the same process() invocation; one triggerPoison call whatever the damage call returned",
+    "guards": "A call does nothing (no stack, no origin update, no passive or berry reaction) if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect. When it applies: poisonOrigin = the caster; stacks + 1 up to maxStacks 3 (4 with VENOMOUS, 5 with TOXIC on the origin); the duration passes through the TARGET's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE in the target player's items, rounded) and the timer is replaced only if longer; a target with the GUTS passive gains +5 attack once and with TOXIC_BOOST +10 once; a PECHA_BERRY holder eats the berry in the same call (eatBerry: heal, poisonOrigin = null, poisonStacks = 0, poisonDamageCooldown = 0, IMMUNITY_POISON added, berry removed), so it ends with 0 stacks although the timer set by this call remains. A target already at the cap gains no stack but its origin changes to the caster and a longer duration still replaces the timer. The call is made even when the target died from the damage (not guarded in the strategy). Same status code as the SLUDGE candidate.",
+    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms (poisonDamageCooldown): poisonDamage = maxHP x 0.05 x stacks (GLISCOR: stacks - 2), x0.7 in RAIN, x0.5 with ASSAULT_VEST, x0.5 with the TOXIC_BOOST passive, then x0.7 SWIFT_SWIM, else x0.5 HYDRATION, else x0.3 WATER_VEIL / SURGE_SURFER, then Math.round. Negative: pkm.handleHeal(round(-x), pkm, 0, false), a heal REQUEST on the poisoned unit; zero: no call; positive: pkm.handleDamage with TRUE damage (min 1), attacker = poisonOrigin or null. These are handler requests, not guaranteed HP changes. When poisonCooldown runs out the stacks and origin are cleared and the GUTS / TOXIC_BOOST attack bonuses are removed.",
+    "evidence": [
+     "basedur",
+     "dur",
+     "trigger",
+     "poison-trig",
+     "poison-guard",
+     "poison-max",
+     "poison-venom",
+     "poison-toxic",
+     "poison-add",
+     "poison-dur",
+     "poison-longer",
+     "poison-origin",
+     "reductions",
+     "odd",
+     "tick",
+     "tick-true",
+     "tick-mods",
+     "tick-period",
+     "tick-end",
+     "status-update",
+     "tick-sign",
+     "tick-gliscor",
+     "poison-guts",
+     "poison-berry",
+     "pecha-case",
+     "berry-remove"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TRUBBISH": 1,
+    "GARBODOR": 2
+   },
+   "declaredRawDamage": {
+    "TRUBBISH": 50,
+    "GARBODOR": 100
+   },
+   "declaredRawDurationMs": {
+    "TRUBBISH": 2000,
+    "GARBODOR": 4000
+   },
+   "note": "Both tables are indexed by the casting entity's stars; the 3-star (200 / 8000 ms) and 4-star (400 / 16000 ms) entries are not reachable by the listed units' bare star counts (1 and 2). Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "damage",
+    "basedur",
+    "unit-trubbish",
+    "unit-garbodor"
+   ]
+  },
+  "positionalConditions": "None in the strategy; the caster must be able to cast (pp >= maxPP and canCast) and have a target (requiresTarget is true).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast adds one stack up to the cap, makes the caster the poison origin, and refreshes the duration only if longer.",
+  "rawVsResolved": "Requested damage: raw 50 (Trubbish) / 100 (Garbodor) SPECIAL. Applied damage: raw x (1 + AP/100) [x crit factor on crit], then divided by (1 + ARMOR_FACTOR x speDef), reduced by the non-TRUE flat reductions, floored at 1 after Math.ceil; reported takenDamage includes shield damage and is discarded by the strategy. Requested poison: 1 stack, duration raw 2000 / 4000 ms x (1 + AP/100) [x full critPower on crit] -> applied: +1 stack within the cap, duration after the target's reductions, none against IMMUNITY_POISON or Rune Protect. Each tick is a handler request, not a guaranteed HP change.",
+  "sourceTables": [
+   {
+    "id": "gunkDamage",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "gunkDuration",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "pattern": "const baseDuration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.durationMsByStars"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final HP change after handleDamage's later steps (shield order, items, resurrection, field multipliers, Cover Band redirection) - only the SPE_DEF division, the floor of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate and the chance() call site were located"
+  ],
+  "unresolved": [
+   "Garbodor's and Trubbish's passive RECYCLE is not investigated",
+   "The attacking state's choice of cast target (nearest / range) was not read for this record",
+   "Whether Cover Band redirection in handleDamage moves the damage to an ally while the poison still lands on the original target (the strategy applies poison to the original target regardless) was not traced",
+   "The poison tick damage depends on the target's maxHP, weather and items; only the formula was read, no gameplay evidence",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-trubbish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15575,
+     15590
+    ],
+    "symbol": "class Trubbish",
+    "expect": "skill = Ability.GUNK_SHOT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-garbodor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15592,
+     15607
+    ],
+    "symbol": "class Garbodor",
+    "expect": "skill = Ability.GUNK_SHOT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-gunk",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     925,
+     925
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.GUNK_SHOT]: new GunkShotStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "class GunkShotStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "damage",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "damage table"
+   },
+   {
+    "id": "basedur",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "const baseDuration = [2000, 4000, 8000, 16000][pokemon.stars - 1] ?? 16000",
+    "note": "duration table"
+   },
+   {
+    "id": "dur",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     16,
+     18
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "baseDuration * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1)",
+    "note": "poison duration: AP and critPower applied here, in the strategy"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "return value is discarded"
+   },
+   {
+    "id": "trigger",
+    "file": "app/core/abilities/gunk-shot.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "GunkShotStrategy.process",
+    "expect": "target.status.triggerPoison(duration, target, pokemon)",
+    "note": "one call, not conditional on the damage result"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "SLUDGE does not set canCritByDefault, so the crit flag is rolled only if the caster has the ABILITY_CRIT effect"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard in handleSpecialDamage"
+   },
+   {
+    "id": "hsd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     359,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "blocked path returns 0; magicBounce queues a delayed reflection"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, apBoost defaults to true"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor with Rocky Helmet / Black Augurite reduction"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage counts shield damage and HP damage"
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "triggerPoison(",
+    "note": "Status.triggerPoison definition (the candidate cited line 174, a status-transfer call)"
+   },
+   {
+    "id": "poison-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     578
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "default cap 3; origin VENOMOUS 4, TOXIC 5"
+   },
+   {
+    "id": "poison-venom",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     581,
+     581
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "origin.effects.has(EffectEnum.VENOMOUS)",
+    "note": ""
+   },
+   {
+    "id": "poison-toxic",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     584,
+     584
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "origin.effects.has(EffectEnum.TOXIC)",
+    "note": ""
+   },
+   {
+    "id": "poison-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "one stack per call, capped"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "triggerPoison passes the duration through the reductions (the candidate cited line 346, which is triggerArmorReduction)"
+   },
+   {
+    "id": "poison-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     592,
+     592
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "if (duration > this.poisonCooldown) {",
+    "note": "a call only extends the timer if longer"
+   },
+   {
+    "id": "poison-origin",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     580,
+     580
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonOrigin = origin",
+    "note": "latest applier becomes poisonOrigin"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": ""
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick: 5% max HP per stack"
+   },
+   {
+    "id": "tick-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     651,
+     657
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "attackType: AttackType.TRUE",
+    "note": "positive tick: handleDamage TRUE with the poison origin as attacker (the candidate cited line 486, which belongs to the burn tick)"
+   },
+   {
+    "id": "tick-mods",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     625,
+     645
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (pkm.simulation.weather === Weather.RAIN) {",
+    "note": "tick multipliers: rain, Assault Vest, TOXIC_BOOST, Swift Swim / Hydration / Water Veil / Surge Surfer (the candidate cited line 451, which belongs to the burn tick)"
+   },
+   {
+    "id": "tick-period",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     668,
+     668
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "this.poisonDamageCooldown = 1000",
+    "note": "tick every 1000 ms"
+   },
+   {
+    "id": "tick-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     673,
+     684
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (this.poisonCooldown - dt <= 0) {",
+    "note": "when the poison timer runs out stacks and origin are cleared and the GUTS / TOXIC_BOOST bonuses removed"
+   },
+   {
+    "id": "status-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     236,
+     236
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updatePoison(dt, pokemon, board)",
+    "note": "ticked while poisonStacks > 0"
+   },
+   {
+    "id": "tick-sign",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     646,
+     658
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (poisonDamage < 0) {",
+    "note": "negative -> handleHeal(round(-x), pkm, 0, false); positive -> handleDamage TRUE min(1)(round(x)); zero -> no call"
+   },
+   {
+    "id": "tick-gliscor",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     621,
+     623
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "pkm.maxHP * 0.05 * (this.poisonStacks - 2)",
+    "note": "Gliscor uses stacks - 2, negative at 1 stack and zero at 2"
+   },
+   {
+    "id": "poison-guts",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     609
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.addAttack(5, pkm, 0, false)",
+    "note": "GUTS +5 attack once, TOXIC_BOOST +10 attack once"
+   },
+   {
+    "id": "poison-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     611,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "a Pecha Berry holder eats it inside the call that applies poison"
+   },
+   {
+    "id": "pecha-case",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1641,
+     1647
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.status.poisonStacks = 0",
+    "note": "Pecha Berry: heal, poisonOrigin null, stacks 0, poisonDamageCooldown 0, IMMUNITY_POISON added"
+   },
+   {
+    "id": "berry-remove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1710,
+     1714
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.removeItem(berry, true)",
+    "note": "the eaten berry is removed"
+   }
+  ]
+ }
+}
