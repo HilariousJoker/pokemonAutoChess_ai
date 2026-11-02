@@ -1,0 +1,681 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FIRST_IMPRESSION",
+ "kind": "ability",
+ "identifier": "FIRST_IMPRESSION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T064110Z"
+ },
+ "record": {
+  "ability": "FIRST_IMPRESSION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "WIMPOD (1 star) and GOLISOPOD (2 stars) declare FIRST_IMPRESSION (maxPP 100, range 1) with passive EMERGENCY_EXIT. Shared strategy; the difference is the star index (damage and the bug rarity pool) and stats.",
+  "appliesTo": [
+   {
+    "key": "GOLISOPOD",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FIRST_IMPRESSION",
+    "declaredPassive": "EMERGENCY_EXIT",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WIMPOD",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FIRST_IMPRESSION",
+    "declaredPassive": "EMERGENCY_EXIT",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOLISOPOD": {
+    "evidence": [
+     "unit-golisopod",
+     "passive-ee"
+    ]
+   },
+   "WIMPOD": {
+    "evidence": [
+     "unit-wimpod",
+     "passive-ee"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FIRST_IMPRESSION] = new FirstImpressionStrategy()",
+   "strategy": "FirstImpressionStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-fi",
+    "fi-class",
+    "base-flags",
+    "base-pp",
+    "base-ult",
+    "fi-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage (45/90/180/360 raw by stars) and a 5000 ms flinch request on the cast target (the flinch does not depend on the damage result). On the caster entity's FIRST cast only (count.ult === 1, incremented by super.process), it then jumps to the empty cell on its own half of the board that is farthest (distanceM) from its current cell, and if the original cell is empty afterwards (it is, since the jump swaps with an empty cell) a random 1-star BUG unit with a non-default skill from the COMMON / UNCOMMON / RARE pool (chosen by the caster's stars: 1 COMMON, 2 UNCOMMON, 3 and above RARE) is created for the caster's player and added to that cell on the caster's team as a spawn. Later casts only deal the damage and the flinch. If no empty cell exists on the own half, nothing moves and nothing spawns on the first cast, and the opportunity is not retried (count.ult is already above 1 afterwards). The EMERGENCY_EXIT passive of both units adds the full maxPP on spawn, so the first cast is available as soon as the unit is on the board and can act.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target) for the damage and flinch; the jump destination does not depend on the target",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "fi-class",
+    "base-flags",
+    "fi-hit",
+    "fi-flinch",
+    "fi-cell"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; the jump: farthest empty cell (by distanceM from the caster's cell, ties resolved by the stable sort order of the board scan, not traced further) among empty cells on the caster's own half (BLUE: y < rows/2, RED: y >= rows/2); the spawned unit takes the original cell",
+   "evidence": [
+    "fi-hit",
+    "fi-cell",
+    "safe",
+    "safe-sort",
+    "fi-orig",
+    "fi-move",
+    "fi-empty",
+    "cell-get",
+    "fi-add"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 45,
+      "2": 90,
+      "3": 180,
+      "4": 360,
+      "fallback": 360
+     }
+    },
+    "perUnitRaw": {
+     "GOLISOPOD": 90,
+     "WIMPOD": 45
+    },
+    "scaling": "requested amount = raw x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT)",
+    "resolution": "requested -> applied: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1) among other steps; the applied loss (takenDamage) is discarded by the strategy. Protect / skydiving / magicBounce targets take none (magicBounce queues a delayed bounce on the caster unless Protective Pads); a dead or resurrecting target takes none. Shield, Shiny Charm, Fossil and Cover Band branches are as for any special damage (see the BITE record).",
+    "evidence": [
+     "fi-dmg",
+     "fi-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "displacement (self, first cast only)",
+    "declaredRaw": {
+     "condition": "pokemon.count.ult === 1"
+    },
+    "scaling": "none",
+    "resolution": "destination = first element of the empty own-half cells sorted by descending distanceM from the caster's cell, or none (null) when the half has no empty cell; moveTo(x, y, board, false) swaps the caster with the destination (no canBeMoved check because forcedDisplacement is false), sets the moving state and cooldown 100.",
+    "evidence": [
+     "base-ult",
+     "fi-first",
+     "fi-cell",
+     "safe",
+     "safe-sort",
+     "fi-move",
+     "move"
+    ]
+   },
+   {
+    "kind": "spawn (first cast only, after a successful jump)",
+    "declaredRaw": {
+     "pool": "1-star BUG units with skill != DEFAULT from rarity COMMON (caster 1 star) / UNCOMMON (2 stars) / RARE (3+ stars)"
+    },
+    "scaling": "none",
+    "resolution": "the pool is the precomputed rarity list filtered at cast time; the exact members were not enumerated here. The unit is created for pokemon.player and added with isSpawn = true on the caster's team in the original cell; Simulation.addPokemon applies synergy and item effects of the new entity and its on-spawn effects.",
+    "evidence": [
+     "fi-empty",
+     "fi-pool",
+     "fi-filter",
+     "fi-pick",
+     "fi-create",
+     "fi-add",
+     "add-pokemon",
+     "add-effects",
+     "add-onspawn"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "the cast target",
+    "declaredRaw": {
+     "duration": 5000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the damage call, unconditionally (not gated on takenDamage, unlike BITE)",
+    "guards": "not applied if the target's status has runeProtect; the duration passes through applyStatusDurationReductions evaluated on the target (SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then Odd Keystone); a new flinch replaces the remaining time only if longer. Protect / magicBounce on the target block the damage but not the flinch request.",
+    "combatEffect": "while flinched and while the target's shield is above 0, handleDamage splits reduced damage: damageOnShield = ceil(0.5 x reduced) and the residual = ceil(0.5 x reduced).",
+    "evidence": [
+     "fi-flinch",
+     "flinch-trig",
+     "dur-red",
+     "flinch-shield"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GOLISOPOD": 2,
+    "WIMPOD": 1
+   },
+   "declaredRawDamage": {
+    "GOLISOPOD": 90,
+    "WIMPOD": 45
+   },
+   "note": "indexed by the caster's stars; 3-star (180), 4-star (360) and the fallback are not reachable by the two listed units' bare star counts. The spawned-bug rarity pool is also indexed by stars: Wimpod COMMON, Golisopod UNCOMMON. Flinch duration is 5000 for every star level.",
+   "evidence": [
+    "fi-dmg",
+    "fi-pool",
+    "unit-wimpod",
+    "unit-golisopod"
+   ]
+  },
+  "positionalConditions": "Damage needs a target in range 1. The first-cast jump needs an empty cell on the caster's own half; the spawn needs the original cell to be empty after the jump.",
+  "repeatedCastsAndModes": "The jump and spawn happen only when count.ult === 1, i.e. once per caster entity per fight simulation (count.ult is incremented on every cast, including a cast whose jump found no cell). Every cast repeats the damage and flinch. The counter belongs to the entity, so a newly created entity (for example after evolution during the simulation, not traced) would count from its own state.",
+  "rawVsResolved": "Declared raw: damage 45 (Wimpod) / 90 (Golisopod), flinch 5000 ms. Requested damage = raw x (1 + AP/100) [x crit], then the SPE_DEF division and untraced modifiers; the applied loss is discarded by the strategy. Flinch: requested 5000 ms, applied after the target's reductions and only if the target has no runeProtect.",
+  "sourceTables": [
+   {
+    "id": "firstImpressionDamage",
+    "file": "app/core/abilities/first-impression.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - the SPECIAL speDef division was read, no probe was run",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate and the EMERGENCY_EXIT on-spawn PP were read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "applyStatusDurationReductions inputs (Odd Keystone count) of the target's player"
+  ],
+  "unresolved": [
+   "Routing uncertainty REFERENCES_OTHER_ABILITIES resolved by reading the file: the only other ability reference is Ability.DEFAULT in the spawn pool filter (skill !== Ability.DEFAULT); no other ability is cast or delegated to",
+   "The members of the COMMON / UNCOMMON / RARE bug pools (PRECOMPUTED_POKEMONS_PER_RARITY, getPokemonData) were not enumerated; PokemonFactory.createPokemonFromName and the new entity's onSpawn effects were not read in detail",
+   "Tie-breaking among equally distant farthest cells depends on the order Board.forEach visits cells and the sort stability; not traced",
+   "What happens if a unit's count.ult is not 1 on its first cast through another path (for example a cast that bypasses super.process) was not traced",
+   "Whether the spawned bug is counted by team-wide effects in the simulation (win condition, synergy, DPS meter) was not traced beyond addPokemon's own steps",
+   "Both units have passive EMERGENCY_EXIT (full PP on spawn); no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-wimpod",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19356,
+     19371
+    ],
+    "symbol": "class Wimpod",
+    "expect": "skill = Ability.FIRST_IMPRESSION",
+    "note": "unit class block (BUG / WATER / MONSTER, passive EMERGENCY_EXIT)"
+   },
+   {
+    "id": "unit-golisopod",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19373,
+     19388
+    ],
+    "symbol": "class Golisopod",
+    "expect": "skill = Ability.FIRST_IMPRESSION",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-fi",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     885,
+     885
+    ],
+    "symbol": "AbilityStrategies[Ability.FIRST_IMPRESSION]",
+    "expect": "[Ability.FIRST_IMPRESSION]: new FirstImpressionStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fi-class",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FirstImpressionStrategy",
+    "expect": "class FirstImpressionStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "base-ult",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.count.ult += 1",
+    "note": "incremented in super.process before the strategy's own code runs"
+   },
+   {
+    "id": "fi-super",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fi-dmg",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "[45, 90, 180, 360][pokemon.stars - 1] ?? 360",
+    "note": ""
+   },
+   {
+    "id": "fi-hit",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL, attacker = caster, crit passed, apBoost default true; the returned value is discarded"
+   },
+   {
+    "id": "fi-flinch",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "target.status.triggerFlinch(5000, target, pokemon)",
+    "note": "unconditional: not tied to the damage result"
+   },
+   {
+    "id": "fi-first",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "if (pokemon.count.ult === 1)",
+    "note": "the jump / spawn branch runs only on the caster entity's first cast"
+   },
+   {
+    "id": "fi-cell",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     27,
+     31
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "board.getSafePlaceAwayFrom(",
+    "note": "origin = the caster's own cell, specificSide = the caster's team"
+   },
+   {
+    "id": "fi-orig",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     34,
+     35
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "const x = pokemon.positionX",
+    "note": "original cell stored before the move"
+   },
+   {
+    "id": "fi-move",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     37,
+     39
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "pokemon.moveTo(newCell.x, newCell.y, board, false)",
+    "note": "only when a destination was found; forcedDisplacement = false"
+   },
+   {
+    "id": "fi-empty",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "if (board.getEntityOnCell(x, y) === undefined)",
+    "note": "spawn only if the original cell is empty after the move"
+   },
+   {
+    "id": "fi-pool",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     44,
+     57
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "PRECOMPUTED_POKEMONS_PER_RARITY.COMMON",
+    "note": "rarity pool indexed by the caster's stars (1 COMMON, 2 UNCOMMON, 3 RARE, otherwise RARE), filtered to 1-star, skill != DEFAULT, BUG type"
+   },
+   {
+    "id": "fi-filter",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     50,
+     57
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "data.types.includes(Synergy.BUG)",
+    "note": "the only place Ability.DEFAULT is referenced (the routing uncertainty REFERENCES_OTHER_ABILITIES)"
+   },
+   {
+    "id": "fi-pick",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     60,
+     60
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "pickRandomIn<Pkm>(possibleBugsPkm)",
+    "note": "uniform random pick"
+   },
+   {
+    "id": "fi-create",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     63,
+     66
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "PokemonFactory.createPokemonFromName(",
+    "note": "created with the caster's player"
+   },
+   {
+    "id": "fi-add",
+    "file": "app/core/abilities/first-impression.ts",
+    "lines": [
+     69,
+     69
+    ],
+    "symbol": "FirstImpressionStrategy.process",
+    "expect": "pokemon.simulation.addPokemon(randomBug, x, y, pokemon.team, true)",
+    "note": "isSpawn = true, same team"
+   },
+   {
+    "id": "safe",
+    "file": "app/core/board.ts",
+    "lines": [
+     500,
+     543
+    ],
+    "symbol": "Board.getSafePlaceAwayFrom",
+    "expect": "(specificSide === Team.BLUE_TEAM && y < this.rows / 2) ||",
+    "note": "empty cells on the caster's side (BLUE: y < rows/2, RED: y >= rows/2), sorted by distanceM from the origin descending; first = farthest; null when none"
+   },
+   {
+    "id": "safe-sort",
+    "file": "app/core/board.ts",
+    "lines": [
+     535,
+     542
+    ],
+    "symbol": "Board.getSafePlaceAwayFrom",
+    "expect": ".sort((a, b) => b.distance - a.distance)",
+    "note": "maxDistance is not passed by FIRST_IMPRESSION"
+   },
+   {
+    "id": "move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     898
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "with forcedDisplacement false there is no canBeMoved check; swapped with the (empty) destination, state set to moving, cooldown 100"
+   },
+   {
+    "id": "cell-get",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "return this.cells[this.columns * y + x]",
+    "note": ""
+   },
+   {
+    "id": "add-pokemon",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     337,
+     345
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "isSpawn = false,",
+    "note": "addPokemon(pokemon, x, y, team, isSpawn, skipSynergyEffects)"
+   },
+   {
+    "id": "add-effects",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "if (!skipSynergyEffects) this.applySynergyEffects(pokemonEntity)",
+    "note": "new entity gets synergy and item effects and is placed on the cell"
+   },
+   {
+    "id": "add-onspawn",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     384,
+     384
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "pokemon.onSpawn({ entity: pokemonEntity, simulation: this, isSpawn })",
+    "note": "on-spawn effects run for the spawned bug"
+   },
+   {
+    "id": "flinch-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     985
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "if (!this.runeProtect)",
+    "note": "not applied with runeProtect; duration reduced by applyStatusDurationReductions on pkm (= the target); a longer duration replaces the remaining time"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions"
+   },
+   {
+    "id": "flinch-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     628
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "while flinched and shielded, damage is split between shield and HP"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage (magicBounce queues a delayed bounce on the caster unless Protective Pads)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "passive-ee",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1415,
+     1417
+    ],
+    "symbol": "PassiveEffects[Passive.EMERGENCY_EXIT]",
+    "expect": "new OnSpawnEffect((pkm) => pkm.addPP(pkm.maxPP, pkm, 0, false))",
+    "note": "the catalog passive of both units: full PP on spawn, so the first cast is available immediately"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
