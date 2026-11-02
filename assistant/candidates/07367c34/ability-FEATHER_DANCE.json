@@ -1,0 +1,823 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FEATHER_DANCE",
+ "kind": "ability",
+ "identifier": "FEATHER_DANCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T003937Z"
+ },
+ "record": {
+  "ability": "FEATHER_DANCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare FEATHER_DANCE: Ducklett (1 star) and Swanna (2 stars); both have maxPP 100, range 2 and no passive (catalog NONE). The strategy is shared; the only unit difference is the star count (feather count index). The name FEATHER_DANCE is also an EffectEnum (Flying synergy protection effect); this record covers only Ability.FEATHER_DANCE.",
+  "appliesTo": [
+   {
+    "key": "DUCKLETT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "FEATHER_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWANNA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "FEATHER_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DUCKLETT": {
+    "evidence": [
+     "unit-ducklett"
+    ]
+   },
+   "SWANNA": {
+    "evidence": [
+     "unit-swanna"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FEATHER_DANCE] = new FeatherDanceStrategy()",
+   "strategy": "FeatherDanceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved: the strategy file never references EffectEnum.FEATHER_DANCE; that effect (Flying synergy) is consumed by the synergy switch in simulation.ts and by PokemonEntity.flyAway. A Flying unit may hold both, but the effect is not part of this ability's behaviour.",
+   "evidence": [
+    "reg",
+    "reg-fd",
+    "fd-class",
+    "base-flags",
+    "base-pp",
+    "pp-gate",
+    "fd-super",
+    "effect-enum",
+    "effect-flyaway"
+   ]
+  },
+  "summary": "The caster moves (swap, not forced) to a free cell next to its farthest ALLY (fallback: the free cell on its own half farthest from it) and scatters 8/10/12/24 feathers (by caster stars: Ducklett 8, Swanna 10) at random cells of the straight (supercover) line from its old cell to the landing cell. Each feather is one of seven random kinds and, if an entity was on its cell when the cast began, is applied 1000 ms later: +heal 20 / +4 Attack / +4 Defense / +10 AP / +4 SpDef / +10 Speed / +10 Luck on allies of the caster (including the caster, who stands on the first path cell), the negated amount on enemies (20 special damage for the health feather). Feathers on empty cells only animate. If no landing place exists nothing happens except the PP spent.",
+  "targeting": {
+   "who": "no use of the cast target: the landing place is the free cell next to the farthest ally (isTargettableBy allies); the feather recipients are whatever entities were on the path cells when the cast began",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true, so the unit must have a target to cast (how it is chosen before the cast was not read); the strategy ignores the target argument after super.process.",
+   "evidence": [
+    "fd-class",
+    "base-flags",
+    "fd-land",
+    "fd-path",
+    "board-far-filter"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's start cell to the landing cell, both ends included; feathers land on random path cells with replacement",
+   "landing": "free cell adjacent to the farthest ally by Manhattan distance (first one found at the maximum wins; the caster is excluded because the comparison is strictly greater than 0); the adjacent cell chosen is the one farthest from the caster; if the ally has no free neighbour: closest free cell to that ally; if there is no ally: getSafePlaceAwayFrom on the caster's own half",
+   "evidence": [
+    "fd-land",
+    "fd-path",
+    "fd-loop",
+    "board-far",
+    "board-far-dist",
+    "board-far-cells",
+    "board-far-fb",
+    "board-safe",
+    "board-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "movement",
+    "declaredRaw": {
+     "destination": "see geometry.landing"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false) swaps cells with whoever is on the destination (the destination is free, so a plain move); forcedDisplacement false so the caster's own canBeMoved restrictions are not checked. Executed immediately, before the feathers are applied; the path was computed before the move.",
+    "evidence": [
+     "fd-move",
+     "moveto",
+     "fd-land"
+    ]
+   },
+   {
+    "kind": "feather distribution",
+    "declaredRaw": {
+     "featherCount": {
+      "byStars": {
+       "1": 8,
+       "2": 10,
+       "3": 12,
+       "4": 24,
+       "fallback": 24
+      }
+     },
+     "kinds": 7,
+     "delayMs": 1000
+    },
+    "perUnitRaw": {
+     "DUCKLETT": 8,
+     "SWANNA": 10
+    },
+    "scaling": "Count = table value by caster stars; not AP-scaled. Each feather draws its kind and path cell uniformly at random independently (with replacement), so the same cell or kind can repeat.",
+    "resolution": "A feather needs an entity captured on its cell at cast start; entities are captured by reference, so a unit that moved away is still hit and the feather is applied even if it died (no liveness check in the delayed function, though heal needs hp > 0 and damage/other helpers apply their own rules). The delayed function reads the entity's team 1000 ms later to choose the sign.",
+    "evidence": [
+     "fd-list",
+     "fd-count",
+     "fd-loop",
+     "fd-empty",
+     "fd-delay",
+     "fd-delay-ms",
+     "delayed"
+    ]
+   },
+   {
+    "kind": "heal/damage",
+    "feather": "HEALTH_FEATHER",
+    "declaredRaw": {
+     "ally": 20,
+     "enemy": 20
+    },
+    "scaling": "Ally: requested heal 20 with apBoost 1 and the featherTarget as the caster argument, so the amount is 20 x (1 + featherTarget.AP/100) x featherTarget.critPower if the cast crit (the cast's crit flag, but the featherTarget's AP and critPower), then wound blocks, protect blocks, burn/enraged x0.5, BUFF_HEAL_RECEIVED x1.3, Zenith x1.2, rounded, capped at missing HP. Enemy: raw 20 SPECIAL damage scaled by the CASTER's AP (x(1 + AP/100)), crit by the caster's critPower if the cast crit.",
+    "resolution": "Enemy damage: handleSpecialDamage then SPE_DEF division (ceil, minimum 1); blocked by protect / skydiving / magicBounce. Applied heal = healReceived (not the requested amount); takenDamage of the damage is not read by this strategy.",
+    "evidence": [
+     "fd-health",
+     "heal",
+     "heal-scale",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min"
+    ]
+   },
+   {
+    "kind": "stat change",
+    "feathers": {
+     "MUSCLE_FEATHER": "Attack +4 / -4",
+     "RESIST_FEATHER": "Defense +4 / -4",
+     "GENIUS_FEATHER": "AP +10 / -10",
+     "CLEVER_FEATHER": "SpecialDefense +4 / -4",
+     "SWIFT_FEATHER": "Speed +10 / -10",
+     "PRETTY_FEATHER": "Luck +10 / -10"
+    },
+    "declaredRaw": {
+     "MUSCLE": 4,
+     "RESIST": 4,
+     "GENIUS": 10,
+     "CLEVER": 4,
+     "SWIFT": 10,
+     "PRETTY": 10
+    },
+    "scaling": "Requested = sign x amount (sign +1 for the caster's team incl. the caster, -1 otherwise). Every call passes the featherTarget itself as caster with apBoost 1, so the amount is multiplied by (1 + featherTarget.AP/100), and by its critPower if the cast crit - the caster's AP does NOT scale the stat feathers. Big Eater Belt on the featherTarget: the caster argument is itself (same team), so the belt multiplies both buffs and the enemy debuffs by 1.25 floored. Twist Band never flips these (same team as caster argument), so it does not turn the enemy debuff into a buff.",
+    "resolution": "Applied change after rounding and clamps: Attack min 1; Defense, SpecialDefense min 0; AP min -100; Speed clamp 0..MAX_SPEED (no rounding); Luck clamp -100..100 (no rounding). Nullify Bandana on the target turns AP feathers into Attack round(0.2 x value); Melmetal passive turns speed into 0.5 x Attack. Not permanent (permanent false).",
+    "evidence": [
+     "fd-atk",
+     "fd-def",
+     "fd-ap",
+     "fd-spdef",
+     "fd-spd",
+     "fd-luck",
+     "add-atk",
+     "add-def",
+     "add-spdef",
+     "add-ap",
+     "add-speed",
+     "add-luck",
+     "beb",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "note": "stat feathers above; temporary for the fight, not permanent",
+    "evidence": [
+     "fd-atk"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DUCKLETT": 1,
+    "SWANNA": 2
+   },
+   "declaredFeatherCount": {
+    "DUCKLETT": 8,
+    "SWANNA": 10
+   },
+   "note": "indexed by the casting entity's stars; the 12 and 24 (fallback) entries are not reachable by these two units' star counts. Feather amounts do not depend on stars. maxPP 100 and range 2 for both.",
+   "evidence": [
+    "fd-count",
+    "unit-ducklett",
+    "unit-swanna"
+   ]
+  },
+  "positionalConditions": "The landing place and the path depend on the farthest ally's position and the free cells around it. If getFarthestTargetCoordinateAvailablePlace returns null (no other targettable ally, or no free cell), the own-half fallback is used; if that is also null nothing moves and no feather is thrown (PP still spent).",
+  "repeatedCastsAndModes": "No stored state or modes; each cast recomputes the landing place and path. The delayed feather effects of an earlier cast are independent commands.",
+  "rawVsResolved": "Raw: feather count 8/10, amounts 20 / 4 / 4 / 10 / 4 / 10 / 10, delay 1000 ms. Requested = sign x raw; applied heal scales with the featherTarget's AP and critPower (not the caster's) and is capped at missing HP; applied enemy damage scales with the caster's AP then SPE_DEF; applied stat changes scale with the featherTarget's AP, go through Big Eater Belt (x1.25 floored) and clamps, and never go through a Twist Band flip.",
+  "sourceTables": [
+   {
+    "id": "featherCount",
+    "file": "app/core/abilities/feather-dance.ts",
+    "pattern": "const featherCount = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.featherCount.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "MAX_SPEED value and the swapCells / moving-state consequences of moveTo (not read)"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: resolved as described in dispatch.note (EffectEnum.FEATHER_DANCE is separate and not referenced by the strategy).",
+   "How the cast target is chosen before the cast was not read; the strategy ignores it.",
+   "Exact on-screen animation and client behaviour (broadcastAbility) not read."
+  ],
+  "evidence": [
+   {
+    "id": "unit-ducklett",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13326,
+     13344
+    ],
+    "symbol": "class Ducklett",
+    "expect": "skill = Ability.FEATHER_DANCE",
+    "note": "unit class block: stars 1, maxPP 100, range 2, no passive line (catalog NONE)"
+   },
+   {
+    "id": "unit-swanna",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13346,
+     13363
+    ],
+    "symbol": "class Swanna",
+    "expect": "skill = Ability.FEATHER_DANCE",
+    "note": "unit class block: stars 2, maxPP 100, range 2, no passive line (catalog NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-fd",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     874,
+     874
+    ],
+    "symbol": "AbilityStrategies[Ability.FEATHER_DANCE]",
+    "expect": "[Ability.FEATHER_DANCE]: new FeatherDanceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fd-class",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "FeatherDanceStrategy",
+    "expect": "export class FeatherDanceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults requiresTarget true / canCritByDefault false; not overridden"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "fd-super",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "fifth argument true = preventDefaultAnim (no default cast broadcast); PP is spent regardless of whether a landing place is found"
+   },
+   {
+    "id": "fd-list",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     17,
+     25
+    ],
+    "symbol": "feathers",
+    "expect": "\"PRETTY_FEATHER\"",
+    "note": "seven feather kinds, each picked uniformly at random per feather"
+   },
+   {
+    "id": "fd-count",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "const featherCount = [8, 10, 12, 24][pokemon.stars - 1] ?? 24",
+    "note": "number of feathers by caster stars"
+   },
+   {
+    "id": "fd-land",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     28,
+     34
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon, true) ||",
+    "note": "landing place = farthest ALLY's free neighbour; fallback getSafePlaceAwayFrom on the caster's own side"
+   },
+   {
+    "id": "fd-path",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     37,
+     42
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "const pathCells = board.getCellsBetween(",
+    "note": "path computed BEFORE the move, from the caster's current cell to the landing cell; each cell's value is the entity on it at cast time (the first cell is the caster's own cell, so the caster is on the path)"
+   },
+   {
+    "id": "fd-move",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "pokemon.moveTo(landingPlace.x, landingPlace.y, board, false)",
+    "note": "caster swaps to the landing cell (forcedDisplacement false)"
+   },
+   {
+    "id": "fd-loop",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     47,
+     52
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "const cell = pickRandomIn(pathCells)",
+    "note": "each of featherCount feathers picks a random kind and a random path cell independently (with replacement); the cell's captured entity is the target"
+   },
+   {
+    "id": "fd-empty",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     95,
+     102
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "No entity on cell, just show animation",
+    "note": "a feather on a cell with no captured entity only plays an animation"
+   },
+   {
+    "id": "fd-delay",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     60,
+     62
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "const sign = featherTarget.team === pokemon.team ? 1 : -1",
+    "note": "applied by a DelayedCommand 1000 ms later (delay at line 93); the sign is decided at that time from the captured entity's team vs the caster's team"
+   },
+   {
+    "id": "fd-delay-ms",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     93,
+     93
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "}, 1000)",
+    "note": "1000 ms delay"
+   },
+   {
+    "id": "fd-health",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     63,
+     74
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.handleHeal(sign * 20, featherTarget, 1, crit)",
+    "note": "ally: heal 20 with caster arg = the featherTarget itself (its own AP and critPower scale it); enemy: handleSpecialDamage(20, ..., pokemon, crit), caster as attacker"
+   },
+   {
+    "id": "fd-atk",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     75,
+     76
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addAttack(sign * 4, featherTarget, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "fd-def",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     77,
+     78
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addDefense(sign * 4, featherTarget, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "fd-ap",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     79,
+     80
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addAbilityPower(sign * 10, featherTarget, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "fd-spdef",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     81,
+     87
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addSpecialDefense(",
+    "note": ""
+   },
+   {
+    "id": "fd-spd",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     88,
+     89
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addSpeed(sign * 10, featherTarget, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "fd-luck",
+    "file": "app/core/abilities/feather-dance.ts",
+    "lines": [
+     90,
+     91
+    ],
+    "symbol": "FeatherDanceStrategy.process",
+    "expect": "featherTarget.addLuck(sign * 10, featherTarget, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "board-far",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     572
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "signature has targetAlly = false by default"
+   },
+   {
+    "id": "board-far-filter",
+    "file": "app/core/board.ts",
+    "lines": [
+     583,
+     584
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "entity.isTargettableBy(pokemon, !targetAlly, targetAlly)",
+    "note": "with targetAlly true: allies only (enemies only when MERCILESS and hp <= 10), untargettable excluded"
+   },
+   {
+    "id": "board-far-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "strictly greater, starting from 0: the caster (distance 0) is never chosen; the first ally at the maximum Manhattan distance wins"
+   },
+   {
+    "id": "board-far-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "free adjacent cells of that ally, the one farthest from the caster; selectedCell is not cleared when a strictly farther ally is found (shared helper behaviour documented in FLAME_CHARGE / VOLT_SWITCH)"
+   },
+   {
+    "id": "board-far-fb",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     629
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback: closest free cell to the farthest ally"
+   },
+   {
+    "id": "board-safe",
+    "file": "app/core/board.ts",
+    "lines": [
+     500,
+     542
+    ],
+    "symbol": "Board.getSafePlaceAwayFrom",
+    "expect": "getSafePlaceAwayFrom(",
+    "note": "fallback destination: free cell on the caster's own half (BLUE y < rows/2, RED y >= rows/2), farthest by Manhattan distance from the caster's position; null if no free cell"
+   },
+   {
+    "id": "board-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "supercover line, start cell included (when on board), end cell included"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": ""
+   },
+   {
+    "id": "delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     31
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "constructor(delayedFunction: () => void, delay: number)",
+    "note": ""
+   },
+   {
+    "id": "heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wounded targets receive no heal (a heal of 0)"
+   },
+   {
+    "id": "heal-scale",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     331,
+     356
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "apBoost > 0: heal scaled by the CASTER ARGUMENT's AP, here the featherTarget's; crit multiplies by that entity's critPower; burn x0.5, enraged x0.5, BUFF_HEAL_RECEIVED x1.3, Zenith x1.2, rounded, capped at missing HP; not applied when protected or hp <= 0"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "enemy health feather: scaled by the cast caster's AP (attacker = pokemon)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "add-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "value rounded after AP/crit scaling by the caster ARGUMENT (the featherTarget); floor of 1"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": ""
+   },
+   {
+    "id": "add-spdef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": ""
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "Nullify Bandana on the featherTarget turns the AP change into Attack round(0.2 x value)"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "belt/twist first, then AP/crit scaling, no rounding; Melmetal passive converts to 0.5x attack"
+   },
+   {
+    "id": "add-luck",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     649,
+     672
+    ],
+    "symbol": "PokemonEntity.addLuck",
+    "expect": "target.luck = clamp(target.luck + value, -100, +100)",
+    "note": "no rounding; scaling then belt/twist"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "caster argument is the featherTarget itself, so caster.team === pokemon.team: the belt multiplies both the buff and the negative (enemy) change by 1.25, floored"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "(caster === \"environment\" || caster.team !== pokemon.team)",
+    "note": "caster argument = target itself (same team), so Twist Band never flips these feather changes, including the negative ones on enemies"
+   },
+   {
+    "id": "effect-enum",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     951,
+     953
+    ],
+    "symbol": "Simulation synergy effect switch",
+    "expect": "case EffectEnum.FEATHER_DANCE:",
+    "note": "EffectEnum.FEATHER_DANCE (Flying synergy: flying protection) is a different thing from Ability.FEATHER_DANCE"
+   },
+   {
+    "id": "effect-flyaway",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1322,
+     1327
+    ],
+    "symbol": "PokemonEntity.flyAway",
+    "expect": "this.effects.has(EffectEnum.FEATHER_DANCE)",
+    "note": "the EffectEnum is consumed by flyAway protection, not by FeatherDanceStrategy (which never references it)"
+   }
+  ]
+ }
+}
