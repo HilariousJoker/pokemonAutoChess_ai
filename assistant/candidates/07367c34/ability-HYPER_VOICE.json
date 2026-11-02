@@ -1,0 +1,623 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HYPER_VOICE",
+ "kind": "ability",
+ "identifier": "HYPER_VOICE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T184107Z"
+ },
+ "record": {
+  "ability": "HYPER_VOICE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HYPER_VOICE: Altaria (2 stars, range 2) and Swablu (1 star, range 2). The strategy is shared; differences are star count and stats. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ALTARIA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "HYPER_VOICE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SWABLU",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "HYPER_VOICE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ALTARIA": {
+    "evidence": [
+     "unit-altaria"
+    ]
+   },
+   "SWABLU": {
+    "evidence": [
+     "unit-swablu"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HYPER_VOICE] = new HyperVoiceStrategy()",
+   "strategy": "HyperVoiceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "hv-class",
+    "hv-super"
+   ]
+  },
+  "summary": "Row attack. Every unit of the opposing team (any unit whose team differs from the caster's) that stands on the same board row as the cast target takes SPECIAL damage (raw 25 at 1 star, 50 at 2 stars; 100 / 200 for 3 / 4 stars exist in the table). Each damaged unit independently rolls a 30% (luck-adjusted) chance to be confused for a base 1000 ms (1 star) / 2000 ms (2 stars) (3000 / 6000 ms for 3 / 4 stars). The confusion roll and trigger happen whether or not the damage was blocked or dealt anything, and the confusion duration does not scale with AP or crit (apBoost is not passed). The scan is by team inequality only: there is no targettable or distance check in the strategy.",
+  "targeting": {
+   "who": "all units of the other team standing on the row (positionY) of the cast target, including the target",
+   "needsTarget": true,
+   "note": "The row is the target's positionY at the moment of the cast; the whole row is scanned from x = 0 up (Board.forEach is row-major), whatever the caster's range or position. The condition is pokemon.team != tg.team, so it also reaches units of any team other than the caster's. Untargettable or otherwise special units on the row were not examined.",
+   "evidence": [
+    "hv-loop",
+    "hv-row",
+    "board-foreach",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "one full board row (y = target.positionY), all columns",
+   "evidence": [
+    "hv-loop",
+    "hv-row",
+    "board-foreach"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "every opposing unit on the target's row",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200
+     },
+     "fallback": 200,
+     "label": "requested damage (raw) per unit hit"
+    },
+    "perUnitRaw": {
+     "ALTARIA": 50,
+     "SWABLU": 25
+    },
+    "scaling": "requested = table[stars-1] for each unit. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE (the effect is deleted after the first use, so only the first unit hit in the scan gets it); x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite on that victim.",
+    "resolution": "applied per unit = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage, 0 with protect / skydiving / magicBounce (a blocked unit still rolls for confusion). The returned takenDamage / death is not used.",
+    "evidence": [
+     "hv-dmg",
+     "hv-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "CONFUSION",
+    "target": "each opposing unit hit on the row, independently",
+    "durationMs": null,
+    "probability": 0.3,
+    "apScaled": false,
+    "declaredRaw": {
+     "byStars": {
+      "1": 1000,
+      "2": 2000,
+      "3": 3000,
+      "4": 6000
+     },
+     "fallback": 6000,
+     "label": "requested duration (ms)"
+    },
+    "perUnitRaw": {
+     "ALTARIA": 2000,
+     "SWABLU": 1000
+    },
+    "scaling": "probability = chance(0.3, caster) = 0.3^(1 - caster.luck/100) (capped at 1), rolled separately for every unit on the row; duration does not scale with AP or crit.",
+    "resolution": "Requested vs applied. Applied only if the target is not already confused, has no rune protect and no IMMUNITY_CONFUSION effect (skydiving is not checked for confusion). Applied duration = round(requested x 1.3 in a sandstorm, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone in the victim's player's items)). An already confused unit keeps its running timer (no refresh). A confused unit picks its attack target through getTargetWhenConfused (attacking-state); the movement-side use and getTargetWhenConfused itself were not traced here.",
+    "evidence": [
+     "hv-conf",
+     "hv-chance",
+     "hv-trigger",
+     "chance-fn",
+     "conf-guard",
+     "conf-ap",
+     "conf-sand",
+     "conf-red",
+     "conf-set",
+     "red-water",
+     "red-odd",
+     "conf-atk"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ALTARIA": 2,
+    "SWABLU": 1
+   },
+   "declaredRawDamage": {
+    "ALTARIA": 50,
+    "SWABLU": 25
+   },
+   "note": "Damage and confusion duration are indexed by the casting entity's stars (four values each; ?? fallback 200 / 6000). The listed units are catalog stars 2 and 1, so 50 / 2000 ms and 25 / 1000 ms. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "hv-dmg",
+    "hv-conf",
+    "unit-altaria",
+    "unit-swablu"
+   ]
+  },
+  "positionalConditions": "The affected set depends only on the target's row; the caster's own position and its range do not matter once the cast fires. Units of the caster's team on the row are not touched.",
+  "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP and re-rolls every confusion roll; an already confused unit is not refreshed.",
+  "rawVsResolved": "Requested per unit: damage 25 / 50 and a 30% chance of confusion for 1000 / 2000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage (first unit only) / steam multipliers, then SPE_DEF division and minimum 1, shields first. Applied confusion duration = requested after the sandstorm bonus and the victim's duration reductions, and only if the victim can be confused.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "confusion",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "pattern": "const confusionDuration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "Whether dead, untargettable or otherwise special units can still occupy a cell on the row when the loop runs was not examined; the strategy itself has no such filter",
+   "Whether a unit killed by the damage still receives the confusion roll (the strategy does not read the damage result) was not traced",
+   "getTargetWhenConfused and the confusion use in board.ts movement were not read; only the attacking-state branch is cited",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-altaria",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     722,
+     736
+    ],
+    "symbol": "class Altaria",
+    "expect": "skill = Ability.HYPER_VOICE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-swablu",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     706,
+     720
+    ],
+    "symbol": "class Swablu",
+    "expect": "skill = Ability.HYPER_VOICE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     977,
+     977
+    ],
+    "symbol": "AbilityStrategies[Ability.HYPER_VOICE]",
+    "expect": "[Ability.HYPER_VOICE]: new HyperVoiceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "conf-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     815,
+     815
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_CONFUSION)",
+    "note": "not applied if already confused, rune protected or IMMUNITY_CONFUSION"
+   },
+   {
+    "id": "conf-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     817,
+     817
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "AP scaling only when apBoost is true (default false)"
+   },
+   {
+    "id": "conf-sand",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "if (pkm.simulation.weather === Weather.SANDSTORM) {",
+    "note": "sandstorm x1.3"
+   },
+   {
+    "id": "conf-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     822,
+     822
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "conf-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     825,
+     825
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "this.confusionCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone, player items"
+   },
+   {
+    "id": "hv-class",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "HyperVoiceStrategy",
+    "expect": "export class HyperVoiceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "hv-super",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hv-dmg",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage by caster stars; ?? 200 fallback"
+   },
+   {
+    "id": "hv-conf",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "const confusionDuration = [1000, 2000, 3000, 6000][pokemon.stars - 1] ?? 6000",
+    "note": "confusion duration (ms) by caster stars; ?? 6000 fallback"
+   },
+   {
+    "id": "hv-loop",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "board.forEach((x: number, y: number, tg: PokemonEntity | undefined) => {",
+    "note": "scan every cell"
+   },
+   {
+    "id": "hv-row",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "if (tg && pokemon.team != tg.team && target.positionY == y) {",
+    "note": "every enemy-team unit on the target's row; no targettable / alive check here"
+   },
+   {
+    "id": "hv-hit",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "tg.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage to each unit in the row; crit forwarded"
+   },
+   {
+    "id": "hv-chance",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "if (chance(0.3, pokemon)) {",
+    "note": "30% per hit unit, luck-adjusted"
+   },
+   {
+    "id": "hv-trigger",
+    "file": "app/core/abilities/hyper-voice.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "HyperVoiceStrategy.process",
+    "expect": "tg.status.triggerConfusion(confusionDuration, tg, pokemon)",
+    "note": "apBoost not passed, so default false"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     78,
+     78
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "row-major scan, y outer then x"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability ^ (1 - luck/100), capped at 1 (default cap)"
+   },
+   {
+    "id": "conf-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "} else if (pokemon.status.confusion) {",
+    "note": "a confused unit picks its attack target via getTargetWhenConfused"
+   }
+  ]
+ }
+}
