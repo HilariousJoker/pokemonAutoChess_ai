@@ -1,0 +1,579 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FROST_BREATH",
+ "kind": "ability",
+ "identifier": "FROST_BREATH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T064110Z"
+ },
+ "record": {
+  "ability": "FROST_BREATH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "CUBCHOO (1 star) and BEARTIC (2 stars) declare FROST_BREATH (maxPP 100, range 1, passive NONE). Shared strategy; the difference is the star index and stats.",
+  "appliesTo": [
+   {
+    "key": "BEARTIC",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FROST_BREATH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CUBCHOO",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "FROST_BREATH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BEARTIC": {
+    "evidence": [
+     "unit-beartic"
+    ]
+   },
+   "CUBCHOO": {
+    "evidence": [
+     "unit-cubchoo"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FROST_BREATH] = new FrostBreathStrategy()",
+   "strategy": "FrostBreathStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": true,
+   "evidence": [
+    "reg",
+    "reg-fb",
+    "fb-class",
+    "base-flags",
+    "base-pp",
+    "fb-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "The caster turns toward the cast target (8-way, sign-based) and hits four cells in front of it: the adjacent cell in that direction, plus that cell displaced by the facing vector and by the two neighbouring orientations of the OrientationArray ring. Every occupied cell among them holding an entity of another team takes SPECIAL damage (35/70/140/280 raw by stars; this ability can crit without ABILITY_CRIT), and each such unit then independently has a 50 % chance (raised by the caster's luck) to get a 2000 ms freeze request. The freeze roll happens even when the damage was blocked. The cells are anchored on the caster's own position and orientation, not on the target's position; with range 1 the target is in the front cell.",
+  "targeting": {
+   "who": "the cells computed from the caster's position and its orientation toward the cast target; enemies (team differs from the caster's) in those cells",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; the cast target is used only for the orientation. Selection of the target before the cast was not read.",
+   "evidence": [
+    "fb-class",
+    "base-flags",
+    "fb-orient",
+    "fb-cells",
+    "fb-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "4 cells: F = caster + d (d = OrientationVector of the facing), then F + v(o) for o in [facing, ring neighbour +1, ring neighbour -1]. Example, facing RIGHT (d = (1,0); ring neighbours UPRIGHT (1,1) and DOWNRIGHT (1,-1)): F = (x+1, y) and the three cells (x+2, y), (x+2, y+1), (x+2, y-1), i.e. the adjacent cell plus a three-cell column behind it. A diagonal facing (e.g. UPRIGHT, d = (1,1)) uses its ring neighbours RIGHT (1,0) and UP (0,1): F = (x+1, y+1) and (x+2, y+2), (x+2, y+1), (x+1, y+2). Cells off the board hit nothing. Orientation comes from the sign of the offset to the target, so the facing is always one of 8 directions.",
+   "evidence": [
+    "fb-orient",
+    "fb-orients",
+    "fb-cells",
+    "vec",
+    "arr",
+    "board-orient",
+    "cell-get"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 35,
+      "2": 70,
+      "3": 140,
+      "4": 280,
+      "fallback": 280
+     }
+    },
+    "perUnitRaw": {
+     "BEARTIC": 70,
+     "CUBCHOO": 35
+    },
+    "scaling": "requested amount = raw x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) when the cast crit (canCritByDefault is true here, so the cast can crit without ABILITY_CRIT)",
+    "resolution": "requested -> applied: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1) among other steps; the applied loss (takenDamage) is discarded by the strategy. Protect / skydiving / magicBounce targets take none (magicBounce queues a delayed bounce on the caster unless Protective Pads); a dead or resurrecting target takes none. Shield, Shiny Charm, Fossil and Cover Band branches are as for any special damage (see the BITE record).",
+    "evidence": [
+     "fb-dmg",
+     "fb-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "freeze",
+    "target": "each enemy unit in the four cells, independently",
+    "declaredRaw": {
+     "probability": 0.5,
+     "duration": 2000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "probability is chance(0.5, caster): P = 0.5^(1 - luck/100) capped at 1, so the caster's luck raises it; no AP or crit scaling of the duration",
+    "applicationOrder": "for each hit unit, after its damage call, in cell order front, then the three displaced cells; the roll is made even when the damage was blocked, and there is no check that the unit survived",
+    "guards": "in triggerFreeze: skipped if the unit is already frozen, has runeProtect, is skydiving, has the IMMUNITY_FREEZE effect, or its ccCooldown is above 0 (set to 1500 ms when a freeze ends). Applied duration = 2000 changed by weather of the simulation (SNOW x1.3 with Icy Rock -20 % each for the target's player, DROUGHT x0.7), halved when the target is enraged, then reduced by applyStatusDurationReductions, rounded; Aspear Berry is eaten and EISCUE_NOICE transforms on a successful freeze.",
+    "combatEffect": "while frozen the unit cannot move or attack (canMove / canAttack are false); a burning frozen unit's freeze timer runs at double speed; when the freeze ends a 1500 ms immunity window (ccCooldown) begins.",
+    "evidence": [
+     "fb-freeze",
+     "chance",
+     "freeze-guard",
+     "freeze-dur",
+     "freeze-react",
+     "freeze-upd",
+     "cc-cd",
+     "can-move",
+     "can-attack",
+     "dur-red"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BEARTIC": 2,
+    "CUBCHOO": 1
+   },
+   "declaredRawDamage": {
+    "BEARTIC": 70,
+    "CUBCHOO": 35
+   },
+   "note": "indexed by the caster's stars; 3-star (140), 4-star (280) and the fallback are not reachable by the two listed units' bare star counts. Freeze chance and duration do not depend on stars.",
+   "evidence": [
+    "fb-dmg",
+    "unit-beartic",
+    "unit-cubchoo"
+   ]
+  },
+  "positionalConditions": "The cells depend on the caster's position and the facing toward the cast target; targets outside the four cells are not hit even if adjacent to the caster. If the caster and target share a cell (dx = dy = 0) board.orientation returns a random facing when confused, otherwise DOWNRIGHT after logging an error.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast turns the caster and rolls the freeze again; the cast leaves pokemon.orientation changed.",
+  "rawVsResolved": "Declared raw: damage 35 (Cubchoo) / 70 (Beartic) per unit in the four cells; freeze 2000 ms with probability 0.5. Requested damage = raw x (1 + AP/100) [x crit], then the SPE_DEF division (ceil, at least 1) and untraced modifiers; the applied loss is discarded by the strategy. Freeze: probability 0.5^(1 - luck/100), requested 2000 ms, applied duration after weather, enrage and status reductions, and only if no guard refuses.",
+  "sourceTables": [
+   {
+    "id": "frostBreathDamage",
+    "file": "app/core/abilities/frost-breath.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - the SPECIAL speDef division was read, no probe was run",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the crit flag gate and the damage-side multiplier were read; how the 'crit' argument is rolled for canCritByDefault abilities was not traced here",
+   "applyStatusDurationReductions inputs (Odd Keystone count) of the target's player"
+  ],
+  "unresolved": [
+   "The exact geometry was derived from the code by hand, including the claim that the cells are F, F+d, and F plus the two ring-neighbour vectors; the (dx, dy) sign convention (y up = +1) follows OrientationVector and was not checked against the board's drawing direction",
+   "Whether the unit that was frozen could already have died from the same hit (no survival check before triggerFreeze) matters only for dead entities still on the board; not traced",
+   "Whether any item or synergy effect changes FROST_BREATH beyond what is listed (Icy Rock, Aspear Berry are read from triggerFreeze only)",
+   "EISCUE_NOICE's transformToIceFace and the weather determination were not read",
+   "Neither unit has a passive in the catalog; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-cubchoo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17363,
+     17377
+    ],
+    "symbol": "class Cubchoo",
+    "expect": "skill = Ability.FROST_BREATH",
+    "note": "unit class block (ICE / FIELD / AQUATIC, no passive)"
+   },
+   {
+    "id": "unit-beartic",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17379,
+     17393
+    ],
+    "symbol": "class Beartic",
+    "expect": "skill = Ability.FROST_BREATH",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-fb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     904,
+     904
+    ],
+    "symbol": "AbilityStrategies[Ability.FROST_BREATH]",
+    "expect": "[Ability.FROST_BREATH]: new FrostBreathStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fb-class",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     8,
+     9
+    ],
+    "symbol": "FrostBreathStrategy",
+    "expect": "canCritByDefault = true",
+    "note": "the cast can crit without ABILITY_CRIT; requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "fb-super",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fb-dmg",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "[35, 70, 140, 280][pokemon.stars - 1] ?? 280",
+    "note": ""
+   },
+   {
+    "id": "fb-orient",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     19,
+     27
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "pokemon.orientation = board.orientation(",
+    "note": "the caster is turned toward the target; (dx, dy) = OrientationVector of that orientation"
+   },
+   {
+    "id": "fb-orients",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     29,
+     33
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "OrientationArray[(OrientationArray.indexOf(pokemon.orientation) + 1) % 8]",
+    "note": "the facing orientation and its two neighbours in OrientationArray order (+1 and +7 = -1 mod 8)"
+   },
+   {
+    "id": "fb-cells",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     35,
+     41
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "const cellsHit = [[pokemon.positionX + dx, pokemon.positionY + dy]]",
+    "note": "the front cell, then the front cell displaced by each of the three orientation vectors (4 cells in total)"
+   },
+   {
+    "id": "fb-hit",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     43,
+     52
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "value && value.team !== pokemon.team",
+    "note": "an occupied cell with an entity of another team takes SPECIAL damage, attacker = caster, crit passed, apBoost default true; the returned value is discarded"
+   },
+   {
+    "id": "fb-freeze",
+    "file": "app/core/abilities/frost-breath.ts",
+    "lines": [
+     53,
+     55
+    ],
+    "symbol": "FrostBreathStrategy.process",
+    "expect": "if (chance(0.5, pokemon))",
+    "note": "after the damage, a 50 % roll (affected by the caster's luck) per hit unit requests a 2000 ms freeze: value.status.triggerFreeze(2000, value, pokemon)"
+   },
+   {
+    "id": "vec",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "OrientationVector",
+    "expect": "[Orientation.UP]: [0, 1]",
+    "note": "UP = (0,+1), UPRIGHT (1,1), RIGHT (1,0), DOWNRIGHT (1,-1), DOWN (0,-1), DOWNLEFT (-1,-1), LEFT (-1,0), UPLEFT (-1,1)"
+   },
+   {
+    "id": "arr",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     25,
+     34
+    ],
+    "symbol": "OrientationArray",
+    "expect": "Orientation.DOWN,",
+    "note": "array order DOWN, DOWNRIGHT, RIGHT, UPRIGHT, UP, UPLEFT, LEFT, DOWNLEFT (neighbouring orientations in this ring)"
+   },
+   {
+    "id": "board-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "if (dx > 0) {",
+    "note": "8-way orientation from the signs of dx and dy (not angle based); dx = dy = 0 returns a random orientation when confused, otherwise DOWNRIGHT after logging an error"
+   },
+   {
+    "id": "cell-get",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "return this.cells[this.columns * y + x]",
+    "note": "cells outside the board yield undefined (nothing hit)"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "P(true) = min(cap, probability^(1 - luck/100)), so luck raises 0.5"
+   },
+   {
+    "id": "freeze-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     690,
+     702
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.runeProtect &&",
+    "note": "not applied if already frozen, runeProtect, skydiving, the target's IMMUNITY_FREEZE effect, or ccCooldown > 0"
+   },
+   {
+    "id": "freeze-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     703,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration *= 1.3",
+    "note": "SNOW weather x1.3 (Icy Rock -20 % each of the target's player), DROUGHT x0.7, enraged target x0.5, then status duration reductions; freezeCooldown = round(duration)"
+   },
+   {
+    "id": "freeze-react",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     722,
+     732
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "pkm.eatBerry(Item.ASPEAR_BERRY)",
+    "note": "Aspear Berry eaten, EISCUE_NOICE passive transforms"
+   },
+   {
+    "id": "freeze-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     735,
+     742
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "freeze ends when freezeCooldown runs out (burning halves the remaining time faster: dt x2) and starts a CC_COOLDOWN (1500 ms) during which freeze cannot be reapplied"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     231,
+     238
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!this.status.freeze &&",
+    "note": "frozen units cannot move"
+   },
+   {
+    "id": "can-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     240,
+     248
+    ],
+    "symbol": "PokemonEntity.canAttack",
+    "expect": "!this.status.freeze &&",
+    "note": "frozen units cannot attack"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage; the freeze roll still runs"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
