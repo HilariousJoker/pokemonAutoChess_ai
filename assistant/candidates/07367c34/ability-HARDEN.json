@@ -1,0 +1,318 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HARDEN",
+ "kind": "ability",
+ "identifier": "HARDEN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T124109Z"
+ },
+ "record": {
+  "ability": "HARDEN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HARDEN: Anorith (1 star) and Armaldo (2 stars); both range 1, maxPP 80, no passive. The strategy is shared; the unit difference is the star index into the gain table and stats.",
+  "appliesTo": [
+   {
+    "key": "ANORITH",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "HARDEN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ARMALDO",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "HARDEN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ANORITH": {
+    "evidence": [
+     "unit-anorith"
+    ]
+   },
+   "ARMALDO": {
+    "evidence": [
+     "unit-armaldo"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HARDEN] = new HardenStrategy()",
+   "strategy": "HardenStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-harden",
+    "cls",
+    "base",
+    "base-proc",
+    "super",
+    "cast"
+   ]
+  },
+  "summary": "Needs no target. The caster raises its own Defense (not Special Defense) by a requested amount of 4 (1 star) / 8 (2 stars) by calling addDefense(gain, caster, apBoost 1, crit). The applied amount is round(requested x (1 + AP/100) x (critPower if the cast crit)), then x1.25 rounded down if the caster holds a Big Eater Belt; Twist Band does nothing for a positive self-buff; def = max(0, def + applied). The crit flag is rolled only if the caster has the ABILITY_CRIT effect (canCritByDefault is false). No expiry is present in the strategy, so the buff lasts for the rest of the fight in the code read. No cooldown reset, no damage, no status.",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": false,
+   "note": "process receives target null and only touches pokemon (the caster).",
+   "evidence": [
+    "cls",
+    "def"
+   ]
+  },
+  "geometry": {
+   "shape": "self",
+   "evidence": [
+    "def"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "buff",
+    "target": "caster: Defense",
+    "declaredRaw": {
+     "stat": "def",
+     "byStars": {
+      "1": 4,
+      "2": 8,
+      "3": 12,
+      "4": 24,
+      "fallback": 24
+     }
+    },
+    "perUnitRaw": {
+     "ANORITH": 4,
+     "ARMALDO": 8
+    },
+    "scaling": "REQUESTED = the raw table value (4 / 8). APPLIED by addDefense: round(requested x (1 + AP/100) x (critPower if crit)); then Big Eater Belt x1.25 rounded down when the caster holds it (value > 0); Twist Band no effect on a positive value; the stored def = max(0, def + applied).",
+    "resolution": "requested (raw table) -> applied (after AP, crit and belt) -> new def value (floor 0, irrelevant for a positive buff). The change is on the fight entity only (permanent flag not passed).",
+    "evidence": [
+     "table",
+     "def",
+     "add-def",
+     "belt",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "def",
+    "target": "caster",
+    "permanentInFight": "no expiry in this strategy",
+    "evidence": [
+     "def",
+     "add-def"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ANORITH": 1,
+    "ARMALDO": 2
+   },
+   "declaredRawBuff": {
+    "ANORITH": 4,
+    "ARMALDO": 8
+   },
+   "note": "table index is the casting entity's stars; 12 and 24 are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-anorith",
+    "unit-armaldo"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "No stored state; each cast adds the buff again (stacking, no cap other than the >= 0 floor).",
+  "rawVsResolved": "Declared raw: +4 / +8 Defense (1 / 2 stars). Requested = raw; applied = round(raw x (1 + AP/100) x crit factor), then x1.25 rounded down with Big Eater Belt. Twist Band has no effect on this positive self-buff. Special Defense is not changed.",
+  "sourceTables": [
+   {
+    "id": "gain",
+    "file": "app/core/abilities/harden.ts",
+    "pattern": "const defGain = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate and castAbility were read",
+   "How the new Def value is used in damage reduction (see core-mechanics section A, not re-traced)"
+  ],
+  "unresolved": [
+   "Whether an aura, synergy or other effect later removes or caps the buff (not searched)",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-anorith",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7809,
+     7823
+    ],
+    "symbol": "class Anorith",
+    "expect": "skill = Ability.HARDEN",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-armaldo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7825,
+     7839
+    ],
+    "symbol": "class Armaldo",
+    "expect": "skill = Ability.HARDEN",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-harden",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     928,
+     928
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.HARDEN]: new HardenStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/harden.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "HardenStrategy",
+    "expect": "requiresTarget = false",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/harden.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "HardenStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/harden.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "HardenStrategy.process",
+    "expect": "const defGain = [4, 8, 12, 24][pokemon.stars - 1] ?? 24",
+    "note": "gain table"
+   },
+   {
+    "id": "def",
+    "file": "app/core/abilities/harden.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "HardenStrategy.process",
+    "expect": "pokemon.addDefense(defGain, pokemon, 1, crit)",
+    "note": "caster buffs itself; apBoost 1, cast crit flag"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base flags"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, broadcast with the default animation (preventDefaultAnim not passed)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "round(value x (1+AP/100) x crit), Big Eater Belt, Twist Band, def = max(0, def + value)"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "buff > 0 on a Big Eater Belt holder x1.25 rounded down (0 digits)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1865
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "only flips negative values from enemies/environment; no effect on a positive self-buff"
+   }
+  ]
+ }
+}
