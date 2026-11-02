@@ -1,0 +1,401 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FIERY_DANCE",
+ "kind": "ability",
+ "identifier": "FIERY_DANCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T003937Z"
+ },
+ "record": {
+  "ability": "FIERY_DANCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare FIERY_DANCE: Larvesta (1 star) and Volcarona (2 stars); both have maxPP 100, range 3 and no passive (catalog NONE). The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "LARVESTA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "FIERY_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VOLCARONA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "FIERY_DANCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LARVESTA": {
+    "evidence": [
+     "unit-larvesta"
+    ]
+   },
+   "VOLCARONA": {
+    "evidence": [
+     "unit-volcarona"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FIERY_DANCE] = new FieryDanceStrategy()",
+   "strategy": "FieryDanceStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "Direct registry entry with a dedicated file; no routing uncertainty was queued.",
+   "evidence": [
+    "reg",
+    "reg-fi",
+    "fi-class",
+    "base-flags",
+    "base-pp",
+    "pp-gate",
+    "fi-super"
+   ]
+  },
+  "summary": "The caster first gains +30 AP (no AP scaling), then deals single-target SPECIAL damage to the cast target: raw 25/50/100/200 by caster stars (Larvesta 25, Volcarona 50). Because the AP gain comes first, this cast's damage is scaled by the caster's AP including the +30 (unless Nullify Bandana turns the gain into 6 Attack). Crit applies only with ability crit. No status or movement.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "fi-class",
+    "base-flags",
+    "fi-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "fi-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "selfStat",
+    "stat": "AP",
+    "declaredRaw": {
+     "requested": 30
+    },
+    "scaling": "addAbilityPower(30, self, apBoost 0, crit false): value = round(30) = 30. Big Eater Belt on the caster: positive buff x1.25 floored (37). Twist Band does not change a positive value. Nullify Bandana on the caster: no AP gained; instead Attack changes by round(0.2 x 30) = 6 (through addAttack's own helpers).",
+    "resolution": "Applied: AP = max(-100, AP + 30) (37 with Big Eater Belt). Applied BEFORE the damage, so the same cast benefits. Not permanent, so the board Pokemon's stored AP is unchanged. Stacks every cast for the fight.",
+    "evidence": [
+     "fi-ap",
+     "add-ap",
+     "beb",
+     "twist"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "LARVESTA": 25,
+     "VOLCARONA": 50
+    },
+    "scaling": "requested = table value by caster stars. AP: x(1 + AP/100) using the caster's AP at the moment handleSpecialDamage runs, i.e. after this cast's +30 AP; the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
+    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields and takenDamage are resolved in handleDamage and not read by this strategy (return value unused). Blocked completely if the target is protected, skydiving or has magicBounce (the AP gain still happens).",
+    "evidence": [
+     "fi-dmg",
+     "fi-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "LARVESTA": 1,
+    "VOLCARONA": 2
+   },
+   "declaredRawDamage": {
+    "LARVESTA": 25,
+    "VOLCARONA": 50
+   },
+   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by these two units' star counts. The AP gain does not depend on stars. maxPP 100 and range 3 for both.",
+   "evidence": [
+    "fi-dmg",
+    "unit-larvesta",
+    "unit-volcarona"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (requiresTarget true; range 3 means the unit casts from up to 3 cells away, how range is enforced was not read).",
+  "repeatedCastsAndModes": "No stored state or modes. The +30 AP accumulates cast after cast (floor -100 only matters for negative AP), raising later casts' damage multiplier.",
+  "rawVsResolved": "Raw: damage 25/50, AP +30. Requested = raw; applied AP gain = 30 (37 with Big Eater Belt; Nullify Bandana converts it to 6 Attack). Applied damage = requested x (1 + (AP after +30)/100) [x crit], then SPE_DEF division (ceil, at least 1). takenDamage is not read here.",
+  "sourceTables": [
+   {
+    "id": "fieryDanceDamage",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read"
+  ],
+  "unresolved": [
+   "How the target is chosen before the cast, and how range 3 is enforced, were not read."
+  ],
+  "evidence": [
+   {
+    "id": "unit-larvesta",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6310,
+     6324
+    ],
+    "symbol": "class Larvesta",
+    "expect": "skill = Ability.FIERY_DANCE",
+    "note": "unit class block: stars 1, maxPP 100, range 3, no passive line (catalog NONE)"
+   },
+   {
+    "id": "unit-volcarona",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     6326,
+     6341
+    ],
+    "symbol": "class Volcarona",
+    "expect": "skill = Ability.FIERY_DANCE",
+    "note": "unit class block: stars 2, maxPP 100, range 3, no passive line (catalog NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-fi",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     877,
+     877
+    ],
+    "symbol": "AbilityStrategies[Ability.FIERY_DANCE]",
+    "expect": "[Ability.FIERY_DANCE]: new FieryDanceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fi-class",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "FieryDanceStrategy",
+    "expect": "export class FieryDanceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults requiresTarget true / canCritByDefault false; not overridden"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "fi-super",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FieryDanceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fi-dmg",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FieryDanceStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "fi-ap",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FieryDanceStrategy.process",
+    "expect": "pokemon.addAbilityPower(30, pokemon, 0, false)",
+    "note": "caster gains +30 AP BEFORE the damage call"
+   },
+   {
+    "id": "fi-hit",
+    "file": "app/core/abilities/fiery-dance.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "FieryDanceStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, apBoost default true; return value unused"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "value = round(30 x (1 + 0 x AP)) = 30 (apBoost 0); Nullify Bandana on the caster turns it into Attack round(0.2 x 30) = 6 and returns without changing AP; not permanent"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive self buff on a caster holding Big Eater Belt becomes floor(37.5) = 37"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 &&",
+    "note": "only negative values are flipped; +30 is unaffected"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the damage (the +30 AP is still gained)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP read when this runs, i.e. AFTER the +30 of this cast"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   }
+  ]
+ }
+}
