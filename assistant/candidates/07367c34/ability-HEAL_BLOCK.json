@@ -1,0 +1,601 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HEAL_BLOCK",
+ "kind": "ability",
+ "identifier": "HEAL_BLOCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T124109Z"
+ },
+ "record": {
+  "ability": "HEAL_BLOCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HEAL_BLOCK: Cacnea (1 star) and Cacturne (2 stars); both range 1, maxPP 70, no passive. The strategy is shared; the unit difference is the star index into the damage table and stats.",
+  "appliesTo": [
+   {
+    "key": "CACNEA",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "HEAL_BLOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CACTURNE",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "HEAL_BLOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CACNEA": {
+    "evidence": [
+     "unit-cacnea"
+    ]
+   },
+   "CACTURNE": {
+    "evidence": [
+     "unit-cacturne"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HEAL_BLOCK] = new HealBlockStrategy()",
+   "strategy": "HealBlockStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hb",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Around the caster (the eight neighbouring cells, centre excluded, off-board cells dropped) every unit of the other team receives a handleSpecialDamage request of SPECIAL damage (raw 20 / 40 / 80 / 160 by stars: Cacnea 20, Cacturne 40; apBoost passed explicitly as true) with the cast's crit flag, and then, in the same loop step and whatever that call returned, a triggerWound(5000, target, caster) call. Wound is a status that makes handleHeal on the wounded unit return 0 healed instead of healing, for a duration of 5000 ms (x1.3 in BLOODMOON weather) after the target's duration reductions; the timer (and the wound origin) is replaced only if the new duration is longer; only Rune Protect blocks the application. The wound duration is not scaled by AP or crit. The cast needs a target to start (requiresTarget true), but the area is centred on the caster, not on the target; the target itself is hit only if it is in an adjacent cell.",
+  "targeting": {
+   "who": "every enemy (different team) standing in one of the up to eight cells adjacent to the caster",
+   "needsTarget": true,
+   "note": "The cast target is only a gate for casting. The loop uses the caster's own coordinates, so the target is affected only if adjacent (range 1 for both units makes this the normal case). Empty cells and allies are skipped.",
+   "evidence": [
+    "cells",
+    "adj",
+    "loop",
+    "cls",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "the 3x3 block around the caster, centre excluded, clipped to the board",
+   "evidence": [
+    "cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent enemy (each once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "CACNEA": 20,
+     "CACTURNE": 40
+    },
+    "scaling": "REQUESTED = the raw table value (no AP in the strategy). handleSpecialDamage adds AP: damage x (1 + caster AP/100) (apBoost true), x2 if the caster carries DOUBLE_DAMAGE (consumed by the first target hit), x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side, and on a crit x (1 + (critPower - 1) x factor), where the factor is 1, 0 with a Rocky Helmet on that target, reduced by 0.1 per Black Augurite, floored at 0. The crit flag is rolled once per cast and only if the caster has ABILITY_CRIT.",
+    "resolution": "APPLIED per target: handleDamage divides by (1 + ARMOR_FACTOR x speDef), applies the non-TRUE flat reductions and floors at 1 after Math.ceil; shields absorb first; reported takenDamage includes shield damage and is discarded by the strategy. protect / skydiving block the damage; Magic Bounce also blocks and queues a delayed reflection unless the caster holds Protective Pads.",
+    "evidence": [
+     "table",
+     "hit",
+     "hsd-block",
+     "hsd-bounce",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-spedef",
+     "hd-min1",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "wound (heal block)",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "durationMs": 5000
+    },
+    "perUnitRaw": {
+     "CACNEA": {
+      "stars": 1,
+      "durationMsRaw": 5000
+     },
+     "CACTURNE": {
+      "stars": 2,
+      "durationMsRaw": 5000
+     }
+    },
+    "scaling": "REQUESTED duration 5000 ms for every star level; not scaled by AP or crit. APPLIED: x1.3 in BLOODMOON weather, then the target's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE in the target player's items, rounded).",
+    "applicationOrder": "per enemy cell in board scan order: damage call, then triggerWound; both happen for each target before the next cell, and the wound is applied even if the damage was blocked or killed the target",
+    "guards": "Only status.runeProtect blocks the application (no immunity effect check). The timer and woundOrigin are replaced only when the new duration is strictly longer than the remaining woundCooldown; a shorter or equal duration changes nothing (including the origin).",
+    "combatEffect": "while status.wound is set, PokemonState.handleHeal returns { healReceived: 0, overheal: 0 } for that unit and heals nothing; in BLOODMOON weather a unit whose player holds Blood Stone gets a shield of round(0.3 x stones x heal) instead. Wound ends when woundCooldown runs out (updateWound clears the flag and the origin). Which heal sources go through handleHeal (all heal requests read here do) and the shield path are the only consumers traced; other wound readers exist in the tree (SLASHING_CLAW, a Blood Stone damage heal, a passive re-triggering wound) and were not part of this trace.",
+    "evidence": [
+     "wound",
+     "wound-trig",
+     "wound-guard",
+     "wound-set",
+     "wound-moon",
+     "wound-longer",
+     "wound-update",
+     "wound-call",
+     "heal-wound",
+     "heal-zero",
+     "heal-bloodstone",
+     "reductions",
+     "odd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CACNEA": 1,
+    "CACTURNE": 2
+   },
+   "declaredRawDamage": {
+    "CACNEA": 20,
+    "CACTURNE": 40
+   },
+   "note": "table index is the casting entity's stars; 80 and 160 are not reached at the factory star counts of these units. The wound duration does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-cacnea",
+    "unit-cacturne"
+   ]
+  },
+  "positionalConditions": "The affected cells are those adjacent to the caster; enemies farther away are untouched. A cast with no enemy adjacent still spends the PP and does nothing else.",
+  "repeatedCastsAndModes": "No stored state or modes. Repeated casts re-damage and only extend the wound timer when the new duration exceeds the remaining one.",
+  "rawVsResolved": "Requested damage: raw 20 (Cacnea) / 40 (Cacturne) SPECIAL per adjacent enemy. Applied: raw x (1 + AP/100) [x crit factor on crit], divided by (1 + ARMOR_FACTOR x speDef), reduced by the non-TRUE flat reductions, floored at 1 after Math.ceil; takenDamage (shield included) is discarded. Requested wound: 5000 ms -> applied: x1.3 in BLOODMOON, then the target's reductions, kept only if longer than the remaining timer; nothing against Rune Protect.",
+  "sourceTables": [
+   {
+    "id": "healBlockDamage",
+    "file": "app/core/abilities/heal-block.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final HP change after handleDamage's later steps (shield order, items, resurrection, Cover Band redirection) - only the SPE_DEF division, the floor of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Board scan order of the adjacent cells (a fixed y-then-x loop in getAdjacentCells) matters only for the single-use DOUBLE_DAMAGE effect"
+  ],
+  "unresolved": [
+   "Whether every healing path in the game goes through handleHeal (lifesteal, shields, regeneration passives); only the handleHeal check was read",
+   "The other readers of status.wound (SLASHING_CLAW, Blood Stone damage heal in pokemon-entity.ts, the passive at effects/passives.ts:719) were located but not traced",
+   "The attacking state's choice of cast target (nearest / range) was not read for this record",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-cacnea",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8792,
+     8806
+    ],
+    "symbol": "class Cacnea",
+    "expect": "skill = Ability.HEAL_BLOCK",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-cacturne",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8808,
+     8822
+    ],
+    "symbol": "class Cacturne",
+    "expect": "skill = Ability.HEAL_BLOCK",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-hb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.HEAL_BLOCK]: new HealBlockStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "HealBlockStrategy",
+    "expect": "class HealBlockStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the eight neighbours of the caster"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team) {",
+    "note": "enemy filter"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     20,
+     27
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "handleSpecialDamage(damage, board, SPECIAL, caster, crit, true); result discarded"
+   },
+   {
+    "id": "wound",
+    "file": "app/core/abilities/heal-block.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "HealBlockStrategy.process",
+    "expect": "cell.value.status.triggerWound(5000, cell.value, pokemon)",
+    "note": "fixed 5000 ms, not scaled by AP or crit, called whatever the damage result"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "centre excluded by default; off-board cells dropped"
+   },
+   {
+    "id": "wound-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     877,
+     896
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "triggerWound(",
+    "note": ""
+   },
+   {
+    "id": "wound-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     882,
+     882
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (!this.runeProtect) {",
+    "note": "only Rune Protect blocks"
+   },
+   {
+    "id": "wound-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     883,
+     883
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "this.wound = true",
+    "note": ""
+   },
+   {
+    "id": "wound-moon",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     884,
+     886
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "duration *= 1.3",
+    "note": "BLOODMOON x1.3"
+   },
+   {
+    "id": "wound-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     890,
+     896
+    ],
+    "symbol": "Status.triggerWound",
+    "expect": "if (duration > this.woundCooldown) {",
+    "note": "timer and origin replaced only if longer"
+   },
+   {
+    "id": "wound-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     906
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "if (this.woundCooldown - dt <= 0) {",
+    "note": "expiry clears wound and origin"
+   },
+   {
+    "id": "wound-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     263,
+     265
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateWound(dt)",
+    "note": ""
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wounded unit"
+   },
+   {
+    "id": "heal-zero",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     331,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "return { healReceived: 0, overheal: 0 }",
+    "note": "heal request ignored"
+   },
+   {
+    "id": "heal-bloodstone",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     316,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "Math.round(0.3 * nbBloodStones * heal)",
+    "note": "BLOODMOON + Blood Stone: shield instead"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "SLUDGE does not set canCritByDefault, so the crit flag is rolled only if the caster has the ABILITY_CRIT effect"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard in handleSpecialDamage"
+   },
+   {
+    "id": "hsd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     359,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "blocked path returns 0; magicBounce queues a delayed reflection"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, apBoost defaults to true"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor with Rocky Helmet / Black Augurite reduction"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage counts shield damage and HP damage"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": ""
+   }
+  ]
+ }
+}
