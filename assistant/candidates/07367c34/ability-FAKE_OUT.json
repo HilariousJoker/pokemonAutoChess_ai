@@ -1,0 +1,487 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FAKE_OUT",
+ "kind": "ability",
+ "identifier": "FAKE_OUT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T003937Z"
+ },
+ "record": {
+  "ability": "FAKE_OUT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare FAKE_OUT: Purrloin (1 star) and Liepard (2 stars); both have maxPP 90, range 1 and no passive (catalog NONE). The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "PURRLOIN",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "FAKE_OUT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LIEPARD",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "FAKE_OUT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PURRLOIN": {
+    "evidence": [
+     "unit-purrloin"
+    ]
+   },
+   "LIEPARD": {
+    "evidence": [
+     "unit-liepard"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FAKE_OUT] = new FakeOutStrategy()",
+   "strategy": "FakeOutStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "Routing is a direct registry entry with a dedicated file; no routing uncertainty was queued for this record.",
+   "evidence": [
+    "reg",
+    "reg-fo",
+    "fo-class",
+    "base-flags",
+    "base-pp",
+    "pp-gate",
+    "fo-super"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage on the cast target, raw 40/80/150/300 by caster stars (Purrloin 40, Liepard 80). Before the damage, if the caster's AP is >= 0 the target gets a 3000 ms flinch (reduced by status-duration reductions, blocked by Rune Protect). After the damage the caster loses 30 AP (floor -100). AP scales the damage; crit applies only with ability crit.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "fo-class",
+    "base-flags",
+    "fo-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "fo-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "status": "FLINCH",
+    "declaredRaw": {
+     "durationMs": 3000,
+     "condition": "pokemon.ap >= 0 (caster AP at cast time, before the -30)"
+    },
+    "scaling": "Requested duration 3000 ms, not AP-scaled. Applied duration = 3000 after Swift Swim x0.7 / Hydration x0.5 / Water Veil or Surge Surfer x0.3 (first matching only), then Odd Keystone x(1-0.1 x stones) with rounding; it only replaces flinchCooldown if longer than the remaining one. Not applied when the target has Rune Protect. Because it is applied before handleSpecialDamage, it is not stopped by protect / skydiving / magicBounce.",
+    "resolution": "Combat effect of flinch read here: shield absorbs only half of each hit (pokemon-state handleDamage). Any other consumer of status.flinch was not searched exhaustively.",
+    "evidence": [
+     "fo-flinch",
+     "flinch-trig",
+     "flinch-red",
+     "flinch-upd",
+     "flinch-effect"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 150,
+      "4": 300,
+      "fallback": 300
+     }
+    },
+    "perUnitRaw": {
+     "PURRLOIN": 40,
+     "LIEPARD": 80
+    },
+    "scaling": "requested = table value by caster stars. AP: x(1 + AP/100) using the caster's AP at call time (before this cast's -30 AP); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
+    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields and takenDamage are resolved in handleDamage and not read by this strategy (return value unused). A flinched target's shield takes only half of the hit (the flinch was applied just before). Blocked completely if the target is protected, skydiving or has magicBounce.",
+    "evidence": [
+     "fo-dmg",
+     "fo-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "flinch-effect"
+    ]
+   },
+   {
+    "kind": "selfStat",
+    "stat": "AP",
+    "declaredRaw": {
+     "requested": -30
+    },
+    "scaling": "addAbilityPower(-30, self, apBoost 0, crit false): value = round(-30 x (1 + 0)) = -30. Big Eater Belt on the caster: negative change from the same team is multiplied by 1.25 and floored (-30 -> -37.5 -> -38; roundToNDigits 'down' is Math.floor). Twist Band does not flip it (caster is on the caster's own team). Nullify Bandana on the caster: no AP change; instead attack changes by round(0.2 x -30) = -6 (itself subject to addAttack's helpers).",
+    "resolution": "Applied: AP = max(-100, AP - 30) (belt: -38). Not permanent (permanent flag false), so the board Pokémon's stored AP is unchanged. Evaluated after the damage hit, so it never reduces this cast's damage but does lower the AP seen by the next cast's flinch check (a caster at AP < 0 skips the flinch).",
+    "evidence": [
+     "fo-ap",
+     "add-ap",
+     "beb",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FLINCH",
+    "target": "cast target",
+    "durationMs": 3000,
+    "condition": "caster ap >= 0",
+    "evidence": [
+     "fo-flinch",
+     "flinch-trig"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PURRLOIN": 1,
+    "LIEPARD": 2
+   },
+   "declaredRawDamage": {
+    "PURRLOIN": 40,
+    "LIEPARD": 80
+   },
+   "note": "indexed by the casting entity's stars; the 150, 300 (fallback) entries are not reachable by these two units' star counts. Flinch duration and AP loss do not depend on stars. maxPP 90 and range 1 for both.",
+   "evidence": [
+    "fo-dmg",
+    "unit-purrloin",
+    "unit-liepard"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (requiresTarget true). The only condition is the caster's AP sign for the flinch.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast permanently-for-the-fight lowers AP by 30 (floor -100); once AP is negative the flinch is skipped on later casts while damage still happens (damage is then reduced by the negative AP: x(1 + AP/100)).",
+  "rawVsResolved": "Raw: damage 40/80, flinch 3000 ms, AP -30. Requested = raw; applied damage = requested x (1 + casterAP/100) [x crit], then SPE_DEF division (ceil, min 1). Applied flinch = 3000 after duration reductions, or none (Rune Protect / AP < 0). Applied AP change = -30 (-38 with Big Eater Belt; Nullify Bandana converts it to -6 attack). takenDamage (includes shield damage) is not read here.",
+  "sourceTables": [
+   {
+    "id": "fakeOutDamage",
+    "file": "app/core/abilities/fake-out.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1, the shield-half-on-flinch step and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Other consumers of status.flinch beyond pokemon-state.ts shield handling (searched pokemon-state, pokemon-entity, attacking-state, moving-state by name)"
+  ],
+  "unresolved": [
+   "How the target is chosen before the cast was not read.",
+   "Whether other code paths consume status.flinch (e.g. attack or cast prevention) was not exhaustively searched; only the shield-halving in handleDamage was confirmed."
+  ],
+  "evidence": [
+   {
+    "id": "unit-purrloin",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12859,
+     12873
+    ],
+    "symbol": "class Purrloin",
+    "expect": "skill = Ability.FAKE_OUT",
+    "note": "unit class block: stars 1, maxPP 90, range 1, no passive line (catalog passive NONE)"
+   },
+   {
+    "id": "unit-liepard",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12875,
+     12889
+    ],
+    "symbol": "class Liepard",
+    "expect": "skill = Ability.FAKE_OUT",
+    "note": "unit class block: stars 2, maxPP 90, range 1, no passive line (catalog passive NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-fo",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "AbilityStrategies[Ability.FAKE_OUT]",
+    "expect": "[Ability.FAKE_OUT]: new FakeOutStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fo-class",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "FakeOutStrategy",
+    "expect": "export class FakeOutStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget and canCritByDefault=false are the base defaults; FakeOutStrategy overrides neither"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "fo-super",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FakeOutStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fo-dmg",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FakeOutStrategy.process",
+    "expect": "const damage = [40, 80, 150, 300][pokemon.stars - 1] ?? 300",
+    "note": "raw damage table indexed by the caster's stars"
+   },
+   {
+    "id": "fo-flinch",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "FakeOutStrategy.process",
+    "expect": "if (pokemon.ap >= 0) target.status.triggerFlinch(3000, target)",
+    "note": "flinch only when the CASTER's AP is >= 0 at cast time; no origin argument passed"
+   },
+   {
+    "id": "fo-hit",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "FakeOutStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, apBoost default true; return value unused"
+   },
+   {
+    "id": "fo-ap",
+    "file": "app/core/abilities/fake-out.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "FakeOutStrategy.process",
+    "expect": "pokemon.addAbilityPower(-30, pokemon, 0, false)",
+    "note": "caster loses 30 AP after the hit (requested -30, apBoost 0, no crit)"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     641
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "Nullify Bandana turns it into Attack (round(0.2*-30) = -6 attack); Big Eater Belt applies only when value>0 or negative from same team (here caster is self, so own-team negative: x1.25 rounded down -> -38 with the belt (Math.floor(-37.5) in roundToNDigits 'down')); Twist Band only flips debuffs from another team (caster is self, so it does not flip); AP floor -100"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "applies to a negative value when caster.team === pokemon.team"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "(caster === \"environment\" || caster.team !== pokemon.team)",
+    "note": "self-cast, same team: no flip"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the damage (takenDamage 0); the flinch in this strategy is applied BEFORE the damage call and is not blocked by them"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP scales damage; AP is read when handleSpecialDamage runs, i.e. BEFORE the -30 AP of this cast"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "flinch-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     985
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "if (!this.runeProtect) {",
+    "note": "blocked by Rune Protect; otherwise sets flinch, duration reduced by applyStatusDurationReductions, only extends (never shortens) flinchCooldown"
+   },
+   {
+    "id": "flinch-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.3)",
+    "note": "Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, then Odd Keystone x(1-0.1 per stone held by the target's player)"
+   },
+   {
+    "id": "flinch-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     988,
+     994
+    ],
+    "symbol": "Status.updateFlinch",
+    "expect": "this.flinchCooldown -= dt",
+    "note": "flinch ends when the remaining cooldown would reach 0"
+   },
+   {
+    "id": "flinch-effect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     619,
+     626
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "the only combat effect of flinch read here: a flinched target's shield absorbs only half of each hit, the other half goes to HP. Other flinch consumers were not searched beyond pokemon-state/pokemon-entity/attacking-state/moving-state"
+   }
+  ]
+ }
+}
