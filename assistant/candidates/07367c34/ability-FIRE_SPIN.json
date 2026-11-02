@@ -1,0 +1,551 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FIRE_SPIN",
+ "kind": "ability",
+ "identifier": "FIRE_SPIN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T064110Z"
+ },
+ "record": {
+  "ability": "FIRE_SPIN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "VULPIX (1 star) and NINETALES (2 stars) declare FIRE_SPIN (maxPP 90, range 2, passive NONE). Shared strategy; the difference is the star index and stats.",
+  "appliesTo": [
+   {
+    "key": "NINETALES",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "FIRE_SPIN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VULPIX",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "FIRE_SPIN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NINETALES": {
+    "evidence": [
+     "unit-ninetales"
+    ]
+   },
+   "VULPIX": {
+    "evidence": [
+     "unit-vulpix"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FIRE_SPIN] = new FireSpinStrategy()",
+   "strategy": "FireSpinStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-fs",
+    "fs-class",
+    "base-flags",
+    "base-pp",
+    "fs-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Area special damage (25/50/100/200 raw by stars) to every occupied cell of the 3x3 block centred on the cast target (centre included) that holds an entity of another team, each of which then gets a burn request of 3000 ms. The burn is requested on each hit unit's status but triggerBurn is called with the cast target as its `pkm` argument and the caster as origin, so immunity checks (IMMUNITY_BURN effect, WATER_BUBBLE passive), the duration reductions (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER, Odd Keystone) and the GUTS / WELL_BAKED / MAGMARIZER / RAWST_BERRY reactions read the cast target for every unit in the block, not the unit that was hit; only the runeProtect check reads the hit unit's own status. The burn is requested even when the damage was blocked (protect / skydiving / magicBounce) because the damage result is not used.",
+  "targeting": {
+   "who": "the cast target passed to the strategy is the centre of a 3x3 block; every occupied cell in the block holding an entity whose team differs from the caster's is affected",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "fs-class",
+    "base-flags",
+    "fs-cells",
+    "fs-team"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square (Chebyshev radius 1) around the cast target, centre included, clipped to the board",
+   "evidence": [
+    "fs-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "NINETALES": 50,
+     "VULPIX": 25
+    },
+    "scaling": "requested amount = raw x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT); one call per affected unit with the same raw amount",
+    "resolution": "requested -> applied: handleSpecialDamage then handleDamage divide by (1 + 0.05 x SPE_DEF) (ceil, minimum 1) among other steps; the applied HP/shield loss (takenDamage) is returned by the call but FIRE_SPIN discards it. A target with protect, skydiving or magicBounce takes none (magicBounce additionally queues a delayed bounce on the caster unless the caster holds Protective Pads, see evidence); a dead or resurrecting target takes none. Shields, flinch, Shiny Charm, Fossil and Cover Band branches of handleDamage apply as for any special damage and are not enumerated here (see the BITE record for the takenDamage accounting).",
+    "evidence": [
+     "fs-dmg",
+     "fs-hit",
+     "special",
+     "special-block",
+     "special-bounce",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "burn",
+    "target": "every other-team occupied cell in the 3x3 block (hit units)",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after that unit's damage call, per unit in cell order (rows then columns); requested regardless of the damage result",
+    "guards": "in triggerBurn: skipped if the CAST TARGET has the IMMUNITY_BURN effect or the WATER_BUBBLE passive (pkm = cast target), or if the HIT UNIT's own status has runeProtect. Applied duration = 3000 after applyStatusDurationReductions evaluated on the CAST TARGET (SWIFT_SWIM x0.7 or HYDRATION x0.5 or WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone count x -10 % of the cast target's player); a longer duration replaces the remaining burnCooldown and sets burnOrigin to the caster, a shorter or equal one leaves both. The burn flag is set to true before the duration comparison. Reactions (GUTS attack +5 once, WELL_BAKED defense +20 on first burn, MAGMARIZER speed +30 on first burn, RAWST_BERRY eaten) are applied to pkm = the cast target, not to the hit unit; the cast target is itself one of the hit units when it is on the enemy team.",
+    "combatEffect": "while burning, updateBurn deals TRUE damage every 1000 ms equal to round(5 % of the burning unit's max HP) (x1.3 under DROUGHT, further reduced by Heat Rock; x0.7 under RAIN; x0.5 Assault Vest; x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER) through handleDamage, attributed to burnOrigin; the burning unit's own passive WELL_BAKED or MAGMARIZER makes that damage 0. The burn ends when burnCooldown runs out (healBurn). The max-HP and effect inputs there belong to the burning unit (pkm of updateBurn).",
+    "evidence": [
+     "fs-burn",
+     "burn-sig",
+     "burn-guard",
+     "burn-set",
+     "burn-dur",
+     "burn-extra",
+     "dur-red",
+     "burn-tick",
+     "burn-tick-zero",
+     "burn-heal"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NINETALES": 2,
+    "VULPIX": 1
+   },
+   "declaredRawDamage": {
+    "NINETALES": 50,
+    "VULPIX": 25
+   },
+   "note": "indexed by the caster's stars; the 3-star (100), 4-star (200) and fallback values are not reachable by the two listed units' bare star counts. Burn duration is 3000 for every star level.",
+   "evidence": [
+    "fs-dmg",
+    "unit-vulpix",
+    "unit-ninetales"
+   ]
+  },
+  "positionalConditions": "Centre is the cast target (the unit must be in range of it to cast, range 2). Cells outside the board are skipped; empty cells and cells holding an entity of the caster's own team are skipped. The check only compares team values, nothing about dead or untargetable entities was read.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage and burn; a second burn only extends the timer if longer and then re-targets burnOrigin to the caster.",
+  "rawVsResolved": "Declared raw: damage 25 (Vulpix) / 50 (Ninetales) per unit in the block, burn 3000 ms. Requested damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division (ceil, at least 1) and untraced modifiers; the applied loss is discarded by the strategy. Burn: requested 3000 ms, applied duration after the CAST TARGET's reductions (not the hit unit's), and only if the cast target is not immune and the hit unit has no runeProtect.",
+  "sourceTables": [
+   {
+    "id": "fireSpinDamage",
+    "file": "app/core/abilities/fire-spin.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - the SPECIAL speDef division was read, no probe was run",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "Whether passing the cast target (target) instead of the hit unit (cell.value) as triggerBurn's pkm argument is intended is not stated in the source; it is recorded as read. Consequence only for blocks with more than one unit: the guards and reactions follow the cast target.",
+   "Whether cell.value can be a dead entity still on the board when the cast resolves was not traced; handleDamage ignores a unit at hp <= 0, but triggerBurn has no such check",
+   "Whether an item or synergy effect changes FIRE_SPIN beyond the helpers read here (item effects: see knowledge/07367c34/item-effects.md for Assault Vest, Odd Keystone, Magmarizer, Rawst Berry; not re-derived)",
+   "The burn tick (updateBurn) was read as listed; weather and Heat Rock details were not probed",
+   "Both units have passive NONE in the catalog; no other unit sharing the identifier exists in the queue"
+  ],
+  "evidence": [
+   {
+    "id": "unit-vulpix",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10382,
+     10395
+    ],
+    "symbol": "class Vulpix",
+    "expect": "skill = Ability.FIRE_SPIN",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-ninetales",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10398,
+     10411
+    ],
+    "symbol": "class Ninetales",
+    "expect": "skill = Ability.FIRE_SPIN",
+    "note": "unit class block"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-fs",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     883,
+     883
+    ],
+    "symbol": "AbilityStrategies[Ability.FIRE_SPIN]",
+    "expect": "[Ability.FIRE_SPIN]: new FireSpinStrategy()",
+    "note": ""
+   },
+   {
+    "id": "fs-class",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "FireSpinStrategy",
+    "expect": "class FireSpinStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "fs-super",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "fs-dmg",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "[25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": ""
+   },
+   {
+    "id": "fs-cells",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "board.getAdjacentCells(",
+    "note": "centre = the cast target, includesCenter = true"
+   },
+   {
+    "id": "fs-team",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "pokemon.team != cell.value.team",
+    "note": "only occupied cells holding an entity of another team"
+   },
+   {
+    "id": "fs-hit",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL, attacker = caster, crit passed, apBoost default true; the returned value is discarded"
+   },
+   {
+    "id": "fs-burn",
+    "file": "app/core/abilities/fire-spin.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "FireSpinStrategy.process",
+    "expect": "cell.value.status.triggerBurn(3000, target, pokemon)",
+    "note": "signature is triggerBurn(duration, pkm, origin): pkm = the cast target, origin = the caster, called on each hit unit's status"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 block around the centre, only cells on the board, centre included when asked"
+   },
+   {
+    "id": "burn-sig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     401
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "triggerBurn(",
+    "note": "(duration, pkm, origin)"
+   },
+   {
+    "id": "burn-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     403,
+     407
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "immunity / runeProtect / WATER_BUBBLE checks use pkm (the cast target) and this.runeProtect (the hit unit's status)"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     408,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "this.burn = true",
+    "note": "burn flag set before the duration reduction; duration reduced using pkm"
+   },
+   {
+    "id": "burn-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     417
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown)",
+    "note": "a longer duration replaces the cooldown and sets burnOrigin"
+   },
+   {
+    "id": "burn-extra",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     419,
+     436
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.passive === Passive.GUTS &&",
+    "note": "GUTS, WELL_BAKED, MAGMARIZER and RAWST_BERRY effects read pkm"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then ODD_KEYSTONE -10 % each on pkm"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     440,
+     495
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "burn tick: 5 % of the burning unit's max HP each second, with weather / item / effect modifiers, TRUE damage attributed to burnOrigin"
+   },
+   {
+    "id": "burn-tick-zero",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     471,
+     475
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "pkm.passive === Passive.WELL_BAKED ||",
+    "note": "WELL_BAKED or MAGMARIZER holders take 0 burn damage"
+   },
+   {
+    "id": "burn-heal",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     497,
+     508
+    ],
+    "symbol": "Status.healBurn",
+    "expect": "this.burnOrigin = null",
+    "note": "burn ends when burnCooldown reaches 0"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the ability damage"
+   },
+   {
+    "id": "special-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     359,
+     396
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "isRetaliation: true",
+    "note": "magicBounce: SPECIAL, damage > 0, attacker without PROTECTIVE_PADS -> delayed (500 ms) bounce on the caster; the burn in FIRE_SPIN is not part of this branch and is still requested"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead or resurrecting target: no damage"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
