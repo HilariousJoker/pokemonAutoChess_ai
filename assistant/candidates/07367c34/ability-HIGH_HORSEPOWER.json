@@ -1,0 +1,579 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HIGH_HORSEPOWER",
+ "kind": "ability",
+ "identifier": "HIGH_HORSEPOWER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T124109Z"
+ },
+ "record": {
+  "ability": "HIGH_HORSEPOWER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HIGH_HORSEPOWER: Mudbray (1 star) and Mudsdale (2 stars); both range 1, maxPP 45, passive STAMINA (not covered here). The strategy is shared; the unit difference is the star index into the damage table and stats.",
+  "appliesTo": [
+   {
+    "key": "MUDBRAY",
+    "stars": 1,
+    "maxPP": 45,
+    "range": 1,
+    "declaredSkill": "HIGH_HORSEPOWER",
+    "declaredPassive": "STAMINA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MUDSDALE",
+    "stars": 2,
+    "maxPP": 45,
+    "range": 1,
+    "declaredSkill": "HIGH_HORSEPOWER",
+    "declaredPassive": "STAMINA",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MUDBRAY": {
+    "evidence": [
+     "unit-mudbray"
+    ]
+   },
+   "MUDSDALE": {
+    "evidence": [
+     "unit-mudsdale"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HIGH_HORSEPOWER] = new HighHorsepowerStrategy()",
+   "strategy": "HighHorsepowerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hp",
+    "cls",
+    "base",
+    "base-proc",
+    "super",
+    "cast"
+   ]
+  },
+  "summary": "The caster jumps past its target and then hits what is around it. Immediately (after super.process with preventDefaultAnim true, so no default animation broadcast) the strategy takes the direction from the caster to the target (Board.orientation) and asks Board.getKnockBackPlace for the first free on-board cell among three candidates around the cell directly beyond the target (the cell target + direction, then the two neighbouring orientations); if one exists, the caster moves there with moveTo(forcedDisplacement false), which swaps cells (the destination is free) and sets its cooldown to 100. If none is free, the caster stays. After a delay of 300 ms (a DelayedCommand on the caster, fired when the accumulated time exceeds 300) the strategy takes the enemies in the eight cells around the caster's position at that time: exactly one enemy receives handleSpecialDamage of twice the table value (30 Mudbray / 60 Mudsdale requested); two or more each receive the table value (15 / 30); none means nothing happens. Damage is SPECIAL with the cast's crit flag and the default AP boost. The target itself is hit only if it is adjacent to the caster at that time. No status is applied.",
+  "targeting": {
+   "who": "enemies (different team) in the eight cells adjacent to the caster, evaluated 300 ms after the cast at the caster's position then",
+   "needsTarget": true,
+   "note": "The cast target determines the movement direction only; it is hit only if still adjacent to the caster's new (or unchanged) position when the delayed command runs. The set of enemies is evaluated at the delayed time, not at cast time, so units that moved, died or arrived in between count or not accordingly. A caster that failed to move hits whoever is adjacent to its original cell.",
+   "evidence": [
+    "orient",
+    "kb",
+    "move",
+    "cmd",
+    "adj",
+    "adj-cells",
+    "one",
+    "many",
+    "delay"
+   ]
+  },
+  "geometry": {
+   "shape": "movement: to the first free cell among the three cells beyond the target (straight beyond, then the two neighbouring directions); damage: the 3x3 neighbourhood of the caster's cell, centre excluded",
+   "evidence": [
+    "o-fn",
+    "o-map",
+    "kb-fn",
+    "kb-table",
+    "vec",
+    "adj",
+    "adj-cells"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "movement",
+    "target": "caster",
+    "declaredRaw": {
+     "destination": "first free cell among target + dir, target + the two neighbouring directions"
+    },
+    "scaling": "none",
+    "resolution": "if getKnockBackPlace returns null the caster does not move; otherwise moveTo(x, y, board, false) switches the caster to the moving state, swaps cells and sets cooldown to 100. forcedDisplacement is false, so canBeMoved is not checked. The movement is instantaneous in the simulation; the animation is a client matter.",
+    "evidence": [
+     "orient",
+     "kb",
+     "move",
+     "kb-fn",
+     "kb-table",
+     "vec",
+     "moveto",
+     "swap",
+     "o-fn",
+     "o-map"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "adjacent enemies at +300 ms (one enemy: double; several: normal each)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "singleEnemyMultiplier": 2
+    },
+    "perUnitRaw": {
+     "MUDBRAY": 15,
+     "MUDSDALE": 30
+    },
+    "perUnitSingleEnemyRaw": {
+     "MUDBRAY": 30,
+     "MUDSDALE": 60
+    },
+    "scaling": "REQUESTED = table value, x2 when exactly one enemy is adjacent (30 / 60), else the table value for each (15 / 30). handleSpecialDamage then adds AP: x (1 + caster AP/100) (apBoost default true), x2 if the caster carries DOUBLE_DAMAGE (consumed by the first hit), x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side, and on a crit x (1 + (critPower - 1) x factor) with factor 1, 0 for a Rocky Helmet on the target, minus 0.1 per Black Augurite, floored at 0. The crit flag is the one rolled at cast time (only if the caster has ABILITY_CRIT).",
+    "resolution": "APPLIED per target: handleDamage divides by (1 + ARMOR_FACTOR x speDef), applies the non-TRUE flat reductions and floors at 1 after Math.ceil; shields absorb first; reported takenDamage includes shield damage and is discarded here. protect / skydiving block the damage; Magic Bounce also blocks and queues a reflection unless the caster holds Protective Pads.",
+    "evidence": [
+     "table",
+     "one",
+     "many",
+     "delay",
+     "hsd-block",
+     "hsd-bounce",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hd-spedef",
+     "hd-min1",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MUDBRAY": 1,
+    "MUDSDALE": 2
+   },
+   "declaredRawDamage": {
+    "MUDBRAY": 15,
+    "MUDSDALE": 30
+   },
+   "note": "table index is the casting entity's stars; 60 and 120 are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-mudbray",
+    "unit-mudsdale"
+   ]
+  },
+  "positionalConditions": "The branch (movement, single-enemy double damage, multi-enemy normal damage, nothing) depends on the board at cast time (destination cells) and 300 ms later (adjacent enemies). Edges and occupied cells can leave the caster in place.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast schedules its own delayed command.",
+  "rawVsResolved": "Requested damage: 15 / 30 raw (Mudbray / Mudsdale) to each of two or more adjacent enemies, or 30 / 60 to a single adjacent enemy. Applied per target: raw x (1 + AP/100) [x crit factor], divided by (1 + ARMOR_FACTOR x speDef), reduced by the non-TRUE flat reductions, floored at 1 after Math.ceil; takenDamage (shield included) is discarded.",
+  "sourceTables": [
+   {
+    "id": "horsepowerDamage",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final HP change after handleDamage's later steps (shield order, items, resurrection, Cover Band redirection) - only the SPE_DEF division, the floor of 1 and the takenDamage accounting were read",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether a state change caused by moveTo (toMovingState) affects the delayed command or the following attack"
+  ],
+  "unresolved": [
+   "Mudbray's and Mudsdale's passive STAMINA is not investigated",
+   "Whether the delayed command still runs if the caster dies before 300 ms (updateCommands is in PokemonState; the dead-state path was not read)",
+   "The attacking state's choice of cast target was not read for this record",
+   "The exact timing granularity of the 300 ms delay (the command fires on the first update after the delay is exceeded)",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-mudbray",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19663,
+     19678
+    ],
+    "symbol": "class Mudbray",
+    "expect": "skill = Ability.HIGH_HORSEPOWER",
+    "note": "unit class block (passive STAMINA)"
+   },
+   {
+    "id": "unit-mudsdale",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19680,
+     19695
+    ],
+    "symbol": "class Mudsdale",
+    "expect": "skill = Ability.HIGH_HORSEPOWER",
+    "note": "unit class block (passive STAMINA)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-hp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     967,
+     967
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.HIGH_HORSEPOWER]: new HighHorsepowerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "HighHorsepowerStrategy",
+    "expect": "class HighHorsepowerStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true"
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "target.positionY,",
+    "note": "direction from the caster to the target"
+   },
+   {
+    "id": "kb",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     29,
+     33
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "const destination = board.getKnockBackPlace(",
+    "note": "free cell beyond the TARGET"
+   },
+   {
+    "id": "move",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     36,
+     38
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "pokemon.moveTo(destination.x, destination.y, board, false)",
+    "note": "the CASTER moves there, not forced"
+   },
+   {
+    "id": "cmd",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     40,
+     41
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "the damage step is delayed"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     48,
+     50
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": ".filter((cell) => cell.value && cell.value.team !== pokemon.team)",
+    "note": "enemies adjacent to the caster at the delayed time"
+   },
+   {
+    "id": "one",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     53,
+     61
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "damage * 2,",
+    "note": "exactly one adjacent enemy: double damage"
+   },
+   {
+    "id": "many",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     62,
+     73
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "for (const cell of adjacentEnemies) {",
+    "note": "two or more: normal damage each"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/high-horsepower.ts",
+    "lines": [
+     74,
+     74
+    ],
+    "symbol": "HighHorsepowerStrategy.process",
+    "expect": "}, 300)",
+    "note": "300 ms"
+   },
+   {
+    "id": "o-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     108
+    ],
+    "symbol": "Board.orientation",
+    "expect": "const dx = x1 - x0",
+    "note": ""
+   },
+   {
+    "id": "o-map",
+    "file": "app/core/board.ts",
+    "lines": [
+     109,
+     148
+    ],
+    "symbol": "Board.orientation",
+    "expect": "return Orientation.RIGHT",
+    "note": "sign of dx / dy picks one of 8 orientations"
+   },
+   {
+    "id": "kb-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     712
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "const possibleOrientations = OrientationKnockback[knockBackOrientation]",
+    "note": "first free on-board cell among three candidates, else null"
+   },
+   {
+    "id": "kb-table",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     66,
+     98
+    ],
+    "symbol": "OrientationKnockback",
+    "expect": "export const OrientationKnockback",
+    "note": "each orientation maps to itself then its two neighbours"
+   },
+   {
+    "id": "vec",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     3,
+     12
+    ],
+    "symbol": "OrientationVector",
+    "expect": "[Orientation.RIGHT]: [1, 0],",
+    "note": ""
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "swap; cooldown = 100; forcedDisplacement false skips the canBeMoved checks"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     74
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": ""
+   },
+   {
+    "id": "adj-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base flags"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, broadcast with the default animation (preventDefaultAnim not passed)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard in handleSpecialDamage"
+   },
+   {
+    "id": "hsd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     359,
+     397
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "blocked path returns 0; magicBounce queues a delayed reflection"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost, apBoost defaults to true"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor with Rocky Helmet / Black Augurite reduction"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "floor of 1"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage counts shield damage and HP damage"
+   }
+  ]
+ }
+}
