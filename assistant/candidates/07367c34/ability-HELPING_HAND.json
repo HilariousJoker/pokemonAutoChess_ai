@@ -1,0 +1,488 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HELPING_HAND",
+ "kind": "ability",
+ "identifier": "HELPING_HAND",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T124109Z"
+ },
+ "record": {
+  "ability": "HELPING_HAND",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HELPING_HAND: Sentret (1 star, maxPP 100) and Furret (2 stars, maxPP 80); both range 1, no passive. The strategy is shared; unit differences are the star index into the shield table, maxPP and stats.",
+  "appliesTo": [
+   {
+    "key": "FURRET",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "HELPING_HAND",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SENTRET",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "HELPING_HAND",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SENTRET": {
+    "evidence": [
+     "unit-sentret"
+    ]
+   },
+   "FURRET": {
+    "evidence": [
+     "unit-furret"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HELPING_HAND] = new HelpingHandStrategy()",
+   "strategy": "HelpingHandStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-hh",
+    "cls",
+    "base",
+    "base-proc",
+    "super",
+    "cast"
+   ]
+  },
+  "summary": "Needs no target. The two allies (same team, not the caster) closest to the caster by Manhattan distance anywhere on the board each receive (1) the marker effect DOUBLE_DAMAGE and (2) a shield: requested 30 (1 star) / 60 (2 stars) / 100 / 200 raw. The shield is applied through PokemonEntity.addShield: the receiving ally's Big Eater Belt scales the raw value first (x1.25, rounded down), then PokemonState.addShield multiplies by (1 + caster AP/100) (apBoost 1) and by the caster's full critPower on a crit, halves it if the receiver is enraged, rounds, and adds it to the receiver's current shield; it does nothing for a receiver with hp <= 0. DOUBLE_DAMAGE is a set marker: the only reader in the tree is handleSpecialDamage, where an attacker carrying it doubles that call's special damage and loses the marker; the marker is not removed by a timer in this strategy. With fewer than two other allies, only those that exist are buffed; with none, nothing happens (the PP is still spent). The caster itself is never buffed.",
+  "targeting": {
+   "who": "up to two allies of the caster's team (excluding the caster) with the smallest Manhattan distance to the caster, regardless of range",
+   "needsTarget": false,
+   "note": "Allies are collected by a row-major scan of the board (y outer, x inner) and sorted ascending by distance; JavaScript's stable sort therefore breaks equal distances by that scan order (lower y first, then lower x). Whether benched or dead units appear in board cells was not examined; the board scan covers entities on the board.",
+   "evidence": [
+    "cls",
+    "collect",
+    "sort",
+    "loop",
+    "dist",
+    "foreach"
+   ]
+  },
+  "geometry": {
+   "shape": "two nearest allies by Manhattan distance (|dx| + |dy|), no area",
+   "evidence": [
+    "collect",
+    "sort",
+    "dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "each of the two nearest allies",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "SENTRET": 30,
+     "FURRET": 60
+    },
+    "scaling": "REQUESTED = raw table value (30 / 60). APPLIED per ally: Math.round(floor-rounded(raw x 1.25 if the receiving ally holds a Big Eater Belt) x (1 + caster AP/100) x (caster critPower if the cast crit) x 0.5 if the receiver is enraged), added to the receiver's shield. The Big Eater Belt is the receiver's, not the caster's. The crit flag is rolled only if the caster has ABILITY_CRIT.",
+    "resolution": "requested raw -> receiver belt (rounded down) -> AP -> crit -> enraged -> round -> shield + value; skipped if the receiver's hp is 0 or less. The caster's shieldDone statistic grows by the applied amount.",
+    "evidence": [
+     "table",
+     "shield",
+     "ent-shield",
+     "belt",
+     "st-shield",
+     "st-hp",
+     "st-crit",
+     "st-enraged",
+     "st-add"
+    ]
+   },
+   {
+    "kind": "marker effect",
+    "target": "each of the two nearest allies",
+    "declaredRaw": {
+     "effect": "DOUBLE_DAMAGE"
+    },
+    "scaling": "no numeric scaling in the strategy; the marker is added before the shield, and adding it twice has no extra effect (it is a set).",
+    "resolution": "consumed by the holder's next handleSpecialDamage call as attacker that is not blocked by protect / skydiving / Magic Bounce on the target (the guard returns before the marker is read): that call's special damage is multiplied by 2 after the AP boost; other damage types and handleDamage callers do not read it.",
+    "evidence": [
+     "dd",
+     "dd-use",
+     "hsd-block"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "DOUBLE_DAMAGE marker",
+    "target": "two nearest allies",
+    "permanentInFight": "until consumed by a special damage call; no timer in this strategy",
+    "evidence": [
+     "dd",
+     "dd-use"
+    ]
+   }
+  ],
+  "shields": [
+   {
+    "target": "two nearest allies",
+    "requested": {
+     "SENTRET": 30,
+     "FURRET": 60
+    },
+    "evidence": [
+     "table",
+     "shield",
+     "st-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "SENTRET": 1,
+    "FURRET": 2
+   },
+   "declaredRawShield": {
+    "SENTRET": 30,
+    "FURRET": 60
+   },
+   "note": "table index is the casting entity's stars; 100 and 200 are not reached at the factory star counts of these units. Sentret has maxPP 100 and Furret 80 in the unit blocks. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "table",
+    "unit-sentret",
+    "unit-furret"
+   ]
+  },
+  "positionalConditions": "Targets are chosen by distance from the caster at cast time; no range limit. Equal distances are resolved by board scan order.",
+  "repeatedCastsAndModes": "No stored state. Shields add to the current shield; a re-marked ally keeps a single DOUBLE_DAMAGE marker (set).",
+  "rawVsResolved": "Requested shield: 30 (Sentret) / 60 (Furret) per ally. Applied: the receiver's Big Eater Belt x1.25 rounded down on the raw value, then x (1 + caster AP/100), x critPower on crit, x0.5 if enraged, rounded. Not applied to a receiver with hp <= 0. DOUBLE_DAMAGE is a marker with no number of its own; its x2 applies to the next unblocked special damage of the holder.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/helping-hand.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate and castAbility were read",
+   "How the shield is consumed in damage resolution (see core-mechanics section A, not re-traced)",
+   "Whether board cells can hold dead or non-fighting units that would be picked as nearest allies"
+  ],
+  "unresolved": [
+   "Whether DOUBLE_DAMAGE is cleared at the end of a fight or on other events (only the add in the strategy and the delete in handleSpecialDamage were found by name search)",
+   "Whether other attackers' abilities pass through handleSpecialDamage with the holder as attacker in every case (so that every special ability of the ally consumes the marker); only the function itself was read",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-sentret",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9091,
+     9108
+    ],
+    "symbol": "class Sentret",
+    "expect": "skill = Ability.HELPING_HAND",
+    "note": "unit class block (maxPP 100)"
+   },
+   {
+    "id": "unit-furret",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9110,
+     9127
+    ],
+    "symbol": "class Furret",
+    "expect": "skill = Ability.HELPING_HAND",
+    "note": "unit class block (maxPP 80)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-hh",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     937,
+     937
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.HELPING_HAND]: new HelpingHandStrategy()",
+    "note": ""
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "HelpingHandStrategy",
+    "expect": "requiresTarget = false",
+    "note": ""
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "table",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "const shield = [30, 60, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "shield table"
+   },
+   {
+    "id": "collect",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     14,
+     26
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "if (cell && cell.team === pokemon.team && pokemon.id !== cell.id) {",
+    "note": "allies: same team, not the caster, anywhere on the board; Manhattan distance"
+   },
+   {
+    "id": "sort",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "allies.sort((a, b) => a.distance - b.distance)",
+    "note": "ascending distance"
+   },
+   {
+    "id": "loop",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     28,
+     30
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "const ally = allies[i]?.pkm",
+    "note": "first two; fewer if fewer allies"
+   },
+   {
+    "id": "dd",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "ally.effects.add(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "marker effect on the ally"
+   },
+   {
+    "id": "shield",
+    "file": "app/core/abilities/helping-hand.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "HelpingHandStrategy.process",
+    "expect": "ally.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, cast crit flag, caster = the Helping Hand unit"
+   },
+   {
+    "id": "dist",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan"
+   },
+   {
+    "id": "foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "row-major scan; fixes the order of equal-distance allies"
+   },
+   {
+    "id": "ent-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "belt of the RECEIVING ally scales the raw value first"
+   },
+   {
+    "id": "st-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     420
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP, crit, enraged, round, add"
+   },
+   {
+    "id": "st-hp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     389
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.hp > 0) {",
+    "note": "nothing happens to a unit with hp <= 0"
+   },
+   {
+    "id": "st-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": "full critPower, no reduction"
+   },
+   {
+    "id": "st-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "enraged halves"
+   },
+   {
+    "id": "st-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     394,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "additive to the current shield"
+   },
+   {
+    "id": "dd-use",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.delete(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "only reader in the tree: consumed by the holder's next unblocked handleSpecialDamage as attacker"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "base flags"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, broadcast with the default animation (preventDefaultAnim not passed)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "buff > 0 on a Big Eater Belt holder x1.25 rounded down (0 digits)"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce guard in handleSpecialDamage"
+   }
+  ]
+ }
+}
