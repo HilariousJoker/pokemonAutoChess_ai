@@ -1,0 +1,706 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ICE_HAMMER",
+ "kind": "ability",
+ "identifier": "ICE_HAMMER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T184107Z"
+ },
+ "record": {
+  "ability": "ICE_HAMMER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ICE_HAMMER: Crabominable (2 stars) and Crabrawler (1 star); both also declare the BERRY_EATER passive, which is not covered here. The strategy is shared; differences are star count and stats. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "CRABOMINABLE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ICE_HAMMER",
+    "declaredPassive": "BERRY_EATER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CRABRAWLER",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ICE_HAMMER",
+    "declaredPassive": "BERRY_EATER",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CRABOMINABLE": {
+    "evidence": [
+     "unit-crabominable"
+    ]
+   },
+   "CRABRAWLER": {
+    "evidence": [
+     "unit-crabrawler"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ICE_HAMMER] = new IceHammerStrategy()",
+   "strategy": "IceHammerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ih-class",
+    "ih-super"
+   ]
+  },
+  "summary": "Single target, three steps in this order: (1) request a 3000 ms freeze on the cast target; (2) request a 3000 ms paralysis on the CASTER itself (a drawback: the caster's attack cooldown speed is halved while paralysed); (3) deal SPECIAL damage to the target (raw 50 at 1 star, 100 at 2 stars; 200 / 400 for 3 / 4 stars exist in the table). The freeze is a request subject to Status.triggerFreeze guards and duration changes; the paralysis likewise to Status.triggerParalysis; neither duration scales with AP or crit. The damage is not conditioned on either status having been applied; it is dealt after them (so the target is already frozen when the damage lands if the freeze was applied).",
+  "targeting": {
+   "who": "the cast target (freeze and damage) and the caster itself (paralysis)",
+   "needsTarget": true,
+   "note": "No area. The target is chosen by the generic cast pipeline (not traced here).",
+   "evidence": [
+    "ih-freeze",
+    "ih-para",
+    "ih-hit",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target plus self; no displacement",
+   "evidence": [
+    "ih-freeze",
+    "ih-para",
+    "ih-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400
+     },
+     "fallback": 400,
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "CRABOMINABLE": 100,
+     "CRABRAWLER": 50
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost is passed explicitly as true, same as the default); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite. Not conditioned on the freeze or the paralysis.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned takenDamage / death is not used by this ability.",
+    "evidence": [
+     "ih-table",
+     "ih-hit",
+     "ih-apboost",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FREEZE",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "CRABOMINABLE": 3000,
+     "CRABRAWLER": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "Requested vs applied. Applied only if the target is not already frozen, has no rune protect, is not skydiving, has no IMMUNITY_FREEZE and its ccCooldown is 0. Applied duration = round(requested x 1.3 in snow (then x(1 - 0.2 per Icy Rock in the victim's player's items) when present) or x0.7 in drought, /2 if the target is enraged, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone)). Side effects when applied: an Aspear Berry holder eats it, an EISCUE_NOICE target (and EISCUE_NOICE caster) transforms to ice face. Frozen units cannot move or attack and cannot dodge; when the freeze ends, ccCooldown (1500 ms) blocks a new freeze or sleep.",
+    "evidence": [
+     "ih-freeze",
+     "frz-guard",
+     "frz-snow",
+     "frz-enraged",
+     "frz-red",
+     "frz-set",
+     "red-water",
+     "red-odd",
+     "frz-nomove",
+     "frz-nododge",
+     "frz-end",
+     "cc-cd"
+    ]
+   },
+   {
+    "status": "PARALYSIS",
+    "target": "the caster itself (self-inflicted)",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "CRABOMINABLE": 3000,
+     "CRABRAWLER": 3000
+    },
+    "scaling": "none from stars, AP or crit (apBoost not passed, so false; origin is the caster itself)",
+    "resolution": "Requested vs applied. Applied unless the caster has rune protect or IMMUNITY_PARALYSIS (there is no ccCooldown or already-paralysed guard; the flag is set first). Applied duration = round(requested x 1.3 in a storm (then x(1 - 0.2 per Electric Quartz in the caster's player's items)), then the water-ability and Odd Keystone reductions); the stored timer is replaced only if the new duration is longer than the remaining one. A Cheri Berry holder eats it. While paralysed the unit attack-cooldown speed is speed / 2; the flag is cleared when the timer runs out. Paralysis effects elsewhere (movement, other abilities) were not enumerated.",
+    "evidence": [
+     "ih-para",
+     "par-guard",
+     "par-flag",
+     "par-storm",
+     "par-red",
+     "par-set",
+     "red-water",
+     "red-odd",
+     "par-speed",
+     "par-heal"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CRABOMINABLE": 2,
+    "CRABRAWLER": 1
+   },
+   "declaredRawDamage": {
+    "CRABOMINABLE": 100,
+    "CRABRAWLER": 50
+   },
+   "note": "Only the damage is indexed by the casting entity's stars (four values; ?? 400 fallback). The listed units are catalog stars 2 and 1. Freeze and paralysis durations are fixed at 3000 ms. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ih-table",
+    "unit-crabominable",
+    "unit-crabrawler"
+   ]
+  },
+  "positionalConditions": "None in this strategy; range comes from the unit (1).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Because the freeze is rejected on an already frozen target or during its ccCooldown window, a second cast on the same target may deal damage without freezing it; the caster's paralysis timer is only extended, never shortened.",
+  "rawVsResolved": "Requested: freeze 3000 ms on the target, paralysis 3000 ms on the caster, damage 50 / 100 (1 / 2 stars). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied freeze / paralysis durations = requested after weather, enrage (freeze only), water-ability, Odd Keystone and the item reductions listed, and only if the guards pass; the freeze can be rejected while the paralysis is still applied, and vice versa.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record",
+   "eatBerry (Aspear / Cheri Berry) and transformToIceFace were not read"
+  ],
+  "unresolved": [
+   "Passive BERRY_EATER (declared by both units) is a separate mechanism not traced here; a Cheri Berry eaten after the self-paralysis may interact with it",
+   "Other consumers of status.paralysis (movement, abilities such as Bug Buzz / Zing Zap / Force Palm that read it on targets) were not enumerated for the self-paralysis",
+   "Whether a frozen target that takes the damage is affected by any damage-triggered thaw was not traced (no thaw on damage was seen in the cited lines)",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-crabominable",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     624,
+     642
+    ],
+    "symbol": "class Crabominable",
+    "expect": "skill = Ability.ICE_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-crabrawler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     603,
+     622
+    ],
+    "symbol": "class Crabrawler",
+    "expect": "skill = Ability.ICE_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     982,
+     982
+    ],
+    "symbol": "AbilityStrategies[Ability.ICE_HAMMER]",
+    "expect": "[Ability.ICE_HAMMER]: new IceHammerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "frz-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     699,
+     699
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_FREEZE) &&",
+    "note": "not applied if already frozen, rune protected, skydiving, IMMUNITY_FREEZE or ccCooldown > 0"
+   },
+   {
+    "id": "frz-snow",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     702,
+     702
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.simulation.weather === Weather.SNOW) {",
+    "note": "snow x1.3 (then Icy Rock), drought x0.7"
+   },
+   {
+    "id": "frz-enraged",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     714,
+     714
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = duration / 2",
+    "note": "enraged targets get half"
+   },
+   {
+    "id": "frz-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     717,
+     717
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "frz-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     720,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "this.freezeCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "par-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "not applied if rune protected or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "par-flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     916,
+     916
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysis = true",
+    "note": "flag set before the duration is computed"
+   },
+   {
+    "id": "par-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "storm x1.3 (then Electric Quartz)"
+   },
+   {
+    "id": "par-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "par-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "timer replaced only if the new duration is longer"
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone, player items"
+   },
+   {
+    "id": "ih-class",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "IceHammerStrategy",
+    "expect": "export class IceHammerStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ih-super",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ih-freeze",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "target.status.triggerFreeze(3000, target, pokemon)",
+    "note": "requested freeze 3000 ms on the target, origin = caster"
+   },
+   {
+    "id": "ih-para",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "pokemon.status.triggerParalysis(3000, pokemon, pokemon)",
+    "note": "requested paralysis 3000 ms on the CASTER; apBoost not passed (false)"
+   },
+   {
+    "id": "ih-table",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "const damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "damage by caster stars; ?? 400 fallback"
+   },
+   {
+    "id": "ih-hit",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage after the freeze and the self-paralysis; arguments (damage, board, SPECIAL, caster, crit, true)"
+   },
+   {
+    "id": "ih-apboost",
+    "file": "app/core/abilities/ice-hammer.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "IceHammerStrategy.process",
+    "expect": "true",
+    "note": "explicit apBoost = true (same as the default)"
+   },
+   {
+    "id": "frz-nomove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     232,
+     232
+    ],
+    "symbol": "PokemonEntity.canMove / canAttack",
+    "expect": "!this.status.freeze &&",
+    "note": "a frozen unit can neither move nor attack"
+   },
+   {
+    "id": "frz-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     738,
+     738
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "after freeze ends a CC_COOLDOWN window blocks new freeze / sleep"
+   },
+   {
+    "id": "frz-nododge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     106,
+     106
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.freeze &&",
+    "note": "a frozen target cannot dodge an attack"
+   },
+   {
+    "id": "par-speed",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysis halves the speed used for the attack cooldown"
+   },
+   {
+    "id": "par-heal",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     949,
+     949
+    ],
+    "symbol": "Status.healParalysis",
+    "expect": "healParalysis(pkm: PokemonEntity) {",
+    "note": "the paralysis flag is cleared when the timer runs out"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   }
+  ]
+ }
+}
