@@ -1,0 +1,604 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HYPNOSIS",
+ "kind": "ability",
+ "identifier": "HYPNOSIS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T184107Z"
+ },
+ "record": {
+  "ability": "HYPNOSIS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HYPNOSIS: Hoothoot (1 star) and Noctowl (2 stars). The strategy is shared; differences are star count and stats. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "HOOTHOOT",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "HYPNOSIS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "NOCTOWL",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "HYPNOSIS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HOOTHOOT": {
+    "evidence": [
+     "unit-hoothoot"
+    ]
+   },
+   "NOCTOWL": {
+    "evidence": [
+     "unit-noctowl"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HYPNOSIS] = new HypnosisStrategy()",
+   "strategy": "HypnosisStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "hy-class",
+    "hy-req",
+    "hy-super"
+   ]
+  },
+  "summary": "Puts the farthest targettable enemy to sleep. The target is not the unit's normal attack target: PokemonState.getFarthestTarget(caster, board) picks the targettable enemy with the greatest Manhattan distance from the caster (ties go to the first unit in the row-major scan). If there is none, nothing happens except that PP is spent. The requested sleep is round(flat x (2 + AP/100) x crit factor), flat 1000 ms at 1 star and 1750 ms at 2 stars (3000 / 6000 for 3 / 4 stars), i.e. 2000 ms for Hoothoot and 3500 ms for Noctowl at 0 AP and no crit. Status.triggerSleep then applies guards and duration changes; a sleeping unit cannot move or attack (except with the COMATOSE passive) and cannot dodge attacks. There is no damage.",
+  "targeting": {
+   "who": "one unit: the farthest targettable enemy by Manhattan distance, chosen independently of the caster's current target",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast does not need a target in range. getFarthestTarget is evaluated before super.process; isTargettableBy(caster) excludes untargettable units and own-team units. Distance starts at 0 and the comparison is strict, so only a unit at distance >= 1 can be chosen and the first of equal-distance units in the scan wins.",
+   "evidence": [
+    "hy-far",
+    "far-fn",
+    "far-target",
+    "far-dist",
+    "far-gt",
+    "manhattan",
+    "targettable",
+    "hy-req",
+    "hy-if"
+   ]
+  },
+  "geometry": {
+   "shape": "single unit anywhere on the board (no range limit)",
+   "evidence": [
+    "hy-far",
+    "far-dist",
+    "manhattan"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "statusApplication",
+    "target": "the farthest targettable enemy",
+    "declaredRaw": {
+     "description": "triggerSleep(round(flat x (2 + AP/100) x crit factor)); no damage, no stat change"
+    },
+    "scaling": "see statusEffects.0: AP and crit scale the requested duration only",
+    "resolution": "no HP, shield or stat change; the whole effect is the sleep request in statusEffects.0, subject to Status.triggerSleep guards. Nothing happens (except PP spent) when getFarthestTarget returns nothing.",
+    "evidence": [
+     "hy-far",
+     "hy-if",
+     "hy-sleep"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "SLEEP",
+    "target": "the farthest targettable enemy",
+    "durationMs": null,
+    "probability": 1,
+    "apScaled": true,
+    "declaredRaw": {
+     "byStars": {
+      "1": 1000,
+      "2": 1750,
+      "3": 3000,
+      "4": 6000
+     },
+     "fallback": 1000,
+     "label": "flat duration (ms) before the AP / crit factors"
+    },
+    "perUnitRaw": {
+     "HOOTHOOT": 1000,
+     "NOCTOWL": 1750
+    },
+    "scaling": "requested = round(flat x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)). At AP 0 and no crit: Hoothoot 2000 ms, Noctowl 3500 ms. A crit needs ABILITY_CRIT (canCritByDefault false). The AP is the caster's. triggerSleep is called with no origin and applies no further AP scaling.",
+    "resolution": "Requested vs applied. Applied only if the target is not already asleep, has no rune protect, is not skydiving, has no IMMUNITY_SLEEP effect and its ccCooldown is 0 (CC_COOLDOWN 1500 ms is set when a sleep, and also a freeze, ends). Applied duration = round(requested x 1.3 at night or x0.7 at zenith, /2 if the target is enraged, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone in the victim's player's items)). A Chesto Berry holder eats it as soon as the sleep is applied (the berry's own effect is not traced here). Becoming enraged halves the remaining sleep time; sleep ends when the timer runs out. While asleep the unit cannot move or attack and cannot dodge; a unit with the COMATOSE passive is not prevented from moving or attacking and keeps its sleep flag renewed by updateSleep (not covered by this record).",
+    "evidence": [
+     "hy-sleep",
+     "hy-table",
+     "hy-ap",
+     "hy-critf",
+     "hy-crit",
+     "hy-round",
+     "sleep-guard",
+     "sleep-weather",
+     "sleep-enraged",
+     "sleep-red",
+     "sleep-set",
+     "sleep-end",
+     "red-water",
+     "red-odd",
+     "cc-cd",
+     "rage-sleep",
+     "sleep-nomove",
+     "sleep-nododge"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HOOTHOOT": 1,
+    "NOCTOWL": 2
+   },
+   "declaredRawSleepMs": {
+    "HOOTHOOT": 1000,
+    "NOCTOWL": 1750
+   },
+   "note": "The flat duration is indexed by the casting entity's stars (four values; ?? 1000 fallback). The listed units are catalog stars 1 and 2. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "hy-table",
+    "unit-hoothoot",
+    "unit-noctowl"
+   ]
+  },
+  "positionalConditions": "The target depends on the caster's position (Manhattan distance); the cast is not limited by range. With no targettable enemy on the board nothing is applied.",
+  "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP. Re-casting on a unit that is still asleep does not extend the sleep (the guard rejects it) and the unit is then protected by ccCooldown for CC_COOLDOWN after waking; the farthest unit is re-evaluated each cast, so a different enemy may be picked.",
+  "rawVsResolved": "Requested: sleep round(flat x (2 + AP/100) x crit factor) = 2000 ms (Hoothoot) / 3500 ms (Noctowl) at 0 AP and no crit. Applied = requested after weather, enrage, water-ability and Odd Keystone changes, and only if the guards pass; nothing happens without a targettable enemy.",
+  "sourceTables": [
+   {
+    "id": "sleep",
+    "file": "app/core/abilities/hypnosis.ts",
+    "pattern": "const flatDuration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether the cast is attempted when no target is in range (requiresTarget false) and how the generic attacking state handles it was not traced",
+   "The Chesto Berry effect (eatBerry) and the COMATOSE passive's renewal of sleep were not traced"
+  ],
+  "unresolved": [
+   "The Merciless exception inside isTargettableBy (low-HP units) can make an own-team unit targettable; whether that can ever happen for the listed units was not examined",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-hoothoot",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9284,
+     9302
+    ],
+    "symbol": "class Hoothoot",
+    "expect": "skill = Ability.HYPNOSIS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-noctowl",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9304,
+     9321
+    ],
+    "symbol": "class Noctowl",
+    "expect": "skill = Ability.HYPNOSIS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     979,
+     979
+    ],
+    "symbol": "AbilityStrategies[Ability.HYPNOSIS]",
+    "expect": "[Ability.HYPNOSIS]: new HypnosisStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "sleep-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     765,
+     765
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+    "note": "not applied if already asleep, rune protected, skydiving, IMMUNITY_SLEEP or ccCooldown > 0"
+   },
+   {
+    "id": "sleep-weather",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     768,
+     768
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "if (pkm.simulation.weather === Weather.NIGHT) {",
+    "note": "night x1.3, zenith x0.7"
+   },
+   {
+    "id": "sleep-enraged",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     774,
+     774
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration = duration / 2",
+    "note": "enraged targets get half"
+   },
+   {
+    "id": "sleep-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     777,
+     777
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "sleep-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     780,
+     780
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleepCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "sleep-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     797,
+     797
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "after sleep ends a ccCooldown of CC_COOLDOWN blocks new freeze / sleep"
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone, player items"
+   },
+   {
+    "id": "hy-class",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "HypnosisStrategy",
+    "expect": "export class HypnosisStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "hy-req",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "HypnosisStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target in range"
+   },
+   {
+    "id": "hy-far",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "farthest targettable enemy, computed before super.process; falls back to the (null) target"
+   },
+   {
+    "id": "hy-super",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "super.process(pokemon, board, farthestTarget, crit)",
+    "note": "PP is spent even when no target exists"
+   },
+   {
+    "id": "hy-if",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "if (farthestTarget) {",
+    "note": "nothing else happens without a farthest target"
+   },
+   {
+    "id": "hy-table",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "const flatDuration = [1000, 1750, 3000, 6000][pokemon.stars - 1] ?? 1000",
+    "note": "flat duration (ms) by caster stars; ?? 1000 fallback"
+   },
+   {
+    "id": "hy-ap",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "const durationWithAP = flatDuration * (2 + pokemon.ap / 100)",
+    "note": "x (2 + AP/100): the factor is 2 at 0 AP"
+   },
+   {
+    "id": "hy-critf",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "const critScalingFactor = 0.5",
+    "note": ""
+   },
+   {
+    "id": "hy-crit",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "(crit ? 1 + (pokemon.critPower - 1) * critScalingFactor : 1)",
+    "note": "crit adds half of the critPower bonus; crit requires ABILITY_CRIT because canCritByDefault is false"
+   },
+   {
+    "id": "hy-round",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "const duration = Math.round(",
+    "note": ""
+   },
+   {
+    "id": "hy-sleep",
+    "file": "app/core/abilities/hypnosis.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "HypnosisStrategy.process",
+    "expect": "farthestTarget.status.triggerSleep(duration, farthestTarget)",
+    "note": "requested sleep duration"
+   },
+   {
+    "id": "far-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1199
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "getFarthestTarget(",
+    "note": "scan of the board for the farthest targettable enemy"
+   },
+   {
+    "id": "far-target",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1208,
+     1208
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (enemy && enemy.isTargettableBy(targettableBy)) {",
+    "note": "enemy = isTargettableBy(caster): not untargettable and on another team (or Merciless exception)"
+   },
+   {
+    "id": "far-dist",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1209,
+     1209
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "const distance = distanceM(pokemon.positionX, pokemon.positionY, x, y)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "far-gt",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1210,
+     1210
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance) {",
+    "note": "strictly greater: ties keep the first unit in row-major scan order"
+   },
+   {
+    "id": "manhattan",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     280,
+     280
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": ""
+   },
+   {
+    "id": "sleep-nomove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     233,
+     233
+    ],
+    "symbol": "PokemonEntity.canMove / canAttack",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE) &&",
+    "note": "a sleeping unit (except COMATOSE) can neither move nor attack"
+   },
+   {
+    "id": "sleep-nododge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     105,
+     105
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.sleep &&",
+    "note": "a sleeping target cannot dodge an attack"
+   },
+   {
+    "id": "rage-sleep",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     368,
+     368
+    ],
+    "symbol": "Status.triggerRage",
+    "expect": "this.sleepCooldown = Math.floor(this.sleepCooldown * 0.5) // Rage reduces sleep duration by half",
+    "note": "becoming enraged halves the remaining sleep time"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   }
+  ]
+ }
+}
