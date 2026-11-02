@@ -1,0 +1,460 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/FIRE_FANG",
+ "kind": "ability",
+ "identifier": "FIRE_FANG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T003937Z"
+ },
+ "record": {
+  "ability": "FIRE_FANG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare FIRE_FANG: Growlithe (1 star) and Arcanine (2 stars); both have maxPP 80, range 1 and no passive (catalog NONE). The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "GROWLITHE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "FIRE_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ARCANINE",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "FIRE_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GROWLITHE": {
+    "evidence": [
+     "unit-growlithe"
+    ]
+   },
+   "ARCANINE": {
+    "evidence": [
+     "unit-arcanine"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.FIRE_FANG] = new FireFangStrategy()",
+   "strategy": "FireFangStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "Direct registry entry with a dedicated file; no routing uncertainty was queued. Hisuian Growlithe/Arcanine are separate units not covered here.",
+   "evidence": [
+    "reg",
+    "reg-ff",
+    "ff-class",
+    "base-flags",
+    "base-pp",
+    "pp-gate",
+    "ff-super"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage on the cast target, raw 30/60/120/240 by caster stars (Growlithe 30, Arcanine 60), AP-scaled, followed by a 2000 ms burn on the same target (origin = caster). Crit applies only with ability crit. No movement.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "ff-class",
+    "base-flags",
+    "ff-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "ff-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "GROWLITHE": 30,
+     "ARCANINE": 60
+    },
+    "scaling": "requested = table value by caster stars. AP: x(1 + AP/100) (apBoost true, passed explicitly); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
+    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields and takenDamage are resolved in handleDamage and not read by this strategy (return value unused). Blocked completely if the target is protected, skydiving or has magicBounce.",
+    "evidence": [
+     "ff-dmg",
+     "ff-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min"
+    ]
+   },
+   {
+    "kind": "status",
+    "status": "BURN",
+    "declaredRaw": {
+     "durationMs": 2000
+    },
+    "scaling": "Requested duration 2000 ms, not AP-scaled. Applied duration = 2000 after the target's duration reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone x(1-0.1 per stone)); it replaces the burn timer and origin only if longer than the remaining burn time. Not applied with IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive.",
+    "resolution": "While burning the target takes TRUE damage each 1000 ms tick equal to round(5% of its max HP) with weather / item / effect multipliers (Drought x1.3 less Heat Rock, Rain x0.7, Assault Vest x0.5, duration-reduction effects as above); no tick damage with the Well Baked passive or Magmarizer. The burn is applied after the damage call and even when that damage was blocked; side effects on the burned unit (Guts, Well Baked, Magmarizer, Rawst Berry) are listed in the evidence note.",
+    "evidence": [
+     "ff-burn",
+     "burn-trig",
+     "burn-red",
+     "burn-set",
+     "burn-side",
+     "burn-tick",
+     "burn-zero",
+     "burn-true"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BURN",
+    "target": "cast target",
+    "durationMs": 2000,
+    "evidence": [
+     "ff-burn",
+     "burn-set"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GROWLITHE": 1,
+    "ARCANINE": 2
+   },
+   "declaredRawDamage": {
+    "GROWLITHE": 30,
+    "ARCANINE": 60
+   },
+   "note": "indexed by the casting entity's stars; the 120 and 240 (fallback) entries are not reachable by these two units' star counts. Burn duration does not depend on stars. maxPP 80 and range 1 for both.",
+   "evidence": [
+    "ff-dmg",
+    "unit-growlithe",
+    "unit-arcanine"
+   ]
+  },
+  "positionalConditions": "None beyond needing a target (requiresTarget true).",
+  "repeatedCastsAndModes": "No stored state or modes. Recasting on a burning target only extends the burn if the new 2000 ms (after reductions) exceeds the remaining time.",
+  "rawVsResolved": "Raw: damage 30/60, burn 2000 ms. Requested = raw; applied damage = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, at least 1). Applied burn = 2000 after target-side reductions or none (immunity / Rune Protect / Water Bubble); the burn tick damage is a separate TRUE-damage stream not part of the cast damage. takenDamage is not read here.",
+  "sourceTables": [
+   {
+    "id": "fireFangDamage",
+    "file": "app/core/abilities/fire-fang.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Whether other code reacts to a target being burnt (synergies, items) beyond Status.triggerBurn / updateBurn"
+  ],
+  "unresolved": [
+   "How the target is chosen before the cast was not read."
+  ],
+  "evidence": [
+   {
+    "id": "unit-growlithe",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9401,
+     9415
+    ],
+    "symbol": "class Growlithe",
+    "expect": "skill = Ability.FIRE_FANG",
+    "note": "unit class block: stars 1, maxPP 80, range 1, no passive line (catalog NONE)"
+   },
+   {
+    "id": "unit-arcanine",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9417,
+     9430
+    ],
+    "symbol": "class Arcanine",
+    "expect": "skill = Ability.FIRE_FANG",
+    "note": "unit class block: stars 2, maxPP 80, range 1, no passive line (catalog NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-ff",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     881,
+     881
+    ],
+    "symbol": "AbilityStrategies[Ability.FIRE_FANG]",
+    "expect": "[Ability.FIRE_FANG]: new FireFangStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ff-class",
+    "file": "app/core/abilities/fire-fang.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "FireFangStrategy",
+    "expect": "export class FireFangStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults requiresTarget true / canCritByDefault false; not overridden"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "ff-super",
+    "file": "app/core/abilities/fire-fang.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "FireFangStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ff-dmg",
+    "file": "app/core/abilities/fire-fang.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "FireFangStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "ff-hit",
+    "file": "app/core/abilities/fire-fang.ts",
+    "lines": [
+     15,
+     22
+    ],
+    "symbol": "FireFangStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage; the sixth argument apBoost is passed explicitly as true (same as the default); return value unused"
+   },
+   {
+    "id": "ff-burn",
+    "file": "app/core/abilities/fire-fang.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "FireFangStrategy.process",
+    "expect": "target.status.triggerBurn(2000, target, pokemon)",
+    "note": "burn 2000 ms on the cast target after the damage call, origin = caster; applied whether or not the damage was blocked"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     406
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone)"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     417
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and the origin; a shorter or equal one keeps the existing"
+   },
+   {
+    "id": "burn-side",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     420,
+     436
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.passive === Passive.GUTS",
+    "note": "side effects on the burned unit: Guts +5 attack once, Well Baked +20 defense when newly burnt, Magmarizer +30 speed when newly burnt, Rawst Berry is eaten"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second, modified by weather / items / passives"
+   },
+   {
+    "id": "burn-zero",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     470,
+     476
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "burnDamage = 0",
+    "note": "Well Baked passive or Magmarizer: no tick damage"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": "the tick is TRUE damage, attacker = the burn origin"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block the damage (the burn is still attempted)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "caster AP scales the requested damage"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   }
+  ]
+ }
+}
