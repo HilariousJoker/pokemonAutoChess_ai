@@ -1,0 +1,589 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/HIGH_JUMP_KICK",
+ "kind": "ability",
+ "identifier": "HIGH_JUMP_KICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261102T184107Z"
+ },
+ "record": {
+  "ability": "HIGH_JUMP_KICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare HIGH_JUMP_KICK: Buneary (1 star) and Lopunny (2 stars). The strategy is shared; unit differences are star count and stats (both maxPP 80, range 1). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BUNEARY",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "HIGH_JUMP_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LOPUNNY",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "HIGH_JUMP_KICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BUNEARY": {
+    "evidence": [
+     "unit-buneary"
+    ]
+   },
+   "LOPUNNY": {
+    "evidence": [
+     "unit-lopunny"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.HIGH_JUMP_KICK] = new HighJumpKickStrategy()",
+   "strategy": "HighJumpKickStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "hjk-class",
+    "hjk-super"
+   ]
+  },
+  "summary": "Single-target. Unless the target holds a Twist Band, the caster takes up to 40 PP from the target (ppStolen = min(40, target.pp), read before the exchange): the caster is asked to gain ppStolen and the target to lose ppStolen, and the target's manaBurnCount is incremented (even when ppStolen is 0). Then, regardless of Twist Band, SPECIAL damage is dealt to the target (raw 15 at 1 star, 30 at 2 stars; 60 / 120 for 3 / 4 stars are in the table but not reachable by the listed units' bare star counts). The PP exchange is two independent addPP requests: each can be blocked or altered by addPP's own guards, so the amount actually gained and the amount actually lost can differ from ppStolen and from each other.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No area, no secondary targets. The target is chosen by the generic cast pipeline (not traced here).",
+   "evidence": [
+    "cast",
+    "pp-gate",
+    "hjk-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no displacement despite the name",
+   "evidence": [
+    "hjk-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120
+     },
+     "fallback": 120,
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "BUNEARY": 15,
+     "LOPUNNY": 30
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT); other multipliers inside handleSpecialDamage were not enumerated here. The damage is not conditioned on the PP exchange: it is dealt also to a Twist Band holder.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies its attacker/field multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. This ability does not use the returned takenDamage or death.",
+    "evidence": [
+     "hjk-table",
+     "hjk-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "ppSteal",
+    "target": "the cast target loses PP, the caster gains PP",
+    "declaredRaw": {
+     "description": "ppStolen = min(40, target.pp) read once before the exchange; skipped entirely when the target holds Twist Band",
+     "cap": 40,
+     "label": "requested PP amount (raw)"
+    },
+    "scaling": "none from stars, AP or crit: both addPP calls pass apBoost 0 and crit false, so the AP / crit factors in addPP are 1.",
+    "resolution": "Requested vs applied. Caster gain: addPP(+ppStolen): value = round(ppStolen x (fatigue ? 0.5 : 1)); applyTwistBandBuff leaves a positive value unchanged; the gain is dropped if the caster is silenced, has protect, has the NO_PP_GAIN effect or is resurrecting; otherwise pp = clamp(pp + value, 0, 2 x maxPP - 1). The caster's pp was already reduced by maxPP in AbilityStrategy.process before the gain. Target loss: addPP(-ppStolen): value = -ppStolen (the Twist Band flip cannot apply because Twist Band holders skip the block); the loss is dropped if the target has status.tree or is resurrecting; otherwise pp = clamp(pp - ppStolen, 0, 2 x maxPP - 1). No Big Eater Belt hook exists in addPP, so Big Eater Belt does not change either amount. The caster's gain is not reduced when the target's loss is blocked, and vice versa. The target holding Twist Band is checked only on the target: a Twist Band on the caster does not matter because the caster's amount is positive.",
+    "evidence": [
+     "hjk-stolen",
+     "hjk-twist",
+     "hjk-gain",
+     "hjk-lose",
+     "hjk-max",
+     "addpp-round",
+     "addpp-fatigue",
+     "addpp-twist",
+     "addpp-block",
+     "addpp-tree",
+     "addpp-clamp",
+     "twist-fn",
+     "base"
+    ]
+   },
+   {
+    "kind": "counter",
+    "target": "the cast target",
+    "declaredRaw": {
+     "description": "count.manaBurnCount += 1"
+    },
+    "scaling": "none",
+    "resolution": "incremented once per cast inside the non-Twist-Band block, independent of ppStolen (also when target.pp is 0) and independent of whether either addPP changed any PP. What the counter is used for elsewhere was not traced.",
+    "evidence": [
+     "hjk-burn",
+     "hjk-twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BUNEARY": 1,
+    "LOPUNNY": 2
+   },
+   "declaredRawDamage": {
+    "BUNEARY": 15,
+    "LOPUNNY": 30
+   },
+   "note": "Damage is indexed by the casting entity's stars; 3 and 4 stars (60, 120, also the ?? fallback 120) are not reachable by the bare factory star counts of the listed units. The PP cap 40 and the Twist Band rule do not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "hjk-table",
+    "unit-buneary",
+    "unit-lopunny"
+   ]
+  },
+  "positionalConditions": "None in this strategy; range comes from the unit (1).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (80) of PP in the base process; the target's PP is drained again on later casts (up to 40 per cast).",
+  "rawVsResolved": "Requested: damage 15 / 30 (1 / 2 stars) and a PP exchange of min(40, target.pp). Applied damage = requested x (1 + AP/100) x optional crit multiplier, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied PP: caster gain = round(ppStolen x fatigue factor) subject to silence / protect / NO_PP_GAIN / resurrecting and clamped to 0..2 x maxPP - 1; target loss = ppStolen subject to status.tree / resurrecting and the same clamp; the two are independent. A Twist Band target loses and gives nothing but still takes the damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "Where the status flags status.tree, status.silence, status.fatigue, status.resurrecting and the NO_PP_GAIN effect are set was not traced; only their use in addPP was read",
+   "What manaBurnCount is used for outside this strategy (other writers: psychic.ts, items.ts, synergies.ts, count.ts) was not traced",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-buneary",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     869,
+     883
+    ],
+    "symbol": "class Buneary",
+    "expect": "skill = Ability.HIGH_JUMP_KICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lopunny",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     885,
+     899
+    ],
+    "symbol": "class Lopunny",
+    "expect": "skill = Ability.HIGH_JUMP_KICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     968,
+     968
+    ],
+    "symbol": "AbilityStrategies[Ability.HIGH_JUMP_KICK]",
+    "expect": "[Ability.HIGH_JUMP_KICK]: new HighJumpKickStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "hjk-class",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "HighJumpKickStrategy",
+    "expect": "export class HighJumpKickStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "hjk-super",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "hjk-table",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage by caster stars; ?? 120 fallback"
+   },
+   {
+    "id": "hjk-stolen",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "const ppStolen = max(40)(target.pp)",
+    "note": "min(40, target.pp), read before the Twist Band check"
+   },
+   {
+    "id": "hjk-twist",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "if (target.items.has(Item.TWIST_BAND) === false) {",
+    "note": "steal block skipped when the target holds Twist Band; damage line is outside the block"
+   },
+   {
+    "id": "hjk-gain",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "pokemon.addPP(ppStolen, pokemon, 0, false)",
+    "note": "caster gains ppStolen (apBoost 0, crit false)"
+   },
+   {
+    "id": "hjk-lose",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "target.addPP(-ppStolen, pokemon, 0, false)",
+    "note": "target loses ppStolen (request)"
+   },
+   {
+    "id": "hjk-burn",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "target.count.manaBurnCount++",
+    "note": "counter incremented inside the same block even when ppStolen is 0"
+   },
+   {
+    "id": "hjk-hit",
+    "file": "app/core/abilities/high-jump-kick.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "HighJumpKickStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage after the PP exchange; crit forwarded"
+   },
+   {
+    "id": "hjk-max",
+    "file": "app/utils/number.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "max",
+    "expect": "Math.min(maximum, value)",
+    "note": "max(40)(x) = min(40, x)"
+   },
+   {
+    "id": "addpp-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     514,
+     514
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "let value = Math.round(",
+    "note": "value = round(baseValue x (1 + apBoost x caster.ap/100) x crit x fatigue)"
+   },
+   {
+    "id": "addpp-fatigue",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     518,
+     518
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "fatigue halves a positive PP gain"
+   },
+   {
+    "id": "addpp-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Twist Band hook (addPP has no Big Eater Belt hook)"
+   },
+   {
+    "id": "addpp-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     524,
+     524
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.silence) &&",
+    "note": "gains blocked by silence / protect / NO_PP_GAIN / resurrecting; losses blocked by tree"
+   },
+   {
+    "id": "addpp-tree",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     528,
+     528
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "cannot lose PP if tree"
+   },
+   {
+    "id": "addpp-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     530,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "clamped to 0..2*maxPP-1"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1864,
+     1864
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "negative value from environment or other team becomes positive for a Twist Band holder"
+   }
+  ]
+ }
+}
