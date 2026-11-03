@@ -1,0 +1,329 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MIMIC",
+ "kind": "ability",
+ "identifier": "MIMIC",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T124056Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare MIMIC: Mime Jr. (1 star) and Mr. Mime (2 stars); both maxPP 80, range 2, no passive. MIMIC has no numbers of its own: what it does depends entirely on the ability of its current target, so this record describes the dispatch rule, not any copied ability's effect.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MIMIC] = new MimicStrategy() (class defined in abilities.ts, line 688)",
+   "strategy": "MimicStrategy extends AbilityStrategy; at runtime it forwards to AbilityStrategies[target.skill]",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mimic",
+    "base",
+    "base-flags",
+    "cast",
+    "cast-call",
+    "mimic-class",
+    "mimic-process"
+   ]
+  },
+  "summary": "MIMIC casts a copy of its target's ability. The cast is made on the unit's current attack target (an enemy). If the target's current skill is not in InimitableAbilities, MimicStrategy.process calls AbilityStrategies[target.skill].process(caster, board, target, crit) directly, so the copied ability runs with the caster as the user (the caster's stars, AP, items, position and range; the crit flag rolled for the MIMIC cast) and with that same target; the PP spend and animation come from the copied strategy's own super.process (not from MimicStrategy). If the target's skill is inimitable (the list includes MIMIC, METRONOME, SKETCH, SKILL_SWAP, ASSIST, ENCORE, all HIDDEN_POWER_*, and others) only the base process runs: PP is spent and the ability is broadcast, with no effect. The caster's own skill is not changed by the cast.",
+  "targeting": {
+   "who": "the unit's current attack target (single enemy); the copied ability then applies its own targeting with that target",
+   "needsTarget": true,
+   "note": "MIMIC keeps the default requiresTarget = true; the copied strategy's own requiresTarget is not consulted (the cast has already been gated by MIMIC's flag and the target was passed in). A copied ability that expects a null target (requiresTarget false) receives the enemy target instead; what that does was not traced per ability.",
+   "evidence": [
+    "mimic-class",
+    "base-flags",
+    "cast-call",
+    "mimic-process"
+   ]
+  },
+  "geometry": {
+   "shape": "depends on the copied ability; none for MIMIC itself",
+   "evidence": [
+    "mimic-process"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "delegated-ability",
+    "target": "as the copied ability",
+    "declaredRaw": {
+     "copiedFrom": "target.skill at the moment of the cast",
+     "rule": "copy unless target.skill is in InimitableAbilities"
+    },
+    "scaling": "none of its own. Amounts, ranges and star tables are those of the copied strategy, indexed by the CASTER's stars (pokemon.stars), with the caster's AP, stats and items.",
+    "resolution": "AbilityStrategies[target.skill].process(pokemon, board, target, crit): runs the copied strategy's process; its own super.process spends PP (maxPP of the caster) and broadcasts. The crit flag is the one rolled for the MIMIC cast by castAbility (ABILITY_CRIT on the caster; MIMIC's canCritByDefault is false). Copied abilities that read canCritByDefault do so only through castAbility, which is not re-entered.",
+    "evidence": [
+     "mimic-process",
+     "mimic-guard",
+     "cast",
+     "reg"
+    ]
+   },
+   {
+    "kind": "no-op",
+    "target": "none",
+    "declaredRaw": {
+     "when": "target.skill in InimitableAbilities"
+    },
+    "scaling": "none",
+    "resolution": "super.process only: pp = max(0, pp - maxPP), ult count incremented, ability broadcast; nothing else.",
+    "evidence": [
+     "mimic-else",
+     "base",
+     "inimit-list",
+     "inimit-mimic",
+     "inimit-import"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MIME_JR": 1,
+    "MR_MIME": 2
+   },
+   "note": "MIMIC has no star table. The caster's star count only matters inside the copied strategy's own tables.",
+   "evidence": [
+    "mimic-process",
+    "unit-mimejr",
+    "unit-mrmime"
+   ]
+  },
+  "positionalConditions": "None for MIMIC itself. The copied ability's own conditions apply, evaluated from the caster's position and the passed target.",
+  "repeatedCastsAndModes": "No stored state: every cast re-reads target.skill. The skill is whatever the target currently holds, which another effect (e.g. SKILL_SWAP) could have changed during the fight; not traced.",
+  "rawVsResolved": "No declared numbers. Requested/applied amounts belong to the copied ability; they are resolved with the caster's stars and AP. The effect of one MIMIC cast on a given enemy is therefore the record of that enemy's ability evaluated with Mime Jr. / Mr. Mime as the caster.",
+  "sourceTables": [],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target selection) - only the pp >= maxPP && canCast gate and the cast call with the current target were read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Each copied ability's own behaviour (540 abilities; none traced here; see their own records)",
+   "How copied strategies with requiresTarget false behave when handed a non-null enemy target"
+  ],
+  "unresolved": [
+   "RUNTIME_ABILITY_DISPATCH: the effective ability is chosen at runtime from target.skill, so this record cannot list what MIMIC does for any specific enemy; only the dispatch rule is documented",
+   "Whether every non-inimitable strategy calls super.process (so that PP is spent) - not checked for all 540 abilities; MimicStrategy does not spend PP itself on the copy path",
+   "Whether a copied ability that reads pokemon.skill (rather than a parameter) behaves as the caster's own MIMIC or the copied one",
+   "How target.skill can change during a fight (e.g. SKILL_SWAP / SKETCH assignments); not traced",
+   "Whether the caster's stars ever differ from the factory values",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "MIMIC",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "MIME_JR",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MIMIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MR_MIME",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MIMIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MIME_JR": {
+    "evidence": [
+     "unit-mimejr"
+    ]
+   },
+   "MR_MIME": {
+    "evidence": [
+     "unit-mrmime"
+    ]
+   }
+  },
+  "routingEvidence": {
+   "RUNTIME_ABILITY_DISPATCH": {
+    "evidence": [
+     "mimic-process",
+     "mimic-guard",
+     "mimic-else",
+     "reg"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance (also the lookup MIMIC uses at runtime)"
+   },
+   {
+    "id": "reg-mimic",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1035,
+     1035
+    ],
+    "symbol": "AbilityStrategies[Ability.MIMIC]",
+    "expect": "[Ability.MIMIC]: new MimicStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP and broadcasts the ability; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "requiresTarget = true",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled once by castAbility using the CALLED strategy's (MIMIC's) canCritByDefault, or ABILITY_CRIT; canCast false => no cast; then process(...) of that strategy"
+   },
+   {
+    "id": "cast-call",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "the cast is made on the unit's current attack target, passed as target"
+   },
+   {
+    "id": "mimic-class",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     688,
+     688
+    ],
+    "symbol": "MimicStrategy",
+    "expect": "export class MimicStrategy extends AbilityStrategy",
+    "note": "defined in abilities.ts, not in its own file; does not override requiresTarget or canCritByDefault"
+   },
+   {
+    "id": "mimic-process",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     689,
+     698
+    ],
+    "symbol": "MimicStrategy.process",
+    "expect": "AbilityStrategies[target.skill].process(pokemon, board, target, crit)",
+    "note": "runtime dispatch on the TARGET's current skill"
+   },
+   {
+    "id": "mimic-guard",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     695,
+     695
+    ],
+    "symbol": "MimicStrategy guard",
+    "expect": "if (InimitableAbilities.includes(target.skill) === false) {",
+    "note": "copies only abilities not in the inimitable list"
+   },
+   {
+    "id": "mimic-else",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     697,
+     697
+    ],
+    "symbol": "MimicStrategy fallback",
+    "expect": "} else super.process(pokemon, board, target, crit)",
+    "note": "if the target's skill is inimitable, only the base process runs: PP spent and the ability broadcast, no effect"
+   },
+   {
+    "id": "inimit-import",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1,
+     1
+    ],
+    "symbol": "import InimitableAbilities",
+    "expect": "import { InimitableAbilities } from \"../../config/game/abilities\"",
+    "note": ""
+   },
+   {
+    "id": "inimit-list",
+    "file": "app/config/game/abilities.ts",
+    "lines": [
+     3,
+     46
+    ],
+    "symbol": "InimitableAbilities",
+    "expect": "export const InimitableAbilities: Ability[] = [",
+    "note": "the list: ASSIST, AURA_WHEEL, ENCORE, all HIDDEN_POWER_*, KNOWLEDGE_THIEF, MAGNET_PULL, METRONOME, MIMIC, REVELATION_DANCE, SHADOW_FORCE, SKETCH, SKILL_SWAP, SWARM, TRANSE, UNBOUND"
+   },
+   {
+    "id": "inimit-mimic",
+    "file": "app/config/game/abilities.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "InimitableAbilities MIMIC",
+    "expect": "Ability.MIMIC,",
+    "note": "MIMIC itself is on the list, so mimicking a unit that has MIMIC does nothing but spend PP"
+   },
+   {
+    "id": "unit-mimejr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9510,
+     9524
+    ],
+    "symbol": "class MimeJr",
+    "expect": "skill = Ability.MIMIC",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-mrmime",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9526,
+     9543
+    ],
+    "symbol": "class MrMime",
+    "expect": "skill = Ability.MIMIC",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
