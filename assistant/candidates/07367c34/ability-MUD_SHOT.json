@@ -1,0 +1,570 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/MUD_SHOT",
+  "kind": "ability",
+  "identifier": "MUD_SHOT",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261103T184025Z"
+  },
+  "record": {
+    "ability": "MUD_SHOT",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "appliesTo": [
+      {
+        "key": "QUAGSIRE",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "MUD_SHOT",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "WOOPER",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "MUD_SHOT",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "QUAGSIRE": {
+        "evidence": [
+          "unit-quagsire"
+        ]
+      },
+      "WOOPER": {
+        "evidence": [
+          "unit-wooper"
+        ]
+      }
+    },
+    "scope": "The two units in appliesTo declare MUD_SHOT: Wooper (1 star) and Quagsire (2 stars). The strategy is shared; values are indexed by the casting unit's stars. Units not listed are not covered.",
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.MUD_SHOT] = new MudShotStrategy()",
+      "strategy": "MudShotStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-x",
+        "base",
+        "base-flags",
+        "cast",
+        "pp-gate",
+        "ms-class",
+        "ms-super"
+      ]
+    },
+    "summary": "Single-target: deals special damage to the caster's current target and then subtracts from its speed stat. Requested damage 25 / 50 / 100 / 200 by caster stars (25 Wooper, 50 Quagsire), raw; applied = x(1 + AP/100), x critPower on a crit (needs ABILITY_CRIT), then reduced by the target's special defense with a minimum of 1. Requested speed change -10 / -20 / -30 / -40 by caster stars (-10 Wooper, -20 Quagsire): despite the source comment (\"attack speed ... %\"), the code passes a flat number to addSpeed(-speedDebuff, caster, 1, crit), i.e. flat speed points, multiplied by (1 + AP/100) and by critPower on a crit, changed by a Twist Band on the target (debuff becomes a buff) and by the MELMETAL passive (becomes half as an attack change), and clamped to 0..300. The speed change is not conditional on the damage: it is applied even if the damage was blocked by protect/skydiving/magicBounce.",
+    "targeting": {
+      "who": "the caster's current target (single enemy)",
+      "needsTarget": true,
+      "note": "requiresTarget is the default true; the target argument is the unit the caster is attacking.",
+      "evidence": [
+        "ms-hsd",
+        "ms-speed",
+        "base-flags"
+      ]
+    },
+    "geometry": {
+      "shape": "single target, no area",
+      "evidence": [
+        "ms-hsd",
+        "ms-speed"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "target": "the current target",
+        "damageType": "SPECIAL",
+        "declaredRaw": {
+          "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+          "byStars": {
+            "1": 25,
+            "2": 50,
+            "3": 100,
+            "4": 200
+          },
+          "fallback": 200,
+          "label": "raw special damage by caster stars (requested amount)"
+        },
+        "scaling": "requested = 25 (Wooper, 1 star) / 50 (Quagsire, 2 stars). Applied: x(1 + caster AP / 100) (apBoost default true), x2 if the caster is enraged, crit factor 1 + (critPower - 1) x reduction only if crit (needs ABILITY_CRIT)",
+        "resolution": "no damage if the target has protect, skydiving or magicBounce (magicBounce can reflect part to the caster). Then PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, unused here) = shield + hp actually lost.",
+        "evidence": [
+          "ms-dmg",
+          "ms-hsd",
+          "hsd-block",
+          "hsd-ap",
+          "hsd-crit",
+          "hd-speDef",
+          "hd-min",
+          "hd-shield",
+          "hd-enr",
+          "base-flags",
+          "cast"
+        ]
+      },
+      {
+        "kind": "statChange",
+        "stat": "speed",
+        "target": "the current target",
+        "declaredRaw": {
+          "description": "addSpeed(-speedDebuff, caster, 1, crit)",
+          "byStars": {
+            "1": 10,
+            "2": 20,
+            "3": 30,
+            "4": 40
+          },
+          "fallback": 40,
+          "label": "flat speed points removed (requested), NOT a percentage despite the source comment"
+        },
+        "scaling": "requested = -10 (Wooper) / -20 (Quagsire). Applied value = -N x (1 + caster AP / 100) x (crit ? critPower : 1), with no rounding; Big Eater Belt does not apply (the caster is an enemy and the value is negative); a Twist Band on the target flips the sign (the target gains speed); a MELMETAL target instead receives addAttack(value x 0.5) with the same caster scaling, rounded, and Twist Band applied again there.",
+        "resolution": "target.speed = clamp(speed + value, 0, 300). Attack interval = 1000 / (0.4 + speed x 0.007) ms (halved speed while paralysed), so a lower speed lengthens it. The change is permanent for the fight (no duration or expiry in this strategy; permanent = false, so the board unit is not changed) and is applied even when the damage was blocked.",
+        "evidence": [
+          "ms-comment",
+          "ms-tbl",
+          "ms-speed",
+          "add-speed-sig",
+          "add-belt",
+          "add-twist",
+          "add-mel",
+          "add-scale",
+          "add-clamp",
+          "max-speed",
+          "belt-fn",
+          "twist-fn",
+          "atk-time",
+          "reset-cd"
+        ]
+      }
+    ],
+    "statusEffects": [],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "WOOPER": 1,
+        "QUAGSIRE": 2
+      },
+      "declaredRawDamage": {
+        "WOOPER": 25,
+        "QUAGSIRE": 50
+      },
+      "declaredRawSpeedChange": {
+        "WOOPER": -10,
+        "QUAGSIRE": -20
+      },
+      "note": "Both tables are indexed by the casting entity's stars (fallback 200 / 40). Whether other mechanics change an entity's star count was not examined.",
+      "evidence": [
+        "ms-dmg",
+        "ms-tbl",
+        "unit-wooper",
+        "unit-quagsire"
+      ]
+    },
+    "positionalConditions": "None in the strategy beyond the current target; no geometry.",
+    "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP. Speed reductions stack additively down to 0 across casts (clamp); there is no cap on how often it can be applied and no duration.",
+    "rawVsResolved": "Requested: 25 / 50 special damage and -10 / -20 speed. Applied: damage after AP, enrage, crit, speDef and the floor of 1 (zero if the target is protected); speed change after AP, crit, Twist Band / MELMETAL handling and the 0..300 clamp.",
+    "sourceTables": [
+      {
+        "id": "damage",
+        "file": "app/core/abilities/mud-shot.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "effects.0.declaredRaw.byStars"
+      },
+      {
+        "id": "speed",
+        "file": "app/core/abilities/mud-shot.ts",
+        "pattern": "const speedDebuff = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "effects.1.declaredRaw.byStars"
+      }
+    ],
+    "numericExamples": [],
+    "dependsOnUnverifiedGenericCombat": [
+      "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+      "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+      "magicBounce reflection details were not traced",
+      "How a changed speed feeds the attack and movement timing in a live fight: only getAttackTimings and resetCooldown formulas were read"
+    ],
+    "unresolved": [
+      "The source comment claims percentage attack-speed reduction while the code subtracts flat speed points; this record follows the code",
+      "Whether other effects (items, synergies, passives) modify speed after this call was not audited",
+      "Whether the listed units ever reach a different star count than the bare factory value",
+      "No gameplay evidence; candidate is source reading plus mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-x",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1046,
+          1046
+        ],
+        "symbol": "AbilityStrategies[Ability.MUD_SHOT]",
+        "expect": "[Ability.MUD_SHOT]: new MudShotStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process spends maxPP of PP"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "AbilityStrategy defaults",
+        "expect": "canCritByDefault = false",
+        "note": "defaults requiresTarget = true, canCritByDefault = false (MudShotStrategy overrides neither)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.canCritByDefault",
+        "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": ""
+      },
+      {
+        "id": "ms-class",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "MudShotStrategy",
+        "expect": "export class MudShotStrategy extends AbilityStrategy",
+        "note": ""
+      },
+      {
+        "id": "ms-super",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          13,
+          13
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation toward the target"
+      },
+      {
+        "id": "ms-comment",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "reducing their attack speed by 10/20/30/40%",
+        "note": "source comment says percent; the code below applies a flat amount to the speed stat (see ms-speed, add-speed)"
+      },
+      {
+        "id": "ms-dmg",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          15,
+          15
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+        "note": "raw special damage table by caster stars"
+      },
+      {
+        "id": "ms-tbl",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "const speedDebuff = [10, 20, 30, 40][pokemon.stars - 1] ?? 40",
+        "note": "speed reduction table by caster stars"
+      },
+      {
+        "id": "ms-hsd",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+        "note": "special damage to the current target; first call"
+      },
+      {
+        "id": "ms-speed",
+        "file": "app/core/abilities/mud-shot.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "MudShotStrategy.process",
+        "expect": "target.addSpeed(-speedDebuff, pokemon, 1, crit)",
+        "note": "second call, always executed: apBoost 1, crit passed, caster = the cast unit; not conditional on the damage result"
+      },
+      {
+        "id": "add-speed-sig",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          752,
+          752
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "addSpeed(",
+        "note": "PokemonEntity.addSpeed (value, caster, apBoost, crit, permanent = false)"
+      },
+      {
+        "id": "add-belt",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          759,
+          759
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": ""
+      },
+      {
+        "id": "add-twist",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          760,
+          760
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "value = applyTwistBandBuff(this, value, caster)",
+        "note": ""
+      },
+      {
+        "id": "add-mel",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          762,
+          762
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "if (this.passive === Passive.MELMETAL) {",
+        "note": "a MELMETAL target converts the speed change into an attack change of half the value"
+      },
+      {
+        "id": "add-scale",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          768,
+          768
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "(1 + (apBoost * caster.ap) / 100) *",
+        "note": "value x (1 + AP/100) x (crit ? critPower : 1)"
+      },
+      {
+        "id": "add-clamp",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          773,
+          773
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+        "note": "speed clamped to 0..MAX_SPEED"
+      },
+      {
+        "id": "max-speed",
+        "file": "app/config/game/game.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "MAX_SPEED",
+        "expect": "export const MAX_SPEED = 300",
+        "note": ""
+      },
+      {
+        "id": "belt-fn",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1845,
+          1845
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "const isBuffOrBuffLost =",
+        "note": "Big Eater Belt applies only to positive values or negative values from an own-team caster, so it does not change this enemy debuff"
+      },
+      {
+        "id": "twist-fn",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1864,
+          1864
+        ],
+        "symbol": "applyTwistBandBuff",
+        "expect": "value *= -1 // twist band turn debuffs into buffs",
+        "note": "Twist Band holder: a debuff from an enemy (or the environment) becomes a buff of the same size"
+      },
+      {
+        "id": "atk-time",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          132,
+          132
+        ],
+        "symbol": "getAttackTimings",
+        "expect": "const attackDuration = 1000 / (0.4 + speed * 0.007)",
+        "note": "attack duration (ms) = 1000 / (0.4 + speed x 0.007); speed is halved while paralysed"
+      },
+      {
+        "id": "reset-cd",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          320,
+          320
+        ],
+        "symbol": "PokemonEntity.resetCooldown",
+        "expect": "this.cooldown = Math.round(baseDuration / (0.4 + speed * 0.007))",
+        "note": ""
+      },
+      {
+        "id": "hsd-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          355,
+          355
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage) but the speed change in ms-speed is not gated"
+      },
+      {
+        "id": "hsd-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": "damage x (1 + caster AP / 100)"
+      },
+      {
+        "id": "hsd-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+      },
+      {
+        "id": "hd-speDef",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": "SPECIAL damage reduced by the target speDef"
+      },
+      {
+        "id": "hd-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": "minimum 1 damage"
+      },
+      {
+        "id": "hd-shield",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          645,
+          645
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "takenDamage += damageOnShield",
+        "note": "shield damage is included in takenDamage"
+      },
+      {
+        "id": "hd-enr",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          455,
+          455
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "if (attacker && attacker.status.enraged) {",
+        "note": "damage x2 if the attacker is enraged"
+      },
+      {
+        "id": "unit-quagsire",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          15303,
+          15316
+        ],
+        "symbol": "class Quagsire",
+        "expect": "skill = Ability.MUD_SHOT",
+        "note": "unit class block: skill / passive / stars / stats"
+      },
+      {
+        "id": "unit-wooper",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          15287,
+          15301
+        ],
+        "symbol": "class Wooper",
+        "expect": "skill = Ability.MUD_SHOT",
+        "note": "unit class block: skill / passive / stars / stats"
+      }
+    ]
+  }
+}
