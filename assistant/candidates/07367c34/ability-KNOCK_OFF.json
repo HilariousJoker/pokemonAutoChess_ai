@@ -1,0 +1,518 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/KNOCK_OFF",
+ "kind": "ability",
+ "identifier": "KNOCK_OFF",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T003945Z"
+ },
+ "record": {
+  "ability": "KNOCK_OFF",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare KNOCK_OFF: Sableye (3 stars, passive SABLEYE) and Mega Sableye (4 stars, passive MEGA_SABLEYE). The passives are separate mechanisms and are not covered here. The strategy is shared; differences are star count and stats. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "MEGA_SABLEYE",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KNOCK_OFF",
+    "declaredPassive": "MEGA_SABLEYE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SABLEYE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KNOCK_OFF",
+    "declaredPassive": "SABLEYE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SABLEYE": {
+    "evidence": [
+     "unit-sableye"
+    ]
+   },
+   "MEGA_SABLEYE": {
+    "evidence": [
+     "unit-mega"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.KNOCK_OFF] = new KnockOffStrategy()",
+   "strategy": "KnockOffStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ko-class",
+    "ko-super"
+   ]
+  },
+  "summary": "Single target, immediate, in this order: (1) compute damage = base by stars + (number of items the target holds right now) x per-item amount by stars (30 + 15 per item at 1 star ... 90 + 30 per item for 3 stars and 100 + 35 per item for 4 stars; the table has five entries); (2) remove every item the target holds from the fight entity (not from its board pokemon: removeItem is called without permanent), which also takes away the item stat bonuses and item-given synergy types and runs removal effects; (3) deal SPECIAL damage equal to the amount computed in step 1. The item count is read before the removal, so the bonus uses the held items; the damage itself is resolved after the removal, so the target's defensive stats are already without those items. The removal happens even when the damage is then blocked (protect, skydiving, magic bounce), and a target with no items takes only the base amount.",
+  "targeting": {
+   "who": "the cast target",
+   "needsTarget": true,
+   "note": "No area. The target is chosen by the generic cast pipeline (not traced here).",
+   "evidence": [
+    "ko-total",
+    "ko-remove",
+    "ko-hit",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no displacement",
+   "evidence": [
+    "ko-remove",
+    "ko-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "baseByStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 100,
+      "5": 200
+     },
+     "perItemByStars": {
+      "1": 15,
+      "2": 20,
+      "3": 30,
+      "4": 35,
+      "5": 60
+     },
+     "fallbackBase": 200,
+     "fallbackPerItem": 60,
+     "label": "requested damage (raw) = base + items held x per item"
+    },
+    "perUnitRaw": {
+     "SABLEYE": 90,
+     "MEGA_SABLEYE": 100
+    },
+    "perUnitPerItemRaw": {
+     "SABLEYE": 30,
+     "MEGA_SABLEYE": 35
+    },
+    "scaling": "requested = base[stars-1] + target.items.size x perItem[stars-1], the item count taken at the start of the cast (before removal). perUnitRaw lists the base only; the per-item amounts are 30 (Sableye, 3 stars) and 35 (Mega Sableye, 4 stars). With 0 / 1 / 2 / 3 items: Sableye 90 / 120 / 150 / 180, Mega Sableye 100 / 135 / 170 / 205 requested (the entity item set can hold more than the three board slots only if other effects add items; not examined). handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite (the Rocky Helmet is one of the removed items, but the reduction check runs after the removal, so the helmet no longer counts).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef) using the target's speDef AFTER the item stats were subtracted, rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned takenDamage / death is not used by this ability.",
+    "evidence": [
+     "ko-base",
+     "ko-per",
+     "ko-total",
+     "ko-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "items-field"
+    ]
+   },
+   {
+    "kind": "item-removal",
+    "target": "the cast target",
+    "declaredRaw": {
+     "label": "every held item removed from the fight entity"
+    },
+    "scaling": "none (not scaled by stars, AP or crit)",
+    "resolution": "Requested: remove all items. Applied: for each item in the target's set, removeItem(item) with permanent = false: the item leaves the fight entity's set; its declared stat bonuses are subtracted through applyStat; an item-given synergy type that is not a default type of the unit is deleted together with its tier effects; the item's effects are removed or its OnItemRemovedEffect is run; other OnItemRemovedEffect effects present (from passives, synergies, ...) are also run for each removed item. The board pokemon's own items are not touched (permanent is false), so this is a fight-only removal; whether the items are back for the next fight follows from that and was not traced. The removal is not blocked by protect, skydiving or magic bounce, which only gate the damage step. Whether the delete-while-iterating on the SetSchema skips an item was not traced.",
+    "evidence": [
+     "ko-remove",
+     "remove-fn",
+     "remove-eff",
+     "items-field"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SABLEYE": 3,
+    "MEGA_SABLEYE": 4
+   },
+   "declaredRawDamage": {
+    "SABLEYE": "90 + 30 per item",
+    "MEGA_SABLEYE": "100 + 35 per item"
+   },
+   "note": "Stars index both tables (five entries each; ?? 200 / ?? 60 fallbacks). The listed units are catalog stars 3 and 4, so entries 3 and 4 of each table apply; entries 1, 2 and 5 are not used by the listed units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ko-base",
+    "ko-per",
+    "unit-sableye",
+    "unit-mega"
+   ]
+  },
+  "positionalConditions": "None in this strategy; range comes from the unit (1).",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. A second cast on the same target finds no items (unless another effect gave it new ones) and deals only the base amount.",
+  "rawVsResolved": "Requested: base 90 / 100 (3 / 4 stars) + 30 / 35 per item held at cast time. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division (with the item bonuses already removed) and minimum 1; takenDamage includes shield damage. Applied removal = every item leaves the fight entity, with its stat, type and effect consequences, regardless of whether the damage is blocked.",
+  "sourceTables": [
+   {
+    "id": "base",
+    "file": "app/core/abilities/knock-off.ts",
+    "pattern": "const baseDamage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.baseByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "peritem",
+    "file": "app/core/abilities/knock-off.ts",
+    "pattern": "const perItemDamage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.perItemByStars",
+    "unitValuesPath": "effects.0.perUnitPerItemRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "applyStat and the per-item OnItemRemovedEffect bodies (ItemEffects) were not read; the shared references item-effects.md / item-effects.json document the craftable items",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "Passives SABLEYE and MEGA_SABLEYE are declared by the units and may interact with item removal or with items on the target; they were not traced here",
+   "Whether deleting from the target's SetSchema while forEach iterates over it visits every item (library behaviour not read)",
+   "Whether items removed with permanent = false are restored for the next round (the board pokemon keeps them in this code path; the restore mechanism was not traced)",
+   "Items whose effect is stored outside ItemStats / ItemEffects (for example item-specific counters) were not enumerated",
+   "Cover Band and other later branches of handleDamage were not read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     998,
+     998
+    ],
+    "symbol": "AbilityStrategies[Ability.KNOCK_OFF]",
+    "expect": "[Ability.KNOCK_OFF]: new KnockOffStrategy()",
+    "note": ""
+   },
+   {
+    "id": "unit-sableye",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12493,
+     12511
+    ],
+    "symbol": "class Sableye",
+    "expect": "skill = Ability.KNOCK_OFF",
+    "note": "unit class block: 3 stars, atk 13, maxPP 100, range 1, passive = Passive.SABLEYE"
+   },
+   {
+    "id": "unit-mega",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12513,
+     12526
+    ],
+    "symbol": "class MegaSableye",
+    "expect": "skill = Ability.KNOCK_OFF",
+    "note": "unit class block: 4 stars, atk 13, maxPP 100, range 1, passive = Passive.MEGA_SABLEYE"
+   },
+   {
+    "id": "ko-class",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "KnockOffStrategy",
+    "expect": "export class KnockOffStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ko-super",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation"
+   },
+   {
+    "id": "ko-base",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "const baseDamage = [30, 60, 90, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "base damage by stars (five entries), fallback 200"
+   },
+   {
+    "id": "ko-per",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "const perItemDamage = [15, 20, 30, 35, 60][pokemon.stars - 1] ?? 60",
+    "note": "bonus per held item by stars (five entries), fallback 60"
+   },
+   {
+    "id": "ko-total",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "const damage = baseDamage + target.items.size * perItemDamage",
+    "note": "item count read BEFORE the items are removed"
+   },
+   {
+    "id": "ko-remove",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     18,
+     20
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "target.removeItem(item)",
+    "note": "removes every item the target holds, one by one, with permanent = false (default)"
+   },
+   {
+    "id": "ko-hit",
+    "file": "app/core/abilities/knock-off.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "KnockOffStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage dealt AFTER the removal; apBoost default true"
+   },
+   {
+    "id": "items-field",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     114,
+     114
+    ],
+    "symbol": "PokemonEntity.items",
+    "expect": "@type({ set: \"string\" }) items = new SetSchema<Item>()",
+    "note": "the fight entity's own item set"
+   },
+   {
+    "id": "remove-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     823
+    ],
+    "symbol": "PokemonEntity.removeItem",
+    "expect": "if (permanent && !this.isGhostOpponent) {",
+    "note": "deletes the item from the entity's set and runs removeItemEffect; the board pokemon's items (refToBoardPokemon) are touched only with permanent = true, which this ability does not pass"
+   },
+   {
+    "id": "remove-eff",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     848,
+     888
+    ],
+    "symbol": "PokemonEntity.removeItemEffect",
+    "expect": "this.applyStat(stat as Stat, -value)",
+    "note": "subtracts the item's declared stat bonuses, removes item-given synergy types (and the effects of their tiers) the unit does not have by default, removes the item's effects or runs its OnItemRemovedEffect, then runs other OnItemRemovedEffect effects"
+   }
+  ]
+ }
+}
