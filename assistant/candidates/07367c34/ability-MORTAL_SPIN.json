@@ -1,0 +1,800 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/MORTAL_SPIN",
+  "kind": "ability",
+  "identifier": "MORTAL_SPIN",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261103T184025Z"
+  },
+  "record": {
+    "ability": "MORTAL_SPIN",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "appliesTo": [
+      {
+        "key": "GLIMMET",
+        "stars": 1,
+        "maxPP": 70,
+        "range": 1,
+        "declaredSkill": "MORTAL_SPIN",
+        "declaredPassive": "GLIMMORA",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "GLIMMORA",
+        "stars": 2,
+        "maxPP": 70,
+        "range": 1,
+        "declaredSkill": "MORTAL_SPIN",
+        "declaredPassive": "GLIMMORA",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "GLIMMET": {
+        "evidence": [
+          "unit-glimmet"
+        ]
+      },
+      "GLIMMORA": {
+        "evidence": [
+          "unit-glimmora"
+        ]
+      }
+    },
+    "scope": "The two units in appliesTo declare MORTAL_SPIN: Glimmet and Glimmora. The strategy is shared; values are indexed by the casting unit's stars. Units not listed are not covered.",
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.MORTAL_SPIN] = new MortalSpinStrategy()",
+      "strategy": "MortalSpinStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-x",
+        "base",
+        "base-flags",
+        "cast",
+        "pp-gate",
+        "ms-class",
+        "ms-super"
+      ]
+    },
+    "summary": "Hits every enemy that is adjacent to the caster (8 neighbouring cells) AND is currently targeting the caster (the unit on the enemy's targetX/targetY cell is the caster). Each such enemy takes special damage from the caster (raw 20 / 40 / 80 / 160 by caster stars, i.e. the values listed per unit in perUnitRaw; scaled by x(1 + caster AP/100), a crit factor only with ABILITY_CRIT, then reduced by the victim's special defense with a minimum of 1), gets +1 poison stack with the caster as origin (duration 4000 / 4000 / 8000 / 16000 ms by caster stars, after duration reductions), and is pushed one row away: toward larger Y for a BLUE caster (if y+1 < 6), otherwise toward smaller Y (if y-1 > 0), and its cooldown is set to 500. The free-cell check always looks at (x, y+1) regardless of direction. Enemies adjacent but not targeting the caster are unaffected.",
+    "targeting": {
+      "who": "every enemy in the 8 cells around the caster whose current target cell contains the caster",
+      "needsTarget": true,
+      "note": "requiresTarget is the default true, so the cast happens when the caster has a target in range; the caster's own target is not itself used in the strategy (only for the default animation). The \"targeting\" test is evaluated on each neighbour's targetX/targetY; cell values are captured by getAdjacentCells before any displacement happens.",
+      "evidence": [
+        "ms-adj",
+        "ms-team",
+        "ms-tgt",
+        "ms-eq",
+        "adj-fn",
+        "onboard"
+      ]
+    },
+    "geometry": {
+      "shape": "the 8 cells adjacent to the caster (center excluded; off-board cells skipped); filtered to enemies that target the caster",
+      "evidence": [
+        "ms-adj",
+        "adj-fn",
+        "ms-eq"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "target": "each adjacent enemy that targets the caster",
+        "damageType": "SPECIAL",
+        "declaredRaw": {
+          "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+          "byStars": {
+            "1": 20,
+            "2": 40,
+            "3": 80,
+            "4": 160
+          },
+          "fallback": 160,
+          "label": "raw special damage by caster stars (requested amount)"
+        },
+        "scaling": "requested = table value by caster stars (20 for Glimmet at 1 star, 40 for Glimmora at 2 stars; no unit has stars 3 or 4 in this record). Applied: x(1 + caster AP / 100) (apBoost default true), x2 if the caster is enraged, crit factor 1 + (critPower - 1) x reduction only if crit (crit needs ABILITY_CRIT because canCritByDefault is false)",
+        "resolution": "no damage if the victim has protect, skydiving or magicBounce (magicBounce can reflect part to the caster). Then PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef) with the victim's armorReduction halving speDef, minimum 1 after Math.ceil, shield absorbs first. takenDamage (returned but unused here) includes shield damage and is capped for the hp part at the victim's hp. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage = shield + hp actually lost.",
+        "evidence": [
+          "ms-dmg",
+          "ms-hsd",
+          "hsd-block",
+          "hsd-ap",
+          "hsd-crit",
+          "hd-speDef",
+          "hd-min",
+          "hd-shield",
+          "hd-enr",
+          "base-flags",
+          "cast"
+        ]
+      },
+      {
+        "kind": "statusApplication",
+        "target": "each adjacent enemy that targets the caster",
+        "declaredRaw": {
+          "description": "triggerPoison(poisonDuration, victim, caster)",
+          "byStars": {
+            "1": 4000,
+            "2": 4000,
+            "3": 8000,
+            "4": 16000
+          },
+          "fallback": 16000,
+          "label": "poison duration (ms) by caster stars"
+        },
+        "scaling": "no AP scaling; +1 poison stack per hit (cap 3, 4 with VENOMOUS or 5 with TOXIC on the caster's effects)",
+        "resolution": "see statusEffects.0",
+        "evidence": [
+          "ms-poison",
+          "ms-trig",
+          "pz-stack"
+        ]
+      },
+      {
+        "kind": "displacement",
+        "target": "each affected enemy",
+        "declaredRaw": {
+          "description": "moveTo(x, newY, board, true) and cooldown = 500"
+        },
+        "scaling": "none",
+        "resolution": "one row: BLUE caster -> y+1 if y+1 < 6, else y-1 if y-1 > 0; any other caster team -> y-1 if y-1 > 0; if neither holds newY stays -1 and there is no push. The move also requires (x, y+1) to be empty (off-board counts as empty), even when the direction is y-1. moveTo does nothing if the victim (or an occupant of the destination) cannot be moved (skydiving, locked, Heavy Duty Boots); when the destination is occupied (only possible toward y-1) the occupant is swapped to the victim's origin. cooldown = 500 is set after the call even if moveTo returned early.",
+        "evidence": [
+          "ms-by",
+          "ms-newy1",
+          "ms-newy2",
+          "ms-newy3",
+          "ms-free",
+          "ms-move",
+          "ms-cd",
+          "height",
+          "swap",
+          "moveto",
+          "moveto2",
+          "canmove"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "POISON",
+        "target": "each adjacent enemy that targets the caster",
+        "durationMs": null,
+        "probability": 1,
+        "apScaled": false,
+        "declaredRaw": {
+          "byStars": {
+            "1": 4000,
+            "2": 4000,
+            "3": 8000,
+            "4": 16000
+          },
+          "fallback": 16000,
+          "label": "poison duration (ms) before reductions"
+        },
+        "perUnitRaw": {
+          "GLIMMET": 4000,
+          "GLIMMORA": 4000
+        },
+        "scaling": "requested = table value by caster stars (4000 for both listed units); no AP factor. Each application adds one stack.",
+        "resolution": "Requested vs applied. Applied only if the victim has no IMMUNITY_POISON and no rune protect. Stacks +1 up to 3 (4 VENOMOUS, 5 TOXIC on the origin). Duration after SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3 and Odd Keystone -10% each; it only replaces poisonCooldown when longer. Each 1000 ms the victim takes TRUE damage 5% of its maxHP x stacks (reduced by rain, Assault Vest, TOXIC_BOOST, water abilities; minimum 1), with the caster as attacker. A Pecha Berry holder eats it on application.",
+        "evidence": [
+          "ms-poison",
+          "ms-trig",
+          "pz-imm",
+          "pz-stack",
+          "pz-origin",
+          "pz-red",
+          "pz-cd",
+          "pz-pecha",
+          "red-water",
+          "red-odd",
+          "pz-tick",
+          "pz-true"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "GLIMMET": 1,
+        "GLIMMORA": 2
+      },
+      "declaredRawDamage": {
+        "GLIMMET": 20,
+        "GLIMMORA": 40
+      },
+      "declaredRawPoisonMs": {
+        "GLIMMET": 4000,
+        "GLIMMORA": 4000
+      },
+      "note": "Both tables are indexed by the casting entity's stars (fallback 160 / 16000). Whether other mechanics change an entity's star count was not examined.",
+      "evidence": [
+        "ms-dmg",
+        "ms-poison",
+        "unit-glimmet",
+        "unit-glimmora"
+      ]
+    },
+    "positionalConditions": "Only enemies in the 8 surrounding cells that are targeting the caster are affected. Push direction depends on the caster team and on row bounds; the free-cell check uses y+1 in all cases (off-board counts as free).",
+    "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP. Poison stacks accumulate across casts up to the cap; a new application only lengthens poisonCooldown. Entities are evaluated from the adjacent-cell list captured before any displacement; the code does not re-read positions for later neighbours.",
+    "rawVsResolved": "Requested: special damage 20 (Glimmet) / 40 (Glimmora) raw, poison 4000 ms and +1 stack, one-row push. Applied: damage after AP, enrage, crit, speDef and the floor of 1; poison after immunity / rune protect, stack cap and duration reductions; push only if the free-cell check and canBeMoved allow it.",
+    "sourceTables": [
+      {
+        "id": "damage",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "effects.0.declaredRaw.byStars"
+      },
+      {
+        "id": "poison",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "pattern": "const poisonDuration = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "statusEffects.0.declaredRaw.byStars",
+        "unitValuesPath": "statusEffects.0.perUnitRaw"
+      }
+    ],
+    "numericExamples": [],
+    "dependsOnUnverifiedGenericCombat": [
+      "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+      "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+      "Pecha Berry effect (eatBerry), magicBounce reflection details and the moving state / retargeting after moveTo were not traced",
+      "How poisonCooldown counts down and ends the poison (updatePoison start-of-update logic) was only partly read"
+    ],
+    "unresolved": [
+      "Whether a victim killed by the special damage is still poisoned and pushed (the strategy does not check death after handleSpecialDamage; whether dead entities remain on board.cells was not traced)",
+      "Whether enemies can have targetX/targetY pointing at the caster while not actually attacking it (targeting is read only from those fields)",
+      "Whether the listed units ever reach a different star count than the bare factory value",
+      "No gameplay evidence; candidate is source reading plus mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-x",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1043,
+          1043
+        ],
+        "symbol": "AbilityStrategies[Ability.MORTAL_SPIN]",
+        "expect": "[Ability.MORTAL_SPIN]: new MortalSpinStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process spends maxPP of PP"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "AbilityStrategy defaults",
+        "expect": "canCritByDefault = false",
+        "note": "defaults requiresTarget = true, canCritByDefault = false (MortalSpinStrategy overrides neither)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.canCritByDefault",
+        "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": ""
+      },
+      {
+        "id": "ms-class",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          7,
+          7
+        ],
+        "symbol": "MortalSpinStrategy",
+        "expect": "export class MortalSpinStrategy extends AbilityStrategy",
+        "note": ""
+      },
+      {
+        "id": "ms-super",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation toward the target; the target argument is otherwise unused"
+      },
+      {
+        "id": "ms-dmg",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          15,
+          15
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+        "note": "raw special damage table by caster stars"
+      },
+      {
+        "id": "ms-poison",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "const poisonDuration = [4000, 4000, 8000, 16000][pokemon.stars - 1] ?? 16000",
+        "note": "poison duration table (ms) by caster stars"
+      },
+      {
+        "id": "ms-adj",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "board.getAdjacentCells(",
+        "note": "the 8 cells around the caster (center excluded)"
+      },
+      {
+        "id": "ms-team",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "if (cell.value && cell.value.team !== pokemon.team)",
+        "note": "only occupied adjacent cells holding an enemy"
+      },
+      {
+        "id": "ms-tgt",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          30,
+          30
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "abilityTarget.targetX,",
+        "note": ""
+      },
+      {
+        "id": "ms-eq",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          34,
+          34
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "if (enemyTarget === pokemon)",
+        "note": "only adjacent enemies whose own target cell holds the caster are affected"
+      },
+      {
+        "id": "ms-hsd",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          35,
+          35
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "abilityTarget.handleSpecialDamage(",
+        "note": "special damage dealt by the caster (AP, crit) to each qualifying enemy"
+      },
+      {
+        "id": "ms-trig",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          42,
+          42
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "abilityTarget.status.triggerPoison(poisonDuration, abilityTarget, pokemon)",
+        "note": "poison with the caster as origin"
+      },
+      {
+        "id": "ms-by",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          47,
+          47
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "pokemon.team === Team.BLUE_TEAM &&",
+        "note": ""
+      },
+      {
+        "id": "ms-newy1",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          50,
+          50
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "newY = abilityTarget.positionY + 1",
+        "note": "BLUE caster: push toward larger Y when y+1 < BOARD_HEIGHT"
+      },
+      {
+        "id": "ms-newy2",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          51,
+          51
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "else if (abilityTarget.positionY - 1 > 0)",
+        "note": "any other case (RED caster, or BLUE caster at the last row): push toward smaller Y when y-1 > 0, i.e. never into row 0"
+      },
+      {
+        "id": "ms-newy3",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          52,
+          52
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "newY = abilityTarget.positionY - 1",
+        "note": ""
+      },
+      {
+        "id": "ms-free",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          60,
+          60
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": ") === undefined",
+        "note": "free-cell check always inspects (x, positionY + 1), whatever the push direction; off-board counts as free (getEntityOnCell returns undefined)"
+      },
+      {
+        "id": "ms-move",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          62,
+          62
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "abilityTarget.moveTo(abilityTarget.positionX, newY, board, true)",
+        "note": "forced displacement"
+      },
+      {
+        "id": "ms-cd",
+        "file": "app/core/abilities/mortal-spin.ts",
+        "lines": [
+          63,
+          63
+        ],
+        "symbol": "MortalSpinStrategy.process",
+        "expect": "abilityTarget.cooldown = 500",
+        "note": "set whenever the push branch ran, even if moveTo returned early"
+      },
+      {
+        "id": "height",
+        "file": "app/config/game/board.ts",
+        "lines": [
+          2,
+          2
+        ],
+        "symbol": "BOARD_HEIGHT",
+        "expect": "export const BOARD_HEIGHT = 6",
+        "note": ""
+      },
+      {
+        "id": "adj-fn",
+        "file": "app/core/board.ts",
+        "lines": [
+          156,
+          156
+        ],
+        "symbol": "Board.getAdjacentCells",
+        "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+        "note": "center skipped; off-board cells skipped; cell.value is captured when the list is built"
+      },
+      {
+        "id": "onboard",
+        "file": "app/core/board.ts",
+        "lines": [
+          34,
+          34
+        ],
+        "symbol": "Board.getEntityOnCell",
+        "expect": "if (this.isOnBoard(x, y)) {",
+        "note": "getEntityOnCell returns undefined off the board"
+      },
+      {
+        "id": "swap",
+        "file": "app/core/board.ts",
+        "lines": [
+          71,
+          71
+        ],
+        "symbol": "Board.swapCells",
+        "expect": "this.setEntityOnCell(x1, y1, entity0)",
+        "note": "swapCells: the mover takes the destination; an occupant, if any, goes to the origin"
+      },
+      {
+        "id": "moveto",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          891,
+          891
+        ],
+        "symbol": "PokemonEntity.moveTo",
+        "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+        "note": "moveTo returns without moving if the unit cannot be moved"
+      },
+      {
+        "id": "moveto2",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          893,
+          893
+        ],
+        "symbol": "PokemonEntity.moveTo",
+        "expect": "if (forcedDisplacement && target && !target.canBeMoved) return",
+        "note": "... or if an occupant of the destination cannot be moved"
+      },
+      {
+        "id": "canmove",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          262,
+          262
+        ],
+        "symbol": "PokemonEntity.canBeMoved",
+        "expect": "!this.items.has(Item.HEAVY_DUTY_BOOTS)",
+        "note": "canBeMoved is false when skydiving, locked or holding Heavy Duty Boots"
+      },
+      {
+        "id": "hsd-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          355,
+          355
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage)"
+      },
+      {
+        "id": "hsd-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": "damage x (1 + caster AP / 100)"
+      },
+      {
+        "id": "hsd-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+      },
+      {
+        "id": "hd-speDef",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": "SPECIAL damage reduced by the target speDef"
+      },
+      {
+        "id": "hd-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": "minimum 1 damage"
+      },
+      {
+        "id": "hd-shield",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          645,
+          645
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "takenDamage += damageOnShield",
+        "note": "shield damage is included in takenDamage"
+      },
+      {
+        "id": "hd-enr",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          455,
+          455
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "if (attacker && attacker.status.enraged) {",
+        "note": "damage x2 if the attacker is enraged"
+      },
+      {
+        "id": "pz-imm",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          577,
+          577
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "if (!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect) {",
+        "note": "no poison with IMMUNITY_POISON or rune protect"
+      },
+      {
+        "id": "pz-stack",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          588,
+          588
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+        "note": "+1 stack per application, cap 3 (4 with VENOMOUS, 5 with TOXIC on the origin)"
+      },
+      {
+        "id": "pz-origin",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          580,
+          580
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "this.poisonOrigin = origin",
+        "note": "the caster becomes the poison origin"
+      },
+      {
+        "id": "pz-red",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          346,
+          346
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+        "note": ""
+      },
+      {
+        "id": "pz-cd",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          592,
+          592
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "if (duration > this.poisonCooldown) {",
+        "note": "duration only extends the remaining poison, never shortens it"
+      },
+      {
+        "id": "pz-pecha",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          612,
+          612
+        ],
+        "symbol": "Status.triggerPoison",
+        "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+        "note": "a Pecha Berry holder eats it on application (its own effect not traced here)"
+      },
+      {
+        "id": "red-water",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1286,
+          1286
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+        "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+      },
+      {
+        "id": "red-odd",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1301,
+          1301
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+        "note": "Odd Keystone: -10% per stone"
+      },
+      {
+        "id": "pz-tick",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          619,
+          619
+        ],
+        "symbol": "Status.updatePoison",
+        "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+        "note": "poison tick: 5% of maxHP per stack every 1000 ms as TRUE damage (min 1), reduced by rain, Assault Vest etc."
+      },
+      {
+        "id": "pz-true",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          654,
+          654
+        ],
+        "symbol": "Status.updatePoison",
+        "expect": "attackType: AttackType.TRUE,",
+        "note": ""
+      },
+      {
+        "id": "unit-glimmet",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          16988,
+          17003
+        ],
+        "symbol": "class Glimmet",
+        "expect": "skill = Ability.MORTAL_SPIN",
+        "note": "unit class block: skill / passive / stars / stats"
+      },
+      {
+        "id": "unit-glimmora",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          17005,
+          17019
+        ],
+        "symbol": "class Glimmora",
+        "expect": "skill = Ability.MORTAL_SPIN",
+        "note": "unit class block: skill / passive / stars / stats"
+      }
+    ]
+  }
+}
