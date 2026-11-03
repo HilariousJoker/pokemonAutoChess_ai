@@ -1,0 +1,565 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/METAL_CLAW",
+ "kind": "ability",
+ "identifier": "METAL_CLAW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T124056Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare METAL_CLAW: Galarian Meowth (1 star) and Perrserker (2 stars, which also has the passive STEELY_SPIRIT, not covered here); both maxPP 70, range 1. The strategy is shared; the unit differences are the star count (table index) and Perrserker's passive.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.METAL_CLAW] = new MetalClawStrategy()",
+   "strategy": "MetalClawStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mc",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "mc-class",
+    "mc-super"
+   ]
+  },
+  "summary": "Single-target TRUE damage plus a self attack buff. The strategy keeps requiresTarget = true. It deals 10 / 20 / 40 / 80 (by the caster's stars; Galarian Meowth 10, Perrserker 20) as TRUE damage to the target (scaled by the caster's AP and by critPower if the cast crits; ignores def and speDef and the item / effect reductions that skip TRUE; at least 1 and rounded up; shields absorb first), then raises the caster's own attack by 2 / 4 / 6 / 12 (Galarian Meowth 2, Perrserker 4) scaled by AP and crit and adjusted by a held Big Eater Belt. The attack buff does not depend on the damage landing (a protected or bounce-protected target blocks the damage but the caster still gets the buff).",
+  "targeting": {
+   "who": "the single target of the cast (damage); the caster itself (attack buff)",
+   "needsTarget": true,
+   "note": "requiresTarget is not overridden, so the base default true applies; the cast uses the target passed to process.",
+   "evidence": [
+    "mc-class",
+    "base-flags",
+    "mc-hit",
+    "mc-buff"
+   ]
+  },
+  "geometry": {
+   "shape": "single target (no area)",
+   "evidence": [
+    "mc-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "target": "target",
+    "damageType": "TRUE",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "GALAR_MEOWTH": 10,
+     "PERRSERKER": 20
+    },
+    "scaling": "requested = table value. handleSpecialDamage (apBoost default true) multiplies by (1 + caster AP/100), x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT, and on crit by 1 + (critPower - 1) x factor (factor 1 for TRUE: Rocky Helmet and Black Augurite reductions do not apply to TRUE). Then handleDamage: x2 if the attacker is enraged, field and other attacker/target multipliers, no defense, rounded up, minimum 1.",
+    "resolution": "requested (table) -> specialDamage (after AP, crit, etc.) -> reducedDamage (TRUE: no defense; ceil; min 1) -> shield absorbs first -> takenDamage reports shield damage plus HP damage capped at current hp. Blocked entirely (takenDamage 0, no death) by protect, skydiving or magicBounce on the target.",
+    "evidence": [
+     "mc-dmg",
+     "mc-hit",
+     "hsd-guard",
+     "hsd-ret",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-true",
+     "hsd-call",
+     "hd-protect",
+     "hd-true",
+     "hd-notrue",
+     "hd-min",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "buff",
+    "target": "caster",
+    "stat": "atk",
+    "declaredRaw": {
+     "byStars": {
+      "1": 2,
+      "2": 4,
+      "3": 6,
+      "4": 12,
+      "fallback": 12
+     }
+    },
+    "perUnitRaw": {
+     "GALAR_MEOWTH": 2,
+     "PERRSERKER": 4
+    },
+    "scaling": "requested = table value. Applied by addAttack (apBoost 1): round(requested x (1 + caster AP/100) x (critPower if the cast crit)); then Big Eater Belt (x1.25 rounded down to 0 digits) if held; Twist Band leaves a positive value unchanged; final atk = max(1, atk + applied).",
+    "resolution": "requested (table) -> applied (after AP, crit, belt) -> new atk. permanent = false (combat entity only). Applied after the damage call regardless of its outcome. Crit is rolled by castAbility only if the caster has ABILITY_CRIT.",
+    "evidence": [
+     "mc-atk",
+     "mc-buff",
+     "addatk",
+     "addatk-helpers",
+     "belt-fn",
+     "twist-fn",
+     "cast",
+     "base-flags"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "atk",
+    "target": "caster",
+    "requested": "2 / 4 / 6 / 12 by stars (declared raw)",
+    "applied": "after AP, crit, Big Eater Belt and the min-1 clamp",
+    "evidence": [
+     "mc-buff",
+     "addatk",
+     "addatk-helpers"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GALAR_MEOWTH": 1,
+    "PERRSERKER": 2
+   },
+   "damageRequested": {
+    "GALAR_MEOWTH": 10,
+    "PERRSERKER": 20
+   },
+   "atkBuffRequested": {
+    "GALAR_MEOWTH": 2,
+    "PERRSERKER": 4
+   },
+   "note": "3 and 4 stars (damage 40 / 80, buff 6 / 12) are not reached at these units' factory star counts; whether other mechanics change a star count was not examined.",
+   "evidence": [
+    "mc-dmg",
+    "mc-atk",
+    "unit-meowth",
+    "unit-perrserker"
+   ]
+  },
+  "positionalConditions": "None beyond reaching the target in range 1.",
+  "repeatedCastsAndModes": "No stored mode. Each cast adds the attack buff again (cumulative; no expiry coded in the strategy or in addAttack).",
+  "rawVsResolved": "Declared raw: TRUE damage 10 / 20 and attack buff 2 / 4 for the two units. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor (x other listed multipliers), then ceil and minimum 1; takenDamage includes shield damage and is capped for the HP part. Requested attack buff = raw; applied = round(raw x (1 + AP/100) x crit factor), then Big Eater Belt x1.25 rounded down if held.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/metal-claw.ts",
+    "pattern": "damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "atk",
+    "file": "app/core/abilities/metal-claw.ts",
+    "pattern": "atkBuff = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, walking to range 1) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "The rest of handleDamage after the shield step (death, cover, on-damage effects, mana gain) was not traced",
+   "How a field / weather / synergy multiplier in handleDamage applies to a specific fight (listed, not traced per condition)"
+  ],
+  "unresolved": [
+   "Perrserker's passive STEELY_SPIRIT is declared on the unit but not covered by this record (passive/STEELY_SPIRIT is a separate queue item); it may change how the ability behaves for Perrserker",
+   "Whether the DOUBLE_DAMAGE and STRANGE_STEAM_BOARD_EFFECT effects can be present on these casters (source of those effects not traced)",
+   "Whether the 3 and 4 star table entries are ever reached by these units",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "METAL_CLAW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GALAR_MEOWTH",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "METAL_CLAW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PERRSERKER",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "METAL_CLAW",
+    "declaredPassive": "STEELY_SPIRIT",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALAR_MEOWTH": {
+    "evidence": [
+     "unit-meowth"
+    ]
+   },
+   "PERRSERKER": {
+    "evidence": [
+     "unit-perrserker",
+     "unit-perr-passive"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1032,
+     1032
+    ],
+    "symbol": "AbilityStrategies[Ability.METAL_CLAW]",
+    "expect": "[Ability.METAL_CLAW]: new MetalClawStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "requiresTarget = true",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "mc-class",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "MetalClawStrategy",
+    "expect": "export class MetalClawStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget, so it keeps the default true"
+   },
+   {
+    "id": "mc-super",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "MetalClawStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "mc-dmg",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "MetalClawStrategy damage",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "damage by the caster's stars; fallback 80"
+   },
+   {
+    "id": "mc-atk",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "MetalClawStrategy attack buff",
+    "expect": "const atkBuff = [2, 4, 6, 12][pokemon.stars - 1] ?? 12",
+    "note": "attack buff by the caster's stars; fallback 12"
+   },
+   {
+    "id": "mc-hit",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "MetalClawStrategy hit",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.TRUE, pokemon, crit)",
+    "note": "TRUE damage to the single target; crit flag passed; apBoost default true"
+   },
+   {
+    "id": "mc-buff",
+    "file": "app/core/abilities/metal-claw.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "MetalClawStrategy self buff",
+    "expect": "pokemon.addAttack(atkBuff, pokemon, 1, crit)",
+    "note": "caster attack buff applied after the hit, unconditionally; apBoost 1; crit passed"
+   },
+   {
+    "id": "hsd-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage guard",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving or magicBounce on the target block the whole call: takenDamage 0, no death"
+   },
+   {
+    "id": "hsd-ret",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     397,
+     397
+    ],
+    "symbol": "handleSpecialDamage blocked result",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": ""
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage AP scaling",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + attacker AP/100), applied to TRUE damage as well"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "handleSpecialDamage crit",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "on a crit the damage is multiplied by 1 + (critPower - 1) x factor; Rocky Helmet and Black Augurite reductions are skipped for TRUE damage"
+   },
+   {
+    "id": "hsd-true",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     414,
+     415
+    ],
+    "symbol": "handleSpecialDamage crit negation",
+    "expect": "this.items.has(Item.ROCKY_HELMET) && attackType !== AttackType.TRUE",
+    "note": "crit negation does not apply to TRUE damage"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage -> handleDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage with the scaled damage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage protect",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "a protected target takes 0"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage TRUE",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE damage ignores def and speDef"
+   },
+   {
+    "id": "hd-notrue",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     568
+    ],
+    "symbol": "PokemonState.handleDamage reductions",
+    "expect": "if (attackType !== AttackType.TRUE) {",
+    "note": "item / effect / Wonder Guard reductions skipped for TRUE"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage floor",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     647
+    ],
+    "symbol": "PokemonState.handleDamage shield",
+    "expect": "if (pokemon.shield > 0) {",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage takenDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "takenDamage = shield damage + HP damage capped at current hp"
+   },
+   {
+    "id": "addatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "requested x (1 + caster AP/100) x critPower if crit, rounded; then Big Eater Belt / Twist Band; atk = max(1, atk + value); permanent false"
+   },
+   {
+    "id": "addatk-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     740,
+     741
+    ],
+    "symbol": "addAttack helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt (nbDigits 0) then Twist Band"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "if (isBuffOrBuffLost && pokemon.items.has(Item.BIG_EATER_BELT)) {",
+    "note": "buff x1.25, rounded down"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only negative values from an enemy / environment"
+   },
+   {
+    "id": "unit-meowth",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     440,
+     455
+    ],
+    "symbol": "class GalarMeowth",
+    "expect": "skill = Ability.METAL_CLAW",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-perrserker",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     457,
+     472
+    ],
+    "symbol": "class Perrserker",
+    "expect": "skill = Ability.METAL_CLAW",
+    "note": "unit class block; also declares passive = Passive.STEELY_SPIRIT"
+   },
+   {
+    "id": "unit-perr-passive",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     471,
+     471
+    ],
+    "symbol": "class Perrserker passive",
+    "expect": "passive = Passive.STEELY_SPIRIT",
+    "note": "Perrserker's passive is not part of this ability record"
+   }
+  ]
+ }
+}
