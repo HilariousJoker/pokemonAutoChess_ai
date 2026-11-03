@@ -1,0 +1,593 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/IRON_TAIL",
+ "kind": "ability",
+ "identifier": "IRON_TAIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T003945Z"
+ },
+ "record": {
+  "ability": "IRON_TAIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare IRON_TAIL: Steelix (2 stars) and Onix (1 star); neither declares a passive in its class block. The strategy is shared; differences are star count and stats (Onix def 20, Steelix def 40 as declared). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ONIX",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IRON_TAIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "STEELIX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IRON_TAIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ONIX": {
+    "evidence": [
+     "unit-onix"
+    ]
+   },
+   "STEELIX": {
+    "evidence": [
+     "unit-steelix"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.IRON_TAIL] = new IronTailStrategy()",
+   "strategy": "IronTailStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "it-class",
+    "it-super"
+   ]
+  },
+  "summary": "Frontal sweep of up to three cells (the cell towards the cast target and its two neighbouring orientations, range 1). For each enemy standing in those cells at cast time, in cell order: first try to knock it back (destination chosen from its position, then a forced move, then cooldown = 500 if a destination existed), THEN deal SPECIAL damage equal to round(multiplier x the caster's current def) where the multiplier is 1 for stars 1-3 and 2 for stars 4 (fallback 2). Both listed units are below 4 stars, so the requested damage equals the caster's def stat at cast time (declared 20 for Onix, 40 for Steelix before any change). Damage does not depend on whether the knock-back happened. Resolved immediately in one call: there is no delay.",
+  "targeting": {
+   "who": "enemy entities in the up to three cells in front of the caster (towards the cast target)",
+   "needsTarget": true,
+   "note": "The cast target defines the facing; the cast target itself is hit only if it stands in one of the three cells (at range 1 it normally does).",
+   "evidence": [
+    "it-cells",
+    "cells-fn",
+    "it-loop",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "three cells at distance 1: straight ahead, and the two neighbouring orientations (OrientationArray index +1 and +7); clipped by the board edge; the caster's orientation is set towards the target as a side effect",
+   "knockback": "orientation = board.orientation(caster position, enemy position); destination = first EMPTY on-board cell among [orientation and its two neighbours] (OrientationKnockback); none if all are occupied or off board",
+   "evidence": [
+    "it-cells",
+    "cells-fn",
+    "orient-arr",
+    "it-orient",
+    "orient-fn",
+    "it-dest",
+    "knock-fn",
+    "knock-tbl"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy in the front cells",
+    "declaredRaw": {
+     "multiplierByStars": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 2
+     },
+     "fallbackMultiplier": 2,
+     "basis": "the caster's def stat at cast time",
+     "label": "requested damage (raw) = round(multiplier x caster def)"
+    },
+    "perUnitRaw": {
+     "ONIX": 1,
+     "STEELIX": 1
+    },
+    "scaling": "requested = round(multiplier[stars-1] x pokemon.def). pokemon.def is the live stat: it starts at the unit's def and is changed by items, synergies and abilities (additions go through addDefense, which clamps at 0 and applies Big Eater Belt / Twist Band helpers); the value used is whatever it is when the cast resolves. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE (the flag is consumed by the first hit); x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite. The same requested value is used for every enemy in the cells.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The damage is dealt after the knock-back, to the same entity wherever it ended up. The returned takenDamage / death is not used by this ability.",
+    "evidence": [
+     "it-dmg-calc",
+     "it-hit",
+     "def-ctor",
+     "def-add",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "each enemy in the front cells, when a destination exists",
+    "declaredRaw": {
+     "label": "one cell (or less: first free cell among three), forced displacement, before the damage"
+    },
+    "scaling": "none (not scaled by stars, AP, crit or def)",
+    "resolution": "Requested: move to the destination computed from the enemy's position. Applied: moveTo(..., forcedDisplacement = true) returns without moving when the victim cannot be moved (skydiving, locked, Heavy Duty Boots); otherwise the victim's cell is swapped with the (empty) destination and its cooldown is set to 100 by moveTo. The strategy then sets cooldown = 500 whenever a destination was found, even if moveTo refused. Each enemy's destination is computed when its turn comes, so an enemy moved earlier in the loop can occupy a cell another enemy would have used, and a cell vacated earlier can be used by a later one (cells are re-read on each call; the loop's own snapshot only fixes which entities are visited).",
+    "evidence": [
+     "it-dest",
+     "knock-fn",
+     "knock-tbl",
+     "it-move",
+     "move-fn",
+     "can-move"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ONIX": 1,
+    "STEELIX": 2
+   },
+   "declaredRawDamage": {
+    "ONIX": "1 x def",
+    "STEELIX": "1 x def"
+   },
+   "note": "Only the multiplier is indexed by stars (1, 1, 1, 2; ?? 2 fallback). Both listed units use multiplier 1, so star count does not change the formula for them; the difference is the unit's def (Onix 20, Steelix 40 as declared). Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "it-dmg-calc",
+    "unit-onix",
+    "unit-steelix"
+   ]
+  },
+  "positionalConditions": "The three front cells depend on the facing towards the cast target; an enemy outside them is not hit even if it is the cast target's neighbour. Knock-back direction depends on the enemy's position relative to the caster and needs a free cell among three.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Because the damage reads the live def stat, a def change between casts changes the next cast's damage.",
+  "rawVsResolved": "Requested: damage = round(1 x def) = def at cast time (declared 20 Onix / 40 Steelix) per enemy in the three cells, displacement to a free adjacent cell. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 with protect / skydiving / magicBounce. Applied displacement = nothing when the destination is null or the victim is unmovable; cooldown = 500 is set whenever a destination existed.",
+  "sourceTables": [
+   {
+    "id": "multiplier",
+    "file": "app/core/abilities/iron-tail.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.multiplierByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Every source of def changes (items, synergies, other abilities) - only the constructor and addDefense were read; the shared reference core-mechanics.md section I covers how declared item bonuses become combat stats",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "Which board cells are 'in front' visually: only the coordinate vectors and orientation order were read, not how the board is drawn",
+   "Whether an enemy knocked into a cell that a later loop step reads (cells are a snapshot of entities, not positions) can be hit twice or missed; the snapshot is taken once, so each entity is visited at most once, but the effect of moves on the later loop entries was not enumerated beyond that reading",
+   "What swapCells does with the victim's state and targets was not traced",
+   "Cover Band and other later branches of handleDamage were not read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     992,
+     992
+    ],
+    "symbol": "AbilityStrategies[Ability.IRON_TAIL]",
+    "expect": "[Ability.IRON_TAIL]: new IronTailStrategy()",
+    "note": ""
+   },
+   {
+    "id": "unit-onix",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     917,
+     931
+    ],
+    "symbol": "class Onix",
+    "expect": "skill = Ability.IRON_TAIL",
+    "note": "unit class block: 1 star, def 20, maxPP 100, range 1, no passive line"
+   },
+   {
+    "id": "unit-steelix",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     933,
+     947
+    ],
+    "symbol": "class Steelix",
+    "expect": "skill = Ability.IRON_TAIL",
+    "note": "unit class block: 2 stars, def 40, maxPP 100, range 1, no passive line"
+   },
+   {
+    "id": "it-class",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "IronTailStrategy",
+    "expect": "export class IronTailStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "it-super",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation"
+   },
+   {
+    "id": "it-dmg-calc",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "Math.round(([1, 1, 1, 2][pokemon.stars - 1] ?? 2) * pokemon.def)",
+    "note": "raw damage = round(multiplier by stars x the caster's CURRENT def stat), fallback multiplier 2"
+   },
+   {
+    "id": "it-cells",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "board.getCellsInFront(pokemon, target, 1)",
+    "note": "cells in front of the caster towards the cast target, range 1"
+   },
+   {
+    "id": "cells-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     235
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "pokemon.orientation = this.orientation(",
+    "note": "sets the caster's orientation towards the target, then collects the cell straight ahead and the two neighbouring orientations (index+1, index+7 of OrientationArray), range 1, on-board only; each cell carries the entity found at call time"
+   },
+   {
+    "id": "orient-arr",
+    "file": "app/utils/orientation.ts",
+    "lines": [
+     25,
+     34
+    ],
+    "symbol": "OrientationArray",
+    "expect": "export const OrientationArray: Orientation[] = [",
+    "note": "fixed order of the eight orientations used for the +1 / +7 neighbours"
+   },
+   {
+    "id": "it-loop",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "only entities of the other team in those cells"
+   },
+   {
+    "id": "it-orient",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     19,
+     26
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "const orientation = board.orientation(",
+    "note": "knock-back orientation from the caster to the enemy's position"
+   },
+   {
+    "id": "orient-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "if (dx > 0) {",
+    "note": "sign of dx / dy picks one of eight orientations; (0,0) falls to DOWNRIGHT with an error log (confusion picks a random one)"
+   },
+   {
+    "id": "it-dest",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     27,
+     31
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "const destination = board.getKnockBackPlace(",
+    "note": "destination chosen from the enemy's current position"
+   },
+   {
+    "id": "knock-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     713
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "if (cell === undefined) {",
+    "note": "first on-board EMPTY cell among the orientation and its two neighbours, else null"
+   },
+   {
+    "id": "knock-tbl",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     66,
+     99
+    ],
+    "symbol": "OrientationKnockback",
+    "expect": "[Orientation.RIGHT]: [",
+    "note": "each orientation maps to itself plus its two neighbours, in that order"
+   },
+   {
+    "id": "it-move",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     33,
+     36
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "cell.value.moveTo(destination.x, destination.y, board, true)",
+    "note": "forced move FIRST, then cooldown = 500 whenever a destination existed"
+   },
+   {
+    "id": "move-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "refused if the victim cannot be moved; otherwise swap and cooldown = 100"
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.items.has(Item.HEAVY_DUTY_BOOTS)",
+    "note": "not movable while skydiving, locked, or holding Heavy Duty Boots"
+   },
+   {
+    "id": "it-hit",
+    "file": "app/core/abilities/iron-tail.ts",
+    "lines": [
+     37,
+     43
+    ],
+    "symbol": "IronTailStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "handleSpecialDamage(damage, board, SPECIAL, caster, crit) AFTER the move; apBoost default true"
+   },
+   {
+    "id": "def-ctor",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     184,
+     184
+    ],
+    "symbol": "PokemonEntity constructor",
+    "expect": "this.def = pokemon.def",
+    "note": "the entity's def starts at the unit's def; later changes go through addDefense and item / synergy effects"
+   },
+   {
+    "id": "def-add",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "def changes are clamped at 0 and pass through Big Eater Belt / Twist Band helpers"
+   }
+  ]
+ }
+}
