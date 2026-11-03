@@ -1,0 +1,471 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MEDITATE",
+ "kind": "ability",
+ "identifier": "MEDITATE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T124056Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare MEDITATE: Meditite (1 star, atk 9) and Medicham (2 stars, atk 16); both maxPP 100, range 2, no passive. The strategy is shared; the difference is the unit's base attack (the buff amount scales with it). MEDITATE as an ability is distinct from EffectEnum.MEDITATE, the HUMAN synergy tier-1 effect (see routing).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MEDITATE] = meditateStrategy (exported constant instance of the unexported class MeditateStrategy)",
+   "strategy": "MeditateStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-med",
+    "reg-import",
+    "const",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "med-class",
+    "med-req",
+    "med-super"
+   ]
+  },
+  "summary": "Needs no target and deals no damage. The caster raises its own attack by its baseAtk (the attack it had when the combat entity was created), scaled by (1 + AP/100) and by its critPower if the cast crits, rounded, then adjusted by its own Big Eater Belt if held, and added to its current attack (attack cannot fall below 1). Meditite requests +9 (baseAtk 9), Medicham +16 (baseAtk 16) before AP, crit and held items. The change is not temporary in code: addAttack has no timer and permanent is false, so it lasts for the combat only, and each cast adds again.",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": false,
+   "note": "requiresTarget = false, so process runs with target null; the buff is applied to the casting entity itself (caster and receiver are the same).",
+   "evidence": [
+    "med-req",
+    "med-add"
+   ]
+  },
+  "geometry": {
+   "shape": "none (self buff)",
+   "evidence": [
+    "med-add"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "buff",
+    "target": "caster",
+    "stat": "atk",
+    "declaredRaw": {
+     "baseAtkMultiplier": 1,
+     "source": "pokemon.baseAtk"
+    },
+    "perUnitRaw": {
+     "MEDITITE": 9,
+     "MEDICHAM": 16
+    },
+    "scaling": "requested = 1 x baseAtk (Meditite 9, Medicham 16 if the entity's initial atk equals the class value; not verified for per-run modifiers). Applied by addAttack with apBoost 1: round(requested x (1 + caster AP/100) x (critPower if the cast crit)); then the caster's Big Eater Belt (x1.25, rounded down to 0 digits) if held; Twist Band does not change a positive self-buff; final atk = max(1, atk + applied).",
+    "resolution": "requested (baseAtk) -> applied (after AP, crit, belt) -> new atk (clamped at 1 minimum). Crit is rolled by castAbility only if the caster has ABILITY_CRIT (canCritByDefault is false). permanent = false: the board Pokemon is not changed. No expiry is coded in the strategy or in addAttack.",
+    "evidence": [
+     "med-buff",
+     "med-add",
+     "baseatk-decl",
+     "baseatk-set",
+     "addatk",
+     "addatk-round",
+     "addatk-helpers",
+     "addatk-min",
+     "belt-fn",
+     "twist-fn",
+     "cast",
+     "base-flags"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "stat": "atk",
+    "target": "caster",
+    "requested": "1 x baseAtk (9 for Meditite, 16 for Medicham)",
+    "applied": "after AP scaling, crit, rounding, Big Eater Belt and the min-1 clamp",
+    "evidence": [
+     "med-add",
+     "addatk",
+     "addatk-helpers",
+     "addatk-min"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MEDITITE": 1,
+    "MEDICHAM": 2
+   },
+   "requestedAtkBuff": {
+    "MEDITITE": 9,
+    "MEDICHAM": 16
+   },
+   "note": "no star-indexed table in the code; the star count only matters through the unit's stat block (baseAtk). Medicham's higher atk gives a larger buff. The class atk values come from the unit blocks; the entity's baseAtk is read from the board Pokemon's atk at creation.",
+   "evidence": [
+    "med-buff",
+    "baseatk-set",
+    "unit-meditite",
+    "unit-medicham"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "No stored mode. Each cast adds the buff again (cumulative); baseAtk is constant, so repeated casts do not compound on current attack, only on the fixed baseAtk.",
+  "rawVsResolved": "Declared raw: +1 x baseAtk. Requested +9 (Meditite) / +16 (Medicham). Applied = round(requested x (1 + AP/100) x crit factor), then Big Eater Belt x1.25 rounded down if held, added to the current atk with a floor of 1. At 0 AP and no crit and no belt: applied = requested.",
+  "sourceTables": [],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Which stat changes (synergies, items) are folded into the Pokemon's atk before the entity is created, i.e. what baseAtk equals in a given fight (only the copy in the constructor was read)",
+   "How the attack stat translates into damage dealt (core-mechanics reference, not re-traced)"
+  ],
+  "unresolved": [
+   "CONSTANT_STRATEGY: resolved by reading - the registry value is the exported constant instance of MeditateStrategy",
+   "NAME_SHARED_WITH_EFFECT: resolved by reading - EffectEnum.MEDITATE is the HUMAN synergy tier-1 effect (25 percent lifesteal via humanHealEffect) and is not called by or linked to this ability; Meditite and Medicham are HUMAN units, so both can have the synergy effect in addition to the ability, which this record does not cover",
+   "Whether the entity's baseAtk equals the class atk (9 / 16) in every fight; the constructor copies pokemon.atk from the board Pokemon, whose possible modifications were not traced",
+   "Whether anything other than the constructor assigns baseAtk (only the declaration and the constructor assignment appear in pokemon-entity.ts; other files such as simulation.ts only read it)",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "MEDITATE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "MEDITITE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MEDITATE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MEDICHAM",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MEDITATE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MEDITITE": {
+    "evidence": [
+     "unit-meditite"
+    ]
+   },
+   "MEDICHAM": {
+    "evidence": [
+     "unit-medicham"
+    ]
+   }
+  },
+  "routingEvidence": {
+   "CONSTANT_STRATEGY": {
+    "evidence": [
+     "reg-med",
+     "reg-import",
+     "const"
+    ]
+   },
+   "NAME_SHARED_WITH_EFFECT": {
+    "evidence": [
+     "fx-enum",
+     "fx-sim",
+     "fx-heal"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-med",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1029,
+     1029
+    ],
+    "symbol": "AbilityStrategies[Ability.MEDITATE]",
+    "expect": "[Ability.MEDITATE]: meditateStrategy",
+    "note": "registry holds the shared constant instance, not a new instance expression"
+   },
+   {
+    "id": "reg-import",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     310,
+     310
+    ],
+    "symbol": "import meditateStrategy",
+    "expect": "import { meditateStrategy } from \"./meditate\"",
+    "note": "the registry value is the exported constant of meditate.ts"
+   },
+   {
+    "id": "const",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "meditateStrategy",
+    "expect": "export const meditateStrategy = new MeditateStrategy()",
+    "note": "CONSTANT_STRATEGY routing: the exported constant is an instance of MeditateStrategy; the class itself is not exported"
+   },
+   {
+    "id": "med-class",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MeditateStrategy",
+    "expect": "class MeditateStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "med-req",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "MeditateStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without a target; process receives target null"
+   },
+   {
+    "id": "med-super",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "MeditateStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "med-buff",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "MeditateStrategy buff factor",
+    "expect": "const buff = 1",
+    "note": "multiplier 1 of the caster's baseAtk"
+   },
+   {
+    "id": "med-add",
+    "file": "app/core/abilities/meditate.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "MeditateStrategy attack buff",
+    "expect": "pokemon.addAttack(buff * pokemon.baseAtk, pokemon, 1, crit)",
+    "note": "requested = 1 x baseAtk; apBoost 1; crit passed through; caster = target = the same unit"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "baseatk-decl",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     131,
+     131
+    ],
+    "symbol": "PokemonEntity.baseAtk",
+    "expect": "baseAtk: number",
+    "note": ""
+   },
+   {
+    "id": "baseatk-set",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     178,
+     178
+    ],
+    "symbol": "PokemonEntity constructor",
+    "expect": "this.baseAtk = pokemon.atk",
+    "note": "baseAtk is copied from the source Pokemon's atk when the entity is created; the only other reference to baseAtk in this file is the declaration"
+   },
+   {
+    "id": "addatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "requested value x (1 + caster AP/100) x critPower if crit, rounded; then Big Eater Belt and Twist Band helpers; atk = max(1, atk + value); permanent false so only this combat entity changes"
+   },
+   {
+    "id": "addatk-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     733,
+     739
+    ],
+    "symbol": "addAttack scaling",
+    "expect": "value = Math.round(",
+    "note": "scaled and rounded when the caster is not 'environment'"
+   },
+   {
+    "id": "addatk-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     740,
+     741
+    ],
+    "symbol": "addAttack helpers",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt (nbDigits default 0) then Twist Band"
+   },
+   {
+    "id": "addatk-min",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     743,
+     745
+    ],
+    "symbol": "addAttack clamp",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "attack cannot fall below 1"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "if (isBuffOrBuffLost && pokemon.items.has(Item.BIG_EATER_BELT)) {",
+    "note": "buff x1.25, rounded down to nbDigits (0 here)"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only for negative values from an enemy or the environment; a positive self-buff is unchanged"
+   },
+   {
+    "id": "fx-enum",
+    "file": "app/config/game/synergies.ts",
+    "lines": [
+     84,
+     88
+    ],
+    "symbol": "HUMAN synergy effects",
+    "expect": "EffectEnum.MEDITATE,",
+    "note": "NAME_SHARED_WITH_EFFECT: EffectEnum.MEDITATE is the first tier of the HUMAN synergy"
+   },
+   {
+    "id": "fx-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     942,
+     948
+    ],
+    "symbol": "Simulation human effect",
+    "expect": "if (types.has(Synergy.HUMAN)) {",
+    "note": "the synergy effect adds the effect to units with the HUMAN type and attaches humanHealEffect; it does not call the ability"
+   },
+   {
+    "id": "fx-heal",
+    "file": "app/core/effects/synergies.ts",
+    "lines": [
+     239,
+     240
+    ],
+    "symbol": "humanHealEffect",
+    "expect": "if (pokemon.effects.has(EffectEnum.MEDITATE)) {",
+    "note": "25 percent lifesteal of damage dealt for the synergy effect; unrelated to MeditateStrategy"
+   },
+   {
+    "id": "unit-meditite",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1011,
+     1031
+    ],
+    "symbol": "class Meditite",
+    "expect": "skill = Ability.MEDITATE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-medicham",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1033,
+     1050
+    ],
+    "symbol": "class Medicham",
+    "expect": "skill = Ability.MEDITATE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
