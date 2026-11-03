@@ -1,0 +1,598 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LAST_RESPECTS",
+ "kind": "ability",
+ "identifier": "LAST_RESPECTS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T003945Z"
+ },
+ "record": {
+  "ability": "LAST_RESPECTS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare LAST_RESPECTS as skill: Houndstone (2 stars) and Greavard (1 star); both also declare the passive of the same name. The passive is a separate mechanism (an on-death effect in PokemonEntity, see evidence passive-death) and is not covered by this record except where it can start a cast; the identifier is shared between ability and passive (routing uncertainty NAME_SHARED_WITH_PASSIVE). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "GREAVARD",
+    "stars": 1,
+    "maxPP": 140,
+    "range": 1,
+    "declaredSkill": "LAST_RESPECTS",
+    "declaredPassive": "LAST_RESPECTS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HOUNDSTONE",
+    "stars": 2,
+    "maxPP": 140,
+    "range": 1,
+    "declaredSkill": "LAST_RESPECTS",
+    "declaredPassive": "LAST_RESPECTS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GREAVARD": {
+    "evidence": [
+     "unit-greavard"
+    ]
+   },
+   "HOUNDSTONE": {
+    "evidence": [
+     "unit-houndstone"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LAST_RESPECTS] = new LastRespectsStrategy()",
+   "strategy": "LastRespectsStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "lr-class",
+    "lr-super"
+   ]
+  },
+  "summary": "Single target, immediate. The strategy first computes a curse delay, then lists the enemies (entities of the cast target's team) that stand in the 8 cells around the caster and are not currently cursed, and picks one of them at random as the curse target. SPECIAL damage (raw 30 at 1 star, 60 at 2 stars; 90 / 180 for 3 / 4 stars exist in the table) is dealt to the curse target, or, if there is none, to the original cast target. After the damage, the curse target (only when one was found) receives a curse with the computed delay (10000 ms at 1 star, 8000 ms at 2 stars before AP and crit; 6000 / 4000 for 3 / 4 stars). When the curse timer runs out the cursed unit takes 9999 TRUE damage. The fallback target (no eligible adjacent enemy) takes the damage and gets no curse. The damage is not conditioned on the curse being accepted; the curse is requested after the damage (a curse target that died from the damage is still passed to triggerCurse; what that does was not traced).",
+  "targeting": {
+   "who": "a random uncursed enemy in the 8 cells around the caster (damage and curse); the cast target as fallback (damage only)",
+   "needsTarget": true,
+   "note": "The cast target defines the team to look for and the fallback; with range 1 it is normally adjacent, but if it is already cursed it is not eligible and another adjacent uncursed enemy is chosen instead. The pick is uniform random (pickRandomIn).",
+   "evidence": [
+    "lr-cells",
+    "adj-fn",
+    "lr-pick",
+    "pick-fn",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around the caster (centre excluded), on-board only; no displacement",
+   "evidence": [
+    "lr-cells",
+    "adj-fn"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the curse target (random uncursed adjacent enemy), else the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 180
+     },
+     "fallback": 180,
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "GREAVARD": 30,
+     "HOUNDSTONE": 60
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite. The AP and the crit also shorten the curse delay (see the CURSE status). Not conditioned on the curse.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned takenDamage / death is not used by this ability.",
+    "evidence": [
+     "lr-dmg-tbl",
+     "lr-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "lr-pick"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "CURSE",
+    "target": "the curse target only (not the fallback target)",
+    "durationMs": "10000 (1 star) / 8000 (2 stars) before AP and crit",
+    "probability": 1,
+    "apScaled": true,
+    "declaredRaw": {
+     "delayByStars": {
+      "1": 10000,
+      "2": 8000,
+      "3": 6000,
+      "4": 4000
+     },
+     "fallback": 4000,
+     "factor": 0.2,
+     "label": "requested curse delay (ms) before AP and crit"
+    },
+    "perUnitRaw": {
+     "GREAVARD": 10000,
+     "HOUNDSTONE": 8000
+    },
+    "scaling": "requested delay = min(0)(table[stars-1] x (1 - 0.2 x AP / 100) x (crit ? 1 - (critPower - 1) x 0.2 : 1)); AP shortens it (at AP 500 or more the factor reaches 0, and the delay is clamped at 0 for the product), a crit shortens it by (critPower - 1) x 20 % (x0.8 at critPower 2). The cast-time AP and crit are read once.",
+    "resolution": "Requested vs applied. Applied unless the target has rune protect. If the unit's curse was cleared earlier and a cooldown remains, the applied delay is the smaller of the remaining cooldown and the new one; otherwise the delay gets +1000 ms per Odd Keystone in the victim's player's items. A curse is a flag with a timer; when the timer is <= 0 the flag is cleared and the unit takes 9999 TRUE damage via handleDamage (attacker null): protect / skydiving still make handleDamage deal no damage (so the unit may survive), a shield absorbs part of it first, and the kill is attributed to no attacker. Clearing negative statuses removes the flag but leaves the cooldown (extended by 2000 ms), so the later trigger reuses the remaining time. A unit that is already cursed is never chosen (it is filtered out), so the 'already cursed -> immediate' branch of triggerCurse is not reached from this ability.",
+    "evidence": [
+     "lr-factor",
+     "lr-delay",
+     "lr-delay-tbl",
+     "lr-curse",
+     "curse-trig",
+     "curse-end",
+     "curse-clear"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GREAVARD": 1,
+    "HOUNDSTONE": 2
+   },
+   "declaredRawDamage": {
+    "GREAVARD": 30,
+    "HOUNDSTONE": 60
+   },
+   "declaredCurseDelayMs": {
+    "GREAVARD": 10000,
+    "HOUNDSTONE": 8000
+   },
+   "note": "Stars index the damage (30, 60, 90, 180; ?? 180) and the curse delay (10000, 8000, 6000, 4000; ?? 4000). The listed units are catalog stars 1 and 2. The source comment lists 1-3 star damage only and says delays for 1-4 stars; the code has four entries each. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "lr-dmg-tbl",
+    "lr-delay-tbl",
+    "unit-greavard",
+    "unit-houndstone"
+   ]
+  },
+  "passiveRelation": {
+   "note": "The passive of the same name is a different mechanism (on-death PP refill of adjacent same-team units with that passive); it is not part of this ability's process and is only cited to keep the two apart.",
+   "evidence": [
+    "passive-death"
+   ]
+  },
+  "positionalConditions": "The curse target must stand in one of the 8 cells around the caster and be of the cast target's team and uncursed; otherwise the cast target takes the damage without a curse. The caster's own cell is not considered.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (140) of PP and picks a new random curse target among adjacent uncursed enemies, so successive casts tend to spread curses over different adjacent enemies; when every adjacent enemy is already cursed the damage goes to the cast target with no new curse. The separate passive (adjacent allies' deaths refill PP of LAST_RESPECTS-passive units) can make casts more frequent but is not part of this process.",
+  "rawVsResolved": "Requested: damage 30 / 60 (1 / 2 stars) and a curse of 10000 / 8000 ms before AP and crit. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied curse delay = requested after the AP and crit shortening, then (refusal under rune protect, remaining-cooldown minimum, +1000 ms per Odd Keystone); the curse's own damage is 9999 TRUE, subject to protect / skydiving and shields.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/last-respects.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/last-respects.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 4000\\)",
+    "recordPath": "statusEffects.0.declaredRaw.delayByStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record; they matter for the 9999 TRUE damage as well"
+  ],
+  "unresolved": [
+   "NAME_SHARED_WITH_PASSIVE: the passive LAST_RESPECTS (on-death PP refill of adjacent allies with the passive) is a separate mechanism, not traced beyond the single call site; it has its own queue record",
+   "What triggerCurse does for a curse target that died from this ability's own damage, and whether a dead entity still runs updateCurse, was not traced",
+   "How attribution and on-death effects work for the curse kill (attacker is null) was not traced",
+   "Whether the TRUE 9999 damage is reduced or absorbed by shields, protect, Shiny Charm or Cover Band branches inside handleDamage was only read as far as the cited lines",
+   "The precise AP value at which the delay product reaches 0 or becomes negative before the min(0) clamp was stated from the formula only, not from a run",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1003,
+     1003
+    ],
+    "symbol": "AbilityStrategies[Ability.LAST_RESPECTS]",
+    "expect": "[Ability.LAST_RESPECTS]: new LastRespectsStrategy()",
+    "note": ""
+   },
+   {
+    "id": "unit-greavard",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19269,
+     19284
+    ],
+    "symbol": "class Greavard",
+    "expect": "skill = Ability.LAST_RESPECTS",
+    "note": "unit class block: 1 star, atk 6, maxPP 140, range 1, passive = Passive.LAST_RESPECTS"
+   },
+   {
+    "id": "unit-houndstone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19286,
+     19300
+    ],
+    "symbol": "class Houndstone",
+    "expect": "skill = Ability.LAST_RESPECTS",
+    "note": "unit class block: 2 stars, atk 12, maxPP 140, range 1, passive = Passive.LAST_RESPECTS"
+   },
+   {
+    "id": "lr-class",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "LastRespectsStrategy",
+    "expect": "export class LastRespectsStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "lr-super",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true; the strategy broadcasts its own animation"
+   },
+   {
+    "id": "lr-factor",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "const factor = 0.2",
+    "note": "AP / crit reduction factor for the curse delay"
+   },
+   {
+    "id": "lr-dmg-tbl",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "const damage = [30, 60, 90, 180][pokemon.stars - 1] ?? 180",
+    "note": "raw damage by stars, fallback 180"
+   },
+   {
+    "id": "lr-delay",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     25,
+     29
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "(crit ? 1 - (pokemon.critPower - 1) * factor : 1)",
+    "note": "curse delay = min(0)(table[stars-1] x (1 - 0.2 x AP / 100) x (crit ? 1 - (critPower - 1) x 0.2 : 1))"
+   },
+   {
+    "id": "lr-delay-tbl",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "([10000, 8000, 6000, 4000][pokemon.stars - 1] ?? 4000) *",
+    "note": "base delay in ms by stars, fallback 4000"
+   },
+   {
+    "id": "lr-cells",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     32,
+     35
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "c.value?.team === target.team && !c.value?.status.curse",
+    "note": "adjacent cells of the CASTER (center excluded) holding an entity of the cast target's team that is not currently cursed (the source comment calls them allies; the code compares with the target's team, i.e. the enemies)"
+   },
+   {
+    "id": "adj-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 block without the centre by default, on-board cells only"
+   },
+   {
+    "id": "lr-pick",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     38,
+     39
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "const damageTarget = curseTarget || target",
+    "note": "a random eligible adjacent enemy is the curse target; if none, the original cast target takes the damage and is not cursed"
+   },
+   {
+    "id": "pick-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     45,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "return list[Math.floor(Math.random() * list.length)]",
+    "note": "uniform random element; returns undefined for an empty list"
+   },
+   {
+    "id": "lr-hit",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     50,
+     56
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "handleSpecialDamage(damage, board, SPECIAL, caster, crit) on the damage target; apBoost default true"
+   },
+   {
+    "id": "lr-curse",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     59,
+     59
+    ],
+    "symbol": "LastRespectsStrategy.process",
+    "expect": "curseTarget?.status.triggerCurse(curseDelay, curseTarget)",
+    "note": "curse requested after the damage, only when a curse target was found"
+   },
+   {
+    "id": "curse-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1066,
+     1085
+    ],
+    "symbol": "Status.triggerCurse",
+    "expect": "if (!this.runeProtect) {",
+    "note": "refused with rune protect; an already cursed unit has its timer set to 0 (not reachable here because cursed units are filtered out); a unit whose curse was cleared keeps the shorter of the remaining and new timer, otherwise +1000 ms per Odd Keystone of the victim's player"
+   },
+   {
+    "id": "curse-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1087,
+     1106
+    ],
+    "symbol": "Status.updateCurse",
+    "expect": "damage: 9999,",
+    "note": "when the timer runs out the curse flag is cleared and the unit takes 9999 TRUE damage through handleDamage (attacker null)"
+   },
+   {
+    "id": "curse-clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     128,
+     138
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.curseCooldown += 2000 // do not clear curseCooldown on purpose",
+    "note": "clearing negative statuses removes the curse flag but keeps (and extends by 2000 ms) its cooldown, which a later triggerCurse reuses via min()"
+   },
+   {
+    "id": "passive-death",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1309,
+     1320
+    ],
+    "symbol": "PokemonEntity.onDeath",
+    "expect": "p?.addPP(p.maxPP - p.pp, p, 0, false)",
+    "note": "SEPARATE mechanism (Passive.LAST_RESPECTS, same name as the ability: routing uncertainty NAME_SHARED_WITH_PASSIVE): when an entity dies, adjacent same-team entities whose passive is LAST_RESPECTS are brought to full PP; not part of this ability's process"
+   }
+  ]
+ }
+}
