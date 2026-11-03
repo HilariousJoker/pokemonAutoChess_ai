@@ -1,0 +1,623 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MAGNET_RISE",
+ "kind": "ability",
+ "identifier": "MAGNET_RISE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T124056Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare MAGNET_RISE: Nosepass (1 star) and Probopass (2 stars); both maxPP 100, range 2, no passive. The strategy is shared; unit differences are only the star count (table index).",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MAGNET_RISE] = new MagnetRiseStrategy()",
+   "strategy": "MagnetRiseStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mr",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "mr-class",
+    "mr-super"
+   ]
+  },
+  "summary": "Self and adjacent-ally buff; deals no damage. The strategy keeps the default requiresTarget = true (the caster must have a target to cast; the target is not otherwise used). It takes the caster's adjacent cells, keeps occupants of the caster's team, sorts them by current HP ascending, keeps the first 2 / 4 / 6 / 8 (by stars; Nosepass 2, Probopass 4), then adds the caster itself. Each of these units gets PROTECT for 2000 ms (not stackable, not granted to an enraged unit) and a dodge increase of 0.1 / 0.1 / 0.1 / 0.2 (requested, by stars; i.e. 10 percentage points for both units), scaled by the caster's AP and crit if the cast crit, adjusted by the receiver's Big Eater Belt, added to the receiver's existing dodge and capped at 0.9. The dodge increase has no timer in addDodgeChance. A protected unit takes no damage and no heal while PROTECT lasts.",
+  "targeting": {
+   "who": "the caster plus up to N allied units in the 8 cells adjacent to the caster, chosen by lowest current HP",
+   "needsTarget": true,
+   "note": "requiresTarget is not overridden, so the base default true applies: the unit needs a target to cast (it walks to range as usual). The strategy never reads target besides passing it to super.process and does not cast on it. Allies, not enemies, are selected; the number N (2 for Nosepass, 4 for Probopass) caps adjacent allies, and the caster is added on top of N.",
+   "evidence": [
+    "mr-class",
+    "mr-super",
+    "mr-nb",
+    "mr-select",
+    "mr-sort",
+    "mr-self",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "the caster's 8 adjacent cells (clipped to the board), ranked by current HP; at most N allies of them are affected",
+   "evidence": [
+    "adj",
+    "mr-select",
+    "mr-sort",
+    "mr-nb",
+    "mr-bcast"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "each selected ally and the caster",
+    "declaredRaw": {
+     "protectMs": 2000
+    },
+    "scaling": "none; fixed 2000 ms, not scaled by AP",
+    "resolution": "triggerProtect(2000): does nothing if the unit already has protect (the old cooldown stays) or is enraged; otherwise sets protect and protectCooldown = 2000. updateProtect ticks it. Entering rage clears protect. While protected: attacks against it are not successful and deal 0, handleDamage and handleSpecialDamage return takenDamage 0 and no death, and handleHeal does nothing.",
+    "evidence": [
+     "mr-protect",
+     "trig-protect",
+     "upd-protect",
+     "upd-call",
+     "rage-protect",
+     "atk-protect",
+     "hd-protect",
+     "hsd-guard",
+     "hh-protect"
+    ]
+   },
+   {
+    "kind": "dodge",
+    "target": "each selected ally and the caster",
+    "declaredRaw": {
+     "dodgeByStars": {
+      "1": 0.1,
+      "2": 0.1,
+      "3": 0.1,
+      "4": 0.2,
+      "fallback": 0.2
+     }
+    },
+    "perUnitRaw": {
+     "NOSEPASS": 0.1,
+     "PROBOPASS": 0.1
+    },
+    "scaling": "requested = table value. Applied by addDodgeChance (apBoost 1): requested x (1 + caster AP/100) x (caster critPower if the cast crit), then the receiver's Big Eater Belt (x1.25, rounded down to 3 digits) and Twist Band (unchanged for a positive value); added to the receiver's existing dodge and capped at 0.9 in total. Crit is rolled by castAbility only if the caster has ABILITY_CRIT (canCritByDefault is false).",
+    "resolution": "requested (table) -> applied (after AP, crit, belt) -> new total dodge (capped at 0.9). The 'dodge' stat is a probability of avoiding an attack; the dodge roll is skipped against attackers with Xray Vision or LOCK_ON and while the target is paralysed, asleep, frozen or locked. No expiry is coded in addDodgeChance.",
+    "evidence": [
+     "mr-dodge",
+     "adddodge",
+     "dodge-belt",
+     "dodge-twist",
+     "dodge-cap",
+     "belt-fn",
+     "twist-fn",
+     "atk-dodge",
+     "atk-dodge-roll"
+    ]
+   },
+   {
+    "kind": "ally-count",
+    "target": "adjacent allies",
+    "declaredRaw": {
+     "alliesByStars": {
+      "1": 2,
+      "2": 4,
+      "3": 6,
+      "4": 8,
+      "fallback": 8
+     }
+    },
+    "perUnitRaw": {
+     "NOSEPASS": 2,
+     "PROBOPASS": 4
+    },
+    "scaling": "none",
+    "resolution": "slice of the HP-sorted adjacent allies; the caster is additionally buffed (so Nosepass buffs up to 3 units including itself, Probopass up to 5). Fewer adjacent allies than N means all of them.",
+    "evidence": [
+     "mr-nb",
+     "mr-select",
+     "mr-sort",
+     "mr-self"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "PROTECT 2000 ms on the caster and each selected ally (skipped on units already protected or enraged)",
+    "evidence": [
+     "mr-protect",
+     "trig-protect"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "dodge",
+    "target": "caster and selected allies",
+    "requested": "0.1 / 0.1 / 0.1 / 0.2 by stars (declared raw)",
+    "applied": "after AP, crit, Big Eater Belt and the 0.9 cap",
+    "evidence": [
+     "mr-dodge",
+     "adddodge",
+     "dodge-belt",
+     "dodge-cap"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NOSEPASS": 1,
+    "PROBOPASS": 2
+   },
+   "alliesBuffed": {
+    "NOSEPASS": 2,
+    "PROBOPASS": 4
+   },
+   "dodgeRequested": {
+    "NOSEPASS": 0.1,
+    "PROBOPASS": 0.1
+   },
+   "note": "the protect duration is the same at every star count; only the number of adjacent allies grows (2/4/6/8) and the dodge rises at 4 stars (0.2), which neither unit reaches at its factory star count. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "mr-nb",
+    "mr-dodge",
+    "unit-nosepass",
+    "unit-probopass"
+   ]
+  },
+  "positionalConditions": "Only the caster's 8 adjacent cells are considered (allies elsewhere are never affected). With no adjacent ally only the caster is buffed. Selection is by lowest current HP, not distance.",
+  "repeatedCastsAndModes": "No stored mode. Recasting adds the dodge value again (cumulative up to the 0.9 cap) because no expiry is coded; PROTECT is refreshed only when the unit is not currently protected.",
+  "rawVsResolved": "Declared raw: PROTECT 2000 ms, dodge 0.1 (Nosepass and Probopass), 2 / 4 adjacent allies. Dodge requested 0.1 = applied only after x(1 + AP/100) x crit factor, the receiver's Big Eater Belt x1.25 (rounded down to 3 digits) and the 0.9 total cap; a unit that is already protected or enraged does not get a new PROTECT, but still receives the dodge. Protect is not an amount, so no requested/applied split exists for it.",
+  "sourceTables": [
+   {
+    "id": "allies",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 8",
+    "recordPath": "effects.2.declaredRaw.alliesByStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   },
+   {
+    "id": "dodge",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 0\\.2",
+    "recordPath": "effects.1.declaredRaw.dodgeByStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, needing a target) - only the pp >= maxPP && canCast gate and the requiresTarget default were read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Order in which same-tick attacks, status updates and protect expiry resolve",
+   "Whether anything outside addDodgeChance resets or expires a unit's dodge (not traced; searched pokemon-entity.ts and pokemon-state.ts only for dodge reads)"
+  ],
+  "unresolved": [
+   "Whether the caster is guaranteed a target in range when casting (requiresTarget default true): the walking / targeting logic was not traced",
+   "The tie order among adjacent allies with equal current HP depends on board cell order and the stability of Array.prototype.sort (not verified beyond reading)",
+   "Whether the dodge is intended to be temporary: addDodgeChance has no timer and no reset was found in the files read",
+   "Whether the caster can appear twice in the buffed list: it is not an adjacent cell of itself per getAdjacentCells (center excluded by default), so it should not",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "MAGNET_RISE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "NOSEPASS",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MAGNET_RISE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PROBOPASS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "MAGNET_RISE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NOSEPASS": {
+    "evidence": [
+     "unit-nosepass"
+    ]
+   },
+   "PROBOPASS": {
+    "evidence": [
+     "unit-probopass"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mr",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1024,
+     1024
+    ],
+    "symbol": "AbilityStrategies[Ability.MAGNET_RISE]",
+    "expect": "[Ability.MAGNET_RISE]: new MagnetRiseStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "requiresTarget = true",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "mr-class",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MagnetRiseStrategy",
+    "expect": "export class MagnetRiseStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget, so it keeps the default true"
+   },
+   {
+    "id": "mr-super",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "MagnetRiseStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "default animation suppressed (preventDefaultAnim true); the strategy broadcasts its own per ally"
+   },
+   {
+    "id": "mr-nb",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "MagnetRiseStrategy ally count",
+    "expect": "[2, 4, 6, 8][pokemon.stars - 1] ?? 8",
+    "note": "number of adjacent allies buffed, by the caster's stars; fallback 8"
+   },
+   {
+    "id": "mr-select",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     14,
+     21
+    ],
+    "symbol": "MagnetRiseStrategy ally selection",
+    "expect": ".filter((mon) => mon && mon.team === pokemon.team)",
+    "note": "adjacent cells -> occupants of the caster's team -> sorted by current hp ascending -> first N"
+   },
+   {
+    "id": "mr-sort",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     20,
+     21
+    ],
+    "symbol": "MagnetRiseStrategy ally sort",
+    "expect": ".sort((a, b) => a.hp - b.hp)",
+    "note": "lowest current HP first; N = nbAlliesBuffed"
+   },
+   {
+    "id": "mr-self",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "MagnetRiseStrategy caster",
+    "expect": "alliesBuffed.push(pokemon)",
+    "note": "the caster is always added after the slice, so it is always buffed"
+   },
+   {
+    "id": "mr-protect",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "MagnetRiseStrategy protect",
+    "expect": "ally.status.triggerProtect(2000)",
+    "note": "PROTECT for 2000 ms on every buffed ally and the caster"
+   },
+   {
+    "id": "mr-dodge",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "MagnetRiseStrategy dodge",
+    "expect": "ally.addDodgeChance([0.1, 0.1, 0.1, 0.2][pokemon.stars - 1] ?? 0.2, pokemon, 1, crit)",
+    "note": "dodge value by the caster's stars; apBoost 1; crit flag passed through; fallback 0.2"
+   },
+   {
+    "id": "mr-bcast",
+    "file": "app/core/abilities/magnet-rise.ts",
+    "lines": [
+     27,
+     30
+    ],
+    "symbol": "MagnetRiseStrategy broadcast",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "one broadcast per buffed ally, at the ally's position"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     143,
+     152
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "8 neighbours, on-board only, center excluded by default"
+   },
+   {
+    "id": "adddodge",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     607,
+     619
+    ],
+    "symbol": "PokemonEntity.addDodgeChance",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "requested value x (1 + caster AP/100) x critPower if crit, then Big Eater Belt and Twist Band helpers, then added to dodge and capped"
+   },
+   {
+    "id": "dodge-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     615,
+     615
+    ],
+    "symbol": "addDodgeChance Big Eater Belt",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster, 3)",
+    "note": "receiver with BIG_EATER_BELT: positive value x1.25 rounded down to 3 digits (helper defined near the end of pokemon-entity.ts)"
+   },
+   {
+    "id": "dodge-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     616,
+     616
+    ],
+    "symbol": "addDodgeChance Twist Band",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "only changes negative values; a positive dodge value is unaffected"
+   },
+   {
+    "id": "dodge-cap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     618,
+     618
+    ],
+    "symbol": "addDodgeChance cap",
+    "expect": "this.dodge = max(0.9)(this.dodge + value)",
+    "note": "added to existing dodge, capped at 0.9; no timer or expiry here"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "if (isBuffOrBuffLost && pokemon.items.has(Item.BIG_EATER_BELT)) {",
+    "note": "buff x1.25, rounded down to nbDigits"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only for negative values from an enemy or the environment"
+   },
+   {
+    "id": "trig-protect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect cannot stack and is not granted to an enraged unit; a unit already protected keeps its existing cooldown"
+   },
+   {
+    "id": "upd-protect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "if (this.protectCooldown - dt <= 0) {",
+    "note": "protect ends when the remaining cooldown reaches 0"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     251,
+     253
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateProtect(dt)",
+    "note": "ticked every status update while protect is set"
+   },
+   {
+    "id": "rage-protect",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     362,
+     366
+    ],
+    "symbol": "Status.triggerRage clears protect",
+    "expect": "this.protect = false",
+    "note": "entering rage clears an existing protect"
+   },
+   {
+    "id": "atk-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     95,
+     95
+    ],
+    "symbol": "PokemonState.attack dodge",
+    "expect": "let dodgeChance = target.dodge",
+    "note": "dodge chance used against attacks"
+   },
+   {
+    "id": "atk-dodge-roll",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     100,
+     112
+    ],
+    "symbol": "PokemonState.attack dodge roll",
+    "expect": "chance(dodgeChance, target, 0.9)",
+    "note": "a dodge needs no paralysis, sleep, freeze or locked on the target and no XRAY_VISION / LOCK_ON on the attacker; dodged attack deals 0 and increments dodgeCount"
+   },
+   {
+    "id": "atk-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "PokemonState.attack protect",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a protected target is not hit by attacks"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage protect",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "a protected target takes 0 from handleDamage, takenDamage 0"
+   },
+   {
+    "id": "hh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal protect",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "a protected target also receives no heal"
+   },
+   {
+    "id": "hsd-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage guard",
+    "expect": "this.status.protect ||",
+    "note": "protect also blocks handleSpecialDamage"
+   },
+   {
+    "id": "unit-nosepass",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10943,
+     10957
+    ],
+    "symbol": "class Nosepass",
+    "expect": "skill = Ability.MAGNET_RISE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-probopass",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10959,
+     10976
+    ],
+    "symbol": "class Probopass",
+    "expect": "skill = Ability.MAGNET_RISE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
