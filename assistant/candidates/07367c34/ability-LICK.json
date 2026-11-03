@@ -1,0 +1,663 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LICK",
+ "kind": "ability",
+ "identifier": "LICK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T063943Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare LICK: Lickilicky (2 stars) and Lickitung (1 star). The strategy is shared; unit differences are the star count, range and maxPP. Units not listed are not covered.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LICK] = new LickStrategy()",
+   "strategy": "LickStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "lk-class",
+    "lk-super"
+   ]
+  },
+  "summary": "On the cast target only: requests confusion for 3000 ms, then paralysis for 3000 ms (neither scaled by AP, both subject to their trigger guards), then deals SPECIAL damage (raw 30/60/120/240 by the caster's stars, AP-scaled because apBoost is passed as true). The statuses are applied before the damage, so a Persim / Cheri Berry holder eats the berry before the hit lands. No displacement, no shield, no buff.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No area, no secondary targets. The same unit receives the two status requests and the damage.",
+   "evidence": [
+    "lk-conf",
+    "lk-para",
+    "lk-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; range comes from the unit (1 for both listed units)",
+   "evidence": [
+    "lk-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "LICKILICKY": 60,
+     "LICKITUNG": 30
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage is called with apBoost = true (explicit sixth argument, also its default): x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "requested vs applied vs taken: applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The damage is not conditional on either status having been applied (the statuses are requests with their own guards).",
+    "evidence": [
+     "lk-table",
+     "lk-hit",
+     "lk-apb",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "CONFUSION",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "LICKILICKY": 3000,
+     "LICKITUNG": 3000
+    },
+    "scaling": "none from stars, AP or crit: the apBoost argument of triggerConfusion is left at its default false",
+    "resolution": "applied only if the target is not already confused, has no Rune Protect and lacks IMMUNITY_CONFUSION (an already running confusion is not refreshed or extended); applied duration = requested x1.3 in SANDSTORM, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. A Persim Berry holder eats the berry on application; a Psyduck-passive target gains 100 AP. A confused attacker selects its attack target through getTargetWhenConfused; when the timer ends the target is cleared.",
+    "evidence": [
+     "lk-conf",
+     "conf-fn",
+     "conf-guard",
+     "conf-sand",
+     "dur-red",
+     "conf-set",
+     "conf-berry",
+     "conf-atk",
+     "conf-end"
+    ]
+   },
+   {
+    "status": "PARALYSIS",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "LICKILICKY": 3000,
+     "LICKITUNG": 3000
+    },
+    "scaling": "none from stars, AP or crit: the apBoost argument of triggerParalysis is left at its default false",
+    "resolution": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the unit's attack cooldown uses half its speed.",
+    "evidence": [
+     "lk-para",
+     "para-fn",
+     "para-guard",
+     "para-storm",
+     "dur-red",
+     "para-cond",
+     "para-set",
+     "para-berry",
+     "para-speed"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "LICKILICKY": 2,
+    "LICKITUNG": 1
+   },
+   "declaredRawDamage": {
+    "LICKILICKY": 60,
+    "LICKITUNG": 30
+   },
+   "note": "Only the damage is indexed by the casting entity's stars; both status durations are fixed at 3000 ms. The 3-star (120) and 4-star (240, also the ?? fallback) values are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "lk-table",
+    "unit-lickilicky",
+    "unit-lickitung"
+   ]
+  },
+  "positionalConditions": "None: the ability does not read coordinates.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Re-casting on a target that is still confused leaves the running confusion untouched (not refreshed); on a target that is still paralysed the timer is lengthened only if 3000 ms (after modifiers) exceeds the remaining time. The damage applies every cast.",
+  "rawVsResolved": "Requested: confusion 3000 ms, paralysis 3000 ms, damage 30 (Lickitung 1 star) / 60 (Lickilicky 2 stars). Applied durations = requested after weather and the target's duration reductions, or nothing if a guard refuses; applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. No stat helper (Big Eater Belt / Twist Band) is involved because no stat is changed.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/lick.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "getTargetWhenConfused (how a confused unit picks a target) was not read",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) and Pokemon.eatBerry effects were not read"
+  ],
+  "unresolved": [
+   "Whether the three-way ordering (confusion, paralysis, damage) matters for a target that dies from the damage: the statuses are written before the damage in the source and the result of handleSpecialDamage is not used",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "LICK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "LICKILICKY",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "LICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LICKITUNG",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "LICK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LICKILICKY": {
+    "evidence": [
+     "unit-lickilicky"
+    ]
+   },
+   "LICKITUNG": {
+    "evidence": [
+     "unit-lickitung"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-lickilicky",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14365,
+     14381
+    ],
+    "symbol": "class Lickilicky",
+    "expect": "skill = Ability.LICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-lickitung",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14346,
+     14363
+    ],
+    "symbol": "class Lickitung",
+    "expect": "skill = Ability.LICK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1008,
+     1008
+    ],
+    "symbol": "AbilityStrategies[Ability.LICK]",
+    "expect": "[Ability.LICK]: new LickStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "lk-class",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "LickStrategy",
+    "expect": "export class LickStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "lk-super",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default animation broadcast; spends maxPP"
+   },
+   {
+    "id": "lk-conf",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "target.status.triggerConfusion(3000, target, pokemon)",
+    "note": "confusion 3000 ms requested; fourth argument apBoost left false"
+   },
+   {
+    "id": "lk-para",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "target.status.triggerParalysis(3000, target, pokemon)",
+    "note": "paralysis 3000 ms requested; fourth argument apBoost left false"
+   },
+   {
+    "id": "lk-table",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "lk-hit",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target, after both statuses; last argument true = apBoost"
+   },
+   {
+    "id": "lk-apb",
+    "file": "app/core/abilities/lick.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "LickStrategy.process",
+    "expect": "true",
+    "note": "sixth argument apBoost = true (explicit)"
+   },
+   {
+    "id": "conf-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     178,
+     178
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "triggerConfusion(",
+    "note": "signature (duration, pkm, origin, apBoost = false)"
+   },
+   {
+    "id": "conf-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     813,
+     813
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "!this.confusion &&",
+    "note": "refused while already confused, under Rune Protect or with IMMUNITY_CONFUSION"
+   },
+   {
+    "id": "conf-sand",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "if (pkm.simulation.weather === Weather.SANDSTORM) {",
+    "note": "x1.3 duration in sandstorm"
+   },
+   {
+    "id": "conf-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     825,
+     825
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "this.confusionCooldown = Math.round(duration)",
+    "note": "applied duration, rounded"
+   },
+   {
+    "id": "conf-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     828,
+     828
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "pkm.eatBerry(Item.PERSIM_BERRY)",
+    "note": "a Persim Berry holder eats it right away"
+   },
+   {
+    "id": "conf-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     840,
+     840
+    ],
+    "symbol": "Status.updateConfusion",
+    "expect": "pkm.setTarget(null) // Clear target when confusion ends",
+    "note": "target cleared when confusion ends"
+   },
+   {
+    "id": "conf-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "} else if (pokemon.status.confusion) {",
+    "note": "a confused attacker picks its target through getTargetWhenConfused"
+   },
+   {
+    "id": "para-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     908
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "signature (duration, pkm, origin, apBoost = false)"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "refused under Rune Protect or with IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "x1.3 duration in a storm (and Electric Quartz reduction)"
+   },
+   {
+    "id": "para-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "timer replaced only if the new duration is longer"
+   },
+   {
+    "id": "para-cond",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": ""
+   },
+   {
+    "id": "para-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     936,
+     936
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.eatBerry(Item.CHERI_BERRY)",
+    "note": "a Cheri Berry holder eats it right away"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, then -10% per Odd Keystone"
+   },
+   {
+    "id": "para-speed",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "a paralysed unit attacks at half speed"
+   }
+  ]
+ }
+}
