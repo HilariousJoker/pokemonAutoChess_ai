@@ -1,0 +1,667 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/NIGHT_DAZE",
+  "kind": "ability",
+  "identifier": "NIGHT_DAZE",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261103T184025Z"
+  },
+  "record": {
+    "ability": "NIGHT_DAZE",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "appliesTo": [
+      {
+        "key": "ZOROARK",
+        "stars": 2,
+        "maxPP": 85,
+        "range": 1,
+        "declaredSkill": "NIGHT_DAZE",
+        "declaredPassive": "ILLUSION",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "ZORUA",
+        "stars": 1,
+        "maxPP": 85,
+        "range": 1,
+        "declaredSkill": "NIGHT_DAZE",
+        "declaredPassive": "ILLUSION",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "ZOROARK": {
+        "evidence": [
+          "unit-zoroark"
+        ]
+      },
+      "ZORUA": {
+        "evidence": [
+          "unit-zorua"
+        ]
+      }
+    },
+    "scope": "The two units in appliesTo declare NIGHT_DAZE: Zorua (1 star) and Zoroark (2 stars), both with the ILLUSION passive. The strategy is shared; only the damage depends on the casting unit's stars. Units not listed are not covered; the Hisuian forms use BITTER_MALICE, a separate identifier.",
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.NIGHT_DAZE] = new NightDazeStrategy()",
+      "strategy": "NightDazeStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-x",
+        "base",
+        "base-flags",
+        "cast",
+        "pp-gate",
+        "nd-class",
+        "nd-super"
+      ]
+    },
+    "summary": "Special damage plus Blinded. Normal case: only the cast target takes special damage (raw 25 / 50 / 100 / 200 by caster stars: 25 Zorua, 50 Zoroark; x(1 + AP/100), crit factor only with ABILITY_CRIT, reduced by speDef with a minimum of 1) and Blinded for a raw 3000 ms (x(1 + caster AP/100), halved for an enraged victim, then the victim's duration reductions). Disguised case: if the caster's entity index differs from the index of its own name (ILLUSION copies the left neighbour's index), the damage and the blind hit EVERY enemy on the 3x3 block centred on the cast target (centre included) instead of the target alone. In both cases the index is reset to the unit's own on every cast, breaking the disguise. A blinded unit's basic attacks give their target +0.5 dodge chance. The blind is applied even if the damage was blocked.",
+    "targeting": {
+      "who": "not disguised: the caster's current target; disguised: every enemy of the caster in the 3x3 block centred on the target (centre included)",
+      "needsTarget": true,
+      "note": "requiresTarget is the default true. The disguised test is evaluated before the index is reset, so the disguise counts for this cast. The target list is built before the loop, from cell values captured by getAdjacentCells.",
+      "evidence": [
+        "nd-isdis",
+        "nd-break",
+        "nd-adj",
+        "nd-filter",
+        "nd-single",
+        "adj-fn",
+        "ent-index",
+        "ill-passive",
+        "nd-comment"
+      ]
+    },
+    "geometry": {
+      "shape": "single target, or (when disguised) the 3x3 block around the target, centre included, enemies only; off-board cells skipped",
+      "evidence": [
+        "nd-adj",
+        "nd-filter",
+        "adj-fn"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "target": "each selected enemy",
+        "damageType": "SPECIAL",
+        "declaredRaw": {
+          "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+          "byStars": {
+            "1": 25,
+            "2": 50,
+            "3": 100,
+            "4": 200
+          },
+          "fallback": 200,
+          "label": "raw special damage by caster stars (requested amount)"
+        },
+        "scaling": "requested = 25 (Zorua, 1 star) / 50 (Zoroark, 2 stars). Applied: x(1 + caster AP / 100) (apBoost default true), x2 if the caster is enraged, crit factor 1 + (critPower - 1) x reduction only if crit (needs ABILITY_CRIT)",
+        "resolution": "no damage if the victim has protect, skydiving or magicBounce (magicBounce can reflect part to the caster). Then PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, unused here) = shield + hp actually lost. Each target in the disguised case gets the full damage (no split).",
+        "evidence": [
+          "nd-dmg",
+          "nd-hsd",
+          "hsd-block",
+          "hsd-ap",
+          "hsd-crit",
+          "hd-speDef",
+          "hd-min",
+          "hd-shield",
+          "hd-enr",
+          "base-flags",
+          "cast"
+        ]
+      },
+      {
+        "kind": "statusApplication",
+        "target": "each selected enemy",
+        "declaredRaw": {
+          "description": "triggerBlinded(3000, victim, caster, true)",
+          "durationMs": 3000
+        },
+        "scaling": "requested 3000 ms x (1 + caster AP/100)",
+        "resolution": "see statusEffects.0",
+        "evidence": [
+          "nd-blind",
+          "nd-trig",
+          "bl-ap"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "BLINDED",
+        "target": "each selected enemy",
+        "durationMs": 3000,
+        "probability": 1,
+        "apScaled": true,
+        "declaredRaw": {
+          "durationMs": 3000,
+          "label": "fixed raw duration before AP, enrage and reductions"
+        },
+        "scaling": "requested = 3000 ms; AP-scaled (apBoost true, origin = caster): 3000 x (1 + AP/100); no star scaling, no crit scaling",
+        "resolution": "Requested vs applied. Applied only if the victim is not already blinded and has no rune protect (a blinded victim is NOT refreshed). Then /2 if the victim is enraged, then SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3 and Odd Keystone -10% each, rounded. Effect found: while blinded, the victim's basic attacks give their target +0.5 dodge chance; the dodge roll is skipped by XRAY_VISION, LOCK_ON and against a paralysed, sleeping, frozen or locked target. Ends when blindCooldown runs out. Effects on abilities or movement were not found.",
+        "evidence": [
+          "nd-trig",
+          "nd-blind",
+          "bl-guard",
+          "bl-ap",
+          "bl-enr",
+          "bl-red",
+          "bl-set",
+          "bl-end",
+          "red-water",
+          "red-odd",
+          "bl-eff",
+          "bl-eff2",
+          "dodge-chk"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "ZORUA": 1,
+        "ZOROARK": 2
+      },
+      "declaredRawDamage": {
+        "ZORUA": 25,
+        "ZOROARK": 50
+      },
+      "note": "Only the damage table is indexed by the casting entity's stars (fallback 200); the blind duration is fixed. Whether other mechanics change an entity's star count was not examined.",
+      "evidence": [
+        "nd-dmg",
+        "unit-zorua",
+        "unit-zoroark"
+      ]
+    },
+    "positionalConditions": "Disguised cast: the enemies hit are those in the 3x3 block around the cast target (positions captured before any damage). Not disguised: the target alone.",
+    "repeatedCastsAndModes": "Two modes decided at cast time by the disguise test. The index is reset on every cast, so the disguised mode can only happen again after ILLUSION copies a neighbour's index (it fires on a position change during the player's board arrangement). No other stored state. Each cast spends maxPP of PP.",
+    "rawVsResolved": "Requested: special damage 25 / 50 raw and Blinded 3000 ms raw (AP-scaled) on 1 target, or on every enemy in the 3x3 block when disguised. Applied: damage after AP, enrage, crit, speDef and the floor of 1 (zero if protected); blind after the already-blinded / rune-protect guards, enrage halving and duration reductions.",
+    "sourceTables": [
+      {
+        "id": "damage",
+        "file": "app/core/abilities/night-daze.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "effects.0.declaredRaw.byStars",
+        "unitValuesPath": "starBehavior.declaredRawDamage"
+      }
+    ],
+    "numericExamples": [],
+    "dependsOnUnverifiedGenericCombat": [
+      "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+      "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+      "magicBounce reflection details were not traced",
+      "Whether a unit can enter combat disguised (ILLUSION acts on OnChangePositionEffect in the pick phase; the entity copies index at construction; how the board state carries the disguise into a fight was not traced further)",
+      "Other readers of the entity index (for example Stored Power, see review-followups.md entry 12) were not audited"
+    ],
+    "unresolved": [
+      "Whether PkmIndex[pokemon.name] always equals the unit's own index for the listed units (a mismatch would count as disguised); the catalog lists ZORUA and ZOROARK as non-regional bare instances",
+      "Whether the damage to one target can kill or move another before it is processed (the list is built before the loop; dead entities are filtered only by handleDamage)",
+      "The passive ILLUSION itself is a separate identifier (see passive-ILLUSION candidate and its open follow-up) and is not covered here",
+      "Whether the listed units ever reach a different star count than the bare factory value",
+      "No gameplay evidence; candidate is source reading plus mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-x",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1052,
+          1052
+        ],
+        "symbol": "AbilityStrategies[Ability.NIGHT_DAZE]",
+        "expect": "[Ability.NIGHT_DAZE]: new NightDazeStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process spends maxPP of PP"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "AbilityStrategy defaults",
+        "expect": "canCritByDefault = false",
+        "note": "defaults requiresTarget = true, canCritByDefault = false (NightDazeStrategy overrides neither)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.canCritByDefault",
+        "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": ""
+      },
+      {
+        "id": "nd-class",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          7,
+          7
+        ],
+        "symbol": "NightDazeStrategy",
+        "expect": "export class NightDazeStrategy extends AbilityStrategy",
+        "note": ""
+      },
+      {
+        "id": "nd-super",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation toward the target"
+      },
+      {
+        "id": "nd-comment",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "If the user is disguised as an ally, this ability also affects enemies ADJACENT to the target",
+        "note": "source comment describing the disguised behaviour"
+      },
+      {
+        "id": "nd-dmg",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+        "note": "raw special damage table by caster stars"
+      },
+      {
+        "id": "nd-blind",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "const blindDuration = 3000",
+        "note": "fixed raw blind duration 3000 ms"
+      },
+      {
+        "id": "nd-isdis",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          19,
+          19
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "const isDisguised = pokemon.index !== PkmIndex[pokemon.name]",
+        "note": "disguised = the entity index differs from the index of its own name"
+      },
+      {
+        "id": "nd-break",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          20,
+          20
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "pokemon.index = PkmIndex[pokemon.name] // break the disguise",
+        "note": "the index is reset on every cast, disguised or not"
+      },
+      {
+        "id": "nd-adj",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          24,
+          24
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": ".getAdjacentCells(target.positionX, target.positionY, true)",
+        "note": "when disguised: the 3x3 block around the TARGET, centre included"
+      },
+      {
+        "id": "nd-filter",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          28,
+          28
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "entity != null && pokemon.team != entity.team",
+        "note": "only enemies of the caster"
+      },
+      {
+        "id": "nd-single",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          30,
+          30
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": ": [target]",
+        "note": "not disguised: the cast target only"
+      },
+      {
+        "id": "nd-hsd",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          33,
+          33
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "enemy.handleSpecialDamage(",
+        "note": "special damage by the caster"
+      },
+      {
+        "id": "nd-trig",
+        "file": "app/core/abilities/night-daze.ts",
+        "lines": [
+          40,
+          40
+        ],
+        "symbol": "NightDazeStrategy.process",
+        "expect": "enemy.status.triggerBlinded(blindDuration, enemy, pokemon, true)",
+        "note": "blind with apBoost true and the caster as origin"
+      },
+      {
+        "id": "adj-fn",
+        "file": "app/core/board.ts",
+        "lines": [
+          156,
+          156
+        ],
+        "symbol": "Board.getAdjacentCells",
+        "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+        "note": "centre skipped unless includesCenter (true here); off-board cells skipped; cell.value captured when the list is built"
+      },
+      {
+        "id": "ent-index",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          174,
+          174
+        ],
+        "symbol": "PokemonEntity constructor",
+        "expect": "this.index = pokemon.index",
+        "note": "PokemonEntity copies the unit index at construction (the disguise travels with it)"
+      },
+      {
+        "id": "ill-passive",
+        "file": "app/core/effects/passives.ts",
+        "lines": [
+          1805,
+          1805
+        ],
+        "symbol": "Passive.ILLUSION",
+        "expect": "pokemon.index = allyOnTheLeft.index",
+        "note": "ILLUSION passive: on a position change the unit copies the index of the ally on its left (player board)"
+      },
+      {
+        "id": "bl-guard",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1260,
+          1260
+        ],
+        "symbol": "Status.triggerBlinded",
+        "expect": "if (!this.blinded && !this.runeProtect) {",
+        "note": "not applied if already blinded or rune protected"
+      },
+      {
+        "id": "bl-ap",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          554,
+          554
+        ],
+        "symbol": "Status.triggerBlinded",
+        "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+        "note": "with apBoost true the duration is x(1 + caster AP/100)"
+      },
+      {
+        "id": "bl-enr",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1264,
+          1264
+        ],
+        "symbol": "Status.triggerBlinded",
+        "expect": "duration = duration / 2",
+        "note": "an enraged victim gets half"
+      },
+      {
+        "id": "bl-red",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1267,
+          1267
+        ],
+        "symbol": "Status.triggerBlinded",
+        "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+        "note": ""
+      },
+      {
+        "id": "bl-set",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1270,
+          1270
+        ],
+        "symbol": "Status.triggerBlinded",
+        "expect": "this.blindCooldown = Math.round(duration)",
+        "note": ""
+      },
+      {
+        "id": "bl-end",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1276,
+          1276
+        ],
+        "symbol": "Status.updateBlinded",
+        "expect": "this.blinded = false",
+        "note": "blinded ends when blindCooldown runs out"
+      },
+      {
+        "id": "bl-eff",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          97,
+          97
+        ],
+        "symbol": "PokemonState.handleAttack",
+        "expect": "dodgeChance += 0.5",
+        "note": "a blinded attacker gives its basic-attack target +0.5 dodge chance"
+      },
+      {
+        "id": "bl-eff2",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          96,
+          96
+        ],
+        "symbol": "PokemonState.handleAttack",
+        "expect": "if (pokemon.status.blinded) {",
+        "note": "pokemon is the attacker"
+      },
+      {
+        "id": "dodge-chk",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          101,
+          101
+        ],
+        "symbol": "PokemonState.handleAttack",
+        "expect": "chance(dodgeChance, target, 0.9) &&",
+        "note": "a dodge roll; XRAY_VISION, LOCK_ON and a paralysed / sleeping / frozen / locked target prevent the dodge"
+      },
+      {
+        "id": "red-water",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1286,
+          1286
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+        "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+      },
+      {
+        "id": "red-odd",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1301,
+          1301
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+        "note": "Odd Keystone: -10% per stone"
+      },
+      {
+        "id": "hsd-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          355,
+          355
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage) but the blind call is not gated by it"
+      },
+      {
+        "id": "hsd-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": "damage x (1 + caster AP / 100)"
+      },
+      {
+        "id": "hsd-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+      },
+      {
+        "id": "hd-speDef",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": "SPECIAL damage reduced by the target speDef (halved by armorReduction)"
+      },
+      {
+        "id": "hd-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": "minimum 1 damage"
+      },
+      {
+        "id": "hd-shield",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          645,
+          645
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "takenDamage += damageOnShield",
+        "note": "shield damage is included in takenDamage"
+      },
+      {
+        "id": "hd-enr",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          455,
+          455
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "if (attacker && attacker.status.enraged) {",
+        "note": "damage x2 if the attacker is enraged"
+      },
+      {
+        "id": "unit-zoroark",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          11669,
+          11683
+        ],
+        "symbol": "class Zoroark",
+        "expect": "skill = Ability.NIGHT_DAZE",
+        "note": "unit class block: skill / passive / stars / stats"
+      },
+      {
+        "id": "unit-zorua",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          11652,
+          11667
+        ],
+        "symbol": "class Zorua",
+        "expect": "skill = Ability.NIGHT_DAZE",
+        "note": "unit class block: skill / passive / stars / stats"
+      }
+    ]
+  }
+}
