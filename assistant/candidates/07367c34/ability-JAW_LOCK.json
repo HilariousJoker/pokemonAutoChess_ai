@@ -1,0 +1,685 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/JAW_LOCK",
+ "kind": "ability",
+ "identifier": "JAW_LOCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T003945Z"
+ },
+ "record": {
+  "ability": "JAW_LOCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare JAW_LOCK: Drednaw (2 stars) and Chewtle (1 star); neither declares a passive in its class block. The strategy is shared; differences are star count and stats. The name JAW_LOCK is also an EffectEnum member (routing uncertainty NAME_SHARED_WITH_EFFECT): in the pinned app code that effect is only the per-entity marker set and read by this strategy, it is not a separate effect with its own behaviour. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "CHEWTLE",
+    "stars": 1,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "JAW_LOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DREDNAW",
+    "stars": 2,
+    "maxPP": 50,
+    "range": 1,
+    "declaredSkill": "JAW_LOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CHEWTLE": {
+    "evidence": [
+     "unit-chewtle"
+    ]
+   },
+   "DREDNAW": {
+    "evidence": [
+     "unit-drednaw"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.JAW_LOCK] = new JawLockStrategy()",
+   "strategy": "JawLockStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "jl-class",
+    "jl-super"
+   ]
+  },
+  "summary": "Single target, in this order, all immediate: (1) read whether the target already carries the JAW_LOCK marker; (2) request a 3000 ms LOCKED status on the target; (3) add the JAW_LOCK marker to the target (always, even if the lock was refused); (4) deal SPECIAL damage = round(1.25 x caster atk) + a flat bonus by stars (10 / 15 at 1 / 2 stars; 20 / 40 for 3 / 4 stars exist in the table); (5) only if the marker was present BEFORE this cast, heal the caster by 25 / 50 (1 / 2 stars; 100 / 200 in the table), with the caster's AP scaling and the cast crit. The heal is not conditioned on the damage having been dealt, on the lock having been applied, or on the target surviving. The marker is set only by this strategy and is not removed by any code found, so for the rest of that entity's life every later JAW_LOCK cast on it (by any caster) is a 'second bite'. LOCKED stops the target moving or being displaced and stops it dodging, and forces its range to 1 while it lasts.",
+  "targeting": {
+   "who": "the cast target (lock, marker, damage); the caster itself (heal, second bite only)",
+   "needsTarget": true,
+   "note": "No area. The target is chosen by the generic cast pipeline (not traced here).",
+   "evidence": [
+    "jl-lock",
+    "jl-mark",
+    "jl-dmg",
+    "jl-heal",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target plus self; no displacement by this ability",
+   "evidence": [
+    "jl-lock",
+    "jl-dmg",
+    "jl-heal"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "baseFormula": "round(1.25 x caster atk)",
+     "bonusByStars": {
+      "1": 10,
+      "2": 15,
+      "3": 20,
+      "4": 40
+     },
+     "fallbackBonus": 40,
+     "label": "requested damage (raw) = round(1.25 x atk) + bonus"
+    },
+    "perUnitRaw": {
+     "CHEWTLE": 10,
+     "DREDNAW": 15
+    },
+    "scaling": "requested = round(1.25 x pokemon.atk) + bonus[stars-1], where pokemon.atk is the live stat when the cast resolves (declared 9 for Chewtle and 20 for Drednaw before any change; the perUnitRaw values are the flat bonus only). At the declared atk the request is round(11.25) + 10 = 21 for Chewtle and 25 + 15 = 40 for Drednaw. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite. Not conditioned on the lock or on the marker.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned takenDamage / death is not used by this ability: the heal does not depend on the damage.",
+    "evidence": [
+     "jl-base",
+     "jl-bonus",
+     "jl-total",
+     "jl-dmg",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "heal",
+    "target": "the caster itself, only when the target already carried the JAW_LOCK marker",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200
+     },
+     "fallback": 200,
+     "label": "requested heal (raw)"
+    },
+    "perUnitRaw": {
+     "CHEWTLE": 25,
+     "DREDNAW": 50
+    },
+    "scaling": "requested = table[stars-1]. handleHeal(heal, caster, apBoost 1, crit): x (1 + AP/100) and x critPower on a crit (the cast crit boolean), then in handleHeal x1.3 with BUFF_HEAL_RECEIVED, x0.5 while burning, x0.5 while enraged, x1.2 in ZENITH weather, rounded.",
+    "resolution": "applied = healReceived = min(missing HP, rounded heal); 0 if the caster has the wound status (a Blood Stone / Bloodmoon branch may add a shield instead), 0 if the caster is at 0 hp or has protect. The overheal is not stored as a shield (Grass synergy converts 40 % of it to max HP). The heal does not depend on the damage dealt, the lock being applied or the target surviving.",
+    "evidence": [
+     "jl-heal-tbl",
+     "jl-bitten",
+     "jl-heal",
+     "heal-fn",
+     "handle-heal"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "LOCKED",
+    "target": "the cast target",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "perUnitRaw": {
+     "CHEWTLE": 3000,
+     "DREDNAW": 3000
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "Requested vs applied. Applied only if the target is not already locked (locks cannot stack, so a second cast on a still-locked target does not extend it), is not skydiving, has no rune protect, has no IMMUNITY_LOCKED and its ccCooldown is 0. Applied duration = requested / 2 if the target is enraged, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone in the victim's player's items), rounded. While locked the target cannot move (canMove), cannot be forcibly moved (canBeMoved), cannot dodge, its range is forced to 1 (with a retarget when it was not 1), and it cannot make the dark-type jump. When the timer ends, the range is recomputed from baseRange (+ Wide Lens, + Long Wand for FAIRY) and ccCooldown is raised to CC_COOLDOWN, which blocks a new lock for that long. The marker is set even when this lock is refused.",
+    "evidence": [
+     "jl-lock",
+     "jl-mark",
+     "effect-enum",
+     "lock-fn",
+     "lock-end",
+     "lock-move",
+     "lock-nomove",
+     "lock-dodge",
+     "red-water",
+     "red-odd",
+     "cc-cd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CHEWTLE": 1,
+    "DREDNAW": 2
+   },
+   "declaredRawDamage": {
+    "CHEWTLE": "round(1.25 x atk) + 10",
+    "DREDNAW": "round(1.25 x atk) + 15"
+   },
+   "declaredRawHeal": {
+    "CHEWTLE": 25,
+    "DREDNAW": 50
+   },
+   "note": "Stars index the flat damage bonus (10, 15, 20, 40; ?? 40) and the heal (25, 50, 100, 200; ?? 200). The lock duration is fixed. The listed units are catalog stars 1 and 2. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "jl-bonus",
+    "jl-heal-tbl",
+    "unit-chewtle",
+    "unit-drednaw"
+   ]
+  },
+  "positionalConditions": "None in this strategy; range comes from the unit (1).",
+  "repeatedCastsAndModes": "The JAW_LOCK marker on the target makes the second and every later cast on that entity heal the caster (the marker is not removed by the code read, so the lock timing does not matter for the heal). The marker belongs to the target, not to the caster: a different Chewtle or Drednaw casting on an already-marked target also heals. The lock itself cannot stack while active and is followed by ccCooldown. Each cast spends maxPP of PP.",
+  "rawVsResolved": "Requested: lock 3000 ms, damage round(1.25 x atk) + 10 / 15 (declared atk gives 21 / 40), heal 25 / 50 on a second bite. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied lock = requested duration after enrage and water-ability / Odd Keystone reductions and only if the guards pass. Applied heal = requested after AP, crit and handleHeal modifiers, capped by missing HP, 0 under wound / protect.",
+  "sourceTables": [
+   {
+    "id": "bonus",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "pattern": "const bonusDamage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.bonusByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "heal",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Every source of atk changes (items, synergies, other abilities); the shared reference core-mechanics.md section I covers how declared item bonuses become combat stats",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record"
+  ],
+  "unresolved": [
+   "NAME_SHARED_WITH_EFFECT: EffectEnum.JAW_LOCK is only the marker used here in app/ (locale and json files excluded; the client animation file refers to Ability.JAW_LOCK); whether an entity's effect set is reset between fights (the marker lives on the fight entity) was not traced",
+   "Whether the marker is copied when an entity is cloned or transformed (for example by a copy or transform ability) was not traced",
+   "What other code reads status.locked beyond the places cited (movement, dodge, displacement, dark jump) was not enumerated",
+   "Cover Band and other later branches of handleDamage were not read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone, player items"
+   },
+   {
+    "id": "cc-cd",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     994,
+     994
+    ],
+    "symbol": "AbilityStrategies[Ability.JAW_LOCK]",
+    "expect": "[Ability.JAW_LOCK]: new JawLockStrategy()",
+    "note": ""
+   },
+   {
+    "id": "unit-chewtle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19230,
+     19248
+    ],
+    "symbol": "class Chewtle",
+    "expect": "skill = Ability.JAW_LOCK",
+    "note": "unit class block: 1 star, atk 9, maxPP 50, range 1, no passive line"
+   },
+   {
+    "id": "unit-drednaw",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19250,
+     19267
+    ],
+    "symbol": "class Drednaw",
+    "expect": "skill = Ability.JAW_LOCK",
+    "note": "unit class block: 2 stars, atk 20, maxPP 50, range 1, no passive line"
+   },
+   {
+    "id": "jl-class",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "JawLockStrategy",
+    "expect": "export class JawLockStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "jl-super",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation"
+   },
+   {
+    "id": "jl-base",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "const baseDamage = Math.round(pokemon.atk * 1.25)",
+    "note": "base part = round(1.25 x the caster's CURRENT atk)"
+   },
+   {
+    "id": "jl-bonus",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "const bonusDamage = [10, 15, 20, 40][pokemon.stars - 1] ?? 40",
+    "note": "flat bonus by stars, fallback 40"
+   },
+   {
+    "id": "jl-total",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "const totalDamage = baseDamage + bonusDamage",
+    "note": ""
+   },
+   {
+    "id": "jl-heal-tbl",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "const heal = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "heal amount by stars, fallback 200"
+   },
+   {
+    "id": "jl-bitten",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "const alreadyBitten = target.effects.has(EffectEnum.JAW_LOCK)",
+    "note": "marker read BEFORE this cast sets it"
+   },
+   {
+    "id": "jl-lock",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "target.status.triggerLocked(3000, target)",
+    "note": "requests a 3000 ms LOCKED status on the cast target"
+   },
+   {
+    "id": "jl-mark",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "target.effects.add(EffectEnum.JAW_LOCK)",
+    "note": "sets the marker unconditionally, whether or not the lock was applied"
+   },
+   {
+    "id": "jl-dmg",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     28,
+     34
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "handleSpecialDamage(totalDamage, board, SPECIAL, caster, crit); apBoost default true"
+   },
+   {
+    "id": "jl-heal",
+    "file": "app/core/abilities/jaw-lock.ts",
+    "lines": [
+     36,
+     38
+    ],
+    "symbol": "JawLockStrategy.process",
+    "expect": "pokemon.handleHeal(heal, pokemon, 1, crit)",
+    "note": "heal on the caster only if the marker was already present; apBoost 1 and the cast crit"
+   },
+   {
+    "id": "effect-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     172,
+     172
+    ],
+    "symbol": "EffectEnum.JAW_LOCK",
+    "expect": "JAW_LOCK = \"JAW_LOCK\"",
+    "note": "the name is an effect enum member, a different identifier from Ability.JAW_LOCK (routing uncertainty NAME_SHARED_WITH_EFFECT); a search of app/ (locale and json files excluded) found EffectEnum.JAW_LOCK used only in jaw-lock.ts (set and read there, no code that removes it)"
+   },
+   {
+    "id": "lock-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1163
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "guards: not already locked, not skydiving, no rune protect, no IMMUNITY_LOCKED, ccCooldown <= 0; duration halved if enraged, then water-ability / Odd Keystone reductions; sets locked and forces range 1"
+   },
+   {
+    "id": "lock-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1165,
+     1185
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "when the timer runs out the lock ends, the range is restored from baseRange (Wide Lens, Long Wand) and ccCooldown is raised to CC_COOLDOWN"
+   },
+   {
+    "id": "lock-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     238
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!this.status.locked &&",
+    "note": "a locked entity cannot move (canMove false)"
+   },
+   {
+    "id": "lock-nomove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.locked &&",
+    "note": "a locked entity cannot be forcibly displaced either"
+   },
+   {
+    "id": "lock-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     100,
+     108
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.locked",
+    "note": "a locked target cannot dodge"
+   },
+   {
+    "id": "handle-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     380
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.simulation.weather === Weather.ZENITH",
+    "note": "wound -> 0; otherwise (hp > 0, no protect) heal x (1 + apBoost x AP / 100), x critPower on crit, x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded; healReceived = min(missing hp, heal)"
+   },
+   {
+    "id": "heal-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": ""
+   }
+  ]
+ }
+}
