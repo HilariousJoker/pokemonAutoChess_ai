@@ -1,0 +1,710 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LOVELY_KISS",
+ "kind": "ability",
+ "identifier": "LOVELY_KISS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T063943Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare LOVELY_KISS: Jynx (2 stars, range 2) and Smoochum (1 star, range 2). The strategy is shared; unit differences are the star count, range and maxPP. Units not listed are not covered.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LOVELY_KISS] = new LovelyKissStrategy()",
+   "strategy": "LovelyKissStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "lk-class",
+    "lk-super"
+   ]
+  },
+  "summary": "Two mutually exclusive branches on the cast target, chosen by target.status.sleep at cast time. Target already asleep: SPECIAL damage, raw 50/100/150/300 by the caster's stars (AP-scaled by handleSpecialDamage); the sleep is not extended, and a damage instance that reaches onDamageReceived shortens the remaining sleep by 300 ms. Target not asleep: a sleep request of Math.round(2000/4000/6000/12000 ms by stars x (1 + AP/100) x (critPower if the cast crit)), subject to triggerSleep's guards and duration modifiers; no damage in this branch.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No area and no secondary targets. Which branch runs depends only on the target's sleep flag when the cast resolves; a target that refuses sleep (guards) takes no damage that cast.",
+   "evidence": [
+    "lk-if",
+    "lk-hit",
+    "lk-sleep"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; the units have range 2",
+   "evidence": [
+    "lk-if"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target, only if it was asleep at cast time",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 150,
+      "4": 300,
+      "fallback": 300
+     },
+     "label": "requested damage (raw), sleeping-target branch"
+    },
+    "perUnitRaw": {
+     "JYNX": 100,
+     "SMOOCHUM": 50
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage (apBoost default true): x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "requested vs applied vs taken: applied = requested after those multipliers; handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (capped at current hp), 0 with protect / skydiving / magicBounce. When takenDamage > 0 and the target survives, onDamageReceived runs and subtracts 300 ms from a running sleepCooldown; a unit with the Comatose passive has its sleep timer reset to 1000 ms every update instead.",
+    "evidence": [
+     "lk-if",
+     "lk-dtable",
+     "lk-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "sl-dmg",
+     "sl-dmg-call",
+     "sl-dmg-cond",
+     "sl-comatose"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "SLEEP",
+    "target": "the cast target, only if it was not asleep at cast time",
+    "durationMs": "table by stars",
+    "probability": 1,
+    "apScaled": true,
+    "declaredRaw": {
+     "byStars": {
+      "1": 2000,
+      "2": 4000,
+      "3": 6000,
+      "4": 12000,
+      "fallback": 12000
+     },
+     "label": "requested duration base (ms), before AP and crit scaling"
+    },
+    "perUnitRaw": {
+     "JYNX": 4000,
+     "SMOOCHUM": 2000
+    },
+    "scaling": "requested duration = Math.round(table[stars-1] x (1 + caster AP/100) x (cast crit ? caster critPower : 1)); unlike damage, the crit factor here is not reduced by the target's Rocky Helmet / Black Augurite and the cast only crits with ABILITY_CRIT (canCritByDefault false).",
+    "resolution": "applied only if the target is not already asleep, has no Rune Protect, is not skydiving, lacks IMMUNITY_SLEEP and has ccCooldown <= 0 (a 1500 ms CC cooldown starts when any sleep ends). The requested value is then x1.3 at NIGHT or x0.7 in ZENITH weather, halved when the target is enraged (`pkm.status.enraged`, pkm being the target), reduced by the target's duration reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each) and rounded again. A Chesto Berry holder eats the berry immediately after falling asleep (which clears the sleep per the berry effect - not read). While asleep the target can neither move nor attack unless it has the Comatose passive.",
+    "evidence": [
+     "lk-else",
+     "lk-stable",
+     "lk-sap",
+     "lk-scrit",
+     "lk-round",
+     "lk-sleep",
+     "sl-fn",
+     "sl-guard",
+     "sl-guard2",
+     "sl-night",
+     "sl-enr",
+     "sl-red",
+     "sl-set",
+     "sl-chesto",
+     "sl-end",
+     "sl-canatk",
+     "cc-const"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "JYNX": 2,
+    "SMOOCHUM": 1
+   },
+   "declaredRawDamage": {
+    "JYNX": 100,
+    "SMOOCHUM": 50
+   },
+   "declaredRawSleepMs": {
+    "JYNX": 4000,
+    "SMOOCHUM": 2000
+   },
+   "note": "Both the damage and the base sleep duration are indexed by the casting entity's stars. The 3-star (150 / 6000) and 4-star (300 / 12000, also the ?? fallbacks) values are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "lk-dtable",
+    "lk-stable",
+    "unit-jynx",
+    "unit-smoochum"
+   ]
+  },
+  "positionalConditions": "None: the ability does not read coordinates (the units' range 2 only matters for being in cast position).",
+  "repeatedCastsAndModes": "Two modes selected at each cast by the target's sleep flag. Casting on an awake target puts it to sleep (if allowed); a later cast on the same still-sleeping target takes the damage branch. After a sleep ends (naturally) a 1500 ms CC cooldown prevents a new sleep, so a quick second cast on the now-awake target applies nothing (and no damage). Each cast spends maxPP.",
+  "rawVsResolved": "Requested: sleep 2000 ms (Smoochum 1 star) / 4000 ms (Jynx 2 stars) x (1 + AP/100) x optional critPower, rounded; or damage 50 / 100 on a sleeping target. Applied sleep = requested after weather, enraged halving, the target's reductions and the triggerSleep guards (possibly nothing); applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. No stat helper (Big Eater Belt / Twist Band) is involved because no stat is changed.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "sleep-duration",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Pokemon.eatBerry for the Chesto Berry (whether it ends the sleep at once) was not read",
+   "How other systems treat a sleeping unit (idle state at pokemon-state.ts around line 901 was only noted)",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read; the Cover Band path (an adjacent ally absorbing a lethal hit) was seen and means the sleeping target may not be the unit that takes the damage"
+  ],
+  "unresolved": [
+   "Whether the enraged check and weather read in triggerSleep are intended to refer to the target (pkm is the target here, as passed by this strategy)",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "LOVELY_KISS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "JYNX",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "LOVELY_KISS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SMOOCHUM",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "LOVELY_KISS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "JYNX": {
+    "evidence": [
+     "unit-jynx"
+    ]
+   },
+   "SMOOCHUM": {
+    "evidence": [
+     "unit-smoochum"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-jynx",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9495,
+     9508
+    ],
+    "symbol": "class Jynx",
+    "expect": "skill = Ability.LOVELY_KISS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-smoochum",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9479,
+     9493
+    ],
+    "symbol": "class Smoochum",
+    "expect": "skill = Ability.LOVELY_KISS",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1013,
+     1013
+    ],
+    "symbol": "AbilityStrategies[Ability.LOVELY_KISS]",
+    "expect": "[Ability.LOVELY_KISS]: new LovelyKissStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "lk-class",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "LovelyKissStrategy",
+    "expect": "export class LovelyKissStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "lk-super",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default animation broadcast; spends maxPP"
+   },
+   {
+    "id": "lk-if",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "if (target.status.sleep) {",
+    "note": "branch on the target's sleep status at cast time"
+   },
+   {
+    "id": "lk-dtable",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "const damage = [50, 100, 150, 300][pokemon.stars - 1] ?? 300",
+    "note": "damage table by stars (target asleep)"
+   },
+   {
+    "id": "lk-hit",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage; apBoost left at its default true"
+   },
+   {
+    "id": "lk-else",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "} else {",
+    "note": "target not asleep: sleep request, no damage"
+   },
+   {
+    "id": "lk-stable",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "([2000, 4000, 6000, 12000][pokemon.stars - 1] ?? 12000) *",
+    "note": "sleep duration table by stars (ms)"
+   },
+   {
+    "id": "lk-sap",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "(1 + pokemon.ap / 100) *",
+    "note": "duration is scaled by the caster's AP"
+   },
+   {
+    "id": "lk-scrit",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "(crit ? pokemon.critPower : 1)",
+    "note": "and by critPower on a crit (no Rocky Helmet reduction)"
+   },
+   {
+    "id": "lk-round",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "const duration = Math.round(",
+    "note": "rounded requested duration"
+   },
+   {
+    "id": "lk-sleep",
+    "file": "app/core/abilities/lovely-kiss.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "LovelyKissStrategy.process",
+    "expect": "target.status.triggerSleep(duration, target)",
+    "note": "sleep request on the target; the second argument is the target itself"
+   },
+   {
+    "id": "sl-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     760,
+     760
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "triggerSleep(duration: number, pkm: PokemonEntity) {",
+    "note": ""
+   },
+   {
+    "id": "sl-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     766,
+     766
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.ccCooldown <= 0",
+    "note": "also refused while ccCooldown > 0 (after a sleep ends: Math.max(ccCooldown, CC_COOLDOWN))"
+   },
+   {
+    "id": "sl-guard2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     765,
+     765
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+    "note": "refused under Rune Protect, skydiving or IMMUNITY_SLEEP"
+   },
+   {
+    "id": "sl-night",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     768,
+     768
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "if (pkm.simulation.weather === Weather.NIGHT) {",
+    "note": "x1.3 at night, x0.7 in ZENITH weather"
+   },
+   {
+    "id": "sl-enr",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "if (pkm.status.enraged) {",
+    "note": "halved if the target is enraged"
+   },
+   {
+    "id": "sl-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     780,
+     780
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "this.sleepCooldown = Math.round(duration)",
+    "note": "applied duration after reductions, rounded"
+   },
+   {
+    "id": "sl-chesto",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     783,
+     783
+    ],
+    "symbol": "Status.triggerSleep",
+    "expect": "pkm.eatBerry(Item.CHESTO_BERRY)",
+    "note": "a Chesto Berry holder eats it right after falling asleep"
+   },
+   {
+    "id": "sl-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, then -10% per Odd Keystone"
+   },
+   {
+    "id": "sl-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     797,
+     797
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "when sleep ends, a CC cooldown (1500 ms) starts"
+   },
+   {
+    "id": "sl-comatose",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     789,
+     789
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "if (pkm.passive === Passive.COMATOSE) {",
+    "note": "a Comatose unit is kept asleep with a 1000 ms timer"
+   },
+   {
+    "id": "sl-canatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     233,
+     233
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE) &&",
+    "note": "a sleeping unit cannot move or attack (canAttack has the same term)"
+   },
+   {
+    "id": "sl-dmg",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1213,
+     1213
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.status.sleepCooldown -= 300",
+    "note": "each damage instance that reaches onDamageReceived shortens the remaining sleep by 300 ms"
+   },
+   {
+    "id": "sl-dmg-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     736,
+     736
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "called only when takenDamage > 0 and the unit is still alive"
+   },
+   {
+    "id": "sl-dmg-cond",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     734,
+     734
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (takenDamage > 0) {",
+    "note": ""
+   },
+   {
+    "id": "cc-const",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "CC_COOLDOWN",
+    "expect": "export const CC_COOLDOWN = 1500",
+    "note": ""
+   }
+  ]
+ }
+}
