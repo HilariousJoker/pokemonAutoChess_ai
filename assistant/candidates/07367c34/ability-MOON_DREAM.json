@@ -1,0 +1,753 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/MOON_DREAM",
+  "kind": "ability",
+  "identifier": "MOON_DREAM",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261103T184025Z"
+  },
+  "record": {
+    "ability": "MOON_DREAM",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "appliesTo": [
+      {
+        "key": "MUNNA",
+        "stars": 1,
+        "maxPP": 80,
+        "range": 2,
+        "declaredSkill": "MOON_DREAM",
+        "declaredPassive": "DREAM_CATCHER",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "MUSHARNA",
+        "stars": 2,
+        "maxPP": 80,
+        "range": 2,
+        "declaredSkill": "MOON_DREAM",
+        "declaredPassive": "DREAM_CATCHER",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "MUNNA": {
+        "evidence": [
+          "unit-munna"
+        ]
+      },
+      "MUSHARNA": {
+        "evidence": [
+          "unit-musharna"
+        ]
+      }
+    },
+    "scope": "The two units in appliesTo declare MOON_DREAM: Munna (1 star) and Musharna (2 stars). The strategy is shared; the values are indexed by the casting unit's stars. Units not listed are not covered.",
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.MOON_DREAM] = new MoonDreamStrategy()",
+      "strategy": "MoonDreamStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-x",
+        "base",
+        "base-flags",
+        "cast",
+        "pp-gate",
+        "md-class",
+        "md-super"
+      ]
+    },
+    "summary": "Gives a shield to the 3 allies nearest to the caster's current target (the caster itself is excluded) and puts that target to sleep. Requested shield per ally: 10 / 20 / 30 / 60 by caster stars (1 / 2 / 3 / 4), i.e. 10 for Munna and 20 for Musharna, raw; it is then scaled by x(1 + AP/100) (apBoost 1) and, if the cast crit, x critPower (crit needs ABILITY_CRIT because canCritByDefault is false); the applied shield also changes with a Big Eater Belt on the recipient (raw value x1.25 rounded down, applied before the AP/crit factors), halves on an enraged recipient and is rounded. Requested sleep on the target: 3000 / 6000 / 9000 / 18000 ms by caster stars (3000 ms Munna, 6000 ms Musharna) with NO AP or crit factor in the strategy; Status.triggerSleep then applies guards and duration changes (night x1.3, zenith x0.7, enraged target /2, water-ability and Odd Keystone reductions). No damage is dealt.",
+    "targeting": {
+      "who": "sleep: the caster's current target (the strategy receives it as the target argument; requiresTarget is the default true). shield: up to 3 own-team units other than the caster, nearest by Manhattan distance to the cell (targetX, targetY) the caster is attacking",
+      "needsTarget": true,
+      "note": "The allies are sorted by distance to the caster's targetX/targetY, which AttackingState sets to the target cell before the cast, not by distance to the caster. board.cells is row-major and Array.sort is stable, so equal-distance allies keep row-major order. If fewer than 3 other allies are on the board all of them are shielded; if there are none only the sleep happens.",
+      "evidence": [
+        "md-allies",
+        "md-sort",
+        "md-tgtxy",
+        "md-slice",
+        "md-count",
+        "tgt-set",
+        "manhattan",
+        "cells",
+        "md-sleep"
+      ]
+    },
+    "geometry": {
+      "shape": "no area: up to 3 allies anywhere on the board (selected by distance to the enemy target) plus the single target; no range limit on the ally selection",
+      "evidence": [
+        "md-allies",
+        "md-sort",
+        "manhattan",
+        "md-slice"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "shield",
+        "target": "the 3 allies nearest to the caster's target (not the caster)",
+        "declaredRaw": {
+          "description": "addShield(shield, caster, 1, crit)",
+          "byStars": {
+            "1": 10,
+            "2": 20,
+            "3": 30,
+            "4": 60
+          },
+          "fallback": 60,
+          "label": "raw shield by caster stars before AP, crit, Big Eater Belt, enrage"
+        },
+        "scaling": "requested raw = table value (10 Munna / 20 Musharna). Applied = round(beltAdjusted x (1 + AP/100) x (crit ? critPower : 1) x (recipient enraged ? 0.5 : 1)), where beltAdjusted = raw x1.25 rounded down if the recipient holds a Big Eater Belt (applied to the raw value in PokemonEntity.addShield before the AP step), else raw. AP is the caster's. At 0 AP, no crit, no belt, no enrage: 10 (Munna) / 20 (Musharna).",
+        "resolution": "added to the recipient's existing shield with no cap, only if the recipient has hp > 0; the shield amount is credited to the caster's shieldDone. Three amounts kept apart: requested = table value; applied = shield actually added after helper, AP, crit and enrage; this is not damage so handleDamage/takenDamage does not apply.",
+        "evidence": [
+          "md-shield",
+          "md-addshield",
+          "ent-shield",
+          "ent-belt",
+          "belt-fn",
+          "st-hp",
+          "st-ap",
+          "st-crit",
+          "st-enr",
+          "st-round",
+          "st-add",
+          "base-flags",
+          "cast"
+        ]
+      },
+      {
+        "kind": "statusApplication",
+        "target": "the caster's current target (enemy)",
+        "declaredRaw": {
+          "description": "triggerSleep(duration, target); no damage",
+          "byStars": {
+            "1": 3000,
+            "2": 6000,
+            "3": 9000,
+            "4": 18000
+          },
+          "fallback": 18000,
+          "label": "sleep duration (ms) by caster stars"
+        },
+        "scaling": "no AP or crit factor in the strategy (unlike HYPNOSIS): requested = table value, 3000 ms Munna / 6000 ms Musharna",
+        "resolution": "see statusEffects.0: applied only if the guards pass, then weather / enrage / reduction changes",
+        "evidence": [
+          "md-dur",
+          "md-sleep",
+          "sleep-guard"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "SLEEP",
+        "target": "the caster's current target",
+        "durationMs": null,
+        "probability": 1,
+        "apScaled": false,
+        "declaredRaw": {
+          "byStars": {
+            "1": 3000,
+            "2": 6000,
+            "3": 9000,
+            "4": 18000
+          },
+          "fallback": 18000,
+          "label": "sleep duration (ms), no AP/crit factor in the strategy"
+        },
+        "perUnitRaw": {
+          "MUNNA": 3000,
+          "MUSHARNA": 6000
+        },
+        "scaling": "requested duration = table value by caster stars; triggerSleep is called with the target as pkm and applies no AP scaling; the caster's AP and crit do not change the sleep",
+        "resolution": "Requested vs applied. Applied only if the target is not already asleep, has no rune protect, is not skydiving, has no IMMUNITY_SLEEP effect and ccCooldown is 0 (CC_COOLDOWN 1500 ms starts when a sleep ends). Applied duration = round(requested x 1.3 at night or x0.7 at zenith, /2 if the target is enraged, then SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, then x(1 - 0.1 per Odd Keystone)). A Chesto Berry holder eats the berry when the sleep is applied (its own effect not traced). Becoming enraged halves the remaining sleep. A sleeping unit cannot move or attack (except COMATOSE) and cannot dodge attacks.",
+        "evidence": [
+          "md-sleep",
+          "md-dur",
+          "sleep-guard",
+          "sleep-weather",
+          "sleep-enraged",
+          "sleep-red",
+          "sleep-set",
+          "sleep-berry",
+          "sleep-end",
+          "red-water",
+          "red-odd",
+          "cc-cd",
+          "rage-sleep",
+          "sleep-nomove",
+          "sleep-nododge"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [
+      {
+        "target": "3 nearest allies to the caster's target, excluding the caster",
+        "byStars": {
+          "1": 10,
+          "2": 20,
+          "3": 30,
+          "4": 60
+        },
+        "perUnitRaw": {
+          "MUNNA": 10,
+          "MUSHARNA": 20
+        },
+        "apBoost": 1,
+        "critApplies": true,
+        "evidence": [
+          "md-shield",
+          "md-addshield",
+          "st-ap",
+          "st-crit"
+        ]
+      }
+    ],
+    "starBehavior": {
+      "unitStars": {
+        "MUNNA": 1,
+        "MUSHARNA": 2
+      },
+      "declaredRawSleepMs": {
+        "MUNNA": 3000,
+        "MUSHARNA": 6000
+      },
+      "declaredRawShield": {
+        "MUNNA": 10,
+        "MUSHARNA": 20
+      },
+      "note": "Both tables are indexed by the casting entity's stars (fallback to the 4-star value). The listed units are catalog stars 1 and 2. Whether other mechanics change an entity's star count was not examined.",
+      "evidence": [
+        "md-dur",
+        "md-shield",
+        "unit-munna",
+        "unit-musharna"
+      ]
+    },
+    "positionalConditions": "Ally selection depends on distance to the enemy target cell, not the caster. With no other ally on the board no shield is given; the sleep still applies to the target.",
+    "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP. Re-casting on a target that is still asleep does not extend the sleep (guard) and ccCooldown protects it for CC_COOLDOWN after waking. Shields stack onto existing shield with no cap; the nearest allies are re-evaluated each cast.",
+    "rawVsResolved": "Requested: shield 10 (Munna) / 20 (Musharna) raw to up to 3 allies, sleep 3000 / 6000 ms. Applied: shield after Big Eater Belt (x1.25 down, on the raw value), AP factor, crit factor and enrage halving, rounded; sleep after the triggerSleep guards and weather / enrage / reduction changes. No damage, so no takenDamage.",
+    "sourceTables": [
+      {
+        "id": "sleep",
+        "file": "app/core/abilities/moon-dream.ts",
+        "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 18000\\)",
+        "recordPath": "statusEffects.0.declaredRaw.byStars",
+        "unitValuesPath": "statusEffects.0.perUnitRaw"
+      },
+      {
+        "id": "shield",
+        "file": "app/core/abilities/moon-dream.ts",
+        "pattern": "const shield = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "shields.0.byStars",
+        "unitValuesPath": "shields.0.perUnitRaw"
+      }
+    ],
+    "numericExamples": [],
+    "dependsOnUnverifiedGenericCombat": [
+      "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+      "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+      "The Chesto Berry effect (eatBerry) was not traced"
+    ],
+    "unresolved": [
+      "Whether board.cells can contain units that are dead or untargettable at cast time (the filter does not check hp or targettability); only the shield-side hp > 0 check in PokemonState.addShield was read",
+      "Whether the caster's targetX/targetY can be stale or -1 at cast time (setTarget in pokemon-entity.ts sets them; not traced further)",
+      "Whether the listed units ever reach a different star count than the bare factory value",
+      "Passive DREAM_CATCHER of both units is a separate identifier and is not covered here",
+      "No gameplay evidence; candidate is source reading plus mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-x",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1040,
+          1040
+        ],
+        "symbol": "AbilityStrategies[Ability.MOON_DREAM]",
+        "expect": "[Ability.MOON_DREAM]: new MoonDreamStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process spends maxPP of PP"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "AbilityStrategy defaults",
+        "expect": "canCritByDefault = false",
+        "note": "defaults requiresTarget = true, canCritByDefault = false (MoonDreamStrategy overrides neither)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.canCritByDefault",
+        "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": ""
+      },
+      {
+        "id": "tgt-set",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          80,
+          80
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.targetX = target.positionX",
+        "note": "caster targetX/targetY are set to the current target cell before the cast"
+      },
+      {
+        "id": "md-class",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "MoonDreamStrategy",
+        "expect": "export class MoonDreamStrategy extends AbilityStrategy",
+        "note": ""
+      },
+      {
+        "id": "md-super",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          13,
+          13
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit, true)",
+        "note": "preventDefaultAnim = true; the strategy broadcasts its own per-ally animation"
+      },
+      {
+        "id": "md-dur",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          15,
+          15
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "([3000, 6000, 9000, 18000][pokemon.stars - 1] ?? 18000)",
+        "note": "sleep duration table (ms) indexed by the caster stars; fallback 18000"
+      },
+      {
+        "id": "md-shield",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "const shield = [10, 20, 30, 60][pokemon.stars - 1] ?? 60",
+        "note": "shield table indexed by the caster stars; fallback 60"
+      },
+      {
+        "id": "md-count",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "const count = 3",
+        "note": ""
+      },
+      {
+        "id": "md-allies",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          21,
+          21
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "(p) => p && p.team === pokemon.team && p.id !== pokemon.id",
+        "note": "all own-team units on board.cells except the caster"
+      },
+      {
+        "id": "md-sort",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "distanceM(",
+        "note": "allies sorted ascending by Manhattan distance from the caster's targetX/targetY (the enemy it is attacking), not from the caster"
+      },
+      {
+        "id": "md-tgtxy",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          29,
+          29
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "pokemon.targetX,",
+        "note": ""
+      },
+      {
+        "id": "md-slice",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          34,
+          34
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": ".slice(0, count)",
+        "note": "the 3 nearest allies"
+      },
+      {
+        "id": "md-addshield",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          37,
+          37
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "ally.addShield(shield, pokemon, 1, crit)",
+        "note": "apBoost 1 (full AP scaling), caster = the cast unit, crit passed through"
+      },
+      {
+        "id": "md-sleep",
+        "file": "app/core/abilities/moon-dream.ts",
+        "lines": [
+          44,
+          44
+        ],
+        "symbol": "MoonDreamStrategy.process",
+        "expect": "target.status.triggerSleep(duration, target)",
+        "note": "sleep on the current target; duration is the raw table value, no AP or crit factor applied here"
+      },
+      {
+        "id": "manhattan",
+        "file": "app/utils/distance.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "distanceM",
+        "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+        "note": "Manhattan distance"
+      },
+      {
+        "id": "cells",
+        "file": "app/core/board.ts",
+        "lines": [
+          20,
+          20
+        ],
+        "symbol": "Board.cells",
+        "expect": "cells: Array<PokemonEntity | undefined>",
+        "note": "board.cells is a flat row-major array (index = columns*y + x); filter keeps that order and Array.sort is stable, so equal-distance allies keep row-major order"
+      },
+      {
+        "id": "ent-shield",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          505,
+          505
+        ],
+        "symbol": "PokemonEntity.addShield",
+        "expect": "return this.state.addShield(this, value, caster, apBoost, crit)",
+        "note": "PokemonEntity.addShield applies Big Eater Belt to the raw value first, then delegates to the state"
+      },
+      {
+        "id": "ent-belt",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          504,
+          504
+        ],
+        "symbol": "PokemonEntity.addShield",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": ""
+      },
+      {
+        "id": "belt-fn",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1849,
+          1849
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+        "note": "Big Eater Belt holder: positive values x1.25 rounded down (nbDigits 0)"
+      },
+      {
+        "id": "st-hp",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          389,
+          389
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (pokemon.hp > 0) {",
+        "note": "shield only added to a unit with hp > 0"
+      },
+      {
+        "id": "st-ap",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          390,
+          390
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+        "note": "shield x (1 + AP/100) of the caster"
+      },
+      {
+        "id": "st-crit",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          391,
+          391
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (crit) shield *= caster.critPower",
+        "note": "crit multiplies the shield by the caster critPower (full, not halved)"
+      },
+      {
+        "id": "st-enr",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          392,
+          392
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+        "note": "an enraged recipient gets half"
+      },
+      {
+        "id": "st-round",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          394,
+          394
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "shield = Math.round(shield)",
+        "note": ""
+      },
+      {
+        "id": "st-add",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          395,
+          395
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+        "note": "shield is added on top of the existing shield (no cap)"
+      },
+      {
+        "id": "sleep-guard",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          765,
+          765
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_SLEEP) &&",
+        "note": "not applied if already asleep, rune protected, skydiving, IMMUNITY_SLEEP or ccCooldown > 0"
+      },
+      {
+        "id": "sleep-weather",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          768,
+          768
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "if (pkm.simulation.weather === Weather.NIGHT) {",
+        "note": "night x1.3, zenith x0.7"
+      },
+      {
+        "id": "sleep-enraged",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          714,
+          714
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "duration = duration / 2",
+        "note": "enraged targets get half"
+      },
+      {
+        "id": "sleep-red",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          346,
+          346
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+        "note": ""
+      },
+      {
+        "id": "sleep-set",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          780,
+          780
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "this.sleepCooldown = Math.round(duration)",
+        "note": ""
+      },
+      {
+        "id": "sleep-berry",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          783,
+          783
+        ],
+        "symbol": "Status.triggerSleep",
+        "expect": "pkm.eatBerry(Item.CHESTO_BERRY)",
+        "note": "a Chesto Berry holder eats it when the sleep is applied"
+      },
+      {
+        "id": "sleep-end",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          797,
+          797
+        ],
+        "symbol": "Status.updateSleep",
+        "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+        "note": "after sleep ends a ccCooldown blocks new sleep / freeze"
+      },
+      {
+        "id": "red-water",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          459,
+          459
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+        "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+      },
+      {
+        "id": "red-odd",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1301,
+          1301
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+        "note": "Odd Keystone: -10% per stone"
+      },
+      {
+        "id": "cc-cd",
+        "file": "app/config/game/game.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "CC_COOLDOWN",
+        "expect": "export const CC_COOLDOWN = 1500",
+        "note": ""
+      },
+      {
+        "id": "rage-sleep",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          368,
+          368
+        ],
+        "symbol": "Status.triggerRage",
+        "expect": "this.sleepCooldown = Math.floor(this.sleepCooldown * 0.5)",
+        "note": "becoming enraged halves the remaining sleep time"
+      },
+      {
+        "id": "sleep-nomove",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          233,
+          233
+        ],
+        "symbol": "PokemonEntity.canMove / canAttack",
+        "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE) &&",
+        "note": "a sleeping unit (except COMATOSE) can neither move nor attack"
+      },
+      {
+        "id": "sleep-nododge",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          105,
+          105
+        ],
+        "symbol": "PokemonState.handleAttack",
+        "expect": "!target.status.sleep &&",
+        "note": "a sleeping target cannot dodge an attack"
+      },
+      {
+        "id": "unit-munna",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          7877,
+          7896
+        ],
+        "symbol": "class Munna",
+        "expect": "skill = Ability.MOON_DREAM",
+        "note": "unit class block: skill / passive / stars / stats"
+      },
+      {
+        "id": "unit-musharna",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          7898,
+          7916
+        ],
+        "symbol": "class Musharna",
+        "expect": "skill = Ability.MOON_DREAM",
+        "note": "unit class block: skill / passive / stars / stats"
+      }
+    ]
+  }
+}
