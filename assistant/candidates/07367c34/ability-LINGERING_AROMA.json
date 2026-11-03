@@ -1,0 +1,661 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/LINGERING_AROMA",
+ "kind": "ability",
+ "identifier": "LINGERING_AROMA",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T063943Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare LINGERING_AROMA: Lechonk (1 star) and Oinkologne (male form, 2 stars). The strategy is shared; unit differences are the star count, range and maxPP. Units not listed are not covered.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.LINGERING_AROMA] = new LingeringAromaStrategy()",
+   "strategy": "LingeringAromaStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "la-class",
+    "la-super"
+   ]
+  },
+  "summary": "A self effect: the cast spends maxPP and adds an OnAttackReceivedEffect to the caster that is removed 5000 ms later by a DelayedCommand. While it exists, whenever an attacker that is exactly 1 cell away (Chebyshev distance, so adjacent including diagonals) finishes a basic attack on the holder, that attacker takes SPECIAL damage (raw 10/20/30/60 by the caster's stars, AP-scaled from the holder's AP at that moment) and a request to lose 5 PP. The retaliation is evaluated in PokemonEntity.onAttack, which the attack code calls after every attack, so it also runs when the attack was dodged or blocked. The cast target is not used.",
+  "targeting": {
+   "who": "self-cast; the retaliation hits each adjacent (distance 1) unit that makes a basic attack on the holder during the window",
+   "needsTarget": true,
+   "note": "The ability still requires a target to be cast (requiresTarget keeps its default true) but never reads it. The retaliation check is distanceC(attacker, holder) === 1, not a team check: the effect is only reached through attacks aimed at the holder. Ranged attackers standing 2+ cells away are not punished; a ranged attacker standing adjacent is.",
+   "evidence": [
+    "la-super",
+    "la-new",
+    "la-dist",
+    "la-eq1",
+    "oar-call",
+    "onatk-call"
+   ]
+  },
+  "geometry": {
+   "shape": "no area at cast; the trigger test is Chebyshev distance exactly 1 between the attacker and the holder at the moment the attack's onAttack runs",
+   "evidence": [
+    "la-dist",
+    "la-eq1"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each attacker that makes a basic attack on the holder from distance 1 while the effect lasts",
+    "declaredRaw": {
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 30,
+      "4": 60,
+      "fallback": 60
+     },
+     "label": "requested retaliation damage (raw) per qualifying attack"
+    },
+    "perUnitRaw": {
+     "LECHONK": 10,
+     "OINKOLOGNE_MALE": 20
+    },
+    "scaling": "requested = table[stars-1] (stars of the caster). attacker.handleSpecialDamage(damage, board, SPECIAL, holder, crit, true): x (1 + holder AP / 100) with the holder's AP read when the retaliation fires (apBoost true); the `crit` argument is the boolean captured when the ability was cast (not re-rolled): if that cast crit (canCritByDefault false, so only with ABILITY_CRIT) every retaliation of that cast gets x critPower (reduced by the victim's Rocky Helmet / Black Augurite); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "requested vs applied vs taken: applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef of the attacker), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned values are not used. Several qualifying attacks in the window each trigger it; a second cast adds a second independent effect object, so while both exist each qualifying attack triggers both.",
+    "evidence": [
+     "la-table",
+     "la-hit",
+     "la-eq1",
+     "oar-call",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "pp-loss",
+    "target": "the same attacker",
+    "declaredRaw": {
+     "amount": -5,
+     "label": "requested PP change on the attacker"
+    },
+    "perUnitRaw": {
+     "LECHONK": -5,
+     "OINKOLOGNE_MALE": -5
+    },
+    "scaling": "none from stars, AP or crit: addPP(-5, holder, apBoost 0, crit false), so the AP term is multiplied by 0",
+    "resolution": "requested -5; applied = requested after addPP: the Twist Band helper flips a negative change from another team into +5 for an attacker holding a Twist Band (the attacker gains 5 PP); no PP is lost while the attacker has the `tree` status (the change is skipped entirely); the result is clamped to 0..(2 x maxPP - 1). Big Eater Belt scaling does not apply because addPP uses only applyTwistBandBuff. Fatigue only halves positive values.",
+    "evidence": [
+     "la-pp",
+     "addpp",
+     "addpp-round",
+     "addpp-gate",
+     "addpp-clamp",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "effectLifetime": {
+   "durationMs": 5000,
+   "note": "An OnAttackReceivedEffect added to the caster effectsSet at cast time; a DelayedCommand with delay 5000 deletes it. SimulationCommand.update counts the delay down by dt and runs the function once the delay is below 0, so the removal happens on the first simulation update after the 5000 ms have fully elapsed. onAttack asks the holder for all OnAttackReceivedEffect instances (getEffects, sorted by priority) after each attack.",
+   "evidence": [
+    "la-dur",
+    "la-add",
+    "la-cmd",
+    "la-del",
+    "oar-class",
+    "get-eff",
+    "delayed",
+    "cmd-update"
+   ]
+  },
+  "starBehavior": {
+   "unitStars": {
+    "LECHONK": 1,
+    "OINKOLOGNE_MALE": 2
+   },
+   "declaredRawDamage": {
+    "LECHONK": 10,
+    "OINKOLOGNE_MALE": 20
+   },
+   "note": "Only the retaliation damage is indexed by the casting entity's stars (read when the ability is cast and captured in the effect); duration (5000 ms) and the PP loss (5) are fixed. The 3-star (30) and 4-star (60, also the ?? fallback) values are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "la-table",
+    "unit-lechonk",
+    "unit-oinkologne_male"
+   ]
+  },
+  "positionalConditions": "The trigger needs distanceC(attacker, holder) === 1 at the time of the received attack; the holder's position is read from the holder's current coordinates then, not the cast-time position.",
+  "repeatedCastsAndModes": "No modes. Each cast spends maxPP and creates a new effect object with its own 5000 ms removal; casts are not merged or refreshed, so overlapping casts stack (each retaliates separately). The damage value and crit flag are fixed per cast; the holder's AP is read at trigger time. If the holder dies, the effect belongs to the dead entity; what happens to it was not traced.",
+  "rawVsResolved": "Requested: damage 10 (Lechonk 1 star) / 20 (Oinkologne male 2 stars) per qualifying attack and -5 PP, for 5000 ms. Applied damage = requested x (1 + holder AP/100) x optional cast-time crit / double-damage / steam multipliers, then the attacker's SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied PP change = -5 unless Twist Band (becomes +5), the tree status (no change) or the 0..2 x maxPP - 1 clamp intervene.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether every attack path (not only PokemonState.attack) calls onAttack - only the call after the basic-attack damage was read",
+   "How the simulation steps commands and entities: the exact removal time of the effect and what happens to commands of a dead entity were not traced",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read"
+  ],
+  "unresolved": [
+   "The ability's in-game text speaks of 'melee' attacks; the code tests Chebyshev distance 1 instead, which also admits adjacent ranged attackers and excludes melee attackers that are somehow farther than 1 (reading only, not a claim about intent)",
+   "The retaliation runs from onAttack, which executes also for dodged / blocked attacks (see onatk-call); whether any earlier return in the attack routine prevents the call for particular attack kinds was not enumerated",
+   "Behaviour of the effect when the holder dies or is removed before the 5000 ms elapse",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "LINGERING_AROMA",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "LECHONK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "LINGERING_AROMA",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "OINKOLOGNE_MALE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "LINGERING_AROMA",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LECHONK": {
+    "evidence": [
+     "unit-lechonk"
+    ]
+   },
+   "OINKOLOGNE_MALE": {
+    "evidence": [
+     "unit-oinkologne_male"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-lechonk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20166,
+     20184
+    ],
+    "symbol": "class Lechonk",
+    "expect": "skill = Ability.LINGERING_AROMA",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-oinkologne_male",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20186,
+     20203
+    ],
+    "symbol": "class OinkologneMale",
+    "expect": "skill = Ability.LINGERING_AROMA",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1009,
+     1009
+    ],
+    "symbol": "AbilityStrategies[Ability.LINGERING_AROMA]",
+    "expect": "[Ability.LINGERING_AROMA]: new LingeringAromaStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "la-class",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "LingeringAromaStrategy",
+    "expect": "export class LingeringAromaStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "la-super",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default animation broadcast; spends maxPP; the cast target is not used afterwards"
+   },
+   {
+    "id": "la-dur",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "const duration = 5000",
+    "note": "effect lifetime 5000 ms"
+   },
+   {
+    "id": "la-table",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "const damage = [10, 20, 30, 60][pokemon.stars - 1] ?? 60",
+    "note": "retaliation damage table by stars"
+   },
+   {
+    "id": "la-new",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "const lingeringAromaEffect = new OnAttackReceivedEffect(",
+    "note": "new effect object per cast"
+   },
+   {
+    "id": "la-dist",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "attacker.positionX,",
+    "note": "distanceC(attacker, holder) === 1 is the 'melee' test (Chebyshev, adjacent incl. diagonal)"
+   },
+   {
+    "id": "la-eq1",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": ") === 1",
+    "note": "condition: attacker exactly 1 cell away"
+   },
+   {
+    "id": "la-hit",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "attacker.handleSpecialDamage(",
+    "note": "SPECIAL damage to the attacker, attacker argument = the aroma holder; crit is the value captured at cast time; apBoost true"
+   },
+   {
+    "id": "la-pp",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "attacker.addPP(-5, pokemon, 0, false)",
+    "note": "requests -5 PP on the attacker; apBoost 0 (no AP scaling), crit false"
+   },
+   {
+    "id": "la-add",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "pokemon.effectsSet.add(lingeringAromaEffect)",
+    "note": "effect registered on the caster"
+   },
+   {
+    "id": "la-cmd",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     48,
+     48
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "new DelayedCommand(() => {",
+    "note": "removal scheduled after `duration` ms"
+   },
+   {
+    "id": "la-del",
+    "file": "app/core/abilities/lingering-aroma.ts",
+    "lines": [
+     49,
+     49
+    ],
+    "symbol": "LingeringAromaStrategy.process",
+    "expect": "pokemon.effectsSet.delete(lingeringAromaEffect)",
+    "note": "effect removed when the delay elapses"
+   },
+   {
+    "id": "oar-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     388,
+     388
+    ],
+    "symbol": "OnAttackReceivedEffect",
+    "expect": "export class OnAttackReceivedEffect extends Effect",
+    "note": "args carry pokemon (holder), attacker, board, damages, crit of the received attack"
+   },
+   {
+    "id": "oar-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     953,
+     953
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "target.getEffects(OnAttackReceivedEffect).forEach((effect) => {",
+    "note": "run for every OnAttackReceivedEffect of the target after an attack; onAttack's own comment: 'called after every attack, no matter if it's successful or not'"
+   },
+   {
+    "id": "onatk-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     284,
+     284
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "pokemon.onAttack({",
+    "note": "called unconditionally after damage resolution, also when the attack was dodged or blocked by protect / skydiving"
+   },
+   {
+    "id": "get-eff",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1793,
+     1793
+    ],
+    "symbol": "PokemonEntity.getEffects",
+    "expect": "getEffects<T extends new (...args: any[]) => any>(",
+    "note": "returns every effect of that class in effectsSet, sorted by priority"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Twist Band flips a negative PP change coming from an enemy-team caster"
+   },
+   {
+    "id": "addpp-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     515,
+     515
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "baseValue *",
+    "note": "value = round(base x (1 + apBoost x caster.ap/100) x crit factor x fatigue factor (positive values only))"
+   },
+   {
+    "id": "addpp-gate",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     528,
+     528
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree) // cannot lose PP if tree",
+    "note": "no PP loss while the unit has the `tree` status; also no change while resurrecting"
+   },
+   {
+    "id": "addpp-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     530,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "result clamped to 0..2 x maxPP - 1"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1864,
+     1864
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "negative value from another team becomes positive for a Twist Band holder"
+   },
+   {
+    "id": "delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": "executes its function once its delay has been counted down below 0"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "fires when delay < 0"
+   }
+  ]
+ }
+}
