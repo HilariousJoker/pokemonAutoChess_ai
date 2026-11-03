@@ -1,0 +1,566 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/MAGIC_BOUNCE",
+ "kind": "ability",
+ "identifier": "MAGIC_BOUNCE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261103T124056Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare MAGIC_BOUNCE: Natu (1 star) and Xatu (2 stars); both maxPP 70, range 2, no passive. The strategy is shared; the only unit difference is the star count, which sets the bounce factor when the status later bounces damage.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.MAGIC_BOUNCE] = new MagicBounceStrategy()",
+   "strategy": "MagicBounceStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-mb",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "mb-class",
+    "mb-req",
+    "mb-super"
+   ]
+  },
+  "summary": "Needs no target. The cast itself only spends PP and gives the caster the magicBounce status for 5000 ms (the cooldown is only ever raised, never shortened). While the status is set, any handleSpecialDamage call against the holder is blocked completely: no damage, takenDamage 0, no death, spellBlockedCount incremented. If the blocked hit was of attack type SPECIAL with damage > 0 and the attacker does not hold Protective Pads, a bounce is queued 500 ms later: the attacker takes round(factor x incoming damage x (1 + holder AP/100) x holder critPower if the bounce crits) as SPECIAL damage, factor 0.5 / 1 / 2 / 4 by the holder's stars (Natu 1 star: 0.5, Xatu 2 stars: 1). The bounce is flagged isRetaliation so two bouncing units cannot loop. The cast deals no damage by itself.",
+  "targeting": {
+   "who": "the caster only (self status); the bounce later targets the attacker whose special damage was blocked",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so process runs with target null and the strategy never reads a target.",
+   "evidence": [
+    "mb-req",
+    "mb-trigger",
+    "hsd-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "none (self status; the bounce is single-target against the original attacker, at any distance)",
+   "evidence": [
+    "mb-trigger",
+    "hsd-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "caster",
+    "declaredRaw": {
+     "magicBounceMs": 5000
+    },
+    "scaling": "none; duration is a fixed 5000 ms, not scaled by AP or stars",
+    "resolution": "triggerMagicBounce(5000): sets magicBounce = true and raises magicBounceCooldown to 5000 only if 5000 is larger than the current cooldown (a longer existing cooldown, e.g. 10000 from a Rowap Berry, is kept). Status.update ticks the cooldown while the flag is set; the flag clears when cooldown - dt <= 0.",
+    "evidence": [
+     "mb-trigger",
+     "trig-fn",
+     "trig-cd",
+     "upd-fn",
+     "upd-call"
+    ]
+   },
+   {
+    "kind": "damage-block",
+    "target": "holder (incoming special damage)",
+    "declaredRaw": {
+     "blocks": "every handleSpecialDamage call while magicBounce is set (as with protect and skydiving)"
+    },
+    "scaling": "none",
+    "resolution": "the call returns { death: false, takenDamage: 0 } and increments spellBlockedCount. Applied change to HP: none. Requested incoming damage is discarded before any defense, shield or minimum-of-1 step (handleDamage is not reached for the blocked hit).",
+    "evidence": [
+     "hsd-guard",
+     "hsd-block",
+     "hsd-ret"
+    ]
+   },
+   {
+    "kind": "damage-reflect",
+    "target": "the attacker of a blocked SPECIAL hit",
+    "declaredRaw": {
+     "factorByStars": {
+      "1": 0.5,
+      "2": 1,
+      "3": 2,
+      "4": 4,
+      "fallback": 4
+     },
+     "delayMs": 500
+    },
+    "perUnitRaw": {
+     "NATU": 0.5,
+     "XATU": 1
+    },
+    "scaling": "requested = round(factor[holder stars] x blocked damage x (1 + holder AP/100) x (bounce crit ? holder critPower : 1)). The blocked damage is the damage argument of handleSpecialDamage as passed in (it may itself already be scaled by the original attacker or ability). Bounce crit = the incoming crit flag, or the holder has ABILITY_CRIT and wins a critChance roll. Applied: the attacker's handleDamage resolves it as SPECIAL damage (special defense, shields, minimum 1, takenDamage including shield damage) per core-mechanics section A; this record did not re-trace those steps.",
+    "resolution": "requires attackType SPECIAL, damage > 0, a non-null attacker and no PROTECTIVE_PADS on the attacker; otherwise the hit is blocked with no bounce. Executed by a DelayedCommand after 500 ms with isRetaliation true, so the attacker's own reflect/bounce does not answer it. The holder is the attacker of record.",
+    "evidence": [
+     "hsd-cond",
+     "hsd-pads",
+     "hsd-delay",
+     "hsd-crit",
+     "hsd-formula",
+     "hsd-table",
+     "hsd-hit",
+     "hsd-retal"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "magicBounce on the caster for 5000 ms (extended only, never shortened)",
+    "evidence": [
+     "mb-trigger",
+     "trig-fn",
+     "trig-cd"
+    ]
+   },
+   {
+    "effect": "magicBounce is removed early when the holder is hit by BRICK_BREAK, RAGING_BULL or SHADOW_FORCE (they clear flag and cooldown); FOCUS_PUNCH does not eject a holder",
+    "evidence": [
+     "brick",
+     "bull",
+     "shadow",
+     "focus",
+     "rowap"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NATU": 1,
+    "XATU": 2
+   },
+   "bounceFactorByStars": {
+    "NATU": 0.5,
+    "XATU": 1
+   },
+   "note": "the cast and its 5000 ms duration are identical at every star count; only the bounce factor depends on the holder's stars (0.5 / 1 / 2 / 4, fallback 4). 3 and 4 stars are not reached at these units' factory star counts; whether other mechanics change a star count was not examined.",
+   "evidence": [
+    "hsd-table",
+    "unit-natu",
+    "unit-xatu"
+   ]
+  },
+  "positionalConditions": "None for the cast. The bounce reaches the original attacker wherever it stands.",
+  "repeatedCastsAndModes": "No stored mode. Recasting while the status is active keeps the larger of the current cooldown and 5000 (so it effectively refreshes to 5000 if less remained). The same status can also come from the Rowap Berry (10000 ms) and is removed by the three abilities listed.",
+  "rawVsResolved": "Declared raw: status duration 5000 ms; bounce factor 0.5 (Natu) / 1 (Xatu) of the blocked damage. Requested bounce = round(factor x blocked damage x (1 + AP/100) x crit factor). Applied to the attacker only after its handleDamage steps (special defense, shields, minimum 1); the holder takes 0 from the blocked hit. The blocked damage is the value at the handleSpecialDamage call, i.e. before the holder's defenses, since the block happens first.",
+  "sourceTables": [
+   {
+    "id": "bounce-factor",
+    "file": "app/core/pokemon-entity.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[this\\.stars - 1\\] \\?\\? 4\\)",
+    "recordPath": "effects.2.declaredRaw.factorByStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution of the cast - the strategy cannot crit by default and does not use the crit flag; only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Resolution of the bounce damage inside the attacker's handleDamage (defenses, shields, minimum 1) - covered by the shared core-mechanics reference, not re-traced here",
+   "Which callers route their damage through handleSpecialDamage with attackType SPECIAL (physical auto-attacks use handleDamage and the separate reflect status; not traced per ability)"
+  ],
+  "unresolved": [
+   "Which abilities and effects call handleSpecialDamage on the holder with a non-SPECIAL attack type (e.g. TRUE damage): the block applies to all of them but the bounce only to SPECIAL; the callers were not enumerated",
+   "Whether a blocked hit's damage passed in has already included the original attacker's AP: handleSpecialDamage scales by attacker.ap only in the non-blocked branch, so the bounce uses the unscaled argument (read from the code, not tested)",
+   "The queued 500 ms DelayedCommand may fire after the holder or attacker has died or the fight ended; not traced",
+   "Whether the three Natu/Xatu star counts ever differ from the factory values",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "MAGIC_BOUNCE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "NATU",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "MAGIC_BOUNCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "XATU",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 2,
+    "declaredSkill": "MAGIC_BOUNCE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NATU": {
+    "evidence": [
+     "unit-natu"
+    ]
+   },
+   "XATU": {
+    "evidence": [
+     "unit-xatu"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-mb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1018,
+     1018
+    ],
+    "symbol": "AbilityStrategies[Ability.MAGIC_BOUNCE]",
+    "expect": "[Ability.MAGIC_BOUNCE]: new MagicBounceStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "mb-class",
+    "file": "app/core/abilities/magic-bounce.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MagicBounceStrategy",
+    "expect": "export class MagicBounceStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "mb-req",
+    "file": "app/core/abilities/magic-bounce.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "MagicBounceStrategy",
+    "expect": "requiresTarget = false",
+    "note": "castable without walking to a target; process receives target null"
+   },
+   {
+    "id": "mb-super",
+    "file": "app/core/abilities/magic-bounce.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "MagicBounceStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "mb-trigger",
+    "file": "app/core/abilities/magic-bounce.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "MagicBounceStrategy.process",
+    "expect": "pokemon.status.triggerMagicBounce(5000)",
+    "note": "the only effect: the caster gets the magicBounce status for 5000 ms"
+   },
+   {
+    "id": "trig-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1011,
+     1016
+    ],
+    "symbol": "Status.triggerMagicBounce",
+    "expect": "this.magicBounce = true",
+    "note": "sets the flag; the cooldown is raised to the timer only if the timer is larger than the current cooldown (never shortened)"
+   },
+   {
+    "id": "trig-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1013,
+     1015
+    ],
+    "symbol": "Status.triggerMagicBounce cooldown",
+    "expect": "if (timer > this.magicBounceCooldown)",
+    "note": ""
+   },
+   {
+    "id": "upd-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1018,
+     1024
+    ],
+    "symbol": "Status.updateMagicBounce",
+    "expect": "if (this.magicBounceCooldown - dt <= 0)",
+    "note": "flag cleared when the remaining cooldown would reach 0; otherwise the cooldown ticks down"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     303,
+     305
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateMagicBounce(dt)",
+    "note": "ticked every status update while the flag is set"
+   },
+   {
+    "id": "hsd-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage guard",
+    "expect": "this.status.magicBounce",
+    "note": "protect, skydiving or magicBounce each block the whole special-damage call"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     359,
+     359
+    ],
+    "symbol": "handleSpecialDamage block",
+    "expect": "this.count.spellBlockedCount++",
+    "note": "blocked calls increment spellBlockedCount"
+   },
+   {
+    "id": "hsd-cond",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     366
+    ],
+    "symbol": "handleSpecialDamage bounce condition",
+    "expect": "attackType === AttackType.SPECIAL",
+    "note": "bounce needs magicBounce, SPECIAL attack type, damage > 0, an attacker without PROTECTIVE_PADS"
+   },
+   {
+    "id": "hsd-pads",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     365,
+     365
+    ],
+    "symbol": "handleSpecialDamage pads",
+    "expect": "!attacker.items.has(Item.PROTECTIVE_PADS)",
+    "note": "attacker holding Protective Pads receives no bounce (damage is still blocked)"
+   },
+   {
+    "id": "hsd-delay",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     367,
+     395
+    ],
+    "symbol": "handleSpecialDamage delayed bounce",
+    "expect": "new DelayedCommand(() => {",
+    "note": "bounce is queued as a command executed after 500 ms"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     369,
+     372
+    ],
+    "symbol": "handleSpecialDamage bounce crit",
+    "expect": "this.effects.has(EffectEnum.ABILITY_CRIT)",
+    "note": "bounce crit = the incoming crit flag, or (holder has ABILITY_CRIT and wins a critChance roll)"
+   },
+   {
+    "id": "hsd-formula",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     373,
+     378
+    ],
+    "symbol": "handleSpecialDamage bounce amount",
+    "expect": "([0.5, 1, 2, 4][this.stars - 1] ?? 4) *",
+    "note": "amount = round(factor[stars] x damage x (1 + holder AP/100) x (bounceCrit ? holder critPower : 1))"
+   },
+   {
+    "id": "hsd-table",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     374,
+     374
+    ],
+    "symbol": "bounce star factor table",
+    "expect": "[0.5, 1, 2, 4][this.stars - 1] ?? 4",
+    "note": "factor by the holder's stars; fallback 4"
+   },
+   {
+    "id": "hsd-hit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     386,
+     393
+    ],
+    "symbol": "handleSpecialDamage bounce hit",
+    "expect": "attacker.handleDamage({",
+    "note": "delivered with attackType SPECIAL, attacker = the holder, isRetaliation true"
+   },
+   {
+    "id": "hsd-retal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "handleSpecialDamage retaliation flag",
+    "expect": "isRetaliation: true",
+    "note": "marked retaliation to avoid infinite loops between two magic bounces"
+   },
+   {
+    "id": "hsd-ret",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     397,
+     397
+    ],
+    "symbol": "handleSpecialDamage blocked result",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "blocked call reports takenDamage 0, no death"
+   },
+   {
+    "id": "brick",
+    "file": "app/core/abilities/brick-break.ts",
+    "lines": [
+     24,
+     27
+    ],
+    "symbol": "BrickBreak removes magic bounce",
+    "expect": "target.status.magicBounce = false",
+    "note": "BRICK_BREAK clears magicBounce and its cooldown on its target"
+   },
+   {
+    "id": "bull",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     20,
+     21
+    ],
+    "symbol": "RagingBull removes magic bounce",
+    "expect": "target.status.magicBounce = false",
+    "note": "RAGING_BULL clears magicBounce and cooldown on its target"
+   },
+   {
+    "id": "shadow",
+    "file": "app/core/abilities/shadow-force.ts",
+    "lines": [
+     57,
+     59
+    ],
+    "symbol": "ShadowForce removes magic bounce",
+    "expect": "enemy.status.magicBounce = false",
+    "note": "SHADOW_FORCE clears magicBounce on enemies"
+   },
+   {
+    "id": "focus",
+    "file": "app/core/abilities/focus-punch.ts",
+    "lines": [
+     45,
+     45
+    ],
+    "symbol": "FocusPunch ejection guard",
+    "expect": "!target.status.magicBounce &&",
+    "note": "a magicBounce target is not ejected by FOCUS_PUNCH"
+   },
+   {
+    "id": "rowap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1659,
+     1661
+    ],
+    "symbol": "Rowap berry",
+    "expect": "this.status.triggerMagicBounce(10000)",
+    "note": "another source of the same status (item, 10000 ms), not part of this ability"
+   },
+   {
+    "id": "unit-natu",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8853,
+     8867
+    ],
+    "symbol": "class Natu",
+    "expect": "skill = Ability.MAGIC_BOUNCE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-xatu",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8868,
+     8881
+    ],
+    "symbol": "class Xatu",
+    "expect": "skill = Ability.MAGIC_BOUNCE",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
