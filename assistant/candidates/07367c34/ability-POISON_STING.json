@@ -1,0 +1,612 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POISON_STING",
+ "kind": "ability",
+ "identifier": "POISON_STING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T123936Z"
+ },
+ "record": {
+  "ability": "POISON_STING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SKORUPI and DRAPION declare ability POISON_STING (passive NONE in the catalog). The strategy is shared; differences are stars and stats. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "SKORUPI",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_STING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DRAPION",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_STING",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SKORUPI": {
+    "evidence": [
+     "unit-skorupi"
+    ]
+   },
+   "DRAPION": {
+    "evidence": [
+     "unit-drapion"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POISON_STING] = new PoisonStingStrategy()",
+   "strategy": "PoisonStingStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ps",
+    "ps-class",
+    "base-flags",
+    "base-pp",
+    "ps-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-target poison burst with overflow damage. The strategy reads the caster's stack cap (3, 4 with VENOMOUS, 5 with TOXIC), the number of stacks to apply by caster stars (2 for SKORUPI, 3 for DRAPION) and the target's CURRENT poison stacks, and computes extraDamage = (current + requested - cap) x [25,50] raw per overflowing stack (25 for stars 1, 50 for stars 2) if that is positive, otherwise 0. All of this is decided BEFORE applying anything. It then calls triggerPoison(4000 ms, target, caster) once per requested stack, then, if extraDamage > 0, deals that amount as SPECIAL damage. There is no damage when the stacks all fit under the cap. Requested amounts: stacks 2/3, overflow damage raw 25/50 per excess stack; applied: each triggerPoison call can be refused (target IMMUNITY_POISON or Rune Protect: then no stack is added but the overflow damage is STILL computed from the pre-cast stacks and dealt), the stack count is capped by triggerPoison's own cap (same value as the local one because the origin is the caster), a Pecha Berry holder eats the berry on the first call and ends with 0 stacks and IMMUNITY_POISON (overflow damage still dealt), and the overflow damage then passes AP, crit, SPE_DEF division and protect/skydiving/magicBounce.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target); only that entity",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "ps-class",
+    "base-flags",
+    "ps-cur",
+    "ps-loop",
+    "ps-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "ps-loop"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (overflow)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "perExcessStackByStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 150,
+      "fallback": 150
+     },
+     "formula": "(currentStacks + nbStacksToApply - maxStacks) x per-stack value, only if positive"
+    },
+    "perUnitRaw": {
+     "SKORUPI": 25,
+     "DRAPION": 50
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false). The number of excess stacks does not depend on AP.",
+    "resolution": "Requested amount = excess x table value, computed from the target's stacks BEFORE the poison calls; zero excess means no damage call at all. Applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps; handleSpecialDamage returns takenDamage 0 and deals nothing if the target is protected, skydiving or has magicBounce (the poison calls are not blocked by that). The excess does not shrink when triggerPoison refuses a stack (immunity, Rune Protect) because it is not recomputed. Example from the formula only: SKORUPI (cap 3, 2 stacks) on a target with 2 stacks -> excess 1 -> 25 raw; with 1 stack -> 0; DRAPION (3 stacks) on 3 stacks -> excess 3 -> 150 raw.",
+    "evidence": [
+     "ps-cap",
+     "ps-n",
+     "ps-cur",
+     "ps-extra",
+     "ps-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison",
+    "target": "the cast target",
+    "declaredRaw": {
+     "requestedStacksByStars": {
+      "1": 2,
+      "2": 3,
+      "3": 4,
+      "4": 5,
+      "fallback": 5
+     },
+     "durationMsPerCall": 4000
+    },
+    "perUnitRaw": {
+     "SKORUPI": {
+      "stars": 1,
+      "requestedStacks": 2,
+      "durationMs": 4000
+     },
+     "DRAPION": {
+      "stars": 2,
+      "requestedStacks": 3,
+      "durationMs": 4000
+     }
+    },
+    "scaling": "none: stack count and 4000 ms are not scaled by AP, crit or stars beyond the table",
+    "applicationOrder": "after super.process and the local reading of the stacks, one triggerPoison call per requested stack, then the overflow damage",
+    "guards": "each triggerPoison call is evaluated on its own. A call does nothing if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect (the check is the same in every call, so the whole sequence has no effect). When a call applies: poisonOrigin = caster; stacks + 1 capped at 3 (4 with VENOMOUS, 5 with TOXIC on the caster); the 4000 ms passes through the TARGET's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE) and the timer is replaced only if longer; a PECHA_BERRY holder eats the berry inside the call (eatBerry: stacks 0, IMMUNITY_POISON added), so the remaining calls do nothing and the holder ends with 0 stacks. Other side reactions (GUTS / TOXIC_BOOST attack bonus) are in the SLUDGE candidate and were not re-read.",
+    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms: 5% of max HP per stack (modifiers: rain, Assault Vest, TOXIC_BOOST, water-type reductions, see the SLUDGE candidate), TRUE damage with the poison origin as attacker.",
+    "evidence": [
+     "ps-n",
+     "ps-loop",
+     "poison-trig",
+     "poison-guard",
+     "poison-max",
+     "poison-origin",
+     "poison-add",
+     "poison-dur",
+     "poison-longer",
+     "reductions",
+     "poison-berry",
+     "pecha-case",
+     "tick",
+     "tick-period"
+    ],
+    "perUnitRequestedStacks": {
+     "SKORUPI": 2,
+     "DRAPION": 3
+    }
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "SKORUPI": 1,
+    "DRAPION": 2
+   },
+   "requestedStacks": {
+    "SKORUPI": 2,
+    "DRAPION": 3
+   },
+   "overflowPerExcessStackRaw": {
+    "SKORUPI": 25,
+    "DRAPION": 50
+   },
+   "note": "indexed by the casting entity's stars; entries 3 (4 stacks, 100) and 4 (5 stacks, 150, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 100 and range 1 for both. The 4000 ms duration does not depend on stars.",
+   "evidence": [
+    "ps-n",
+    "ps-extra",
+    "unit-skorupi",
+    "unit-drapion"
+   ]
+  },
+  "positionalConditions": "None in the strategy; the overflow depends only on the target's pre-cast stacks and the caster's cap.",
+  "repeatedCastsAndModes": "No stored state and no modes. Each cast applies the stacks again; once the target is at the cap, every cast makes the full requested number overflow (stacks x per-stack value).",
+  "rawVsResolved": "Declared raw: 2/3 stacks (Skorupi/Drapion) of 4000 ms, overflow 25/50 per excess stack. Stacks end at min(cap, current + requested) if no immunity/Rune Protect/Pecha Berry applies; overflow damage = excess x table x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1), 0 if blocked or if excess is 0. The excess is not reduced by refused stacks.",
+  "sourceTables": [
+   {
+    "id": "poisonStingStacks",
+    "file": "app/core/abilities/poison-sting.ts",
+    "pattern": "const nbStacksToApply = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.requestedStacksByStars",
+    "unitValuesPath": "statusEffects.0.perUnitRequestedStacks"
+   },
+   {
+    "id": "poisonStingOverflow",
+    "file": "app/core/abilities/poison-sting.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.perExcessStackByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multipliers were read"
+  ],
+  "unresolved": [
+   "Poison side reactions (GUTS / TOXIC_BOOST attack bonus) and the other poison-tick modifiers were taken from the SLUDGE candidate, not re-read",
+   "Whether the local maxStacks and triggerPoison's own cap can ever differ: both read VENOMOUS/TOXIC on the caster (the origin passed is the caster), so by the code read they are equal",
+   "Pecha Berry removal and IMMUNITY_POISON lifetime were read only via eatBerry lines 1641-1647",
+   "Resurrection and other death-cancelling effects on the target are not enumerated",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-skorupi",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16705,
+     16719
+    ],
+    "symbol": "class Skorupi",
+    "expect": "skill = Ability.POISON_STING",
+    "note": "unit class block: skill / stars / stats (no passive line)"
+   },
+   {
+    "id": "unit-drapion",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16721,
+     16734
+    ],
+    "symbol": "class Drapion",
+    "expect": "skill = Ability.POISON_STING",
+    "note": "unit class block: skill / stars / stats (no passive line)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ps",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1083,
+     1083
+    ],
+    "symbol": "AbilityStrategies[Ability.POISON_STING]",
+    "expect": "[Ability.POISON_STING]: new PoisonStingStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ps-class",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "PoisonStingStrategy",
+    "expect": "class PoisonStingStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden (true / false)"
+   },
+   {
+    "id": "ps-super",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ps-cap",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     15,
+     21
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "if (pokemon.effects.has(EffectEnum.VENOMOUS)) {",
+    "note": "local maxStacks: 3, 4 with VENOMOUS, 5 with TOXIC on the caster"
+   },
+   {
+    "id": "ps-n",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "const nbStacksToApply = [2, 3, 4, 5][pokemon.stars - 1] ?? 5",
+    "note": "requested stacks by caster stars"
+   },
+   {
+    "id": "ps-cur",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "const currentStacks = target.status.poisonStacks",
+    "note": "read BEFORE any triggerPoison call"
+   },
+   {
+    "id": "ps-extra",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     25,
+     29
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "([25, 50, 100, 150][pokemon.stars - 1] ?? 150)",
+    "note": "overflow damage = (current + requested - cap) x per-stack table, computed before applying"
+   },
+   {
+    "id": "ps-loop",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     30,
+     32
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "target.status.triggerPoison(4000, target, pokemon)",
+    "note": "requested-stack calls of 4000 ms each"
+   },
+   {
+    "id": "ps-hit",
+    "file": "app/core/abilities/poison-sting.ts",
+    "lines": [
+     33,
+     41
+    ],
+    "symbol": "PoisonStingStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "only if extraDamage > 0, after the poison calls"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "POISON_STING does not set canCritByDefault: crit is rolled only with ABILITY_CRIT"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the overflow damage only"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "triggerPoison(",
+    "note": ""
+   },
+   {
+    "id": "poison-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     578
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "default cap 3; origin VENOMOUS 4, TOXIC 5 (same rule as the local cap)"
+   },
+   {
+    "id": "poison-origin",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     580,
+     580
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonOrigin = origin",
+    "note": ""
+   },
+   {
+    "id": "poison-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "one stack per call, capped"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "poison-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     592,
+     592
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "if (duration > this.poisonCooldown) {",
+    "note": "the timer is replaced only if longer"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "poison-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     611,
+     613
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "a Pecha Berry holder eats it inside the call that applies poison"
+   },
+   {
+    "id": "pecha-case",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1641,
+     1647
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.status.poisonStacks = 0",
+    "note": "Pecha Berry: stacks 0, IMMUNITY_POISON added, so later calls do nothing"
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick: 5% max HP per stack (further modifiers: see the SLUDGE candidate)"
+   },
+   {
+    "id": "tick-period",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     668,
+     668
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "this.poisonDamageCooldown = 1000",
+    "note": "tick every 1000 ms"
+   }
+  ]
+ }
+}
