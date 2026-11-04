@@ -1,0 +1,520 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PAYDAY",
+ "kind": "ability",
+ "identifier": "PAYDAY",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T064116Z"
+ },
+ "record": {
+  "ability": "PAYDAY",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PAYDAY (passive NONE). Alolan Meowth/Persian use PICKUP, a different ability, and are not covered.",
+  "appliesTo": [
+   {
+    "key": "MEOWTH",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PAYDAY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PERSIAN",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PAYDAY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MEOWTH": {
+    "evidence": [
+     "unit-meowth"
+    ]
+   },
+   "PERSIAN": {
+    "evidence": [
+     "unit-persian"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PAYDAY] = new PaydayStrategy()",
+   "strategy": "PaydayStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-payday",
+    "pd-class",
+    "base-flags",
+    "base-pp",
+    "pd-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage of floor(flat x (2 + AP/100)) where flat is 15 / 30 / 60 / 120 by stars (fallback 120); AP is already inside that amount, so the damage call passes apBoost=false and AP is not applied a second time (the crit multiplier, if the cast crit, still is). If the damage call reports death and the caster has a player, that player gains money equal to the caster's stars and the caster's moneyCount counter rises by the same amount. Money is skipped (but the counter still rises) when the caster is a ghost-opponent entity.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true.",
+   "evidence": [
+    "pd-class",
+    "base-flags",
+    "pd-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "pd-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "flatByStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "formula": "floor(flat x (2 + ap/100))"
+    },
+    "perUnitRaw": {
+     "MEOWTH": 15,
+     "PERSIAN": 30
+    },
+    "scaling": "requested amount = floor(flat x (2 + ap/100)), computed in the strategy from the caster's current ap (AP 0 gives 2 x flat, e.g. 30 for Meowth); handleSpecialDamage is called with apBoost=false so it adds no further AP; the cast crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false)",
+    "resolution": "intermediate, not guaranteed final HP damage: handleSpecialDamage first returns takenDamage 0 (spellBlockedCount++) if the target is protected, skydiving or magicBounce; otherwise handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. The returned takenDamage is the shield-absorbed part plus the HP lost (capped at current HP), rounded; 0 for a dead/resurrecting target; the Shiny Charm branch resets it to 0 (and death to false); the Fossil branch adds to it; a Cover Band redirect returns the cover ally's result. See core-mechanics.md §A and the BITE record for the shared takenDamage breakdown (probe: assistant/probes/pinned-helper-probe.mjs). The kill flag `death` comes from handleDamage: true only when hp <= 0 and no resurrection is pending; false when the hit is blocked (protect/skydiving/magicBounce), when Shiny Charm saves the target, or when a resurrection triggers.",
+    "evidence": [
+     "pd-flat",
+     "pd-ap",
+     "pd-hit",
+     "death-set",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "td-dead",
+     "td-shield",
+     "td-shiny",
+     "td-fossil",
+     "td-cover",
+     "td-return"
+    ]
+   },
+   {
+    "kind": "money (own player)",
+    "declaredRaw": {
+     "onKill": "player.addMoney(stars)",
+     "perUnit": {
+      "MEOWTH": 1,
+      "PERSIAN": 2
+     }
+    },
+    "scaling": "equal to the caster's stars; no AP, crit or luck factor",
+    "resolution": "Only if death is true and pokemon.player is defined. addMoney returns without adding money when the origin (the caster) isGhostOpponent; otherwise money += value, totalMoneyEarned += value (countTotalEarned true), and MONEY-rule evolutions are checked. pokemon.count.moneyCount += stars runs regardless of the ghost check (the counter is a uint8 schema field; overflow behaviour not read). If the target is saved from death (Shiny Charm, resurrection) no money is granted.",
+    "evidence": [
+     "pd-money",
+     "addmoney",
+     "player-getter",
+     "moneycount",
+     "death-set"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MEOWTH": 1,
+    "PERSIAN": 2
+   },
+   "declaredRawFlat": {
+    "MEOWTH": 15,
+    "PERSIAN": 30
+   },
+   "moneyOnKill": {
+    "MEOWTH": 1,
+    "PERSIAN": 2
+   },
+   "note": "Indexed by the caster's stars; the 3- and 4-star values (60, 120 = fallback) are not reachable by these units' bare star counts. maxPP 80, range 1 for both.",
+   "evidence": [
+    "pd-flat",
+    "unit-meowth",
+    "unit-persian"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target in range.",
+  "repeatedCastsAndModes": "No stored state or modes. Every cast that kills grants money again.",
+  "rawVsResolved": "Requested damage: floor(flat x (2 + AP/100)) = 30 (Meowth) / 60 (Persian) at AP 0 (this includes AP; flat is 15 / 30 raw). Applied: that amount x crit factor if crit, then SPE_DEF division (ceil, at least 1) and the other handleDamage steps; takenDamage is not used. Money: requested = stars; applied = stars unless the caster is a ghost-opponent entity (then 0 money, counter still raised) or the kill does not happen.",
+  "sourceTables": [
+   {
+    "id": "paydayFlat",
+    "file": "app/core/abilities/payday.ts",
+    "pattern": "const flatDamage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.flatByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); the SPE_DEF division, shield/HP accounting and the Shiny Charm, Fossil and Cover Band branches were read (shared with the BITE record)",
+   "When the cast fires in a real fight and who the target is",
+   "Crit resolution: only the canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "Which entities count as isGhostOpponent and how often pokemon.player is undefined for the caster (the player getter was read; ghost semantics were not)",
+   "Whether money gained during a fight is credited immediately or affected by later round logic (only Player.addMoney was read)",
+   "How the Cover Band redirect interacts with `death` for the original target (the returned result is the cover ally's)",
+   "Behaviour in a real fight is unobserved: this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-meowth",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9220,
+     9234
+    ],
+    "symbol": "class Meowth",
+    "expect": "skill = Ability.PAYDAY",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-persian",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9236,
+     9249
+    ],
+    "symbol": "class Persian",
+    "expect": "skill = Ability.PAYDAY",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-payday",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1070,
+     1070
+    ],
+    "symbol": "AbilityStrategies[Ability.PAYDAY]",
+    "expect": "[Ability.PAYDAY]: new PaydayStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pd-class",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PaydayStrategy",
+    "expect": "class PaydayStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "pd-super",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PaydayStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pd-flat",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PaydayStrategy.process",
+    "expect": "[15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": ""
+   },
+   {
+    "id": "pd-ap",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PaydayStrategy.process",
+    "expect": "Math.floor(flatDamage * (2 + pokemon.ap / 100))",
+    "note": "AP is folded in here: x2 base plus AP/100, floored"
+   },
+   {
+    "id": "pd-hit",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     10,
+     17
+    ],
+    "symbol": "PaydayStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage; 6th argument apBoost=false so handleSpecialDamage does not apply AP again"
+   },
+   {
+    "id": "pd-money",
+    "file": "app/core/abilities/payday.ts",
+    "lines": [
+     22,
+     25
+    ],
+    "symbol": "PaydayStrategy.process",
+    "expect": "if (death && pokemon.player) {",
+    "note": "on a kill: player.addMoney(stars, true, pokemon) and count.moneyCount += stars"
+   },
+   {
+    "id": "addmoney",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     275,
+     286
+    ],
+    "symbol": "Player.addMoney",
+    "expect": "addMoney(",
+    "note": "ghost-opponent origin returns without adding money; otherwise money += value, totalMoneyEarned counted, MONEY-evolution check"
+   },
+   {
+    "id": "death-set",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     797,
+     797
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "death = true",
+    "note": "death true only when hp <= 0 and the target has no resurrection"
+   },
+   {
+    "id": "player-getter",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     281,
+     289
+    ],
+    "symbol": "PokemonEntity.player",
+    "expect": "get player(): Player | undefined",
+    "note": "sourcePlayer, else the simulation's blue/red player of baseTeam if it is a Player"
+   },
+   {
+    "id": "moneycount",
+    "file": "app/models/colyseus-models/count.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "Count.moneyCount",
+    "expect": "moneyCount = 0",
+    "note": "uint8 counter"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default requiresTarget true; canCritByDefault false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "td-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "a dead or resurrecting target returns takenDamage 0"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let residualDamage = reducedDamage",
+    "note": "shield part (flinch ceil split, Protective Pads doubling, cap at the shield and overflow to residual) plus min(residual, hp)"
+   },
+   {
+    "id": "td-shiny",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     651,
+     661
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.items.has(Item.SHINY_CHARM) &&",
+    "note": "Shiny Charm: takenDamage and residual set to 0, the charm removed"
+   },
+   {
+    "id": "td-fossil",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     663,
+     696
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hasSynergyEffect(Synergy.FOSSIL) &&",
+    "note": "Fossil branch: adds shield damage to takenDamage and zeroes the residual"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     698,
+     724
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "Cover Band: the lethal hit is redirected and the cover ally's result is returned"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     807
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "the returned takenDamage is rounded"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
