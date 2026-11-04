@@ -1,0 +1,660 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POISON_GAS",
+ "kind": "ability",
+ "identifier": "POISON_GAS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T123936Z"
+ },
+ "record": {
+  "ability": "POISON_GAS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "STUNKY and SKUNTANK declare ability POISON_GAS and passive STENCH in the catalog. The strategy is shared; differences are stars and stats. Other units are not covered. The passive STENCH is NOT documented here except where it touches the same board effect.",
+  "appliesTo": [
+   {
+    "key": "STUNKY",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "POISON_GAS",
+    "declaredPassive": "STENCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKUNTANK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "POISON_GAS",
+    "declaredPassive": "STENCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "STUNKY": {
+    "evidence": [
+     "unit-stunky"
+    ]
+   },
+   "SKUNTANK": {
+    "evidence": [
+     "unit-skuntank"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POISON_GAS] = new PoisonGasStrategy()",
+   "strategy": "PoisonGasStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pg",
+    "pg-class",
+    "base-flags",
+    "base-pp",
+    "pg-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Area effect around the CASTER (the target is only used for the animation and for the cast gate). For every on-board cell of the 3x3 block around the caster, centre excluded, in the order returned by getAdjacentCells (row by row): (1) the board effect EffectEnum.POISON_GAS is placed on the cell whether it is empty, ally or enemy occupied; it persists on the cell and is added to whatever entity stands there at that moment (allies included, unless the entity holds HEAVY_DUTY_BOOTS), and to entities that walk in later (unless IMMUNITY_BOARD_EFFECTS); (2) if the cell holds an enemy: handleSpecialDamage(15/30 raw for caster stars 1/2, SPECIAL, crit) and then triggerPoison(3000 ms, enemy, caster): one poison stack, fixed 3000 ms before the target's duration reductions, NOT scaled by AP or crit. Consequence of the placed gas effect (separate from the explicit poison call): any entity carrying EffectEnum.POISON_GAS with zero poison stacks and without HEAVY_DUTY_BOOTS receives triggerPoison(1500, itself, no origin) in Status.updateAllStatus, and while it keeps ticking inside the gas each poison tick reapplies a stack (1500 ms) - allies and enemies alike. Requested amounts: damage raw 15/30; applied: after AP, crit, SPE_DEF division (ceil, min 1) and later handleDamage steps, 0 if the enemy is protect/skydiving/magicBounce (poison and gas still apply).",
+  "targeting": {
+   "who": "area centred on the caster: the 8 adjacent cells; damage and the explicit poison only for enemy occupants (team !== caster team); the gas effect hits every occupant",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true, so the cast needs a target at range, but the strategy does not use the target to choose cells; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "pg-class",
+    "base-flags",
+    "pg-cells",
+    "pg-hit",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 block centred on the caster, centre excluded, clipped at board edges (Board.getAdjacentCells with includesCenter = false)",
+   "evidence": [
+    "pg-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "board effect POISON_GAS (all adjacent cells)",
+    "declaredRaw": {
+     "effect": "POISON_GAS",
+     "cells": "adjacent, on board"
+    },
+    "scaling": "none: not affected by stars, AP or crit",
+    "resolution": "Requested: add the effect to each adjacent cell. Applied: stored in the cell's effect set (once per cell, a re-add is a no-op on the set) and added to the current occupant's effects unless it holds HEAVY_DUTY_BOOTS; the occupant loses it by moving to another cell and regains it by entering one with the effect (unless IMMUNITY_BOARD_EFFECTS). It is removed only by clearBoardEffect callers (not by time). While an entity has it: updateAllStatus applies a 1500 ms poison stack when it has none, and each poison tick reapplies one. The effect is the same one that the passive STENCH places on cells the unit leaves.",
+    "evidence": [
+     "pg-effect",
+     "add-effect",
+     "set-cell",
+     "clear-board",
+     "gas-update",
+     "gas-tick",
+     "stench-move",
+     "stench-jump",
+     "stench-use"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "STUNKY": 15,
+     "SKUNTANK": 30
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value, applied separately to each adjacent enemy; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. handleSpecialDamage returns takenDamage 0 and deals nothing when the target is protected, skydiving or has magicBounce (a magicBounce target may reflect damage to the caster). The takenDamage return value is NOT read by this strategy.",
+    "evidence": [
+     "pg-dmg",
+     "pg-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison",
+    "target": "each adjacent enemy",
+    "declaredRaw": {
+     "stacks": 1,
+     "durationMs": 3000
+    },
+    "scaling": "none: one stack and a fixed 3000 ms, not scaled by AP, crit or stars",
+    "applicationOrder": "per cell in getAdjacentCells order, for an enemy: gas effect added, then damage, then triggerPoison(3000, enemy, caster)",
+    "guards": "triggerPoison does nothing if the target has IMMUNITY_POISON or its status has runeProtect. When it applies: poisonOrigin = caster; stacks + 1 capped at 3 (4 with VENOMOUS, 5 with TOXIC on the caster); the 3000 ms passes through the TARGET's duration reductions (SWIFT_SWIM, HYDRATION, WATER_VEIL / SURGE_SURFER, ODD_KEYSTONE) and replaces the timer only if longer. Gas-effect poison calls pass no origin: they add a stack and a 1500 ms timer (reduced the same way) but keep the existing origin. Side reactions of triggerPoison (GUTS / TOXIC_BOOST attack bonus, Pecha Berry) are in the SLUDGE candidate and were not re-read here.",
+    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms: 5% of max HP per stack (modifiers: rain, Assault Vest, TOXIC_BOOST, water-type reductions, see the SLUDGE candidate), TRUE damage with the poison origin as attacker; at most 3 stacks without VENOMOUS / TOXIC.",
+    "evidence": [
+     "pg-poison",
+     "poison-trig",
+     "poison-guard",
+     "poison-max",
+     "poison-origin",
+     "poison-add",
+     "poison-dur",
+     "poison-longer",
+     "reductions",
+     "tick",
+     "tick-period"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "STUNKY": 1,
+    "SKUNTANK": 2
+   },
+   "declaredRawDamage": {
+    "STUNKY": 15,
+    "SKUNTANK": 30
+   },
+   "note": "indexed by the casting entity's stars; 3 (60) and 4 (120, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 80 and range 1 for both. Poison stack count and duration do not depend on stars.",
+   "evidence": [
+    "pg-dmg",
+    "unit-stunky",
+    "unit-skuntank"
+   ]
+  },
+  "positionalConditions": "Depends on the caster's cell: only on-board adjacent cells are used; enemy occupants take damage and poison, empty and ally cells still receive the gas effect (allies standing there are poisoned by the gas rule, not by the ability's explicit call).",
+  "repeatedCastsAndModes": "No stored state in the strategy and no modes. Each cast re-adds the effect (no-op if already on the cell) and repeats damage and the explicit poison call on current enemy occupants; stacks accumulate up to the cap.",
+  "rawVsResolved": "Declared raw: damage 15/30 (Stunky/Skuntank), one poison stack of 3000 ms. Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1), 0 if blocked; poison duration = 3000 after the target's reductions, stack count capped at 3 (4/5 with VENOMOUS/TOXIC); gas-driven poison is 1500 ms stacks with no origin. The gas effect itself has no numeric amount.",
+  "sourceTables": [
+   {
+    "id": "poisonGasDamage",
+    "file": "app/core/abilities/poison-gas.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multipliers were read"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: POISON_GAS is both Ability.POISON_GAS (dispatched to PoisonGasStrategy) and EffectEnum.POISON_GAS (a board effect placed by this strategy and by the passive STENCH). They are different enums; the effect's consequences were read in Status.updateAllStatus and Status.updatePoison only. Other readers of EffectEnum.POISON_GAS (client animation, other code) were not enumerated beyond a name search of app/core",
+   "How long the gas lasts: the cell effect is removed only by clearBoardEffect callers (waterfall, ice spinner, a simulation-wide clear at the cited site); whether anything else (end of fight reset, weather) removes it was not traced",
+   "Whether the caster itself, which is not on an adjacent cell, can end up affected by its own gas (walking into a gas cell); by the rules read it can, but its STENCH jump behaviour was not simulated",
+   "Poison side reactions (GUTS / TOXIC_BOOST attack bonus, Pecha Berry) and the poison-tick modifiers were taken from the SLUDGE candidate, not re-read",
+   "Order of getAdjacentCells (row-major, y outer, x inner) is only relevant for the order of effects, not for the result",
+   "Resurrection and other death-cancelling effects on the target do not affect the gas or poison application but may affect the damage; not enumerated",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-stunky",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13020,
+     13035
+    ],
+    "symbol": "class Stunky",
+    "expect": "skill = Ability.POISON_GAS",
+    "note": "unit class block: skill / passive STENCH / stars / stats"
+   },
+   {
+    "id": "unit-skuntank",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13037,
+     13051
+    ],
+    "symbol": "class Skuntank",
+    "expect": "skill = Ability.POISON_GAS",
+    "note": "unit class block: skill / passive STENCH / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1080,
+     1080
+    ],
+    "symbol": "AbilityStrategies[Ability.POISON_GAS]",
+    "expect": "[Ability.POISON_GAS]: new PoisonGasStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pg-class",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "PoisonGasStrategy",
+    "expect": "class PoisonGasStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden (true / false)"
+   },
+   {
+    "id": "pg-super",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pg-dmg",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "pg-cells",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "center excluded (includesCenter defaults to false)"
+   },
+   {
+    "id": "pg-effect",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     19,
+     24
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "EffectEnum.POISON_GAS",
+    "note": "board effect added on EVERY adjacent on-board cell, occupied or not, before the damage"
+   },
+   {
+    "id": "pg-hit",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     26,
+     33
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "damage only on enemy occupants; an unconditional gas effect is placed first"
+   },
+   {
+    "id": "pg-poison",
+    "file": "app/core/abilities/poison-gas.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "PoisonGasStrategy.process",
+    "expect": "cell.value.status.triggerPoison(3000, cell.value, pokemon)",
+    "note": "one stack, fixed 3000 ms (not scaled by AP or crit)"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 block minus center, on-board cells only"
+   },
+   {
+    "id": "add-effect",
+    "file": "app/core/board.ts",
+    "lines": [
+     638,
+     653
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "the effect is stored on the cell and added to ANY entity standing there (ally or enemy) unless it holds HEAVY_DUTY_BOOTS"
+   },
+   {
+    "id": "set-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     43,
+     63
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.delete(effectOnPreviousCell)",
+    "note": "an entity moving out loses the cell effects; moving into a cell with effects gains them unless IMMUNITY_BOARD_EFFECTS"
+   },
+   {
+    "id": "clear-board",
+    "file": "app/core/board.ts",
+    "lines": [
+     656,
+     671
+    ],
+    "symbol": "Board.clearBoardEffect",
+    "expect": "existingEffects.delete(effectToClear)",
+    "note": "effects stay on the cell until cleared (e.g. waterfall, ice spinner, a simulation-wide clear)"
+   },
+   {
+    "id": "gas-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     194,
+     200
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "pokemon.effects.has(EffectEnum.POISON_GAS) &&",
+    "note": "an entity with the POISON_GAS effect, no poison stacks and no HEAVY_DUTY_BOOTS gets triggerPoison(1500, pokemon, undefined) each update"
+   },
+   {
+    "id": "gas-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     660,
+     666
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "// reapply poison stack on every poison tick if in poison gas",
+    "note": "while still in gas, every poison tick reapplies a stack with 1500 ms and no origin"
+   },
+   {
+    "id": "stench-move",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1397,
+     1407
+    ],
+    "symbol": "Passive.STENCH",
+    "expect": "board.addBoardEffect(",
+    "note": "passive STENCH (STUNKY / SKUNTANK) lays the same gas effect on the cell it leaves: related, separate mechanism"
+   },
+   {
+    "id": "stench-jump",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     113,
+     131
+    ],
+    "symbol": "stenchJump",
+    "expect": "EffectEnum.POISON_GAS",
+    "note": "gas on cells passed during a dark jump"
+   },
+   {
+    "id": "stench-use",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     97,
+     99
+    ],
+    "symbol": "MovingState",
+    "expect": "if (pokemon.passive === Passive.STENCH) {",
+    "note": "stenchJump on the dark jump"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "POISON_GAS does not set canCritByDefault: crit is rolled only with ABILITY_CRIT"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block damage (takenDamage 0); the gas effect and poison are not blocked by this"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "triggerPoison(",
+    "note": ""
+   },
+   {
+    "id": "poison-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     578
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "default cap 3; origin VENOMOUS 4, TOXIC 5"
+   },
+   {
+    "id": "poison-origin",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     580,
+     580
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonOrigin = origin",
+    "note": "only when an origin is passed: the caster here; the gas-effect calls pass undefined and keep the old origin"
+   },
+   {
+    "id": "poison-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "one stack per call, capped"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "poison-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     592,
+     592
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "if (duration > this.poisonCooldown) {",
+    "note": "the timer is replaced only if longer"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick: 5% max HP per stack (modifiers: see the SLUDGE candidate)"
+   },
+   {
+    "id": "tick-period",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     668,
+     668
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "this.poisonDamageCooldown = 1000",
+    "note": "tick every 1000 ms"
+   }
+  ]
+ }
+}
