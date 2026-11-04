@@ -210,6 +210,41 @@ check("MEW: TELEPORT 3★ raw 60, mark consumed through dodged attacks, Magic Bo
   }
   check(`all ${bound} bound keys of the five imported repaired abilities (shared strategies over form variants, not 46 independent mechanics) show exactly their own ability, unit facts, a per-unit raw value, guards/resolution and no undefined`, bound === 46 && problems.length === 0, problems.join("; "))
 }
+// ---- eighth import (SUCTION_HEAL, PARABOLIC_CHARGE, POLLEN_PUFF, AROMATHERAPY): every explicit unit binding, shared-helper distinctions, honest evidence wording ----
+{
+  const common8 = (r, ability) => r.code === 0 && lacks(r, "undefined", "NaN", "[object", "No gameplay evidence; candidate", "no probe was run", "not reachable") && has(r, "Evidence: source reading, mechanical checks and executed probes", "were NOT executed", `record \`abilities.${ability}\``)
+  const abilityOnly = (r, ability, others) => others.every((o) => !r.out.includes(`### Source-traced: ${o}`)) && !r.out.includes("### Reviewed:") && r.out.split(`### Source-traced: ${ability} `).length === 2
+  for (const [unit, raw, stars] of [["TYNAMO", 15, 1], ["EELEKTRIK", 30, 2], ["EELEKTROSS", 60, 3]]) {
+    r = run(unit)
+    check(`${unit}: SUCTION_HEAL ${stars}★ raw ${raw}; heal = 0.5 x the RETURNED takenDamage (not HP lost: shield part, Fossil, Shiny Charm, Cover Band), wound / Blood Moon / Blood Stone, protect not Rune Protect, Grass addMaxHP(0.4 x overheal); Codex AI review scoped, not owner-reviewed`, common8(r, "SUCTION_HEAL") && aiLimited(r, "SUCTION_HEAL", "the returned takenDamage inputs and exceptions") && has(r, `this unit (${stars}★): **raw ${raw}**`, "the returned figure, not the HP actually lost", "Fossil synergy branch", "Shiny Charm", "Cover Band", "Blood Stone", "an unwounded caster with status.protect receives nothing", "Rune Protect does not matter", "addMaxHP(0.4 x overheal)") && abilityOnly(r, "SUCTION_HEAL", ["PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY"]), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, heal, stars] of [["HELIOPTILE", 25, 1], ["HELIOLISK", 50, 2]]) {
+    r = run(unit)
+    check(`${unit}: PARABOLIC_CHARGE ${stars}★ raw heal ${heal} and raw base damage ${heal}; pre-heal raw overHeal added to the damage versus handleHeal's modified return; indirect addShield / addMaxHP qualified; higher stars declared but unused (not 'unreachable'); DRY_SKIN not explained`, common8(r, "PARABOLIC_CHARGE") && aiLimited(r, "PARABOLIC_CHARGE", "the pre-heal raw overHeal added to the damage request") && has(r, `this unit (${stars}★): **raw ${heal}**`, "pre-heal overHeal", "UNMODIFIED request", "declared in the table but unused by the two bound baseline classes", "the indirect branches of handleHeal do", "addMaxHP(0.4 x that overheal)", "Rune Protect alone does not block the heal", "maxPP 80, range 3") && lacks(r, "No stat adder, Twist Band or Big Eater Belt helper is involved.") && abilityOnly(r, "PARABOLIC_CHARGE", ["SUCTION_HEAL", "POLLEN_PUFF", "AROMATHERAPY"]) && has(r, "DRY_SKIN") && lacks(r, "Source-backed context in linked production notes that mention this passive (quoted") , r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, heal, stars] of [["CUTIEFLY", 30, 1], ["RIBOMBEE", 60, 2]]) {
+    r = run(unit)
+    check(`${unit}: POLLEN_PUFF ${stars}★ raw ${heal}; lowest ABSOLUTE current hp (caster and full-HP allies included, not percentage), apBoost 1, Grass overheal = addMaxHP(0.4 x overheal) not 40% of max HP; wound / protect branches`, common8(r, "POLLEN_PUFF") && aiLimited(r, "POLLEN_PUFF", "the absolute-current-hp ally selection") && has(r, `this unit (${stars}★): **raw ${heal}**`, "lowest ABSOLUTE current hp", "not the lowest percentage", "0.4 times the overheal amount, not 40% of the recipient's existing max HP", "addMaxHP(0.4 x overheal, recipient, 0, false, false)", "an unwounded recipient with status.protect gets nothing") && abilityOnly(r, "POLLEN_PUFF", ["SUCTION_HEAL", "PARABOLIC_CHARGE", "AROMATHERAPY"]), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, heal, stars] of [["PETILIL", 20, 1], ["LILIGANT", 40, 2]]) {
+    r = run(unit)
+    check(`${unit}: AROMATHERAPY ${stars}★ raw ${heal}; cooldown clearing leaves the wound AND burn flags set, so the immediate heal meets the wound branch / the x0.5 burn modifier; caster excluded; Blood Moon / Blood Stone and Grass branches`, common8(r, "AROMATHERAPY") && aiLimited(r, "AROMATHERAPY", "cooldown clearing leaving the wound and burn flags set") && has(r, `this unit (${stars}★): **raw ${heal}**`, "does NOT clear the wound flag", "The same holds for burn", "healBurn", "x0.5 burn modifier", "burn true, burnCooldown 0 after the cast", "the caster is excluded", "addMaxHP(0.4 x overheal)", "Blood Stone") && abilityOnly(r, "AROMATHERAPY", ["SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF"]), r.err || r.out.slice(0, 200))
+  }
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY"]) for (const u of reu.abilities[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    const headers = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (headers.join() !== n) problems.push(`${u.key}: headers ${headers.join()}`)
+    if (!o.includes(`${u.key} is ${u.stars}★, maxPP ${u.maxPP}, range ${u.range}`)) problems.push(`${u.key}: unit facts`)
+    if (!/this unit(?: \(\d★\))?: \*\*raw /.test(o)) problems.push(`${u.key}: no per-unit raw value`)
+    if (/undefined|\[object|NaN/.test(o)) problems.push(`${u.key}: undefined/[object/NaN`)
+    if (!/Resolution: /.test(o)) problems.push(`${u.key}: no resolution text`)
+    if (!o.includes("Evolution:") && !/not in the evolution pilot|NOT covered|Not covered/i.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+  }
+  check(`all ${bound} bound keys of the four imported healing abilities show exactly their own ability, unit facts, a per-unit raw value, resolution text, a separate evolution-coverage statement and no undefined`, bound === 9 && problems.length === 0, problems.join("; "))
+}
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
@@ -323,8 +358,8 @@ r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
 check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
 {
   const shipped = rd2("review-status.json")
-  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT"]
-  check("shipped review-status.json: the forty imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY"]
+  check("shipped review-status.json: the forty-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)

@@ -1,4 +1,4 @@
-// Narrow reproduction of twenty-five repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT; JUDGEMENT, MULTI_ATTACK, SPIKY_SHIELD, HATCH, PROTEAN3) using the TEXT of the Section 25 (SHARED_HELPERS) adds shared-helper cases: addPP guards, handleHeal branch order, wound flag vs cooldown, Grass overheal, Blood Stone shield.
+// Narrow reproduction of twenty-five repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT; JUDGEMENT, MULTI_ATTACK, SPIKY_SHIELD, HATCH, PROTEAN3) using the TEXT of the Section 25 (SHARED_HELPERS) adds shared-helper cases: addPP guards, handleHeal branch order, wound flag vs cooldown, Grass overheal, Blood Stone shield. Section 26 (IMPORT_RECHECK) runs the real SUCTION_HEAL / PARABOLIC_CHARGE / POLLEN_PUFF / AROMATHERAPY strategy text and the DRUMMER / WATER_SPRING passive text against the shared-helper stand-ins.
 // pinned functions (production-branch reference 07367c341fe928763da2b565c2eee010433e4fc1; deployment unverified).
 // Each function body is read with `git show <sha>:<path>` by line range (the first line is asserted), types are stripped with
 // node:module stripTypeScriptTypes, and the code is run against minimal stubs (enums answer with their own name). Nothing is installed,
@@ -665,6 +665,99 @@ expect("SHARED_HELPERS handleHeal 20 (HP 500/1000, no modifiers): Protect -> ret
 expect("SHARED_HELPERS wound flag versus cooldown (real clearNegativeStatus and updateWound): clearing the cooldown leaves wound = true (cooldown 0); an immediate heal of 20 still returns 0 / 0 and HP stays 500; only updateWound(50) sets wound = false, and the next heal then returns 20 (HP 520)", [woundSeq.afterClear, woundSeq.immediate, woundSeq.afterUpdate, woundSeq.later], [{ wound: true, woundCooldown: 0 }, { returned: { healReceived: 0, overheal: 0 }, hp: 500 }, { wound: false, woundCooldown: 0 }, { returned: { healReceived: 20, overheal: 0 }, hp: 520 }])
 expect("SHARED_HELPERS Grass recipient 990/1000, heal 50 (no items): healReceived 10, overheal 40; DOWNSTREAM REQUEST addMaxHP(16) with the recipient as caster, apBoost 0, crit false; FINAL maxHP 1016 and HP 1016 (addMaxHP also raises current HP by its value, so the total HP gain is 26, not 10); with a Big Eater Belt on the recipient the request is still 16 but the FINAL maxHP is 1020 (16 x 1.25 = 20)", [SH_.grassOverheal.returned, SH_.grassOverheal.downstreamRequests, SH_.grassOverheal.hp, SH_.grassOverheal.maxHP, SH_.grassOverhealBigEaterBelt.downstreamRequests[0].request, SH_.grassOverhealBigEaterBelt.maxHP, SH_.grassOverhealBigEaterBelt.hp], [{ healReceived: 10, overheal: 40 }, [{ helper: "addMaxHP", request: 16, casterIsRecipient: true, apBoost: 0, crit: false }], 1016, 1016, 16, 1020, 1020])
 expect("SHARED_HELPERS wound + Protect + Blood Moon + one Blood Stone, heal 20: the wound branch comes first, so Protect is never reached: returned 0 / 0, HP unchanged (500), DOWNSTREAM REQUEST addShield(6) = round(0.3 x 1 x 20) with the recipient as caster; FINAL shield 6. Two stones -> request 12; no Blood Stone or no Blood Moon weather -> no request; a Big Eater Belt on the recipient turns the request 6 into a FINAL shield of 7 (6 x 1.25 = 7.5 rounded down)", [SH_.woundProtectBloodMoonStone.returned, SH_.woundProtectBloodMoonStone.hp, SH_.woundProtectBloodMoonStone.downstreamRequests, SH_.woundProtectBloodMoonStone.shield, SH_.woundProtectBloodMoonTwoStones.downstreamRequests[0].request, SH_.woundProtectBloodMoonNoStone.downstreamRequests, SH_.woundProtectStoneClearWeather.downstreamRequests, SH_.woundBloodMoonStoneBigEaterBelt.downstreamRequests[0].request, SH_.woundBloodMoonStoneBigEaterBelt.shield], [{ healReceived: 0, overheal: 0 }, 500, [{ helper: "addShield", request: 6, casterIsRecipient: true, apBoost: 0, crit: false }], 6, 12, [], [], 6, 7])
+// 26. IMPORT_RECHECK (import run): the real strategy / passive text of SUCTION_HEAL, PARABOLIC_CHARGE, POLLEN_PUFF, AROMATHERAPY, drumBeat (DRUMMER) and
+// WaterSpringEffect (WATER_SPRING) run against the section-25 stand-ins for handleHeal / addPP / addShield / addMaxHP / clearNegativeStatus. Shared helpers are
+// executed; the whole ability or passive in a real fight is NOT. Stubs: board / cell lookups, the target of the damage call (records the request), PP spend.
+const AB = "app/core/abilities/", PASS = "app/core/effects/passives.ts"
+const mkS = (over = {}) => { const u = mkHU(over); u.count = { ult: 0, attackCount: 0 }; u.simulation.blueAbilitiesCast = []; u.simulation.redAbilitiesCast = []; u.broadcastAbility = () => {}; u.stars = over.stars ?? 1; u.ap = over.ap ?? 0; u.skill = over.skill ?? "X"; u.positionX = over.x ?? 0; u.positionY = over.y ?? 0; u.passive = over.passive ?? "NONE"; u.team = over.team ?? "BLUE"; return u }
+const dmgSpy = (name = "target", team = "RED") => { const t = { name, team, requests: [], positionX: 5, positionY: 5, handleSpecialDamage(raw, board, type, att, crit) { t.requests.push(raw); return { takenDamage: 0, death: false } } }; return t }
+// PARABOLIC_CHARGE: overHeal is computed BEFORE the heal from the UNMODIFIED request and the pre-heal HP; handleHeal's own overheal comes after its modifiers
+const Parabolic = stratReal(`${AB}parabolic-charge.ts`, "ParabolicChargeStrategy", { min })
+const parabolic = ({ stars = 2, hp = 90, maxHP = 100, status = {}, grass = false, items = [] } = {}) => {
+  const c = mkS({ stars, hp, maxHP, status, grass, items }), t = dmgSpy(), done = []
+  const real = c.state.handleHeal.bind(c.state); c.state.handleHeal = (...a) => { const r = real(...a); done.push(r); return r }
+  new Parabolic().process(c, {}, t, false)
+  return { damageRequests: t.requests, handleHealReturned: done[0], hp: c.hp, maxHP: c.maxHP, shield: c.shield, downstreamRequests: c.requests }
+}
+// POLLEN_PUFF: lowest ABSOLUTE current hp among all same-team entities (caster and full-HP units included), apBoost 1 with the caster's AP
+const Pollen = stratReal(`${AB}pollen-puff.ts`, "PollenPuffStrategy")
+const pollen = (allies, { stars = 1, ap = 0 } = {}) => {
+  const c = mkS({ stars, ap, hp: 400, maxHP: 400, name: "caster" })
+  const units = [c, ...allies.map((a) => mkS(a))]; units.push(mkS({ name: "enemy", team: "RED", hp: 1, maxHP: 500 }))
+  const heals = []
+  for (const u of units) { const real = u.state.handleHeal.bind(u.state); u.state.handleHeal = (p, h, cst, ap, cr) => { const r = real(p, h, cst, ap, cr); heals.push({ target: u.name, requested: h, apBoost: ap, crit: cr, returned: r }); return r }; }
+  new Pollen().process(c, { cells: units }, null, false)
+  return { heals, units: Object.fromEntries(units.map((u) => [u.name, { hp: u.hp, maxHP: u.maxHP, shield: u.shield, requests: u.requests }])) }
+}
+// AROMATHERAPY: clearNegativeStatus only zeroes cooldowns; wound / burn FLAGS are still set when the next statement runs handleHeal
+const Aroma = stratReal(`${AB}aroma-therapy.ts`, "AromatherapyStrategy")
+const aroma = (neighbours, { stars = 1 } = {}) => {
+  const c = mkS({ stars, hp: 400, maxHP: 400, name: "caster", x: 3, y: 3 })
+  const cells = neighbours.map((n) => ({ value: mkS(n) }))
+  new Aroma().process(c, { getAdjacentCells: () => cells }, dmgSpy(), false)
+  return Object.fromEntries(cells.filter((x) => x.value).map((x) => [x.value.name, { hp: x.value.hp, wound: x.value.status.wound, shield: x.value.shield, downstream: x.value.requests, woundCooldown: x.value.status.woundCooldown, burn: x.value.status.burn, burnCooldown: x.value.status.burnCooldown }]))
+}
+// SUCTION_HEAL: heal = 0.5 x the returned takenDamage (shield damage included)
+const Suction = stratReal(`${AB}suction-heal.ts`, "SuctionHealStrategy")
+const suction = ({ stars = 3, casterStatus = {}, casterHp = 300, enemies = [{ shield: 100 }], weather = "NONE", stones = 0 } = {}) => {
+  const c = mkFU({ team: "BLUE", hp: casterHp, maxHP: 1000, stars, atk: 50, player: stones ? { items: Array(stones).fill("BLOOD_STONE") } : null })
+  Object.assign(c.status, casterStatus); c.simulation.weather = weather
+  const es = enemies.map((e, i) => { const u = mkFU({ team: "RED", hp: e.hp ?? 500, maxHP: 1000, shield: e.shield ?? 0, name: `e${i}`, items: new Set(e.shiny ? ["SHINY_CHARM"] : []) }); u.positionX = 5; u.positionY = 5; return u })
+  new Suction().process(c, { getCellsInFront: () => es.map((value) => ({ value })), getAdjacentCells: () => [] }, es[0], false)
+  return { casterHp: c.hp, casterShield: c.shield, enemyHp: es.map((e) => e.hp), enemyShield: es.map((e) => e.shield) }
+}
+// DRUMMER and WATER_SPRING: PP given by the real passive code reaches addPP; Protect blocks, Rune Protect alone and fatigue behave as in addPP
+const drumBeat = build({ Passive: enums(), OnAttackEffect: class {}, castAbility() {}, AbilityStrategies: {} }, js(`${cut(PASS, 73, 111, "export function drumBeat").replace("export function", "function")}`), "drumBeat")
+const drumRun = (stars, status) => {
+  const d = Object.assign(mkS({ stars, passive: "DRUMMER", pp: 0, maxPP: 60, name: "drummer" }), { pp: 0, maxPP: 60, speed: 58, canCast: true, resetCooldown() {}, getEffects: () => [], status: { paralysis: false } })
+  const r = mkS({ pp: 10, maxPP: 100, status, name: "receiver" }), other = mkS({ pp: 10, passive: "DRUMMER", name: "otherDrummer" }), foe = mkS({ pp: 10, team: "RED", name: "foe" })
+  drumBeat(d, { getAdjacentCells: () => [r, other, foe].map((value) => ({ value })) })
+  return { receiver: r.pp, otherDrummer: other.pp, foe: foe.pp, drummerPP: d.pp }
+}
+const WaterSpring = build({ Passive: enums(), OnAbilityCastEffect: class { constructor(cb, origin) { this.cb = cb; this.origin = origin } } }, js(cut(PASS, 332, 339, "export const WaterSpringEffect").replace("export const", "const")), "WaterSpringEffect")
+const spring = (status, { casterTeam = "RED" } = {}) => {
+  const ws = mkS({ passive: "WATER_SPRING", team: "BLUE", pp: 10, status, name: "ws", skill: "MUD_BUBBLE" }), allyOfCaster = mkS({ passive: "WATER_SPRING", team: casterTeam, pp: 10, name: "wsSameTeam" })
+  const board = { forEach: (cb) => [ws, allyOfCaster].forEach((u, i) => cb(i, 0, u)) }
+  WaterSpring.cb(mkS({ team: casterTeam, name: "caster" }), board)
+  return { ws: ws.pp, wsOnCasterTeam: allyOfCaster.pp }
+}
+out.IMPORT_RECHECK = {
+  parabolic: {
+    heliolisk90: parabolic(), helioptile90: parabolic({ stars: 1 }), fullHp: parabolic({ hp: 100 }), burning: parabolic({ status: { burn: true } }),
+    wounded: parabolic({ status: { wound: true } }), protect: parabolic({ status: { protect: true } }), runeProtectAlone: parabolic({ status: { runeProtect: true } }),
+    grass: parabolic({ grass: true }), grassBurning: parabolic({ grass: true, status: { burn: true } })
+  },
+  pollen: {
+    absoluteLowest: pollen([{ name: "bigHurt", hp: 300, maxHP: 1000 }, { name: "smallFull", hp: 100, maxHP: 100 }]),
+    tieFirstInArray: pollen([{ name: "a", hp: 200, maxHP: 200 }, { name: "b", hp: 200, maxHP: 900 }]),
+    grassFullHp: pollen([{ name: "grassFull", hp: 100, maxHP: 100, grass: true }], { ap: 50 }),
+    grassFullHpAp0Ribombee: pollen([{ name: "grassFull", hp: 100, maxHP: 100, grass: true }], { stars: 2 }),
+    woundedLowest: pollen([{ name: "wounded", hp: 100, maxHP: 1000, status: { wound: true } }])
+  },
+  aroma: {
+    woundAndBurn: aroma([{ name: "wounded", hp: 100, maxHP: 1000, status: { wound: true, woundCooldown: 3000 } }, { name: "burning", hp: 100, maxHP: 1000, status: { burn: true, burnCooldown: 3000 } }, { name: "plain", hp: 100, maxHP: 1000 }, { name: "enemy", hp: 100, maxHP: 1000, team: "RED", status: { wound: true, woundCooldown: 3000 } }]),
+    woundBloodMoon: aroma([{ name: "woundedStone", hp: 100, maxHP: 1000, status: { wound: true, woundCooldown: 3000 }, weather: "BLOODMOON", stones: 1 }], { stars: 2 }),
+    protectedAlly: aroma([{ name: "protectedAlly", hp: 100, maxHP: 1000, status: { protect: true } }])
+  },
+  suction: {
+    shieldAbsorbs: suction(), plainTarget: suction({ enemies: [{}] }), shinyCharmTarget: suction({ enemies: [{ shiny: true, hp: 320 }], casterHp: 300 }),
+    casterProtect: suction({ casterStatus: { protect: true } }), casterRuneProtectAlone: suction({ casterStatus: { runeProtect: true } }),
+    casterWoundedBloodMoon: suction({ casterStatus: { wound: true }, weather: "BLOODMOON", stones: 1 })
+  },
+  drummer: { stars1: drumRun(1, {}), stars2: drumRun(2, {}), stars3: drumRun(3, {}), protect: drumRun(3, { protect: true }), runeProtectAlone: drumRun(3, { runeProtect: true }), fatigue1: drumRun(1, { fatigue: true }), fatigue2: drumRun(2, { fatigue: true }), fatigue3: drumRun(3, { fatigue: true }) },
+  waterSpring: { plain: spring({}), protect: spring({ protect: true }), runeProtectAlone: spring({ runeProtect: true }), fatigue: spring({ fatigue: true }), sameTeamCast: spring({}, { casterTeam: "BLUE" }) }
+}
+const IR = out.IMPORT_RECHECK
+expect("IMPORT_RECHECK PARABOLIC_CHARGE (real strategy text; 2 stars: heal 50, base damage 50; caster 90/100, AP 0): the damage request is 50 + the PRE-heal raw overHeal 40 = 90 while handleHeal returns healReceived 10, overheal 40; a 1-star caster (heal 25) at 90/100 requests 25 + 15 = 40; a full-HP caster requests 50 + 50 = 100 although healReceived is 0", [IR.parabolic.heliolisk90.damageRequests, IR.parabolic.heliolisk90.handleHealReturned, IR.parabolic.helioptile90.damageRequests, IR.parabolic.fullHp.damageRequests, IR.parabolic.fullHp.handleHealReturned], [[90], { healReceived: 10, overheal: 40 }, [40], [100], { healReceived: 0, overheal: 50 }])
+expect("IMPORT_RECHECK PARABOLIC_CHARGE modified healing versus the precomputed overHeal: a burning caster (heal x0.5 = 25, capped at 10 missing) gets healReceived 10 and a handleHeal overheal of 15, but the damage request is still 50 + 40 = 90; a wounded or Protected caster is not healed (HP stays 90) and the damage request is still 90; Rune Protect alone does not block the heal (HP 100)", [IR.parabolic.burning.damageRequests, IR.parabolic.burning.handleHealReturned, IR.parabolic.wounded.damageRequests, IR.parabolic.wounded.hp, IR.parabolic.protect.damageRequests, IR.parabolic.protect.hp, IR.parabolic.runeProtectAlone.hp], [[90], { healReceived: 10, overheal: 15 }, [90], 90, [90], 90, 100])
+expect("IMPORT_RECHECK PARABOLIC_CHARGE Grass caster 90/100: handleHeal overheal 40 -> downstream request addMaxHP(16) (final maxHP and HP 116); a burning Grass caster has handleHeal overheal 15 -> request addMaxHP(6) (final 106) while the damage request stays 90; the Grass amount is never the pre-heal overHeal", [IR.parabolic.grass.downstreamRequests[0].request, IR.parabolic.grass.maxHP, IR.parabolic.grass.hp, IR.parabolic.grass.damageRequests, IR.parabolic.grassBurning.downstreamRequests[0].request, IR.parabolic.grassBurning.maxHP, IR.parabolic.grassBurning.damageRequests], [16, 116, 116, [90], 6, 106, [90]])
+expect("IMPORT_RECHECK POLLEN_PUFF (real strategy text; caster 400/400 plus allies; the heal is one handleHeal call with apBoost 1 and the cast crit flag): the target is the ally with the lowest ABSOLUTE current hp - a 100/100 unit is chosen over a 300/1000 unit and over the caster; the request is the raw 30 and the unit is already full (healReceived 0, overheal 30); on equal hp the first in the cells array is chosen; a wounded lowest-hp ally receives nothing", [IR.pollen.absoluteLowest.heals, IR.pollen.tieFirstInArray.heals.map((h) => h.target), IR.pollen.woundedLowest.heals, IR.pollen.woundedLowest.units.wounded.hp], [[{ target: "smallFull", requested: 30, apBoost: 1, crit: false, returned: { healReceived: 0, overheal: 30 } }], ["a"], [{ target: "wounded", requested: 30, apBoost: 1, crit: false, returned: { healReceived: 0, overheal: 0 } }], 100])
+expect("IMPORT_RECHECK POLLEN_PUFF Grass overheal: a full-HP Grass target with the caster at AP 50: 30 x 1.5 = 45 all overheal, DOWNSTREAM request addMaxHP(0.4 x 45 = 18), final maxHP and HP 118 (0.4 x the overheal, not 40% of the existing max HP 100, which would be 40); a 2-star caster at AP 0 requests 60 -> overheal 60 -> addMaxHP(24), final 124", [IR.pollen.grassFullHp.units.grassFull.requests, IR.pollen.grassFullHp.units.grassFull.maxHP, IR.pollen.grassFullHp.units.grassFull.hp, IR.pollen.grassFullHpAp0Ribombee.units.grassFull.requests[0].request, IR.pollen.grassFullHpAp0Ribombee.units.grassFull.maxHP], [[{ helper: "addMaxHP", request: 18, casterIsRecipient: true, apBoost: 0, crit: false }], 118, 118, 24, 124])
+expect("IMPORT_RECHECK AROMATHERAPY (real strategy text, real clearNegativeStatus; 1 star: heal 20, apBoost 1, caster AP 0; adjacent allies only, enemies skipped): a wounded ally keeps wound = true (woundCooldown 0) and receives no HP; a burning ally keeps burn = true (burnCooldown 0) so the immediately following heal is halved (HP 100 -> 110, not 120); an ordinary ally gains the full 20 (HP 120); the enemy neighbour is untouched (wound cooldown still 3000)", [IR.aroma.woundAndBurn.wounded, IR.aroma.woundAndBurn.burning, IR.aroma.woundAndBurn.plain.hp, IR.aroma.woundAndBurn.enemy.woundCooldown], [{ hp: 100, wound: true, shield: 0, downstream: [], woundCooldown: 0, burn: false, burnCooldown: 0 }, { hp: 110, wound: false, shield: 0, downstream: [], woundCooldown: 0, burn: true, burnCooldown: 0 }, 120, 3000])
+expect("IMPORT_RECHECK AROMATHERAPY wound branch: a wounded 2-star neighbour under Blood Moon with one Blood Stone is not healed (HP 100) but DOWNSTREAM request addShield(round(0.3 x 1 x 40) = 12) with the ally as the shield's caster and apBoost 1 (final shield 12); an unwounded neighbour with status.protect receives nothing", [IR.aroma.woundBloodMoon.woundedStone.hp, IR.aroma.woundBloodMoon.woundedStone.downstream, IR.aroma.woundBloodMoon.woundedStone.shield, IR.aroma.protectedAlly.protectedAlly.hp], [100, [{ helper: "addShield", request: 12, casterIsRecipient: true, apBoost: 1, crit: false }], 12, 100])
+expect("IMPORT_RECHECK SUCTION_HEAL (real strategy text, real handleSpecialDamage / handleDamage; 3 stars: raw 60, caster 300/1000, AP 0): returned takenDamage 60 gives a heal request of 30 (HP 330) even when the target's shield absorbed all of it (target HP unchanged); Shiny Charm triggering makes takenDamage 0 and no heal; caster Protect -> no heal; Rune Protect alone -> heal 30; wounded caster under Blood Moon with a Blood Stone -> no HP and a shield of round(0.3 x 30) = 9", [IR.suction.shieldAbsorbs.casterHp, IR.suction.shieldAbsorbs.enemyHp, IR.suction.shieldAbsorbs.enemyShield, IR.suction.plainTarget.enemyHp, IR.suction.shinyCharmTarget.casterHp, IR.suction.casterProtect.casterHp, IR.suction.casterRuneProtectAlone.casterHp, IR.suction.casterWoundedBloodMoon.casterHp, IR.suction.casterWoundedBloodMoon.casterShield], [330, [500], [40], [440], 300, 300, 330, 300, 9])
+expect("IMPORT_RECHECK DRUMMER (real drumBeat text, real addPP; receiver PP 10; ppGained 2 / 3 / 5 for 1 / 2 / 3 stars, adjacent same-team non-DRUMMER only): PP 12 / 13 / 15; Protect -> 10 (no gain); Rune Protect alone -> 15; fatigue rounds the halved request: 2 -> 1 (PP 11), 3 -> 2 (PP 12), 5 -> 3 (PP 13); another DRUMMER and the enemy neighbour gain nothing; the drummer's own PP is unchanged", [IR.drummer.stars1.receiver, IR.drummer.stars2.receiver, IR.drummer.stars3.receiver, IR.drummer.protect.receiver, IR.drummer.runeProtectAlone.receiver, IR.drummer.fatigue1.receiver, IR.drummer.fatigue2.receiver, IR.drummer.fatigue3.receiver, IR.drummer.stars3.otherDrummer, IR.drummer.stars3.foe, IR.drummer.stars3.drummerPP], [12, 13, 15, 10, 15, 11, 12, 13, 10, 10, 0])
+expect("IMPORT_RECHECK WATER_SPRING (real WaterSpringEffect text, real addPP; Water Spring unit PP 10; an enemy casts): +5 -> 15; Protect -> 10; Rune Protect alone -> 15; fatigue -> 13 (round 2.5 = 3); a Water Spring unit on the CASTER's own team gains nothing", [IR.waterSpring.plain.ws, IR.waterSpring.protect.ws, IR.waterSpring.runeProtectAlone.ws, IR.waterSpring.fatigue.ws, IR.waterSpring.plain.wsOnCasterTeam, IR.waterSpring.sameTeamCast.ws], [15, 10, 15, 13, 10, 10])
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))
 const failed = expectations.filter((x) => !x.ok)

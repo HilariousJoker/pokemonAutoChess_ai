@@ -24,6 +24,17 @@ let r = run("--unit", "WALREIN")
 check("WALREIN: ICE_BALL raw +10 / +12 with Big Eater Belt, 3★ base 30 + 1.5 x SPE_DEF, no cap, Codex AI review not owner review", r.code === 0 && has(r, "Ability ICE_BALL", "raw +10 request; processed +12 with Big Eater Belt", '{"base":30,"multiplier":1.5}', "no upper cap", "NOT a project-owner review", "NOT gameplay-tested", "Evolution: NOT covered", "Passive: none declared"), r.err)
 r = run("--unit", "Tyranitar")
 check("TYRANITAR (normalized name): BITE heal ceil(30 %) of takenDamage with shield/Cover Band/Shiny Charm/Fossil accounting, flinch, wound exception", r.code === 0 && has(r, "[UNIT] TYRANITAR", "Ability BITE", "ceil(0.3 x takenDamage)", "Cover Band", "Shiny Charm", "Fossil", "flinch", "BLOODMOON"), r.err)
+// ---- eighth import (SUCTION_HEAL, PARABOLIC_CHARGE, POLLEN_PUFF, AROMATHERAPY): FAST finds the records and notes with no per-record wiring ----
+for (const [unit, ab, stars, raw, bits] of [
+  ["TYNAMO", "SUCTION_HEAL", 1, 15, ["returned figure, not the HP actually lost"]], ["EELEKTRIK", "SUCTION_HEAL", 2, 30, ["Fossil synergy branch"]], ["EELEKTROSS", "SUCTION_HEAL", 3, 60, ["Cover Band"]],
+  ["HELIOPTILE", "PARABOLIC_CHARGE", 1, 25, ["pre-heal overHeal", "declared in the table but unused by the two bound baseline classes"]], ["HELIOLISK", "PARABOLIC_CHARGE", 2, 50, ["UNMODIFIED request", "the indirect branches of handleHeal do"]],
+  ["CUTIEFLY", "POLLEN_PUFF", 1, 30, ["lowest ABSOLUTE current hp", "not 40% of the recipient's existing max HP"]], ["RIBOMBEE", "POLLEN_PUFF", 2, 60, ["addMaxHP(0.4 x overheal, recipient, 0, false, false)"]],
+  ["PETILIL", "AROMATHERAPY", 1, 20, ["The same holds for burn", "does NOT clear the wound flag"]], ["LILIGANT", "AROMATHERAPY", 2, 40, ["x0.5 burn modifier"]]]) {
+  r = run("--unit", unit)
+  check(`${unit}: ${ab} found automatically (${stars}★ raw ${raw}), scoped Codex AI review, not owner-reviewed or gameplay-tested, executed-probe evidence wording, note linked by heading`, r.code === 0 && has(r, `[UNIT] ${unit}`, `Ability ${ab} — source-traced; independent review pending; independent AI source review by Codex recorded`, `${stars}★`, `this unit (${stars}★): raw ${raw}`, "NOT a project-owner review", "NOT gameplay-tested", "executed probes", "were NOT executed", `reusable-abilities.json#abilities.${ab}; note assistant/knowledge/07367c34/reusable-abilities.md#${ab.toLowerCase()}`, ...bits) && lacks(r, "undefined", "NaN", "[object", "no probe was run", "not reachable"), r.err || r.out.slice(0, 200))
+}
+r = run("--list")
+check("--list: 50 ability records and the four imported healing abilities with their own units only", r.code === 0 && has(r, "50 ability records", "Ability SUCTION_HEAL: TYNAMO, EELEKTRIK, EELEKTROSS", "Ability PARABOLIC_CHARGE: HELIOPTILE, HELIOLISK", "Ability POLLEN_PUFF: CUTIEFLY, RIBOMBEE", "Ability AROMATHERAPY: PETILIL, LILIGANT"), r.err)
 r = run("--unit", "CHARIZARD", "--item", "Nullify Bandanna")
 check("CHARIZARD + Nullify Bandanna in one lookup: reviewed BLAST_BURN raw 120 and the bandanna card (holder cannot cast)", r.code === 0 && has(r, "Ability BLAST_BURN — independently reviewed", "raw 120", "[ITEMS]", "NULLIFY BANDANNA", "Holder cannot cast"), r.err)
 r = run("--unit", "WALREIN", "--item", "Big Eater Belt")
