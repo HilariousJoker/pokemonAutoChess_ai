@@ -1,0 +1,519 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PARABOLIC_CHARGE",
+ "kind": "ability",
+ "identifier": "PARABOLIC_CHARGE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T003915Z"
+ },
+ "record": {
+  "ability": "PARABOLIC_CHARGE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo (Helioptile 1 star, Heliolisk 2 stars) declare PARABOLIC_CHARGE and both carry the passive DRY_SKIN in the catalog. Shared strategy. DRY_SKIN is a separate weather-driven periodic effect (see unresolved) and is not part of this ability.",
+  "appliesTo": [
+   {
+    "key": "HELIOPTILE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "PARABOLIC_CHARGE",
+    "declaredPassive": "DRY_SKIN",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HELIOLISK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "PARABOLIC_CHARGE",
+    "declaredPassive": "DRY_SKIN",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HELIOPTILE": {
+    "evidence": [
+     "unit-helioptile"
+    ]
+   },
+   "HELIOLISK": {
+    "evidence": [
+     "unit-heliolisk"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PARABOLIC_CHARGE] = new ParabolicChargeStrategy()",
+   "strategy": "ParabolicChargeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pc",
+    "pc-class",
+    "base-flags",
+    "base-pp",
+    "pc-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Heals the caster, then deals SPECIAL damage to the cast target. Heal request: 25 (1 star) / 50 (2 stars) raw (75 / 100 at 3 / 4+ stars, not reachable here), with no AP or crit scaling. Damage raw: 25 (1 star) / 50 (2 stars) (100 / 200 at 3 / 4+) PLUS overHeal, where overHeal = max(0, requestedHeal + caster.hp - caster.maxHP) is computed BEFORE the heal from the caster's current HP and the UNMODIFIED requested heal. It therefore measures how much of the requested heal would exceed missing HP; it is not the overheal that handleHeal reports after its modifiers. The heal is requested first, the damage second, in the same call; the damage reads the overHeal value computed earlier, not the caster's HP after healing. Illustration only (arithmetic, not a fight): Heliolisk (heal 50) at 90/100 HP: overHeal 40, damage raw 50 + 40 = 90 before AP and the target's speDef.",
+  "targeting": {
+   "who": "heal: the caster itself; damage: the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "pc-class",
+    "base-flags",
+    "pc-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target (damage) plus self (heal)",
+   "evidence": [
+    "pc-doheal",
+    "pc-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal (self)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 75,
+      "4": 100,
+      "fallback": 100
+     },
+     "unit": "requested heal"
+    },
+    "perUnitRaw": {
+     "HELIOPTILE": 25,
+     "HELIOLISK": 50
+    },
+    "scaling": "apBoost 0 and crit false are passed, so neither AP nor crit scales the heal",
+    "resolution": "requested heal = raw. Applied: PokemonState.handleHeal: a wounded caster receives 0 (Blood Moon weather plus Blood Stone can request a shield of round(0.3 x stones x heal) instead); a caster at 0 hp or with protect gets nothing; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather are applied, the result is rounded and capped at missing HP; any rounded excess over missing HP on a unit with the GRASS synergy effect adds max HP. The requested heal and the applied change differ; the overHeal used for the damage is computed from the requested heal, not from this applied result. No stat adder, Twist Band or Big Eater Belt helper is involved.",
+    "evidence": [
+     "pc-heal",
+     "pc-doheal",
+     "ent-heal",
+     "heal-wound",
+     "heal-alive",
+     "heal-mods",
+     "heal-grass"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "unit": "base raw, plus overHeal (variable)"
+    },
+    "perUnitRaw": {
+     "HELIOPTILE": 25,
+     "HELIOLISK": 50
+    },
+    "extraTerm": "overHeal = max(0, requestedHeal + caster.hp - caster.maxHP), computed before the heal",
+    "scaling": "requested amount = table + overHeal, then AP: x (1 + AP/100) (apBoost defaults to true); a cast crit multiplies by critPower reduced by the target's critReductionFactor (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved if the target has armor reduction active, ceil, minimum 1, shield first; takenDamage is not used by this ability. Blocked (0) by protect / skydiving / magicBounce (magicBounce may reflect SPECIAL damage unless the caster holds Protective Pads) and for a dead or resurrecting target; the heal is not undone when the damage is blocked.",
+    "evidence": [
+     "pc-over",
+     "pc-dmg",
+     "pc-hit",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "armor-half",
+     "hd-dead"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HELIOPTILE": 1,
+    "HELIOLISK": 2
+   },
+   "declaredHeal": {
+    "HELIOPTILE": 25,
+    "HELIOLISK": 50
+   },
+   "declaredBaseDamage": {
+    "HELIOPTILE": 25,
+    "HELIOLISK": 50
+   },
+   "note": "indexed by the caster's stars; the 3 and 4 star values (heal 75 / 100, damage 100 / 200) are not reachable by the two listed units. maxPP 80 and range 3 for both.",
+   "evidence": [
+    "pc-heal",
+    "pc-dmg",
+    "unit-helioptile",
+    "unit-heliolisk"
+   ]
+  },
+  "passiveNote": {
+   "passive": "DRY_SKIN",
+   "note": "declared by both units; separate from this ability. In RAIN or DROUGHT weather it adds a periodic effect (RAIN: caster heal 8; DROUGHT: 8 TRUE damage to itself); SANDSTORM adds 0.25 dodge chance and ZENITH adds 50 AP on spawn. Not traced further.",
+   "evidence": [
+    "dry-skin"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (range 3 for both units).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes overHeal from the caster's current HP.",
+  "rawVsResolved": "Declared raw: heal 25 / 50 (labelled requested), damage base 25 / 50 plus overHeal. Applied heal passes the handleHeal modifiers (wound, buffs, burn, enraged, weather, cap at missing HP) and is not what overHeal is built from. Damage dealt = (base + overHeal) x (1 + AP/100) [x crit factor], then speDef division (ceil, at least 1). A wounded or burning caster still gets the full overHeal bonus on the damage.",
+  "sourceTables": [
+   {
+    "id": "parabolicHeal",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "parabolicDamage",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 200\\)",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Shield, Cover Band, Fossil and resurrection branches of handleDamage were not traced here (takenDamage is unused by PARABOLIC_CHARGE); consulted core-mechanics.md section A and the speDef step only",
+   "The heal side was read in handleHeal (wound, alive/protect gate, modifiers, rounding, cap, GRASS overheal); the Blood Moon shield branch calls addShield, whose Big Eater Belt / Twist Band handling was not read",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "DRY_SKIN (declared by both units) is a separate periodic or spawn effect tied to the weather (RAIN heal 8, DROUGHT 8 TRUE self-damage, SANDSTORM dodge, ZENITH AP); it was read only far enough to confirm it does not call this ability's code, and its interaction with the ability was not further traced",
+   "Whether Heliolisk or Helioptile get the GRASS synergy effect in practice depends on team composition; not determined",
+   "No other unit sharing the identifier exists in the queue; units not listed are not covered",
+   "Mechanical checks only; no probe was run and no fight observed"
+  ],
+  "evidence": [
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget default true; canCritByDefault = false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "apBoost default true: damage x (1 + AP/100)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite for non-TRUE damage"
+   },
+   {
+    "id": "unit-helioptile",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12666,
+     12685
+    ],
+    "symbol": "class Helioptile",
+    "expect": "skill = Ability.PARABOLIC_CHARGE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-heliolisk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12687,
+     12705
+    ],
+    "symbol": "class Heliolisk",
+    "expect": "skill = Ability.PARABOLIC_CHARGE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1068,
+     1068
+    ],
+    "symbol": "AbilityStrategies[Ability.PARABOLIC_CHARGE]",
+    "expect": "[Ability.PARABOLIC_CHARGE]: new ParabolicChargeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pc-class",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "ParabolicChargeStrategy",
+    "expect": "class ParabolicChargeStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "pc-super",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pc-heal",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "const heal = [25, 50, 75, 100][pokemon.stars - 1] ?? 100",
+    "note": "requested heal by stars"
+   },
+   {
+    "id": "pc-over",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "const overHeal = Math.max(0, heal + pokemon.hp - pokemon.maxHP)",
+    "note": "computed BEFORE the heal from the caster's current hp and the unmodified requested heal"
+   },
+   {
+    "id": "pc-doheal",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "pokemon.handleHeal(heal, pokemon, 0, false)",
+    "note": "self heal, apBoost 0 and crit false: no AP or crit scaling"
+   },
+   {
+    "id": "pc-hit",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     17,
+     23
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage to the cast target, apBoost default true, crit passed"
+   },
+   {
+    "id": "pc-dmg",
+    "file": "app/core/abilities/parabolic-charge.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "ParabolicChargeStrategy.process",
+    "expect": "([25, 50, 100, 200][pokemon.stars - 1] ?? 200) + overHeal",
+    "note": "damage raw = table by stars + overHeal"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     475,
+     475
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to PokemonState.handleHeal"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "a wounded caster receives no HP heal; Blood Moon + Blood Stone can request a shield instead"
+   },
+   {
+    "id": "heal-alive",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "nothing for a caster at 0 hp or protected"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     353
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH weather x1.2 before this rounding; then capped at missing HP"
+   },
+   {
+    "id": "heal-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     373
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (overheal > 0 && pokemon.hasSynergyEffect(Synergy.GRASS)) {",
+    "note": "handleHeal's own overheal (after modifiers) adds max HP for a unit with the GRASS synergy effect"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-half",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let speDef = pokemon.status.armorReduction",
+    "note": "speDef halved while armorReduction is active"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead or resurrecting: takenDamage 0"
+   },
+   {
+    "id": "dry-skin",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1058,
+     1058
+    ],
+    "symbol": "DrySkinPeriodicEffect",
+    "expect": "class DrySkinPeriodicEffect extends PeriodicEffect {",
+    "note": "DRY_SKIN (both units' passive): a separate periodic effect in RAIN (heal 8) / DROUGHT (8 TRUE self damage); not part of this ability"
+   }
+  ]
+ }
+}
