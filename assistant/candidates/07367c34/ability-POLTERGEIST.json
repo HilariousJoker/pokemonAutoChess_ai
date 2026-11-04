@@ -1,0 +1,398 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POLTERGEIST",
+ "kind": "ability",
+ "identifier": "POLTERGEIST",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T184001Z"
+ },
+ "record": {
+  "ability": "POLTERGEIST",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare POLTERGEIST: Phantump (1 star) and Trevenant (2 stars). The strategy is shared; unit differences are the star count (table index) and stats. Both have maxPP 100, range 1, no passive.",
+  "appliesTo": [
+   {
+    "key": "PHANTUMP",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POLTERGEIST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TREVENANT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POLTERGEIST",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PHANTUMP": {
+    "evidence": [
+     "unit-phantump"
+    ]
+   },
+   "TREVENANT": {
+    "evidence": [
+     "unit-trevenant"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POLTERGEIST] = new PoltergeistStrategy()",
+   "strategy": "PoltergeistStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pg",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "pg-class",
+    "pg-super"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage on the cast target. Declared raw base is 30/60/120/240 by the caster's stars (240 fallback), plus 20 for each item the TARGET holds and 40 instead for each held item that is in the Tools list (21 items). The sum is then passed once to handleSpecialDamage (AP boost applied there, crit only if the cast crit; blocked by protect / skydiving / magicBounce; SPE_DEF and later modifiers apply). The item bonus is added before the AP multiplier, so AP scales it too. No status, heal, PP or shield effect.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No search, no area, no fallback: the target passed to process is hit. Item count is read from that target's items set (each item at most once). Allies' or the caster's items are not read.",
+   "evidence": [
+    "pg-hit",
+    "pg-items",
+    "items-set",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target (no area, no line)",
+   "evidence": [
+    "pg-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "perTargetItemBonus": {
+      "toolItem": 40,
+      "otherItem": 20
+     }
+    },
+    "perUnitRaw": {
+     "PHANTUMP": 30,
+     "TREVENANT": 60
+    },
+    "scaling": "Requested amount = table value (by caster stars) + 40 per held Tool item + 20 per other held item on the target, computed before the call (an item-less target adds 0). Then AP: requested x (1 + AP/100) (apBoost true by default); the cast's crit flag multiplies by 1 + (critPower - 1) x critReductionFactor only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); crit reduction factor 0 with the target's Rocky Helmet, minus 0.1 per Black Augurite the target's player owns.",
+    "resolution": "The applied change is decided downstream: blocked entirely (0 taken) if the target has protect / skydiving / magicBounce; otherwise PokemonState.handleDamage applies SPE_DEF reduction, shields and the minimum of 1, and reports takenDamage (shield damage included, see core-mechanics §J). Power Lens on the target may reflect part of the SPE_DEF-blocked amount back unless the caster holds Protective Pads. No heal, PP or shield is requested by this ability.",
+    "evidence": [
+     "pg-table",
+     "pg-items",
+     "isin",
+     "tools",
+     "pg-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PHANTUMP": 1,
+    "TREVENANT": 2
+   },
+   "declaredRawDamage": {
+    "PHANTUMP": 30,
+    "TREVENANT": 60
+   },
+   "note": "indexed by the casting entity's stars (1 and 2 for the listed units, bare factory values); the 3-star (120) and 4-star (240) columns are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined. Item bonus is the same for both units.",
+   "evidence": [
+    "pg-table",
+    "unit-phantump",
+    "unit-trevenant"
+   ]
+  },
+  "positionalConditions": "None: the cast needs a target (requiresTarget true), range and position are not read by the strategy. The target's held items at the moment of the cast set the bonus.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast reads the target's current items afresh; if the target's items change between casts the bonus changes.",
+  "rawVsResolved": "Declared raw: 30 (1 star) / 60 (2 stars) plus 20 per non-Tool item and 40 per Tool item held by the target. Example of requested amounts (not final damage): Phantump on a target holding 1 Tool and 1 non-Tool item requests 30 + 40 + 20 = 90 before AP. The damage dealt is requested x (1 + AP/100), then SPE_DEF division and untraced modifiers; takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/poltergeist.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleSpecialDamage's later modifiers (SPE_DEF division, shields, items, resurrection, field multipliers) - handleDamage consulted via core-mechanics §A/§J, not re-derived here",
+   "When the cast fires in a real fight (PP gain, targeting, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate and the handleSpecialDamage crit factor were read"
+  ],
+  "unresolved": [
+   "Which items count as Tools is taken from the Tools array (21 entries); whether other item sets (e.g. buried or artificial items) overlap was not examined beyond that array",
+   "Whether any held item grants or removes items between the item read and the damage call (none seen in the strategy; the whole sum is computed before handleSpecialDamage)",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-pg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1085,
+     1085
+    ],
+    "symbol": "AbilityStrategies[Ability.POLTERGEIST]",
+    "expect": "[Ability.POLTERGEIST]: new PoltergeistStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "pg-class",
+    "file": "app/core/abilities/poltergeist.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "PoltergeistStrategy",
+    "expect": "export class PoltergeistStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "pg-super",
+    "file": "app/core/abilities/poltergeist.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PoltergeistStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process runs first (PP spend, ult count, broadcast)"
+   },
+   {
+    "id": "pg-table",
+    "file": "app/core/abilities/poltergeist.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PoltergeistStrategy.process",
+    "expect": "let damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "base damage by caster stars; 240 fallback"
+   },
+   {
+    "id": "pg-items",
+    "file": "app/core/abilities/poltergeist.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PoltergeistStrategy.process",
+    "expect": "target.items.forEach((item) => (damage += isIn(Tools, item) ? 40 : 20))",
+    "note": "+40 per held Tool item, +20 per other held item, read from the TARGET"
+   },
+   {
+    "id": "pg-hit",
+    "file": "app/core/abilities/poltergeist.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "PoltergeistStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "single hit on the cast target, SPECIAL"
+   },
+   {
+    "id": "isin",
+    "file": "app/utils/array.ts",
+    "lines": [
+     4,
+     6
+    ],
+    "symbol": "isIn",
+    "expect": "return values.includes(x)",
+    "note": ""
+   },
+   {
+    "id": "tools",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     604,
+     626
+    ],
+    "symbol": "Tools",
+    "expect": "export const Tools = [",
+    "note": "21 items from LIGHT_BALL to TERRAIN_EXTENDER"
+   },
+   {
+    "id": "items-set",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     114,
+     114
+    ],
+    "symbol": "PokemonEntity.items",
+    "expect": "items = new SetSchema<Item>()",
+    "note": "a set: each item id is held at most once per entity"
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     345,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     353,
+     357
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (magicBounce may bounce it back unless the caster holds Protective Pads)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "then PokemonState.handleDamage applies SPE_DEF, shields, minimum of 1 (core-mechanics §A/§J)"
+   },
+   {
+    "id": "unit-phantump",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13509,
+     13527
+    ],
+    "symbol": "class Phantump",
+    "expect": "skill = Ability.POLTERGEIST",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-trevenant",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13529,
+     13547
+    ],
+    "symbol": "class Trevenant",
+    "expect": "skill = Ability.POLTERGEIST",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
