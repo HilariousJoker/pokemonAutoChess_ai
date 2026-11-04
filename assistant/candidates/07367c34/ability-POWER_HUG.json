@@ -1,0 +1,735 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POWER_HUG",
+ "kind": "ability",
+ "identifier": "POWER_HUG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T184001Z"
+ },
+ "record": {
+  "ability": "POWER_HUG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare POWER_HUG: Stufful (1 star) and Bewear (2 stars). The strategy is shared; unit differences are the star count (table index). Both have maxPP 100, range 1, no passive.",
+  "appliesTo": [
+   {
+    "key": "STUFFUL",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POWER_HUG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BEWEAR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POWER_HUG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "STUFFUL": {
+    "evidence": [
+     "unit-stufful"
+    ]
+   },
+   "BEWEAR": {
+    "evidence": [
+     "unit-bewear"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POWER_HUG] = new PowerHugStrategy()",
+   "strategy": "PowerHugStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ph",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ph-class",
+    "ph-super"
+   ]
+  },
+  "summary": "Single-target. In this order on the cast target: (1) triggerLocked, (2) triggerParalysis, (3) SPECIAL damage (raw 40/80/160/320 by caster stars). Lock and paralysis both request 3000/3000/6000/10000 ms by stars (10000 fallback). The statuses are applied before and independently of the damage, so a damage block (protect / skydiving / magicBounce) does not stop them; each status has its own guard (lock: skydiving, Rune Protect, IMMUNITY_LOCKED, already locked, ccCooldown; paralysis: Rune Protect, IMMUNITY_PARALYSIS). Lock forces range 1 and prevents the target moving or being moved; paralysis halves its attack speed.",
+  "targeting": {
+   "who": "the cast target only",
+   "needsTarget": true,
+   "note": "No search, line or area: all three calls use the target passed to process.",
+   "evidence": [
+    "ph-lock",
+    "ph-para",
+    "ph-hit",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target (no area, no line)",
+   "evidence": [
+    "ph-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "STUFFUL": 40,
+     "BEWEAR": 80
+    },
+    "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x (1 + (critPower - 1) x critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce (see core-mechanics §A/§J). No heal, PP or shield is requested by this ability.",
+    "evidence": [
+     "ph-table",
+     "ph-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "LOCKED",
+    "target": "the cast target",
+    "durationMs": {
+     "1": 3000,
+     "2": 3000,
+     "3": 6000,
+     "4": 10000,
+     "fallback": 10000
+    },
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "perUnit": {
+      "STUFFUL": 3000,
+      "BEWEAR": 3000
+     },
+     "label": "requested duration"
+    },
+    "scaling": "none from AP or crit: the duration is the flat table value and no apBoost exists on triggerLocked.",
+    "resolution": "applied only if the target is not already locked, not skydiving, has no Rune Protect and lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0 (an existing lock is not refreshed or extended). Applied duration = requested /2 if the target is enraged, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. On application a target with range != 1 is sent back to the moving state and its range is set to 1; a locked unit cannot move (canMove) or be moved (canBeMoved) and cannot dodge basic attacks. When the timer ends the range is restored from baseRange (Wide Lens, Long Wand for Fairy) and ccCooldown is set to at least CC_COOLDOWN. Casting is not blocked by lock (canCast does not read it).",
+    "evidence": [
+     "ph-lock",
+     "lock-fn",
+     "lock-guard",
+     "lock-enraged",
+     "lock-red",
+     "dur-red",
+     "lock-set",
+     "lock-end",
+     "lock-canmove",
+     "lock-canbemoved",
+     "lock-dodge"
+    ]
+   },
+   {
+    "status": "PARALYSIS",
+    "target": "the cast target",
+    "durationMs": {
+     "1": 3000,
+     "2": 3000,
+     "3": 6000,
+     "4": 10000,
+     "fallback": 10000
+    },
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "perUnit": {
+      "STUFFUL": 3000,
+      "BEWEAR": 3000
+     },
+     "label": "requested duration"
+    },
+    "scaling": "none from stars beyond the table, AP or crit: the apBoost argument of triggerParalysis is left at its default false.",
+    "resolution": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the unit's attack cooldown uses half its speed. Unlike lock, paralysis is not refused while skydiving, and has no ccCooldown guard.",
+    "evidence": [
+     "ph-para",
+     "para-fn",
+     "para-guard",
+     "para-storm",
+     "dur-red",
+     "para-cond",
+     "para-set",
+     "para-berry",
+     "para-speed"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "STUFFUL": 1,
+    "BEWEAR": 2
+   },
+   "declaredRawDamage": {
+    "STUFFUL": 40,
+    "BEWEAR": 80
+   },
+   "declaredStatusMs": {
+    "STUFFUL": 3000,
+    "BEWEAR": 3000
+   },
+   "note": "indexed by the casting entity's stars (1 and 2 for the listed units, bare factory values); the 3-star (160 damage, 6000 ms) and 4-star (320 damage, 10000 ms) columns are not reachable by the bare factory star counts. Whether other mechanics raise an entity's star count was not examined. The status duration is the same for 1 and 2 stars (3000).",
+   "evidence": [
+    "ph-table",
+    "ph-lock",
+    "ph-para",
+    "unit-stufful",
+    "unit-bewear"
+   ]
+  },
+  "positionalConditions": "None read in the strategy: requiresTarget true, the target is whatever the cast supplies. Range 1 for both units.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. A target already locked is not re-locked and the lock timer is not extended; after a lock ends ccCooldown blocks a new lock. A longer paralysis replaces a shorter remaining one; a shorter one does not.",
+  "rawVsResolved": "Requested: damage 40/80 (1/2 stars), lock 3000 ms and paralysis 3000 ms on the target. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied lock/paralysis durations are adjusted on the target (enraged, storm, reductions) and may be refused by the guards listed; durations are the requested value, not a guaranteed result.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/power-hug.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "lockDuration",
+    "file": "app/core/abilities/power-hug.ts",
+    "pattern": "triggerLocked\\(\\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.declaredRaw.perUnit"
+   },
+   {
+    "id": "paralysisDuration",
+    "file": "app/core/abilities/power-hug.ts",
+    "pattern": "triggerParalysis\\(\\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.1.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.1.declaredRaw.perUnit"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling)",
+   "Other readers of status.locked (moving-state dark jump, battle UI) beyond canMove / canBeMoved / dodge were only listed by search, not read in full"
+  ],
+  "unresolved": [
+   "Whether the statuses applied before the damage change the damage itself: handleSpecialDamage does not read lock or paralysis, but handleDamage branches were not read exhaustively",
+   "How a locked target with a different current range retargets (toMovingState) was not followed",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, then -10% per Odd Keystone"
+   },
+   {
+    "id": "para-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     908
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "signature (duration, pkm, origin, apBoost = false)"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "refused under Rune Protect or with IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "x1.3 duration in a storm (and Electric Quartz reduction)"
+   },
+   {
+    "id": "para-cond",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": ""
+   },
+   {
+    "id": "para-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     932,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "timer replaced only if the new duration is longer"
+   },
+   {
+    "id": "para-berry",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     936,
+     936
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.eatBerry(Item.CHERI_BERRY)",
+    "note": "a Cheri Berry holder eats it right away"
+   },
+   {
+    "id": "para-speed",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "a paralysed unit attacks at half speed"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-ph",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1089,
+     1089
+    ],
+    "symbol": "AbilityStrategies[Ability.POWER_HUG]",
+    "expect": "[Ability.POWER_HUG]: new PowerHugStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ph-class",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PowerHugStrategy",
+    "expect": "export class PowerHugStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ph-super",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PowerHugStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ph-table",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PowerHugStrategy.process",
+    "expect": "const damage = [40, 80, 160, 320][pokemon.stars - 1] ?? 320",
+    "note": "damage table by caster stars; 320 fallback"
+   },
+   {
+    "id": "ph-lock",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PowerHugStrategy.process",
+    "expect": "target.status.triggerLocked([3000, 3000, 6000, 10000][pokemon.stars - 1] ?? 10000, target)",
+    "note": "lock duration table by caster stars; 10000 fallback; applied first"
+   },
+   {
+    "id": "ph-para",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PowerHugStrategy.process",
+    "expect": "target.status.triggerParalysis([3000, 3000, 6000, 10000][pokemon.stars - 1] ?? 10000, target, pokemon)",
+    "note": "paralysis, same duration table; apBoost left at default false; applied second"
+   },
+   {
+    "id": "ph-hit",
+    "file": "app/core/abilities/power-hug.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PowerHugStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage applied last, after both statuses"
+   },
+   {
+    "id": "lock-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1142
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "triggerLocked(duration: number, pkm: PokemonEntity) {",
+    "note": "signature (duration, pkm)"
+   },
+   {
+    "id": "lock-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1144,
+     1148
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "refused if already locked, skydiving, runeProtect, IMMUNITY_LOCKED on pkm, or ccCooldown > 0"
+   },
+   {
+    "id": "lock-enraged",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1150,
+     1152
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "duration = duration / 2",
+    "note": "halved if pkm is enraged"
+   },
+   {
+    "id": "lock-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1154,
+     1154
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "lock-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1156,
+     1161
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "this.lockedCooldown = Math.round(duration)",
+    "note": "locked = true; a target with range != 1 is forced to re-target (toMovingState) and its range is set to 1"
+   },
+   {
+    "id": "lock-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1165,
+     1166
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "updateLocked(dt: number, pokemon: PokemonEntity) {",
+    "note": "when the timer ends: locked = false, range restored from baseRange (Wide Lens, Long Wand for a Fairy), ccCooldown = max(ccCooldown, CC_COOLDOWN)"
+   },
+   {
+    "id": "lock-canmove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     238
+    ],
+    "symbol": "PokemonEntity.canMove",
+    "expect": "!this.status.locked &&",
+    "note": "a locked unit cannot move"
+   },
+   {
+    "id": "lock-canbemoved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.locked &&",
+    "note": "a locked unit cannot be moved by effects"
+   },
+   {
+    "id": "lock-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     100,
+     108
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "!target.status.locked",
+    "note": "a locked target cannot dodge basic attacks"
+   },
+   {
+    "id": "unit-stufful",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16957,
+     16972
+    ],
+    "symbol": "class Stufful",
+    "expect": "skill = Ability.POWER_HUG",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-bewear",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16973,
+     16990
+    ],
+    "symbol": "class Bewear",
+    "expect": "skill = Ability.POWER_HUG",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
