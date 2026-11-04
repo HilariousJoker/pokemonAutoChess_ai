@@ -35,6 +35,15 @@ for (const [unit, ab, stars, raw, bits] of [
 }
 r = run("--list")
 check("--list: 50 ability records and the four imported healing abilities with their own units only", r.code === 0 && has(r, "50 ability records", "Ability SUCTION_HEAL: TYNAMO, EELEKTRIK, EELEKTROSS", "Ability PARABOLIC_CHARGE: HELIOPTILE, HELIOLISK", "Ability POLLEN_PUFF: CUTIEFLY, RIBOMBEE", "Ability AROMATHERAPY: PETILIL, LILIGANT"), r.err)
+// ---- ninth import (passives DRUMMER, WATER_SPRING): FAST finds the passive records and notes automatically; ability and evolution coverage stay separate ----
+for (const [unit, passive, stars, abilityLine] of [
+  ["GROOKEY", "DRUMMER", 1, "Ability DRUM_BEATING — source-traced"], ["THWACKEY", "DRUMMER", 2, "Ability DRUM_BEATING — source-traced"], ["RILLABOOM", "DRUMMER", 3, "Ability DRUM_BEATING — source-traced"],
+  ["MUDKIP", "WATER_SPRING", 1, "Ability MUD_BUBBLE: NOT covered — no canonical ability record applies to MUDKIP. No description is invented."], ["MARSHTOMP", "WATER_SPRING", 2, "Ability MUD_BUBBLE: NOT covered — no canonical ability record applies to MARSHTOMP. No description is invented."], ["SWAMPERT", "WATER_SPRING", 3, "Ability MUD_BUBBLE: NOT covered — no canonical ability record applies to SWAMPERT. No description is invented."]]) {
+  r = run("--unit", unit)
+  check(`${unit}: passive ${passive} found automatically with the scoped Codex AI review (not owner-reviewed, not gameplay-tested); Protect versus Rune Protect and fatigue rounding; ability and evolution coverage stated separately`, r.code === 0 && has(r, `[UNIT] ${unit}`, `${stars}★`, `Passive ${passive} — source-traced; independent review pending; independent AI source review by Codex recorded`, "NOT a project-owner review", "NOT gameplay-tested", "status.protect (Protect)", "Rune Protect", "round(2.5) = 3", abilityLine, "Evolution: NOT covered (outside the 20-unit evolution pilot)", `reusable-abilities.json#passives.${passive}; note assistant/knowledge/07367c34/reusable-abilities.md#${passive.toLowerCase()}-passive`) && lacks(r, "undefined", "NaN", "[object", "protected (Rune Protect)", "candidate is source reading", "Evolution link"), r.err || r.out.slice(0, 200))
+}
+r = run("--list")
+check("--list: 4 passive records (DRUMMER and WATER_SPRING added, PACHIRISU still a labelled gap)", r.code === 0 && has(r, "4 passive records, 1 labelled passive gap(s)") && /Passive DRUMMER: GROOKEY, THWACKEY, RILLABOOM|Passive DRUMMER: GROOKEY, RILLABOOM, THWACKEY/.test(r.out) && /Passive WATER_SPRING: MARSHTOMP, MUDKIP, SWAMPERT|Passive WATER_SPRING: MUDKIP, MARSHTOMP, SWAMPERT/.test(r.out) && has(r, "50 ability records"), r.err)
 r = run("--unit", "CHARIZARD", "--item", "Nullify Bandanna")
 check("CHARIZARD + Nullify Bandanna in one lookup: reviewed BLAST_BURN raw 120 and the bandanna card (holder cannot cast)", r.code === 0 && has(r, "Ability BLAST_BURN — independently reviewed", "raw 120", "[ITEMS]", "NULLIFY BANDANNA", "Holder cannot cast"), r.err)
 r = run("--unit", "WALREIN", "--item", "Big Eater Belt")

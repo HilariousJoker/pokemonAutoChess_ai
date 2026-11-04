@@ -107,7 +107,7 @@ for (const row of ["| 1 | ATTACK_ORDER | 3 |", "| 2 | HEAL_ORDER | 2 |", "| 3 | 
 for (const [k, v] of [["Charmander (1★) 30", 1], ["Charmeleon (2★) 60", 1], ["Charizard (3★) 120", 1], ["Totodile is 1★ → 40", 1]]) if (!md.includes(k)) bad(`Markdown lacks "${k}"`)
 
 
-// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT / IRON_DEFENSE / MACH_PUNCH / ROCK_SLIDE / SLASH / VENOSHOCK / AERIAL_ACE / AQUA_TAIL / CLANGOROUS_SOUL / CRABHAMMER / DISCHARGE / DIVE / DOUBLE_SHOCK / DRAGON_TAIL / FAKE_TEARS / FIRE_LASH / KING_SHIELD / LEECH_SEED / FLAME_CHARGE / SLUDGE / VOLT_SWITCH / FLOWER_TRICK / DARKEST_LARIAT / DRAGON_BREATH / DRUM_BEATING / EXPANDING_FORCE / RAGING_BULL / ZAP_CANNON / EXPLOSION / BLAZE_KICK / AQUA_STEP / POWDER / ICE_BALL / BITE / HORN_LEECH / TELEPORT / SUCTION_HEAL / PARABOLIC_CHARGE / POLLEN_PUFF / AROMATHERAPY ability records, SURGE_SURFER / PRIMEAPE passive records, PACHIRISU gap =====
+// ===== 6. reusable-abilities.json: NUZZLE / DRAGON_RAGE / THRASH and the imported BUG_BUZZ / FOUL_PLAY / LEAF_BLADE / SOAK / TORMENT / IRON_DEFENSE / MACH_PUNCH / ROCK_SLIDE / SLASH / VENOSHOCK / AERIAL_ACE / AQUA_TAIL / CLANGOROUS_SOUL / CRABHAMMER / DISCHARGE / DIVE / DOUBLE_SHOCK / DRAGON_TAIL / FAKE_TEARS / FIRE_LASH / KING_SHIELD / LEECH_SEED / FLAME_CHARGE / SLUDGE / VOLT_SWITCH / FLOWER_TRICK / DARKEST_LARIAT / DRAGON_BREATH / DRUM_BEATING / EXPANDING_FORCE / RAGING_BULL / ZAP_CANNON / EXPLOSION / BLAZE_KICK / AQUA_STEP / POWDER / ICE_BALL / BITE / HORN_LEECH / TELEPORT / SUCTION_HEAL / PARABOLIC_CHARGE / POLLEN_PUFF / AROMATHERAPY ability records, SURGE_SURFER / PRIMEAPE / DRUMMER / WATER_SPRING passive records, PACHIRISU gap =====
 const reuse = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
 const catalog = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/catalog-units.json"), "utf8"))
 const reuseMd = readFileSync(resolve(HERE, "knowledge/07367c34/reusable-abilities.md"), "utf8")
@@ -165,6 +165,7 @@ const IMPORTED = { BUG_BUZZ: "BugBuzzStrategy", FOUL_PLAY: "FoulPlayStrategy", L
 for (const id of ["NUZZLE", "DRAGON_RAGE", "THRASH", ...Object.keys(IMPORTED)]) eq(RA[id].appliesTo.map((u) => u.key).sort(), boundBy("skill", id), `${id} appliesTo vs catalog skill bindings`)
 eq(RP.SURGE_SURFER.appliesTo.map((u) => u.key).sort(), boundBy("passive", "SURGE_SURFER"), "SURGE_SURFER appliesTo vs catalog")
 eq(RP.PRIMEAPE.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PRIMEAPE"), "PRIMEAPE appliesTo vs catalog")
+for (const id of ["DRUMMER", "WATER_SPRING"]) eq(RP[id].appliesTo.map((u) => u.key).sort(), boundBy("passive", id), `${id} appliesTo vs catalog passive bindings`)
 eq(RG.PACHIRISU.appliesTo.map((u) => u.key).sort(), boundBy("passive", "PACHIRISU"), "PACHIRISU gap appliesTo vs catalog")
 // registry bindings
 for (const [id, cls] of [["NUZZLE", "NuzzleStrategy"], ["DRAGON_RAGE", "DragonRageStrategy"], ["THRASH", "ThrashStrategy"], ...Object.entries(IMPORTED)]) {
@@ -179,6 +180,17 @@ for (const id of Object.keys(IMPORTED)) {
   if (rs.status !== "unreviewed") bad(`${id}: review status is ${rs.status}; an AI review must not make an imported record 'reviewed' (owner acceptance only)`)
   const ai = rs.aiReview
   if (!ai || ai.reviewer !== "Codex" || ai.kind !== "independent AI source review" || ai.projectOwnerReviewed !== false || ai.gameplayTested !== false) bad(`${id}: aiReview must name Codex as an independent AI source review with projectOwnerReviewed=false and gameplayTested=false`)
+}
+// imported passive records (DRUMMER, WATER_SPRING): the recheck is recorded, and the review metadata never claims owner review or gameplay testing
+for (const id of ["DRUMMER", "WATER_SPRING"]) {
+  if (!RP[id].importRecheck?.notes?.length || !RP[id].importRecheck.run) bad(`passive ${id}: importRecheck (run + notes) missing`)
+  const rs = reviewStatus.records[`data/07367c34/reusable-abilities.json#passives.${id}`]
+  if (!rs) { bad(`review-status.json has no entry for the imported passive record ${id}`); continue }
+  if (rs.status !== "unreviewed") bad(`passive ${id}: review status is ${rs.status}; an AI review must not make an imported record 'reviewed' (owner acceptance only)`)
+  const ai = rs.aiReview
+  if (!ai || ai.reviewer !== "Codex" || ai.kind !== "independent AI source review" || ai.projectOwnerReviewed !== false || ai.gameplayTested !== false) bad(`passive ${id}: aiReview must name Codex as an independent AI source review with projectOwnerReviewed=false and gameplayTested=false`)
+  if (RP[id].evolution) bad(`passive ${id}: an evolution field would claim evolution coverage; the record must stay passive-only`)
+  if (!/PP|Protect/.test(RP[id].summary) || /protected \(Rune Protect\)/.test(JSON.stringify(RP[id]).replace(/the 'protected \(Rune Protect\)' conflation/g, ""))) bad(`passive ${id}: summary must describe the PP / Protect rule without the 'protected (Rune Protect)' conflation`)
 }
 // declared tables equal the arrays in the source text
 const tbl = (file, re) => table(file, re)
@@ -208,10 +220,12 @@ if (RA.DRAGON_RAGE.effects[0].perUnitRaw.GYARADOS !== at(drDamage, 3) || RA.DRAG
 // the DRAGON_RAGE effect flag is used only in its own file (server code; git grep over the pinned tree)
 const used = execFileSync("git", ["-C", REPO, "grep", "-l", "EffectEnum.DRAGON_RAGE", SHA, "--", "app"], { encoding: "utf8" }).trim().split("\n").map((l) => l.replace(`${SHA}:`, "")).sort()
 eq(used, ["app/core/abilities/dragon-rage.ts"], "EffectEnum.DRAGON_RAGE uses")
-// passive registry: PRIMEAPE has PassiveEffects entries, SURGE_SURFER has none (its logic is in status.ts)
+// passive registry: PRIMEAPE has PassiveEffects entries; SURGE_SURFER, DRUMMER and WATER_SPRING have none (logic in status.ts, moving-state.ts / drumBeat, and a shared effect installed by the unit classes)
 const passivesSrc = srcFull("app/core/effects/passives.ts")
 if (!/\[Passive\.PRIMEAPE\]:\s*\[/.test(passivesSrc)) bad("PassiveEffects[Passive.PRIMEAPE] not found")
 if (/\[Passive\.SURGE_SURFER\]\s*:/.test(passivesSrc)) bad("PassiveEffects unexpectedly has a SURGE_SURFER entry")
+for (const id of ["DRUMMER", "WATER_SPRING"]) if (new RegExp(`\\[Passive\\.${id}\\]\\s*:`).test(passivesSrc)) bad(`PassiveEffects unexpectedly has a ${id} entry`)
+if (!/function drumBeat\(/.test(passivesSrc) || !/const WaterSpringEffect = new OnAbilityCastEffect/.test(passivesSrc)) bad("drumBeat / WaterSpringEffect not found in passives.ts")
 const statusSrc = srcFull("app/models/colyseus-models/status.ts")
 if ((statusSrc.match(/entity\.passive === Passive\.SURGE_SURFER/g) ?? []).length !== 4) bad("expected exactly 4 SURGE_SURFER passive checks in status.ts")
 const surgeOther = execFileSync("git", ["-C", REPO, "grep", "-n", "Passive.SURGE_SURFER", SHA, "--", "app/core", "app/models"], { encoding: "utf8" }).trim().split("\n").filter((l) => !l.includes("colyseus-models/status.ts"))

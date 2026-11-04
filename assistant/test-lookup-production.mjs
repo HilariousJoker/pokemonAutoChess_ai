@@ -75,7 +75,7 @@ r = run("LUDICOLO")
 check("LUDICOLO: TORMENT 3★ raw 50 with maxPP 80, range 3", r.code === 0 && has(r, "LUDICOLO is 3★, maxPP 80, range 3", "this unit (3★): **raw 50**"), r.err)
 for (const [k, names] of [["ABRA", ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT"]], ["CHARMANDER", ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT"]]]) check(`${k}: none of the imported ability text leaks to a unit that does not declare the skill`, names.every((n) => lacks(run(k), `Source-traced: ${n}`)))
 // ---- later import (IRON_DEFENSE, MACH_PUNCH, ROCK_SLIDE): Codex's review is limited to the named mechanics ----
-const aiLimited = (r, name, ...scopeBits) => has(r, `### Source-traced: ${name} (independent AI source review by Codex recorded; project-owner review pending`, "not a project-owner review; not gameplay-tested", "Project-owner review is pending", "Import recheck", "Does not claim full interaction coverage", ...scopeBits) && lacks(r, `### Reviewed: ${name}`, "independently reviewed")
+const aiLimited = (r, name, ...scopeBits) => has(r, `### Source-traced: ${name} (independent AI source review by Codex recorded; project-owner review pending`, "not a project-owner review; not gameplay-tested", "Project-owner review is pending", "Import recheck", "Does not claim full interaction coverage", ...scopeBits) && lacks(r, `### Reviewed: ${name}`, `${name} (independently reviewed`)
 r = run("SHIELDON")
 check("SHIELDON: IRON_DEFENSE 1★ requested 20, caster's simulation row incl. itself, Big Eater Belt on the recipient before AP/crit, enraged halving, additive", r.code === 0 && aiLimited(r, "IRON_DEFENSE", "same-team units on the caster's global simulation row", "recipient Big Eater Belt before caster AP/crit") && has(r, "this unit (1★): **raw 20**", "the caster itself included", "simulation board", "Big Eater Belt scaling uses the RECIPIENT's items", "enraged and the value is positive", "added to the recipient's shield"), r.err)
 r = run("CLAMPERL")
@@ -245,6 +245,31 @@ check("MEW: TELEPORT 3★ raw 60, mark consumed through dodged attacks, Magic Bo
   }
   check(`all ${bound} bound keys of the four imported healing abilities show exactly their own ability, unit facts, a per-unit raw value, resolution text, a separate evolution-coverage statement and no undefined`, bound === 9 && problems.length === 0, problems.join("; "))
 }
+// ---- ninth import (passives DRUMMER, WATER_SPRING): every explicit unit binding; Protect versus Rune Protect; fatigue rounding; passive / ability / evolution coverage kept separate ----
+{
+  const passiveCommon = (r, name) => r.code === 0 && lacks(r, "undefined", "NaN", "[object", "candidate is source reading", "protected (Rune Protect)") && has(r, `structured record \`passives.${name}\``.replace("structured record", "Structured passive record:** yes —"), "Recorded AI review", "independent AI source review by Codex", "not a project-owner review; not gameplay-tested", "the AI review does not make this record owner-reviewed", "executed probes", "were NOT executed", "status.protect", "Rune Protect alone")
+  for (const [unit, stars] of [["GROOKEY", 1], ["THWACKEY", 2], ["RILLABOOM", 3]]) {
+    r = run(unit)
+    check(`${unit}: DRUMMER passive record (${stars}★ drum PP ${[2, 3, 5][stars - 1]}); Protect blocks the PP, Rune Protect alone does not, fatigue rounding; the ability DRUM_BEATING is a separate record; evolution not covered`, passiveCommon(r, "DRUMMER") && has(r, `Unit facts: ${unit} is ${stars}★`, "covers GROOKEY, RILLABOOM, THWACKEY", "has status.protect (Protect)", "a receiver with only Rune Protect is not blocked", "fatigue gives 11 / 12 / 13 (round(1) = 1, round(1.5) = 2, round(2.5) = 3)", "- **Ability** (`DRUM_BEATING`): record `abilities.DRUM_BEATING`", "- **Passive** (`DRUMMER`): structured record `passives.DRUMMER`", "- **Evolution**: not in the evolution pilot") && lacks(r, "Evolution link"), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, stars] of [["MUDKIP", 1], ["MARSHTOMP", 2], ["SWAMPERT", 3]]) {
+    r = run(unit)
+    check(`${unit}: WATER_SPRING passive record (+5 PP per opposing cast, ${stars}★ same amount); Protect blocks, Rune Protect alone does not, fatigue +3; MUD_BUBBLE gets NO invented explanation; evolution not covered`, passiveCommon(r, "WATER_SPRING") && has(r, `Unit facts: ${unit} is ${stars}★`, "covers MARSHTOMP, MUDKIP, SWAMPERT", "has status.protect (Protect)", "fatigue gives 13 (round(2.5) = 3)", "- **Ability** (`MUD_BUBBLE`): no record for this unit.", "- **Passive** (`WATER_SPRING`): structured record `passives.WATER_SPRING`", "- **Evolution**: not in the evolution pilot", "**No ability record for this unit.** The ability `MUD_BUBBLE` has not been reviewed. No description is invented.") && lacks(r, "Source-traced: MUD_BUBBLE", "Evolution link"), r.err || r.out.slice(0, 200))
+  }
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["DRUMMER", "WATER_SPRING"]) for (const u of reu.passives[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    if (!o.includes(`Passive identifier \`${n}\`.`) || !o.includes(`Structured passive record:** yes — \`passives.${n}\``)) problems.push(`${u.key}: passive section`)
+    if (!o.includes(`Unit facts: ${u.key} is ${u.stars}★`)) problems.push(`${u.key}: unit facts`)
+    if (/undefined|\[object|NaN/.test(o)) problems.push(`${u.key}: undefined/[object/NaN`)
+    if (!/not in the evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+    const abilityHeaders = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (n === "DRUMMER" ? abilityHeaders.join() !== "DRUM_BEATING" : abilityHeaders.length !== 0) problems.push(`${u.key}: ability headers ${abilityHeaders.join()}`)
+  }
+  check(`all ${bound} bound keys of the two imported passives show their passive record, unit facts, a separate evolution statement, no undefined, and exactly the ability coverage that already existed (DRUM_BEATING for DRUMMER units, none for WATER_SPRING units)`, bound === 6 && problems.length === 0, problems.join("; "))
+}
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
@@ -324,6 +349,9 @@ check("fixture: reusable record disagreeing with catalog stars refused", r.code 
 ru = rd("reusable-abilities.json"); ru.passives.PRIMEAPE.appliesTo[0].declaredPassive = "NONE"
 r = run("PRIMEAPE", "--reusable", put("reu-passive.json", ru))
 check("fixture: passive record disagreeing with catalog passive refused", r.code === 3 && /passive disagrees with the catalog/.test(r.err), r.err)
+ru = rd("reusable-abilities.json"); ru.passives.DRUMMER.appliesTo[0].declaredPassive = "NONE"
+r = run("GROOKEY", "--reusable", put("reu-passive2.json", ru))
+check("fixture: imported DRUMMER record disagreeing with the catalog passive refused", r.code === 3 && /passive disagrees with the catalog/.test(r.err), r.err)
 ru = rd("reusable-abilities.json"); ru.abilities.CRUNCH = ru.abilities.NUZZLE
 r = run("PICHU", "--reusable", put("reu-collide.json", ru))
 check("fixture: reusable record colliding with a pilot record refused", r.code === 3 && /collides with a pilot/.test(r.err), r.err)
@@ -359,6 +387,7 @@ check("fixture: gameplayTested is shown exactly as recorded (a true flag would b
 {
   const shipped = rd2("review-status.json")
   const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY"]
+  check("shipped review-status.json: the imported passives DRUMMER and WATER_SPRING are unreviewed with Codex's scoped AI review, projectOwnerReviewed=false, gameplayTested=false", ["DRUMMER", "WATER_SPRING"].every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#passives.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
   check("shipped review-status.json: the forty-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
