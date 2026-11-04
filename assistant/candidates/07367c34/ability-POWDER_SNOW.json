@@ -1,0 +1,659 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POWDER_SNOW",
+ "kind": "ability",
+ "identifier": "POWDER_SNOW",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T184001Z"
+ },
+ "record": {
+  "ability": "POWDER_SNOW",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare POWDER_SNOW: Snom (1 star) and Frosmoth (2 stars). The strategy is shared; unit differences are the star count (table index). Both have maxPP 80, range 3, no passive.",
+  "appliesTo": [
+   {
+    "key": "SNOM",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "POWDER_SNOW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FROSMOTH",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "POWDER_SNOW",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SNOM": {
+    "evidence": [
+     "unit-snom"
+    ]
+   },
+   "FROSMOTH": {
+    "evidence": [
+     "unit-frosmoth"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POWDER_SNOW] = new PowderSnowStrategy()",
+   "strategy": "PowderSnowStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ps",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ps-class",
+    "ps-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 20/40/80/160 by stars) to every enemy-team unit on a straight line from the caster through the cast target, extended to the board edge, and gives each enemy hit an independent chance (15% / 30% / 50% / 100% by stars; caster's luck applies) to be frozen for a base 2000 ms. The freeze roll happens for every enemy on the line after its damage call, whether or not that damage was blocked (protect / skydiving / magicBounce block damage only; skydiving and Rune Protect are rejected inside triggerFreeze).",
+  "targeting": {
+   "who": "every enemy-team entity on the cells of the supercover line from the caster's cell toward the cast target and on to a point 12 cells away along the same angle (clipped to the board); the caster's own cell is filtered out as same-team",
+   "needsTarget": true,
+   "note": "The target only fixes the line's angle: it is hit only if its cell lies on the computed line (effectInLine has no fall-back that touches the original target). Enemies behind the target are hit too. Allies are skipped.",
+   "evidence": [
+    "ps-line",
+    "ps-filter",
+    "el-class",
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster through the cast target to the board edge; every touched cell counts, diagonal crossings included",
+   "evidence": [
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team unit on the line (each cell visited once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "SNOM": 20,
+     "FROSMOTH": 40
+    },
+    "scaling": "requested = table[stars-1] per enemy hit, no falloff along the line. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x (1 + (critPower - 1) x critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect (consumed by the first hit); x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce (see core-mechanics §A/§J).",
+    "evidence": [
+     "ps-table",
+     "ps-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FREEZE",
+    "target": "each enemy-team unit on the line (independent roll)",
+    "durationMs": 2000,
+    "probability": {
+     "byStars": {
+      "1": 0.15,
+      "2": 0.3,
+      "3": 0.5,
+      "4": 1.0,
+      "fallback": 1.0
+     }
+    },
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "byStars": {
+      "1": 0.15,
+      "2": 0.3,
+      "3": 0.5,
+      "4": 1.0,
+      "fallback": 1.0
+     },
+     "perUnit": {
+      "SNOM": 0.15,
+      "FROSMOTH": 0.3
+     },
+     "label": "requested base duration / chance"
+    },
+    "scaling": "none from AP or crit; chance by caster stars through chance(p, caster), so the caster's luck raises it (p ^ (1 - luck/100)); the duration is a flat 2000 requested.",
+    "resolution": "applied only if the hit unit is not already frozen, has no rune protect or skydiving, and its ccCooldown is <= 0. The call is `cell.value.status.triggerFreeze(2000, cell.value, pokemon)`, so the IMMUNITY_FREEZE check, weather (SNOW x1.3 reduced by 20% per Icy Rock of the hit unit's player; DROUGHT x0.7), enraged halving and status-duration reductions are evaluated against the HIT unit itself. Applied duration = Math.round of the adjusted value. Freeze then wears off faster if the unit is also burning. The roll is independent of whether the damage was blocked or dealt.",
+    "evidence": [
+     "ps-chance-table",
+     "ps-roll",
+     "ps-freeze",
+     "chance",
+     "fr-trig",
+     "fr-immune",
+     "fr-snow",
+     "fr-red",
+     "fr-set",
+     "fr-update"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SNOM": 1,
+    "FROSMOTH": 2
+   },
+   "declaredRawDamage": {
+    "SNOM": 20,
+    "FROSMOTH": 40
+   },
+   "declaredFreezeChance": {
+    "SNOM": 0.15,
+    "FROSMOTH": 0.3
+   },
+   "note": "indexed by the casting entity's stars (1 and 2 for the listed units, bare factory values); the 3-star and 4-star columns (80/160 damage, 50%/100% freeze) are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined.",
+   "evidence": [
+    "ps-table",
+    "ps-chance-table",
+    "unit-snom",
+    "unit-frosmoth"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point). Range 3 means the cast target may be up to 3 cells away, but the line continues to the board edge.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the line; a unit already frozen is not re-frozen and the freeze timer is not extended; a unit that just ended a freeze has a crowd-control cooldown (ccCooldown) that blocks a new freeze.",
+  "rawVsResolved": "Requested: damage 20/40 (1/2 stars of the listed units) per enemy on the line, freeze 2000 ms at 15%/30%. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied freeze duration is computed from the hit unit's own context (weather, enraged, reductions), unlike AURORA_BEAM.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/powder-snow.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "freezeChance",
+    "file": "app/core/abilities/powder-snow.ts",
+    "pattern": "const freezeChance = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.declaredRaw.perUnit"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and the effects of the frozen status on a unit's actions (the status flag and timer were read, not what a frozen unit is prevented from doing)",
+   "Board cell values for dead units on the line were not read (getCellsBetween reads this.cells directly)"
+  ],
+  "unresolved": [
+   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "The source comment says [15,30,50,LK]% freeze chance; the code reads the table [0.15, 0.3, 0.5, 1.0] (4-star 100%); recorded as read",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "el-class",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     920
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": ""
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target; line is extended 12 cells beyond the caster along that angle"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": ""
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     938,
+     938
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped); each cell carries the entity on it"
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     10,
+     12
+    ],
+    "symbol": "chance",
+    "expect": "Math.random() <",
+    "note": "chance(p, entity) = random < min(cap, p ^ (1 - luck/100))"
+   },
+   {
+    "id": "fr-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     696,
+     696
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!this.freeze && // freeze cannot be stacked",
+    "note": "not applied if already frozen, rune protect, skydiving, IMMUNITY_FREEZE on pkm, or ccCooldown > 0"
+   },
+   {
+    "id": "fr-immune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     699,
+     699
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_FREEZE) &&",
+    "note": ""
+   },
+   {
+    "id": "fr-snow",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     702,
+     716
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "if (pkm.simulation.weather === Weather.SNOW) {",
+    "note": "SNOW x1.3 (Icy Rock reduces), DROUGHT x0.7, enraged pkm /2"
+   },
+   {
+    "id": "fr-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     717,
+     717
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "fr-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     720,
+     720
+    ],
+    "symbol": "Status.triggerFreeze",
+    "expect": "this.freezeCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "fr-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     740,
+     740
+    ],
+    "symbol": "Status.updateFreeze",
+    "expect": "this.freezeCooldown -= dt * (this.burn ? 2 : 1)",
+    "note": "burn halves the remaining freeze faster; when it ends ccCooldown is set to CC_COOLDOWN"
+   },
+   {
+    "id": "reg-ps",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1088,
+     1088
+    ],
+    "symbol": "AbilityStrategies[Ability.POWDER_SNOW]",
+    "expect": "[Ability.POWDER_SNOW]: new PowderSnowStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ps-class",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "PowderSnowStrategy",
+    "expect": "export class PowderSnowStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ps-super",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ps-table",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table by caster stars; 160 fallback"
+   },
+   {
+    "id": "ps-chance-table",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "const freezeChance = [0.15, 0.3, 0.5, 1.0][pokemon.stars - 1] ?? 1.0",
+    "note": "freeze chance table by caster stars; 1.0 fallback"
+   },
+   {
+    "id": "ps-line",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "callback runs for every cell on the line"
+   },
+   {
+    "id": "ps-filter",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "only enemy-team entities are affected"
+   },
+   {
+    "id": "ps-hit",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     23,
+     29
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, default apBoost"
+   },
+   {
+    "id": "ps-roll",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "if (chance(freezeChance, pokemon)) {",
+    "note": "one independent roll per enemy on the line, caster's luck"
+   },
+   {
+    "id": "ps-freeze",
+    "file": "app/core/abilities/powder-snow.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "PowderSnowStrategy.process",
+    "expect": "cell.value.status.triggerFreeze(2000, cell.value, pokemon)",
+    "note": "freeze 2000 ms; the pkm argument is the hit unit itself (unlike AURORA_BEAM which passes the cast target)"
+   },
+   {
+    "id": "unit-snom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10462,
+     10476
+    ],
+    "symbol": "class Snom",
+    "expect": "skill = Ability.POWDER_SNOW",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-frosmoth",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10478,
+     10493
+    ],
+    "symbol": "class Frosmoth",
+    "expect": "skill = Ability.POWDER_SNOW",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
