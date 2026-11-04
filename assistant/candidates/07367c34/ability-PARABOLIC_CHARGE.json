@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Heals the caster, then deals SPECIAL damage to the cast target. Heal request: 25 (1 star) / 50 (2 stars) raw (75 / 100 at 3 / 4+ stars, not reachable here), with no AP or crit scaling. Damage raw: 25 (1 star) / 50 (2 stars) (100 / 200 at 3 / 4+) PLUS overHeal, where overHeal = max(0, requestedHeal + caster.hp - caster.maxHP) is computed BEFORE the heal from the caster's current HP and the UNMODIFIED requested heal. It therefore measures how much of the requested heal would exceed missing HP; it is not the overheal that handleHeal reports after its modifiers. The heal is requested first, the damage second, in the same call; the damage reads the overHeal value computed earlier, not the caster's HP after healing. Illustration only (arithmetic, not a fight): Heliolisk (heal 50) at 90/100 HP: overHeal 40, damage raw 50 + 40 = 90 before AP and the target's speDef.",
+  "summary": "Heals the caster, then deals SPECIAL damage to the cast target. Heal request: 25 (1 star) / 50 (2 stars) raw (75 / 100 at 3 / 4+ stars, not reachable here), with no AP or crit scaling. Damage raw: 25 (1 star) / 50 (2 stars) (100 / 200 at 3 / 4+) PLUS overHeal, where overHeal = max(0, requestedHeal + caster.hp - caster.maxHP) is computed BEFORE the heal from the caster's current HP and the UNMODIFIED requested heal. It therefore measures how much of the requested heal would exceed missing HP; it is not the overheal that handleHeal reports after its modifiers. The heal is requested first, the damage second, in the same call; the damage reads the overHeal value computed earlier, not the caster's HP after healing. Illustration only (arithmetic, not a fight): Heliolisk (heal 50) at 90/100 HP: pre-heal overHeal 40, damage raw 50 + 40 = 90 before AP and the target's speDef; with no heal modifiers handleHeal's own overheal is also 40 (healed 10), so a Grass Heliolisk would request addMaxHP(16) - but with, say, burning (x0.5) handleHeal would heal 25 capped to 10 and report overheal 15 while the damage still uses 40. The heal itself follows handleHeal's branches: a wounded caster gets no HP (Blood Moon + Blood Stone can request an addShield instead), an unwounded caster with status.protect gets nothing (Rune Protect alone does not block), and Grass overheal requests addMaxHP(0.4 x overheal).",
   "targeting": {
    "who": "heal: the caster itself; damage: the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -97,7 +97,7 @@
      "HELIOLISK": 50
     },
     "scaling": "apBoost 0 and crit false are passed, so neither AP nor crit scales the heal",
-    "resolution": "requested heal = raw. Applied: PokemonState.handleHeal: a wounded caster receives 0 (Blood Moon weather plus Blood Stone can request a shield of round(0.3 x stones x heal) instead); a caster at 0 hp or with protect gets nothing; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather are applied, the result is rounded and capped at missing HP; any rounded excess over missing HP on a unit with the GRASS synergy effect adds max HP. The requested heal and the applied change differ; the overHeal used for the damage is computed from the requested heal, not from this applied result. No stat adder, Twist Band or Big Eater Belt helper is involved.",
+    "resolution": "requested heal = raw. Applied: PokemonState.handleHeal: a wounded caster receives 0 (Blood Moon weather plus Blood Stone can request a shield of round(0.3 x stones x heal) instead); an unwounded caster at 0 hp or with status.protect gets nothing (status.runeProtect is not read; a wounded caster has already taken the wound branch); otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather are applied, the result is rounded and capped at missing HP; the rounded excess over missing HP (handleHeal's own overheal, measured after the modifiers) on a unit with the GRASS synergy effect requests addMaxHP(0.4 x that overheal) on the caster, which also raises its current HP. The requested heal and the applied change differ; the overHeal used for the damage is the pre-heal raw value max(0, heal + hp - maxHP) computed from the UNMODIFIED request and the pre-heal HP (kept unchanged), not handleHeal's result or the Grass amount. The direct heal path calls no stat adder, but the indirect branches of handleHeal do: the Blood Moon + Blood Stone shield request goes through the entity addShield (Big Eater Belt x1.25 rounded down, then the state's addShield: hp > 0, enraged halves, rounded) and the Grass request goes through addMaxHP (rounded, Big Eater Belt, Twist Band, raises maxHP and current HP). Those downstream requests are not the final shield / max HP when an item helper applies (probe: shield request 6 -> final 7 with Big Eater Belt; Grass request 16 -> final 20).",
     "evidence": [
      "pc-heal",
      "pc-doheal",
@@ -105,7 +105,14 @@
      "heal-wound",
      "heal-alive",
      "heal-mods",
-     "heal-grass"
+     "heal-grass",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-bigeater"
     ]
    },
    {
@@ -176,7 +183,7 @@
   },
   "positionalConditions": "None read beyond needing a target (range 3 for both units).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes overHeal from the caster's current HP.",
-  "rawVsResolved": "Declared raw: heal 25 / 50 (labelled requested), damage base 25 / 50 plus overHeal. Applied heal passes the handleHeal modifiers (wound, buffs, burn, enraged, weather, cap at missing HP) and is not what overHeal is built from. Damage dealt = (base + overHeal) x (1 + AP/100) [x crit factor], then speDef division (ceil, at least 1). A wounded or burning caster still gets the full overHeal bonus on the damage.",
+  "rawVsResolved": "Declared raw: heal 25 / 50 (labelled requested), damage base 25 / 50 plus overHeal. Applied heal passes the handleHeal modifiers (wound, buffs, burn, enraged, weather, cap at missing HP) and is not what overHeal is built from. Damage dealt = (base + overHeal) x (1 + AP/100) [x crit factor], then speDef division (ceil, at least 1). A wounded or burning caster still gets the full overHeal bonus on the damage (the pre-heal raw overHeal is not changed by handleHeal's wound, protect or modifier branches). Indirect healing branches (Blood Stone addShield, Grass addMaxHP) are requests whose final values depend on the item helpers; see effects[0].",
   "sourceTables": [
    {
     "id": "parabolicHeal",
@@ -195,7 +202,7 @@
   ],
   "dependsOnUnverifiedGenericCombat": [
    "Shield, Cover Band, Fossil and resurrection branches of handleDamage were not traced here (takenDamage is unused by PARABOLIC_CHARGE); consulted core-mechanics.md section A and the speDef step only",
-   "The heal side was read in handleHeal (wound, alive/protect gate, modifiers, rounding, cap, GRASS overheal); the Blood Moon shield branch calls addShield, whose Big Eater Belt / Twist Band handling was not read",
+   "The heal side was read in handleHeal (wound, alive/protect gate, modifiers, rounding, cap, GRASS overheal); the Blood Moon shield branch and the Grass branch call addShield / addMaxHP; their item helpers were read here (core-mechanics.md section J, probe SHARED_HELPERS), but weather and Blood Stone ownership in real fights were not",
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
   ],
@@ -203,7 +210,8 @@
    "DRY_SKIN (declared by both units) is a separate periodic or spawn effect tied to the weather (RAIN heal 8, DROUGHT 8 TRUE self-damage, SANDSTORM dodge, ZENITH AP); it was read only far enough to confirm it does not call this ability's code, and its interaction with the ability was not further traced",
    "Whether Heliolisk or Helioptile get the GRASS synergy effect in practice depends on team composition; not determined",
    "No other unit sharing the identifier exists in the queue; units not listed are not covered",
-   "Mechanical checks only; no probe was run and no fight observed"
+   "Mechanical checks only; no probe was run and no fight observed",
+   "Probe SHARED_HELPERS (pinned handleHeal / addShield / addMaxHP text on stub units, apBoost 0): Protect -> 0 healed, Rune Protect alone -> healed; wound + Protect + Blood Moon + one Blood Stone, heal 20 -> addShield request 6, no HP; Grass 990/1000, heal 50 -> healed 10, overheal 40, addMaxHP request 16. Helper requests and results only; the PARABOLIC_CHARGE damage step was not re-executed and the pre-heal overHeal arithmetic is source reading."
   ],
   "evidence": [
    {
@@ -513,7 +521,98 @@
     "symbol": "DrySkinPeriodicEffect",
     "expect": "class DrySkinPeriodicEffect extends PeriodicEffect {",
     "note": "DRY_SKIN (both units' passive): a separate periodic effect in RAIN (heal 8) / DROUGHT (8 TRUE self damage); not part of this ability"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request below"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns healReceived 0 / overheal 0 (next line)"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster, apBoost 0, no crit"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and, for a living unit and a positive value, also raises current HP by the same value; nothing counts as healDone"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before delegating to the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the CASTER argument; enraged halves a positive value; rounded; no wound or protect test"
+   },
+   {
+    "id": "sh-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value is x1.25 rounded down for a holder of Big Eater Belt (6 -> 7, 16 -> 20 in the probe)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T170635Z",
+   "reason": "qualified 'no stat/item helper is involved' (the indirect handleHeal branches call addShield / addMaxHP and their item helpers); the pre-heal raw overHeal calculation preserved and contrasted with handleHeal's own overheal and the Grass addMaxHP(0.4 x overheal) request; protect wording corrected (status.protect, wound branch first)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

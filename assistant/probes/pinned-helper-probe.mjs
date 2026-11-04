@@ -1,4 +1,4 @@
-// Narrow reproduction of twenty-five repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT; JUDGEMENT, MULTI_ATTACK, SPIKY_SHIELD, HATCH, PROTEAN3) using the TEXT of the
+// Narrow reproduction of twenty-five repaired candidates (KING_SHIELD, LEECH_SEED, RAGING_BULL, FLAME_CHARGE, EXPLOSION; SLUDGE, VOLT_SWITCH, ZAP_CANNON, BLAZE_KICK, AQUA_STEP; FLOWER_TRICK, DARKEST_LARIAT, DRAGON_BREATH, DRUM_BEATING, EXPANDING_FORCE; POWDER, ICE_BALL, BITE, HORN_LEECH, TELEPORT; JUDGEMENT, MULTI_ATTACK, SPIKY_SHIELD, HATCH, PROTEAN3) using the TEXT of the Section 25 (SHARED_HELPERS) adds shared-helper cases: addPP guards, handleHeal branch order, wound flag vs cooldown, Grass overheal, Blood Stone shield.
 // pinned functions (production-branch reference 07367c341fe928763da2b565c2eee010433e4fc1; deployment unverified).
 // Each function body is read with `git show <sha>:<path>` by line range (the first line is asserted), types are stripped with
 // node:module stripTypeScriptTypes, and the code is run against minimal stubs (enums answer with their own name). Nothing is installed,
@@ -614,6 +614,57 @@ const PR = out.PROTEAN3
 expect("PROTEAN3 baseline board (two Fire, two Water, one Grass family): FIRE 2, WATER 2, GRASS 1; an Arceus on the board takes the top three with ties in Synergy key order (WATER, FIRE, GRASS) and each added type adds +1 (3, 3, 2)", [PR.baseline.counts, PR.onBoard.types, PR.onBoard.counts], [{ FIRE: 2, WATER: 2, GRASS: 1 }, [["WATER", "FIRE", "GRASS"]], { FIRE: 3, WATER: 3, GRASS: 2 }])
 expect("PROTEAN3 bench: an Arceus on the bench gets no dynamic types and adds nothing to the counts; stale dynamic types are cleared (WATER, GRASS -> none); a held type item is re-added after the reset (FIRE stays) but is not counted while on the bench", [PR.onBench, PR.staleDynamicTypesClearedOnBench.types, PR.benchWithFireItem], [{ types: [[]], counts: { FIRE: 2, WATER: 2, GRASS: 1 } }, [[]], { types: [["FIRE"]], counts: { FIRE: 2, WATER: 2, GRASS: 1 } }])
 expect("PROTEAN3 on the board with a Fire type item: the item type is added before counting (FIRE 3 by family count), the dynamic loop then skips FIRE without replacing the slot, adding only WATER and GRASS (+1 each): FIRE 3, WATER 3, GRASS 2", [PR.boardWithFireItem.types, PR.boardWithFireItem.counts], [[["FIRE", "WATER", "GRASS"]], { FIRE: 3, WATER: 3, GRASS: 2 }])
+// 25. SHARED_HELPERS: addPP guards, handleHeal branch order, wound flag versus cooldown, Grass overheal and Blood Stone shield (maintenance run).
+// Real text of PokemonState.handleHeal / addShield (pokemon-state.ts:308-420), PokemonEntity.handleHeal / addShield / addPP / addMaxHP
+// (pokemon-entity.ts:469-476, 498-506, 508-532, 577-606), the two item helpers (:1839-1867) and Status.clearNegativeStatus / updateWound
+// (status.ts:122-146, 899-906). Explicit assumptions: recipient and caster have AP 0 and critPower 2, apBoost 0 and crit false unless
+// stated, no held items unless stated, no BUFF_HEAL_RECEIVED / burn / enraged / ZENITH, no broadcast (time >= FIGHTING_PHASE_DURATION).
+// The probe records DOWNSTREAM REQUESTS (arguments the helper passes to addShield / addMaxHP) separately from FINAL RESULTS (hp, maxHP, shield).
+const HealEntSrc = `${helpers}\nclass HU {\n${js(`class _ {\n${[cut(PE, 469, 476, "handleHeal("), cut(PE, 498, 506, "addShield("), cut(PE, 508, 532, "addPP("), cut(PE, 577, 606, "addMaxHP(")].join("\n")}\n}`).replace(/^class _ \{\n/, "").replace(/\n\}\s*$/, "")}\n}`
+const HU = build({ Item: enums(), EffectEnum: enums(), min, max, clamp, roundToNDigits }, HealEntSrc, "HU")
+const StatusH = build({}, js(`class SH {\n${cut(ST, 122, 146, "clearNegativeStatus(")}\n${cut(ST, 899, 906, "updateWound(")}\n}`), "SH")
+const mkHU = ({ hp = 500, maxHP = 1000, shield = 0, pp = 10, maxPP = 100, status = {}, items = [], grass = false, weather = "NONE", stones = 0, name = "unit" } = {}) => {
+  const u = Object.assign(new HU(), {
+    name, team: "BLUE", hp, maxHP, shield, pp, maxPP, ap: 0, critPower: 2, healDone: 0, shieldDone: 0, id: name, items: new Set(items), effects: new Set(),
+    status: Object.assign(new StatusH(), { protect: false, runeProtect: false, silence: false, fatigue: false, resurrecting: false, tree: false, wound: false, burn: false, enraged: false, woundCooldown: 0 }, status),
+    player: stones ? { items: Array(stones).fill("BLOOD_STONE") } : null,
+    simulation: { weather, room: { state: { time: 1 } }, broadcastToSpectators() {} }, hasSynergyEffect: (s) => grass && s === "GRASS"
+  })
+  u.state = new FullState()
+  u.requests = []
+  for (const m of ["addShield", "addMaxHP"]) { const real = u[m].bind(u); u[m] = (...a) => { u.requests.push({ helper: m, request: a[0], casterIsRecipient: a[1] === u, apBoost: a[2], crit: a[3] }); return real(...a) } }
+  return u
+}
+const ppAdd = (status, base = 5, items = []) => { const u = mkHU({ status, items, pp: 10 }); u.addPP(base, mkHU({ name: "caster" }), 0, false); return { requested: base, ppBefore: 10, ppAfter: u.pp } }
+const healOf = (u, amount = 20, caster = mkHU({ name: "caster" }), apBoost = 0, crit = false) => { const r = u.handleHeal(amount, caster, apBoost, crit); return { returned: r, hp: u.hp, maxHP: u.maxHP, shield: u.shield, downstreamRequests: u.requests, casterHealDone: caster.healDone } }
+const woundSeq = (() => {
+  const u = mkHU({ hp: 500, status: { wound: true, woundCooldown: 3000 } }), origin = mkHU({ name: "origin" })
+  u.status.clearNegativeStatus(u, origin)
+  const afterClear = { wound: u.status.wound, woundCooldown: u.status.woundCooldown }
+  const immediate = healOf(u, 20)
+  u.status.updateWound(50)
+  const afterUpdate = { wound: u.status.wound, woundCooldown: u.status.woundCooldown }
+  const later = healOf(u, 20)
+  return { afterClear, immediate: { returned: immediate.returned, hp: immediate.hp }, afterUpdate, later: { returned: later.returned, hp: later.hp } }
+})()
+out.SHARED_HELPERS = {
+  pp: { protect: ppAdd({ protect: true }), runeProtectAlone: ppAdd({ runeProtect: true }), fatigue: ppAdd({ fatigue: true }), protectAndRuneProtect: ppAdd({ protect: true, runeProtect: true }), none: ppAdd({}) },
+  heal20: { protect: healOf(mkHU({ status: { protect: true } })), runeProtectAlone: healOf(mkHU({ status: { runeProtect: true } })), none: healOf(mkHU()) },
+  woundCooldownCleared: woundSeq,
+  grassOverheal: healOf(mkHU({ hp: 990, maxHP: 1000, grass: true }), 50),
+  grassOverhealBigEaterBelt: healOf(mkHU({ hp: 990, maxHP: 1000, grass: true, items: ["BIG_EATER_BELT"] }), 50),
+  woundProtectBloodMoonStone: healOf(mkHU({ status: { wound: true, protect: true }, weather: "BLOODMOON", stones: 1 })),
+  woundProtectBloodMoonTwoStones: healOf(mkHU({ status: { wound: true, protect: true }, weather: "BLOODMOON", stones: 2 })),
+  woundProtectBloodMoonNoStone: healOf(mkHU({ status: { wound: true, protect: true }, weather: "BLOODMOON" })),
+  woundProtectStoneClearWeather: healOf(mkHU({ status: { wound: true, protect: true }, weather: "NONE", stones: 1 })),
+  woundBloodMoonStoneBigEaterBelt: healOf(mkHU({ status: { wound: true }, weather: "BLOODMOON", stones: 1, items: ["BIG_EATER_BELT"] }))
+}
+const SH_ = out.SHARED_HELPERS
+expect("SHARED_HELPERS addPP (real text; base +5, AP 0, no crit; PP 10): Protect -> PP stays 10 (applied change 0); Rune Protect alone -> 15 (+5); fatigue -> 13 (+3, because round(5 x 0.5) = round(2.5) = 3); Protect together with Rune Protect -> 10 (status.protect is the blocking flag, status.runeProtect is not read by addPP)", [SH_.pp.protect.ppAfter, SH_.pp.runeProtectAlone.ppAfter, SH_.pp.fatigue.ppAfter, SH_.pp.protectAndRuneProtect.ppAfter, SH_.pp.none.ppAfter], [10, 15, 13, 10, 15])
+expect("SHARED_HELPERS handleHeal 20 (HP 500/1000, no modifiers): Protect -> returned 0 / 0 and HP stays 500; Rune Protect alone -> healReceived 20, HP 520 (handleHeal tests status.protect, never status.runeProtect); both without any downstream addShield / addMaxHP request", [SH_.heal20.protect.returned, SH_.heal20.protect.hp, SH_.heal20.runeProtectAlone.returned, SH_.heal20.runeProtectAlone.hp, SH_.heal20.protect.downstreamRequests, SH_.heal20.runeProtectAlone.downstreamRequests], [{ healReceived: 0, overheal: 0 }, 500, { healReceived: 20, overheal: 0 }, 520, [], []])
+expect("SHARED_HELPERS wound flag versus cooldown (real clearNegativeStatus and updateWound): clearing the cooldown leaves wound = true (cooldown 0); an immediate heal of 20 still returns 0 / 0 and HP stays 500; only updateWound(50) sets wound = false, and the next heal then returns 20 (HP 520)", [woundSeq.afterClear, woundSeq.immediate, woundSeq.afterUpdate, woundSeq.later], [{ wound: true, woundCooldown: 0 }, { returned: { healReceived: 0, overheal: 0 }, hp: 500 }, { wound: false, woundCooldown: 0 }, { returned: { healReceived: 20, overheal: 0 }, hp: 520 }])
+expect("SHARED_HELPERS Grass recipient 990/1000, heal 50 (no items): healReceived 10, overheal 40; DOWNSTREAM REQUEST addMaxHP(16) with the recipient as caster, apBoost 0, crit false; FINAL maxHP 1016 and HP 1016 (addMaxHP also raises current HP by its value, so the total HP gain is 26, not 10); with a Big Eater Belt on the recipient the request is still 16 but the FINAL maxHP is 1020 (16 x 1.25 = 20)", [SH_.grassOverheal.returned, SH_.grassOverheal.downstreamRequests, SH_.grassOverheal.hp, SH_.grassOverheal.maxHP, SH_.grassOverhealBigEaterBelt.downstreamRequests[0].request, SH_.grassOverhealBigEaterBelt.maxHP, SH_.grassOverhealBigEaterBelt.hp], [{ healReceived: 10, overheal: 40 }, [{ helper: "addMaxHP", request: 16, casterIsRecipient: true, apBoost: 0, crit: false }], 1016, 1016, 16, 1020, 1020])
+expect("SHARED_HELPERS wound + Protect + Blood Moon + one Blood Stone, heal 20: the wound branch comes first, so Protect is never reached: returned 0 / 0, HP unchanged (500), DOWNSTREAM REQUEST addShield(6) = round(0.3 x 1 x 20) with the recipient as caster; FINAL shield 6. Two stones -> request 12; no Blood Stone or no Blood Moon weather -> no request; a Big Eater Belt on the recipient turns the request 6 into a FINAL shield of 7 (6 x 1.25 = 7.5 rounded down)", [SH_.woundProtectBloodMoonStone.returned, SH_.woundProtectBloodMoonStone.hp, SH_.woundProtectBloodMoonStone.downstreamRequests, SH_.woundProtectBloodMoonStone.shield, SH_.woundProtectBloodMoonTwoStones.downstreamRequests[0].request, SH_.woundProtectBloodMoonNoStone.downstreamRequests, SH_.woundProtectStoneClearWeather.downstreamRequests, SH_.woundBloodMoonStoneBigEaterBelt.downstreamRequests[0].request, SH_.woundBloodMoonStoneBigEaterBelt.shield], [{ healReceived: 0, overheal: 0 }, 500, [{ helper: "addShield", request: 6, casterIsRecipient: true, apBoost: 0, crit: false }], 6, 12, [], [], 6, 7])
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))
 const failed = expectations.filter((x) => !x.ok)

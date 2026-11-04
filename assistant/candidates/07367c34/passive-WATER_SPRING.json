@@ -60,7 +60,7 @@
    }
   },
   "kind": "no PassiveEffects entry; beforeSimulationStart on the unit classes adds EffectEnum.WATER_SPRING to the opponent team's effect set, which gives opposing units a shared OnAbilityCastEffect",
-  "summary": "Passive.WATER_SPRING has no PassiveEffects entry. Instead each of MUDKIP, MARSHTOMP and SWAMPERT overrides beforeSimulationStart to add EffectEnum.WATER_SPRING to the opponent's effect set (the hook is called for every unit on a player's board, bench included, before entities are built). When the opponent's entities are added, applySynergyEffects runs every effect in the team set through applyEffect; the WATER_SPRING case adds the shared WaterSpringEffect (an OnAbilityCastEffect with origin Passive.WATER_SPRING) to every opposing unit's effectsSet. Afterwards, whenever one of those opposing units finishes castAbility (and was able to cast), the effect scans the board and for every unit with passive WATER_SPRING that is on a different team than the caster calls addPP(5, itself, 0, false) and broadcasts that unit's skill animation. The amount is the same for all three evolutions (stars do not scale it). The +5 is a requested amount: addPP rounds it, halves it under fatigue, and does not apply it at all when the receiver is silenced, protected (Rune Protect), has NO_PP_GAIN or is resurrecting; the result is clamped to 0..2 x maxPP - 1 (maxPP 60 here, so up to 119). Twist Band only changes negative values and Big Eater Belt is not used by addPP, so neither alters +5. Each cast of any opposing unit grants +5 to each Water Spring unit; two holders each gain separately, and the effect is added to the enemy team once per entity even if several Water Spring units exist.",
+  "summary": "Passive.WATER_SPRING has no PassiveEffects entry. Instead each of MUDKIP, MARSHTOMP and SWAMPERT overrides beforeSimulationStart to add EffectEnum.WATER_SPRING to the opponent's effect set (the hook is called for every unit on a player's board, bench included, before entities are built). When the opponent's entities are added, applySynergyEffects runs every effect in the team set through applyEffect; the WATER_SPRING case adds the shared WaterSpringEffect (an OnAbilityCastEffect with origin Passive.WATER_SPRING) to every opposing unit's effectsSet. Afterwards, whenever one of those opposing units finishes castAbility (and was able to cast), the effect scans the board and for every unit with passive WATER_SPRING that is on a different team than the caster calls addPP(5, itself, 0, false) and broadcasts that unit's skill animation. The amount is the same for all three evolutions (stars do not scale it). The +5 is a requested amount: addPP rounds it, halves it under fatigue, and does not apply it at all when the receiver is silenced, has status.protect (Protect), has NO_PP_GAIN or is resurrecting (a receiver with only Rune Protect still gains the PP: addPP tests status.protect, not status.runeProtect; +5 on PP 10 gives 10 with Protect, 15 with Rune Protect alone, 13 with fatigue); the result is clamped to 0..2 x maxPP - 1 (maxPP 60 here, so up to 119). Twist Band only changes negative values and Big Eater Belt is not used by addPP, so neither alters +5. Each cast of any opposing unit grants +5 to each Water Spring unit; two holders each gain separately, and the effect is added to the enemy team once per entity even if several Water Spring units exist.",
   "triggers": [
    "Simulation construction: beforeSimulationStart on MUDKIP / MARSHTOMP / SWAMPERT adds the effect flag for the opposing side",
    "Entity creation: applySynergyEffects installs WaterSpringEffect on each opposing unit",
@@ -71,12 +71,14 @@
     "kind": "pp_gain_on_enemy_cast",
     "declaredRaw": "+5 PP to each Water Spring unit for every ability cast by an opposing unit",
     "scaling": "none (apBoost 0, crit false); same for 1 / 2 / 3 stars",
-    "resolution": "requested +5; applied by addPP: rounded, halved by fatigue, blocked by silence / protect / NO_PP_GAIN / resurrecting, clamped to 0..2 x maxPP - 1; receiver is the Water Spring unit itself and the caster argument is itself",
+    "resolution": "requested +5; applied by addPP: rounded, halved by fatigue, blocked by silence / status.protect / NO_PP_GAIN / resurrecting (status.runeProtect does not block), clamped to 0..2 x maxPP - 1; receiver is the Water Spring unit itself and the caster argument is itself",
     "evidence": [
      "effect",
      "addpp",
      "effect-class",
-     "cast"
+     "cast",
+     "protect-flag",
+     "runeprotect-flag"
     ]
    },
    {
@@ -109,7 +111,8 @@
   "conditions": [
    "Only casts by opposing units (team different from the Water Spring unit) count; the Water Spring unit's own and allies' casts do not.",
    "The PP goes to every Water Spring unit on the board at that moment, not only the one that caused the flag.",
-   "The casting unit must have been able to cast (castAbility returns early otherwise)."
+   "The casting unit must have been able to cast (castAbility returns early otherwise).",
+   "A Water Spring unit with status.protect gains no PP from enemy casts; one with only status.runeProtect does (addPP never reads runeProtect)."
   ],
   "resetBehaviour": "No counters or cooldown; every qualifying cast grants +5 again.",
   "dependsOnUnverifiedGenericCombat": [
@@ -122,7 +125,8 @@
    "NAME_SHARED_WITH_EFFECT: the passive and EffectEnum.WATER_SPRING share a name; this record follows both (the passive marks the units, the effect enum carries the flag on the opponent's set).",
    "Other castAbility callers that bypass OnAbilityCastEffect, and whether synergy-effect removal ever deletes WaterSpringEffect by its origin Passive.WATER_SPRING, were not traced.",
    "Entities added with skipSynergyEffects true do not receive the effect through applySynergyEffects; which callers pass true was not audited.",
-   "No gameplay evidence; candidate is source reading plus mechanical checks."
+   "No gameplay evidence; candidate is source reading plus mechanical checks.",
+   "Probe SHARED_HELPERS (pinned addPP text, stub unit; AP 0, no crit, PP 10, +5): Protect -> 10, Rune Protect alone -> 15, fatigue -> 13. It shows addPP's guards, not a fight."
   ],
   "evidence": [
    {
@@ -167,7 +171,7 @@
     ],
     "symbol": "PokemonEntity.addPP",
     "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
-    "note": "fatigue halves a positive amount and rounds; silence, protect, NO_PP_GAIN, resurrecting block a positive gain; clamp 0..2 x maxPP - 1"
+    "note": "fatigue halves a positive amount and rounds; silence, status.protect (not status.runeProtect), NO_PP_GAIN, resurrecting block a positive gain; clamp 0..2 x maxPP - 1"
    },
    {
     "id": "hook-mudkip",
@@ -267,7 +271,43 @@
     "symbol": "Passive.WATER_SPRING",
     "expect": "WATER_SPRING = \"WATER_SPRING\"",
     "note": "passive enum member; also the effect origin"
+   },
+   {
+    "id": "protect-flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "this.protect = true",
+    "note": "status.protect is the flag set by triggerProtect (refused while enraged); addPP, handleDamage and handleHeal test it"
+   },
+   {
+    "id": "runeprotect-flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.runeProtect = true",
+    "note": "status.runeProtect is a separate flag with its own cooldown; addPP and handleHeal never read it, status application methods do"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T170635Z",
+   "reason": "Protect (status.protect) blocks positive PP in addPP; Rune Protect alone does not; the 'protected (Rune Protect)' conflation removed from the summary and the PP effect, evidence for both flags added",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

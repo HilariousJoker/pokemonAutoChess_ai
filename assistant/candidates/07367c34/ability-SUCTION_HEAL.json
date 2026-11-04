@@ -73,7 +73,7 @@
     "super"
    ]
   },
-  "summary": "Needs a target. The caster spends its PP, then every occupied cell of a forward cone (range 2, aimed at the target) that holds an enemy takes special damage of raw 15/30/60/120 (by caster stars; AP-scaled; crit possible via the passed crit flag), and for each such hit the caster heals itself by half of the damage that handleDamage reports as takenDamage (shield damage included, HP part capped by the target's current HP), rounded and subject to the usual heal modifiers but not scaled by AP or crit.",
+  "summary": "Needs a target. The caster spends its PP, then every occupied cell of a forward cone (range 2, aimed at the target) that holds an enemy takes special damage of raw 15/30/60/120 (by caster stars; AP-scaled; crit possible via the passed crit flag), and for each such hit the caster requests a heal of 0.5 x the takenDamage that handleSpecialDamage returns (apBoost 0, no crit, so AP and crit do not scale it). takenDamage is the returned figure, not the HP actually lost: it includes the part absorbed by the target's shield (flinch splits the reduced hit 50/50 and Protective Pads on the caster double the shield part), the HP part is capped at the target's current HP, it is 0 for a protected / skydiving / magic-bouncing, dead or resurrecting target and when Shiny Charm triggers, the Fossil synergy branch can add shield damage so it exceeds the HP lost, and a Cover Band holder that takes the hit makes the returned value the cover ally's. The request then goes through PokemonState.handleHeal: a wounded caster receives no HP (with BLOODMOON weather and a Blood Stone owned by its player the same call first requests addShield(round(0.3 x stones x the requested heal)), which Big Eater Belt can raise); an unwounded caster with status.protect receives nothing (Rune Protect does not matter; a wounded one has already taken the wound branch, so Protect does not stop the Blood Stone shield); otherwise BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5 and ZENITH x1.2 apply, the result is rounded and capped at the caster's missing HP, and on a caster with the GRASS synergy effect the overheal requests addMaxHP(0.4 x overheal), which also raises current HP. One heal per enemy hit, so several enemies in the cone give several heals. No heal and no damage when no enemy stands in the cone (PP is still spent).",
   "targeting": {
    "who": "enemies (cell.value.team differs from the caster's team) standing in the forward cone cells",
    "needsTarget": true,
@@ -114,7 +114,7 @@
      "EELEKTROSS": 60
     },
     "scaling": "requested = table value by the caster's stars. Applied through handleSpecialDamage with the default apBoost = true: x(1 + caster AP/100); DOUBLE_DAMAGE x2 and strange-steam x1.2 where present; x(1 + (critPower - 1) x reduction) when the crit flag is true (reduction 0 against Rocky Helmet, -0.1 per Black Augurite). No rounding before the defence step.",
-    "resolution": "requested (raw table) -> applied (after AP / crit factors, special type) -> PokemonState.handleDamage: SPE_DEF division, min-1 floor (see core-mechanics section A), shield first then HP -> takenDamage = shield damage + min(residual, current HP), rounded. Blocked (protect / skydiving / magicBounce) or dead targets report takenDamage 0.",
+    "resolution": "requested (raw table) -> applied (after AP / crit factors, special type) -> PokemonState.handleDamage: SPE_DEF division, min-1 floor (see core-mechanics section A), shield first then HP -> takenDamage = shield damage + min(residual, current HP), rounded. Blocked (protect / skydiving / magicBounce) or dead targets report takenDamage 0. Known accounting exceptions that change the returned takenDamage relative to the HP lost: flinch splits the reduced hit 50/50 between shield and HP; an attacker's Protective Pads double the shield part; the Fossil synergy branch adds shield damage on top of the HP part (taken 500, HP unchanged for damage 300 on 500 HP in the probe); Shiny Charm zeroes takenDamage; a Cover Band ally that takes a lethal hit makes the result the cover ally's.",
     "evidence": [
      "table",
      "dmg",
@@ -126,7 +126,12 @@
      "hd-dead",
      "hd-shield",
      "hd-hp",
-     "hd-round"
+     "hd-round",
+     "td-flinch",
+     "td-pads",
+     "td-fossil",
+     "td-cover",
+     "td-return"
     ]
    },
    {
@@ -136,8 +141,8 @@
      "factor": 0.5,
      "of": "takenDamage reported by handleSpecialDamage for that enemy"
     },
-    "scaling": "requested = 0.5 x takenDamage of that hit (an applied-then-resolved damage figure, not the raw table value). handleHeal is called with apBoost 0 and crit false, so AP and crit do not scale the heal. Then PokemonState.handleHeal: x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH weather; Math.round; capped by the caster's missing HP.",
-    "resolution": "requested (0.5 x takenDamage) -> applied (after the modifiers, rounded) -> healReceived (after the missing-HP cap; the rest is overheal). A wounded caster receives 0; a protected caster receives 0. Shield damage dealt counts in takenDamage and therefore in the heal. A Shiny Charm trigger on the victim makes takenDamage 0 and so no heal. One heal per enemy hit, so several enemies in the cone give several heals.",
+    "scaling": "requested = 0.5 x takenDamage of that hit (an applied-then-resolved damage figure, not the raw table value). handleHeal is called with apBoost 0 and crit false, so AP and crit do not scale the heal. Then PokemonState.handleHeal in this order: wound branch (see resolution), the guard hp > 0 && !status.protect, x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH weather; Math.round; capped by the caster's missing HP; the rounded excess over missing HP is the overheal (Grass branch below).",
+    "resolution": "requested (0.5 x takenDamage) -> applied (after the modifiers, rounded) -> healReceived (after the missing-HP cap; the rest is overheal). A wounded caster receives 0 HP, BUT with BLOODMOON weather and a Blood Stone held by the caster's player the wound branch first requests addShield(round(0.3 x stones x requested heal), caster, 0, false) (requested heal = 0.5 x takenDamage, before modifiers); that request goes through the entity addShield (Big Eater Belt x1.25 rounded down) and the state's addShield (needs hp > 0, enraged halves, rounded), so the final shield can differ from the request. The wound branch comes before the Protect test, so Protect does not stop that shield. An unwounded caster with status.protect receives 0 HP, no Grass overheal and no shield; status.runeProtect is not read by handleHeal. On a caster with the GRASS synergy effect the overheal (rounded modified heal minus missing HP, the part not applied) requests addMaxHP(0.4 x overheal, caster, 0, false, false); addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and also current HP by the final value, and the amount is not added to healDone. Requested, applied and final amounts differ for each of these indirect branches. Shield damage dealt counts in takenDamage and therefore in the heal. A Shiny Charm trigger on the victim makes takenDamage 0 and so no heal. One heal per enemy hit, so several enemies in the cone give several heals.",
     "evidence": [
      "heal",
      "heal-fn",
@@ -148,7 +153,15 @@
      "hd-shield",
      "hd-hp",
      "hd-shiny",
-     "hd-round"
+     "hd-round",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-protect",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-bigeater"
     ]
    }
   ],
@@ -176,7 +189,7 @@
   },
   "positionalConditions": "The cone is aimed at the target; only enemies inside the cone cells (distance up to 2 in the three forward orientations) are damaged and heal the caster. If no enemy stands in those cells nothing is damaged and no heal happens (PP is still spent).",
   "repeatedCastsAndModes": "No stored state or modes; every cast recomputes the cone from the current board. getCellsInFront also overwrites the caster's orientation.",
-  "rawVsResolved": "Declared raw: damage 15/30/60 for 1/2/3 stars. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor etc.; takenDamage = what handleDamage reports (after SPE_DEF, the min-1 floor, shield and HP cap, rounded). The heal requested is 0.5 x takenDamage; applied after heal modifiers and rounding (no AP, no crit); received after the missing-HP cap.",
+  "rawVsResolved": "Declared raw: damage 15/30/60 for 1/2/3 stars. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor etc.; takenDamage = what handleDamage reports (after SPE_DEF, the min-1 floor, shield and HP cap, rounded). The heal requested is 0.5 x takenDamage (the returned figure, including shield damage and the exceptions above, not the HP lost); applied after heal modifiers and rounding (no AP, no crit); received after the missing-HP cap. Wound, Blood Moon + Blood Stone (addShield request, final after Big Eater Belt), status.protect (nothing at all) and Grass (addMaxHP(0.4 x overheal) request, final after the item helpers, also raises HP) are separate branches of handleHeal described in effects[1]; they are shared-helper rules (core-mechanics.md section J).",
   "sourceTables": [
    {
     "id": "damage",
@@ -198,7 +211,8 @@
    "Ordering of the heals relative to the damage when several enemies are hit follows cells iteration order (a Set of coordinates in insertion order); not verified beyond reading",
    "Whether the three units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "Probe SHARED_HELPERS / TAKEN_DAMAGE (pinned handleHeal, addShield, addMaxHP, handleDamage text on stub units): Protect -> 0 healed; Rune Protect alone -> healed; wound + Protect + Blood Moon + one Blood Stone, heal 20 -> addShield request 6 (final 7 with Big Eater Belt); Grass 990/1000, heal 50 -> healed 10, overheal 40, addMaxHP request 16. These show helper requests and results, not a fight; the cone and cast timing remain unexecuted."
   ],
   "evidence": [
    {
@@ -552,7 +566,164 @@
     "symbol": "PokemonState.handleHeal",
     "expect": "const healReceived = max(missingHP)(heal)",
     "note": "healed amount capped by missing HP"
+   },
+   {
+    "id": "td-flinch",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     622,
+     626
+    ],
+    "symbol": "PokemonState.handleDamage flinch split",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "with flinch and a shield the reduced hit is split ceil(50%) on the shield and ceil(50%) residual"
+   },
+   {
+    "id": "td-pads",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     630,
+     635
+    ],
+    "symbol": "PokemonState.handleDamage Protective Pads",
+    "expect": "attacker.items.has(Item.PROTECTIVE_PADS) &&",
+    "note": "an attacker's Protective Pads double the part of the hit that lands on a shield (not for self-damage)"
+   },
+   {
+    "id": "td-fossil",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     663,
+     688
+    ],
+    "symbol": "PokemonState.handleDamage Fossil branch",
+    "expect": "pokemon.hasSynergyEffect(Synergy.FOSSIL) &&",
+    "note": "Fossil branch: grants a shield, adds min(0.5 x shield, residual) to takenDamage, zeroes the residual, so takenDamage can exceed the HP lost (probe: 300 -> taken 500, HP unchanged)"
+   },
+   {
+    "id": "td-cover",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     715,
+     715
+    ],
+    "symbol": "PokemonState.handleDamage Cover Band redirect",
+    "expect": "return coverAlly.handleDamage({",
+    "note": "when the hit would kill the target and an adjacent allied Cover Band holder is alive, the function returns that ally's result; the original target keeps its HP"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     465,
+     465
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage return",
+    "expect": "return damageResult",
+    "note": "handleSpecialDamage returns the handleDamage result unchanged (takenDamage included)"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request below"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns healReceived 0 / overheal 0 (next line)"
+   },
+   {
+    "id": "sh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal ordinary branch guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary healing needs hp > 0 and no status.protect; status.runeProtect is not read; a failing guard returns 0 / 0 (including no Grass overheal)"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster, apBoost 0, no crit"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and, for a living unit and a positive value, also raises current HP by the same value; nothing counts as healDone"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before delegating to the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the CASTER argument; enraged halves a positive value; rounded; no wound or protect test"
+   },
+   {
+    "id": "sh-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value is x1.25 rounded down for a holder of Big Eater Belt (6 -> 7, 16 -> 20 in the probe)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T170635Z",
+   "reason": "added the known takenDamage accounting exceptions (shield part, flinch split, Protective Pads, Fossil, Shiny Charm, Cover Band, protect) and the handleHeal wound / Blood Moon / Blood Stone, status.protect and Grass branches (requested versus final); summary and detailed fields made consistent",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

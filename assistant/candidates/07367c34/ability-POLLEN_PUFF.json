@@ -62,7 +62,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Single-ally heal; the ability needs no enemy target (requiresTarget = false). It picks, among all entities on the board of the caster's team (the caster included, full-HP allies included), the one with the lowest ABSOLUTE current hp (a.hp - b.hp; not the lowest percentage and not the largest missing HP; a tie keeps the first in the cells array), and requests a heal of 30 (CUTIEFLY, 1 star) or 60 (RIBOMBEE, 2 stars) raw on it, with apBoost 1 and the cast crit flag, so the request scales with the CASTER's AP and critPower. The recipient then passes handleHeal: a wounded recipient gets no HP heal (Blood Moon + Blood Stone can still request a shield), burn and enraged halve it, BUFF_HEAL_RECEIVED x1.3 and ZENITH x1.2 raise it, the result is rounded and capped at the missing HP (the overheal adds 0.4 x max HP on a GRASS-synergy recipient). No damage, no status, no movement. If no ally is found nothing happens, but PP is still spent in super.process. Requested amount: 30/60 raw; applied: after AP, crit, item/status modifiers and the missing-HP cap.",
+  "summary": "Single-ally heal; the ability needs no enemy target (requiresTarget = false). It picks, among all entities on the board of the caster's team (the caster included, full-HP allies included), the one with the lowest ABSOLUTE current hp (a.hp - b.hp; not the lowest percentage and not the largest missing HP; a tie keeps the first in the cells array), and requests a heal of 30 (CUTIEFLY, 1 star) or 60 (RIBOMBEE, 2 stars) raw on it, with apBoost 1 and the cast crit flag, so the request scales with the CASTER's AP and critPower. The recipient then passes handleHeal: a wounded recipient gets no HP heal (with BLOODMOON weather and a Blood Stone owned by its player the wound branch first requests addShield(round(0.3 x stones x the raw requested heal)) with the recipient as the shield's caster, so the apBoost / crit passed along use the recipient's AP and crit power; Protect does not stop it), an unwounded recipient with status.protect gets nothing (Rune Protect alone does not block), burn and enraged halve it, BUFF_HEAL_RECEIVED x1.3 and ZENITH x1.2 raise it, the result is rounded and capped at the missing HP (on a GRASS-synergy recipient the overheal, i.e. the rounded modified heal minus the missing HP, requests addMaxHP(0.4 x overheal) - 0.4 times the overheal amount, not 40% of the recipient's existing max HP; the request also raises current HP and goes through Big Eater Belt / Twist Band). No damage, no status, no movement. If no ally is found nothing happens, but PP is still spent in super.process. Requested amount: 30/60 raw; applied: after AP, crit, item/status modifiers and the missing-HP cap.",
   "targeting": {
    "who": "the allied entity (own team, caster included) with the lowest current hp; the cast target passed to the strategy is null and unused",
    "needsTarget": false,
@@ -97,7 +97,7 @@
      "RIBOMBEE": 60
     },
     "scaling": "requested = raw table amount; handleHeal multiplies by (1 + AP/100) with the CASTER's ap (apBoost 1) and by the caster's critPower when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), then x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather on the recipient/weather",
-    "resolution": "Applied heal = round(modified request) capped at the recipient's missing HP; the excess is overheal, which adds 0.4 x overheal max HP on a GRASS-synergy recipient. A wounded recipient receives 0 HP heal (Blood Moon + Blood Stone can still request a shield). Because the recipient is chosen by lowest absolute hp, it may be a full-HP ally (caster included), in which case the whole amount is overheal. The target selection reads hp at cast time, no randomness.",
+    "resolution": "Applied heal = round(modified request) capped at the recipient's missing HP; the excess is overheal; on a GRASS-synergy recipient it requests addMaxHP(0.4 x overheal, recipient, 0, false, false), i.e. 0.4 times the overheal as max HP (not 40% of the existing max HP); addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and the current HP by the final value, and nothing is added to healDone (probe: recipient 990/1000, heal 50 -> healed 10, overheal 40, request 16, final maxHP and HP 1016). A wounded recipient receives 0 HP heal, but with BLOODMOON weather and a Blood Stone owned by its player the wound branch first requests addShield(round(0.3 x stones x raw heal), recipient, apBoost 1, crit): the raw 30 / 60 with one stone gives a base request of 9 / 18, then the recipient's own AP and crit power scale it (the recipient is passed as the shield's caster) and Big Eater Belt / the enraged halving apply in addShield (probe, apBoost 0: heal 20 -> request 6, final 7 with Big Eater Belt). That wound branch is before the Protect test, so Protect does not stop it. An unwounded recipient with status.protect receives nothing (no HP, no overheal); status.runeProtect is not read. Because the recipient is chosen by lowest absolute hp, it may be a full-HP ally (caster included), in which case the whole amount is overheal. The target selection reads hp at cast time, no randomness.",
     "evidence": [
      "pp-find",
      "pp-sort",
@@ -108,7 +108,15 @@
      "heal-ap",
      "heal-mods",
      "heal-overheal",
-     "pp-anim"
+     "pp-anim",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-protect",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-bigeater"
     ]
    }
   ],
@@ -131,7 +139,7 @@
   },
   "positionalConditions": "None: the recipient is chosen board-wide by current hp, ignoring distance. Dead or removed entities are assumed absent from board.cells (not traced).",
   "repeatedCastsAndModes": "No stored state and no modes. Each cast re-selects the lowest-hp ally and heals it again.",
-  "rawVsResolved": "Declared raw heal 30/60 (Cutiefly/Ribombee). Heal received = round(raw x (1 + AP/100) [x critPower] x item/status/weather factors) capped at the recipient's missing HP; 0 HP if wounded. The recipient is the lowest absolute hp ally, which may already be at full hp.",
+  "rawVsResolved": "Declared raw heal 30/60 (Cutiefly/Ribombee). Heal received = round(raw x (1 + AP/100) [x critPower] x item/status/weather factors) capped at the recipient's missing HP; 0 HP if wounded or (unwounded) protected (status.protect). Overheal requests addMaxHP(0.4 x overheal) on a Grass recipient; a wounded recipient with a Blood Stone under Blood Moon gets an addShield request instead. The recipient is the lowest absolute hp ally, which may already be at full hp.",
   "sourceTables": [
    {
     "id": "pollenPuffHeal",
@@ -144,13 +152,14 @@
   "dependsOnUnverifiedGenericCombat": [
    "When the cast fires in a real fight, and how a requiresTarget = false cast is triggered (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the heal-side multipliers were read",
-   "Heal modifiers beyond the wound, AP, crit, burn, enraged, weather and overheal steps listed (other items or synergy hooks on heal)"
+   "Heal modifiers beyond the wound, Blood Stone shield, protect guard, AP, crit, burn, enraged, weather and Grass overheal steps listed (other items or synergy hooks on heal)"
   ],
   "unresolved": [
    "Whether board.cells can contain entities that should not be eligible (dead, summoned or non-targetable allies, e.g. an INANIMATE or hidden unit): the filter cell.team === pokemon.team was read as written; no alive/targetable check appears in the strategy",
    "Tie-breaking and ordering of board.cells (array order) was not traced beyond the stable sort in the strategy",
    "Passive none for both units; no other unit sharing the identifier exists in the queue",
-   "Source reading only; no probe or fight was run"
+   "Source reading only; no probe or fight was run",
+   "Probe SHARED_HELPERS (pinned handleHeal / addMaxHP / addShield text, stub units, apBoost 0, no crit): Grass recipient 990/1000, heal 50 -> healed 10, overheal 40, addMaxHP request 16 (final 1016, or 1020 with Big Eater Belt); wound + Protect + Blood Moon + one Blood Stone, heal 20 -> no HP, addShield request 6; Protect -> 0 healed; Rune Protect alone -> healed. The POLLEN_PUFF apBoost 1 and crit scaling of those requests uses the recipient's AP / crit power by source reading only (the probe passes apBoost 0)."
   ],
   "evidence": [
    {
@@ -372,7 +381,109 @@
     "symbol": "PokemonState.handleHeal",
     "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
     "note": "overheal on a GRASS-synergy recipient adds 0.4 x overheal max HP"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request below"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns healReceived 0 / overheal 0 (next line)"
+   },
+   {
+    "id": "sh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal ordinary branch guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary healing needs hp > 0 and no status.protect; status.runeProtect is not read; a failing guard returns 0 / 0 (including no Grass overheal)"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster, apBoost 0, no crit"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and, for a living unit and a positive value, also raises current HP by the same value; nothing counts as healDone"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before delegating to the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the CASTER argument; enraged halves a positive value; rounded; no wound or protect test"
+   },
+   {
+    "id": "sh-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value is x1.25 rounded down for a holder of Big Eater Belt (6 -> 7, 16 -> 20 in the probe)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T170635Z",
+   "reason": "Grass overheal requests addMaxHP(0.4 x overheal), not 40% of existing max HP; summary and detailed fields synchronised; wound / Blood Moon / Blood Stone branch (with the recipient as shield caster) and status.protect wording added",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
