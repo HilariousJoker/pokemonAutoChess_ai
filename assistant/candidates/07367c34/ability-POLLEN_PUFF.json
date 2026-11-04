@@ -1,0 +1,378 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POLLEN_PUFF",
+ "kind": "ability",
+ "identifier": "POLLEN_PUFF",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T123936Z"
+ },
+ "record": {
+  "ability": "POLLEN_PUFF",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "CUTIEFLY and RIBOMBEE declare ability POLLEN_PUFF (passive NONE in the catalog). The strategy is shared; differences are stars and stats. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "CUTIEFLY",
+    "stars": 1,
+    "maxPP": 40,
+    "range": 2,
+    "declaredSkill": "POLLEN_PUFF",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "RIBOMBEE",
+    "stars": 2,
+    "maxPP": 40,
+    "range": 2,
+    "declaredSkill": "POLLEN_PUFF",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CUTIEFLY": {
+    "evidence": [
+     "unit-cutiefly"
+    ]
+   },
+   "RIBOMBEE": {
+    "evidence": [
+     "unit-ribombee"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POLLEN_PUFF] = new PollenPuffStrategy()",
+   "strategy": "PollenPuffStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pp",
+    "pp-class",
+    "base-flags",
+    "base-pp",
+    "pp-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-ally heal; the ability needs no enemy target (requiresTarget = false). It picks, among all entities on the board of the caster's team (the caster included, full-HP allies included), the one with the lowest ABSOLUTE current hp (a.hp - b.hp; not the lowest percentage and not the largest missing HP; a tie keeps the first in the cells array), and requests a heal of 30 (CUTIEFLY, 1 star) or 60 (RIBOMBEE, 2 stars) raw on it, with apBoost 1 and the cast crit flag, so the request scales with the CASTER's AP and critPower. The recipient then passes handleHeal: a wounded recipient gets no HP heal (Blood Moon + Blood Stone can still request a shield), burn and enraged halve it, BUFF_HEAL_RECEIVED x1.3 and ZENITH x1.2 raise it, the result is rounded and capped at the missing HP (the overheal adds 0.4 x max HP on a GRASS-synergy recipient). No damage, no status, no movement. If no ally is found nothing happens, but PP is still spent in super.process. Requested amount: 30/60 raw; applied: after AP, crit, item/status modifiers and the missing-HP cap.",
+  "targeting": {
+   "who": "the allied entity (own team, caster included) with the lowest current hp; the cast target passed to the strategy is null and unused",
+   "needsTarget": false,
+   "note": "requiresTarget is overridden to false; how the cast is triggered without a target (range and targeting gates in the attacking state) was not traced.",
+   "evidence": [
+    "pp-class",
+    "pp-find",
+    "pp-sort"
+   ]
+  },
+  "geometry": {
+   "shape": "no geometry: board-wide selection of one ally, independent of range or position",
+   "evidence": [
+    "pp-find",
+    "pp-sort"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal (lowest-hp ally)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "CUTIEFLY": 30,
+     "RIBOMBEE": 60
+    },
+    "scaling": "requested = raw table amount; handleHeal multiplies by (1 + AP/100) with the CASTER's ap (apBoost 1) and by the caster's critPower when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), then x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather on the recipient/weather",
+    "resolution": "Applied heal = round(modified request) capped at the recipient's missing HP; the excess is overheal, which adds 0.4 x overheal max HP on a GRASS-synergy recipient. A wounded recipient receives 0 HP heal (Blood Moon + Blood Stone can still request a shield). Because the recipient is chosen by lowest absolute hp, it may be a full-HP ally (caster included), in which case the whole amount is overheal. The target selection reads hp at cast time, no randomness.",
+    "evidence": [
+     "pp-find",
+     "pp-sort",
+     "pp-heal-tbl",
+     "pp-heal",
+     "heal-entity",
+     "heal-wound",
+     "heal-ap",
+     "heal-mods",
+     "heal-overheal",
+     "pp-anim"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "CUTIEFLY": 1,
+    "RIBOMBEE": 2
+   },
+   "declaredRawHeal": {
+    "CUTIEFLY": 30,
+    "RIBOMBEE": 60
+   },
+   "note": "indexed by the casting entity's stars; 3 (120) and 4 (240, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 40 and range 2 for both.",
+   "evidence": [
+    "pp-heal-tbl",
+    "unit-cutiefly",
+    "unit-ribombee"
+   ]
+  },
+  "positionalConditions": "None: the recipient is chosen board-wide by current hp, ignoring distance. Dead or removed entities are assumed absent from board.cells (not traced).",
+  "repeatedCastsAndModes": "No stored state and no modes. Each cast re-selects the lowest-hp ally and heals it again.",
+  "rawVsResolved": "Declared raw heal 30/60 (Cutiefly/Ribombee). Heal received = round(raw x (1 + AP/100) [x critPower] x item/status/weather factors) capped at the recipient's missing HP; 0 HP if wounded. The recipient is the lowest absolute hp ally, which may already be at full hp.",
+  "sourceTables": [
+   {
+    "id": "pollenPuffHeal",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight, and how a requiresTarget = false cast is triggered (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the heal-side multipliers were read",
+   "Heal modifiers beyond the wound, AP, crit, burn, enraged, weather and overheal steps listed (other items or synergy hooks on heal)"
+  ],
+  "unresolved": [
+   "Whether board.cells can contain entities that should not be eligible (dead, summoned or non-targetable allies, e.g. an INANIMATE or hidden unit): the filter cell.team === pokemon.team was read as written; no alive/targetable check appears in the strategy",
+   "Tie-breaking and ordering of board.cells (array order) was not traced beyond the stable sort in the strategy",
+   "Passive none for both units; no other unit sharing the identifier exists in the queue",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-cutiefly",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     644,
+     658
+    ],
+    "symbol": "class Cutiefly",
+    "expect": "skill = Ability.POLLEN_PUFF",
+    "note": "unit class block: skill / stars / stats (no passive line)"
+   },
+   {
+    "id": "unit-ribombee",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     660,
+     673
+    ],
+    "symbol": "class Ribombee",
+    "expect": "skill = Ability.POLLEN_PUFF",
+    "note": "unit class block: skill / stars / stats (no passive line)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pp",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1084,
+     1084
+    ],
+    "symbol": "AbilityStrategies[Ability.POLLEN_PUFF]",
+    "expect": "[Ability.POLLEN_PUFF]: new PollenPuffStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pp-class",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "PollenPuffStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without a target in reach"
+   },
+   {
+    "id": "pp-super",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true: the default broadcast is skipped"
+   },
+   {
+    "id": "pp-find",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     9,
+     13
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "cell && cell.team === pokemon.team",
+    "note": "every entity of the caster's team on the board (caster included), sorted by current hp ascending"
+   },
+   {
+    "id": "pp-sort",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "sort((a, b) => a.hp - b.hp)[0]",
+    "note": "lowest ABSOLUTE current hp, not percent or missing hp; ties keep array order"
+   },
+   {
+    "id": "pp-heal-tbl",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "const heal = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw heal table by caster stars"
+   },
+   {
+    "id": "pp-heal",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "lowestHealthAlly.handleHeal(heal, pokemon, 1, crit)",
+    "note": "apBoost 1, cast crit flag"
+   },
+   {
+    "id": "pp-anim",
+    "file": "app/core/abilities/pollen-puff.ts",
+    "lines": [
+     18,
+     21
+    ],
+    "symbol": "PollenPuffStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation only"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "POLLEN_PUFF does not set canCritByDefault: crit is rolled only with ABILITY_CRIT"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default overridden to false by this strategy"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "heal-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": ""
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound)",
+    "note": "a wounded recipient receives 0 healing; Blood Moon / Blood Stone shield exception"
+   },
+   {
+    "id": "heal-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     339
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP scaling uses the caster's ap (apBoost 1); crit multiplies by the caster's critPower"
+   },
+   {
+    "id": "heal-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     340,
+     357
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal = Math.round(heal)",
+    "note": "BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2, rounded, capped at missing HP"
+   },
+   {
+    "id": "heal-overheal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
+    "note": "overheal on a GRASS-synergy recipient adds 0.4 x overheal max HP"
+   }
+  ]
+ }
+}
