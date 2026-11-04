@@ -63,7 +63,7 @@
     "ar-super"
    ]
   },
-  "summary": "After spending PP, every allied unit standing in one of the 8 cells adjacent to the caster has its negative-status cooldowns cleared and is then healed by raw 20/40/80/160 (by caster stars; AP-scaled, crit only with ability crit). The caster itself is not in the area (the adjacent-cell list excludes the centre) and nothing moves.",
+  "summary": "After spending PP, every allied unit standing in one of the 8 cells adjacent to the caster has its negative-status cooldowns cleared (clearNegativeStatus zeroes the cooldowns; it does NOT clear the wound flag, which is reset later by updateWound in the status update) and is then, in the same synchronous call, healed by raw 20/40/80/160 (by caster stars; AP-scaled, crit only with ability crit). Because the flag is still true when handleHeal runs, a wounded adjacent ally still takes the wound branch: no HP (with BLOODMOON weather and a Blood Stone owned by that ally's player the branch first requests addShield(round(0.3 x stones x the raw requested heal), ally, apBoost 1, crit), with the ally as the shield's caster); the wound only ends at its next status update, so a later cast (or heal) can find it cleared. An unwounded ally with status.protect gets nothing (Rune Protect alone does not block); otherwise the heal goes through the usual modifiers, rounding and cap, and a GRASS-synergy ally's overheal requests addMaxHP(0.4 x overheal). The caster itself is not in the area (the adjacent-cell list excludes the centre) and nothing moves.",
   "targeting": {
    "who": "allies (same team) in the 8 cells adjacent to the caster's current cell; the caster is excluded",
    "needsTarget": true,
@@ -89,11 +89,13 @@
      "note": "clearNegativeStatus(ally, caster) before each heal"
     },
     "scaling": "none",
-    "resolution": "Status.clearNegativeStatus zeroes the cooldowns of the listed negative statuses (it does not itself set the boolean flags; those are reset by the status update step, e.g. updateWound).",
+    "resolution": "Status.clearNegativeStatus zeroes the cooldowns of the listed negative statuses and resets curse and possession bookkeeping; it does not clear the boolean flags such as wound (probe: after clearing, wound is still true with woundCooldown 0). The flag is reset only when updateWound runs in the status update (woundCooldown - dt <= 0 -> wound = false). The heal that follows in the same synchronous callback therefore still sees status.wound = true.",
     "evidence": [
      "ar-clear",
      "clear-fn",
-     "wound-upd"
+     "wound-upd",
+     "wound-flag-clear",
+     "wound-dispatch"
     ]
    },
    {
@@ -112,8 +114,8 @@
      "PETILIL": 20,
      "LILIGANT": 40
     },
-    "scaling": "requested = table value. applied by PokemonState.handleHeal: x(1 + AP/100) with apBoost 1; x critPower if the cast crit; x1.3 with BUFF_HEAL_RECEIVED; x0.5 when burning; x0.5 when enraged; x1.2 under ZENITH weather; rounded; capped to the target's missing HP (the remainder is overheal). No heal on a wounded target or a protected / dead one.",
-    "resolution": "requested (raw table) -> applied (after modifiers and rounding) -> healReceived (after the missing-HP cap). Each adjacent ally is healed once; full-HP allies receive 0.",
+    "scaling": "requested = table value. applied by PokemonState.handleHeal: x(1 + AP/100) with apBoost 1; x critPower if the cast crit; x1.3 with BUFF_HEAL_RECEIVED; x0.5 when burning; x0.5 when enraged; x1.2 under ZENITH weather; rounded; capped to the target's missing HP (the remainder is overheal; on a GRASS-synergy ally it requests addMaxHP(0.4 x overheal), which also raises current HP). No HP heal on a wounded target (the flag is still set after the cleanse, see effects[0]), on an unwounded target with status.protect, or on a dead one; status.runeProtect is not read.",
+    "resolution": "requested (raw table) -> applied (after modifiers and rounding) -> healReceived (after the missing-HP cap). Each adjacent ally is healed once; full-HP allies receive 0 (the whole amount is overheal). A wounded ally receives 0 HP in this cast because clearNegativeStatus does not clear the flag before handleHeal; with BLOODMOON weather and a Blood Stone owned by that ally's player the wound branch requests addShield(round(0.3 x stones x raw heal), ally, 1, crit) (the ally is the shield's caster, so its own AP / crit power scale the request; Big Eater Belt x1.25 rounded down is applied by the entity addShield, final shield can differ from the request); the wound branch comes before the Protect test, so Protect does not stop it. The Grass overheal request addMaxHP(0.4 x overheal) is likewise a request: the final max HP and HP gain depend on addMaxHP's item helpers.",
     "evidence": [
      "ar-table",
      "ar-heal",
@@ -125,7 +127,14 @@
      "hh-crit",
      "hh-mods",
      "hh-round",
-     "hh-cap"
+     "hh-cap",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-bigeater"
     ]
    }
   ],
@@ -158,7 +167,7 @@
   },
   "positionalConditions": "Only allies in the cells adjacent to the caster at cast time receive anything; a caster with no adjacent ally heals and cleanses nobody (PP is still spent). The caster does not heal itself.",
   "repeatedCastsAndModes": "No stored state or modes; each cast reads the current neighbours.",
-  "rawVsResolved": "Declared raw: heal 20/40 (1/2 stars). Requested = raw; applied = raw x (1 + AP/100) x crit factor x the status/weather modifiers listed, rounded; healReceived is capped by missing HP. Cleansing happens before the heal for each ally, but a wounded ally still reads status.wound = true at that moment (see unresolved), so the heal may be 0.",
+  "rawVsResolved": "Declared raw: heal 20/40 (1/2 stars). Requested = raw; applied = raw x (1 + AP/100) x crit factor x the status/weather modifiers listed, rounded; healReceived is capped by missing HP. Cleansing happens before the heal for each ally, but clearNegativeStatus only zeroes the cooldown: a wounded ally still reads status.wound = true when the synchronous handleHeal runs, so it receives 0 HP (or only the Blood Moon / Blood Stone shield request) from this cast; the flag is cleared by updateWound at the next status update.",
   "sourceTables": [
    {
     "id": "heal",
@@ -175,11 +184,12 @@
    "Which statuses count as negative beyond the list in clearNegativeStatus (only that function was read)"
   ],
   "unresolved": [
-   "Whether the wound flag of a wounded ally is still true when handleHeal runs right after clearNegativeStatus: clearNegativeStatus zeroes woundCooldown but updateWound (which sets wound = false) runs in the status update; the order within a tick was not traced, so a wounded adjacent ally may get 0 heal from this cast",
+   "Settled by source reading and the probe: clearNegativeStatus zeroes woundCooldown only, the heal is the next statement, so the wound flag is still true and a wounded adjacent ally gets 0 HP from this cast. Not traced: the exact order of the status update relative to other combat steps within a tick, i.e. when the flag clears afterwards",
    "Whether the cast gate needs an enemy in range for these range-1 units: requiresTarget keeps the base default (true), but the moving-state walk-to-target logic was not re-read for this record",
    "Whether the two units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "No gameplay evidence; candidate is source reading plus mechanical checks only",
+   "Probe SHARED_HELPERS (real clearNegativeStatus / updateWound / handleHeal text, stub units): wound cooldown 3000 cleared -> wound true, cooldown 0; immediate heal 20 -> 0 / 0, HP unchanged; after updateWound(50) -> wound false and the next heal 20 -> 20. Also Protect -> 0 healed, Rune Protect alone -> healed, Grass 990/1000 heal 50 -> healed 10, overheal 40, addMaxHP request 16, wound + Protect + Blood Moon + one stone heal 20 -> addShield request 6. Helper requests and results only, not a fight."
   ],
   "evidence": [
    {
@@ -478,7 +488,120 @@
     "symbol": "PokemonEntity.handleHeal",
     "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
     "note": "delegates to state.handleHeal"
+   },
+   {
+    "id": "wound-flag-clear",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     899,
+     906
+    ],
+    "symbol": "Status.updateWound",
+    "expect": "this.wound = false",
+    "note": "the wound flag is reset only here, when the remaining cooldown minus dt is <= 0"
+   },
+   {
+    "id": "wound-dispatch",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     262,
+     265
+    ],
+    "symbol": "Status.update wound dispatch",
+    "expect": "this.updateWound(dt)",
+    "note": "updateWound runs from the status update while the wound flag is set, not from clearNegativeStatus"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request below"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns healReceived 0 / overheal 0 (next line)"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster, apBoost 0, no crit"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and, for a living unit and a positive value, also raises current HP by the same value; nothing counts as healDone"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before delegating to the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the CASTER argument; enraged halves a positive value; rounded; no wound or protect test"
+   },
+   {
+    "id": "sh-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value is x1.25 rounded down for a holder of Big Eater Belt (6 -> 7, 16 -> 20 in the probe)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T171059Z",
+   "reason": "cooldown clearing does not clear the wound flag before the synchronous heal (wounded allies still take the wound branch: no HP, Blood Moon / Blood Stone shield request); status.protect / Rune Protect and Grass addMaxHP wording added; the former open order question settled",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
