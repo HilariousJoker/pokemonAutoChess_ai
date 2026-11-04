@@ -1,0 +1,593 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/OCTOLOCK",
+ "kind": "ability",
+ "identifier": "OCTOLOCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T003915Z"
+ },
+ "record": {
+  "ability": "OCTOLOCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo (Clobbopus 1 star, Grapploct 2 stars, passive NONE) declare OCTOLOCK in this production reference. Shared strategy.",
+  "appliesTo": [
+   {
+    "key": "CLOBBOPUS",
+    "stars": 1,
+    "maxPP": 65,
+    "range": 1,
+    "declaredSkill": "OCTOLOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GRAPPLOCT",
+    "stars": 2,
+    "maxPP": 65,
+    "range": 1,
+    "declaredSkill": "OCTOLOCK",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CLOBBOPUS": {
+    "evidence": [
+     "unit-clobbopus"
+    ]
+   },
+   "GRAPPLOCT": {
+    "evidence": [
+     "unit-grapploct"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.OCTOLOCK] = new OctolockStrategy()",
+   "strategy": "OctolockStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-oc",
+    "oc-class",
+    "base-flags",
+    "base-pp",
+    "oc-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target SPECIAL damage (30 raw at 1 star, 60 at 2 stars), then the same duration is requested for two statuses on the target: LOCKED and armor reduction (halves the target's def and speDef while active). Order: damage, then LOCKED, then armor reduction. Both durations are 3000 ms for 1 and 2 stars (6000 at 3 stars, 10000 for 4 or more; not reachable by the two listed units). Because the damage is dealt first, the halving from this cast does not affect this cast's damage, only an armor reduction already active on the target does. LOCKED and armor reduction are independent: a refused LOCKED (already locked, skydiving, runeProtect, IMMUNITY_LOCKED, or CC cooldown) does not stop the armor reduction, and runeProtect blocks both.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "oc-class",
+    "base-flags",
+    "oc-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "oc-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 90,
+      "4": 180,
+      "fallback": 180
+     }
+    },
+    "perUnitRaw": {
+     "CLOBBOPUS": 30,
+     "GRAPPLOCT": 60
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); a cast crit multiplies by critPower reduced by the target's critReductionFactor (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "requested amount = raw x AP x crit factor; applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved (Math.round) if the target already had armor reduction before this cast, ceil, minimum 1, shield first; takenDamage is not used by this ability. Blocked (0) by protect / skydiving / magicBounce (magicBounce may reflect SPECIAL damage unless the caster holds Protective Pads) and for a dead or resurrecting target. Statuses below are still requested after a blocked hit.",
+    "evidence": [
+     "oc-dmg",
+     "oc-hit",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "armor-factor",
+     "def-min",
+     "armor-half",
+     "hd-dead"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "locked",
+    "target": "the target",
+    "declaredRaw": {
+     "duration": 3000,
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after the damage, before armor reduction",
+    "guards": "refused when the target is already locked (no stacking), skydiving, has runeProtect, has the IMMUNITY_LOCKED effect, or has ccCooldown > 0; an enraged target gets half the duration; then applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10% per stone); the cooldown is set to the rounded result",
+    "combatEffect": "target range forced to 1 (a retarget is forced if it was not 1); a locked unit cannot move (canMove) and cannot be moved by effects (canBeMoved); cannot dodge a basic attack (dodge roll skipped in handleAttack); the dark-type jump in MovingState is disabled. When LOCKED ends the range is restored and a CC cooldown begins during which LOCKED is refused. Whether the target can still attack or cast while locked: canAttack and canCast do not test locked.",
+    "evidence": [
+     "oc-dur",
+     "oc-lock",
+     "lock-trig",
+     "lock-guard",
+     "lock-enraged",
+     "lock-set",
+     "lock-range",
+     "lock-end",
+     "dur-red",
+     "can-move",
+     "lock-dodge",
+     "lock-dark"
+    ]
+   },
+   {
+    "status": "armorReduction",
+    "target": "the target",
+    "declaredRaw": {
+     "duration": 3000,
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 6000,
+      "4": 10000,
+      "fallback": 10000
+     },
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "after LOCKED",
+    "guards": "not applied with runeProtect; the duration passes through applyStatusDurationReductions; a new value replaces the remaining time only if longer",
+    "combatEffect": "while active, PokemonState.handleDamage uses round(def / 2) and round(speDef / 2) when computing damage taken by the target (also seen in the Power Lens retaliation computation); it does not change the stored stat values.",
+    "evidence": [
+     "oc-armor",
+     "armor-trig",
+     "dur-red",
+     "armor-half"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CLOBBOPUS": 1,
+    "GRAPPLOCT": 2
+   },
+   "declaredRawDamage": {
+    "CLOBBOPUS": 30,
+    "GRAPPLOCT": 60
+   },
+   "declaredDurationMs": {
+    "CLOBBOPUS": 3000,
+    "GRAPPLOCT": 3000
+   },
+   "note": "indexed by the caster's stars; the 3 and 4 star values (90 / 180 damage, 6000 / 10000 ms) are not reachable by the two listed units. maxPP 65 and range 1 for both.",
+   "evidence": [
+    "oc-dmg",
+    "oc-dur",
+    "unit-clobbopus",
+    "unit-grapploct"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (range 1 for both units).",
+  "repeatedCastsAndModes": "No stored state, no modes. A second cast during LOCKED does not re-lock (no stacking) but still applies damage and can lengthen armor reduction; after LOCKED ends the CC cooldown refuses a new lock for its duration.",
+  "rawVsResolved": "Declared raw: damage 30 / 60, duration 3000 ms for both statuses (1 and 2 stars). Damage dealt = raw x (1 + AP/100) [x crit factor], then speDef division (ceil, at least 1). Durations are requested values: enraged halves LOCKED only; applyStatusDurationReductions then shortens both; the lock may be refused entirely.",
+  "sourceTables": [
+   {
+    "id": "octolockDamage",
+    "file": "app/core/abilities/octolock.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "octolockDuration",
+    "file": "app/core/abilities/octolock.ts",
+    "pattern": "const duration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Shield, Cover Band, Fossil and resurrection branches of handleDamage were not traced here (takenDamage is unused by OCTOLOCK); consulted core-mechanics.md section A and the speDef step only",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
+   "The value of CC_COOLDOWN and whether other systems read status.locked were not exhaustively searched (app/core and app/models were grepped; other directories were not)"
+  ],
+  "unresolved": [
+   "How a locked unit's basic attacks or casts behave beyond canMove / canBeMoved / dodge / dark jump was not traced further",
+   "Whether passives or items change LOCKED or armorReduction beyond those listed (a passive resets lockedCooldown at app/core/effects/passives.ts:1682, not read in detail)",
+   "No other unit sharing the identifier exists in the queue; units not listed are not covered",
+   "Mechanical checks only; no probe was run and no fight observed"
+  ],
+  "evidence": [
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget default true; canCritByDefault = false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "apBoost default true: damage x (1 + AP/100)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite for non-TRUE damage"
+   },
+   {
+    "id": "unit-clobbopus",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19302,
+     19320
+    ],
+    "symbol": "class Clobbopus",
+    "expect": "skill = Ability.OCTOLOCK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-grapploct",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19322,
+     19339
+    ],
+    "symbol": "class Grapploct",
+    "expect": "skill = Ability.OCTOLOCK",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-oc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1062,
+     1062
+    ],
+    "symbol": "AbilityStrategies[Ability.OCTOLOCK]",
+    "expect": "[Ability.OCTOLOCK]: new OctolockStrategy()",
+    "note": ""
+   },
+   {
+    "id": "oc-class",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "OctolockStrategy",
+    "expect": "class OctolockStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "oc-super",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "oc-dmg",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "const damage = [30, 60, 90, 180][pokemon.stars - 1] ?? 180",
+    "note": "raw damage by stars"
+   },
+   {
+    "id": "oc-dur",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "const duration = [3000, 3000, 6000, 10000][pokemon.stars - 1] ?? 10000",
+    "note": "requested status duration in ms by stars (same value for both statuses)"
+   },
+   {
+    "id": "oc-hit",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage first, apBoost default true"
+   },
+   {
+    "id": "oc-lock",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "target.status.triggerLocked(duration, target)",
+    "note": "second step: LOCKED"
+   },
+   {
+    "id": "oc-armor",
+    "file": "app/core/abilities/octolock.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "OctolockStrategy.process",
+    "expect": "target.status.triggerArmorReduction(duration, target)",
+    "note": "third step: ARMOR_BREAK (armorReduction)"
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by 1 + 0.05 x speDef"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead or resurrecting: takenDamage 0"
+   },
+   {
+    "id": "armor-half",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     512,
+     514
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let speDef = pokemon.status.armorReduction",
+    "note": "while armorReduction is active the target's def and speDef are halved (Math.round) before the damage division"
+   },
+   {
+    "id": "lock-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1142,
+     1162
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "triggerLocked(duration: number, pkm: PokemonEntity) {",
+    "note": "conditions and effects of LOCKED"
+   },
+   {
+    "id": "lock-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1144,
+     1148
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "!this.locked && // lock cannot be stacked",
+    "note": "not applied if already locked, skydiving, runeProtect, IMMUNITY_LOCKED effect or ccCooldown > 0"
+   },
+   {
+    "id": "lock-enraged",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     714,
+     714
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "duration = duration / 2",
+    "note": "enraged target: half duration"
+   },
+   {
+    "id": "lock-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1157,
+     1157
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "this.lockedCooldown = Math.round(duration)",
+    "note": "replaces (not max) the cooldown; the status was not active"
+   },
+   {
+    "id": "lock-range",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1161,
+     1161
+    ],
+    "symbol": "Status.triggerLocked",
+    "expect": "pkm.range = 1",
+    "note": "range forced to 1 (retarget via toMovingState if it was not 1)"
+   },
+   {
+    "id": "lock-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1181,
+     1181
+    ],
+    "symbol": "Status.updateLocked",
+    "expect": "this.ccCooldown = Math.max(this.ccCooldown, CC_COOLDOWN)",
+    "note": "when LOCKED ends a CC cooldown starts, during which triggerLocked is refused"
+   },
+   {
+    "id": "armor-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     352
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity) {",
+    "note": "not applied with runeProtect; duration reduced; longer replaces"
+   },
+   {
+    "id": "dur-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10% each"
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     235,
+     235
+    ],
+    "symbol": "PokemonEntity.canMove / canBeMoved",
+    "expect": "!this.status.locked &&",
+    "note": "locked: cannot move (get canMove) and cannot be moved (get canBeMoved)"
+   },
+   {
+    "id": "lock-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     107,
+     107
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.locked",
+    "note": "a locked target cannot dodge a basic attack (dodge roll skipped)"
+   },
+   {
+    "id": "lock-dark",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     87,
+     87
+    ],
+    "symbol": "MovingState.update",
+    "expect": "!pokemon.status.locked",
+    "note": "dark-type jump disabled while locked"
+   }
+  ]
+ }
+}
