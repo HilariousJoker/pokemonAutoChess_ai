@@ -1,0 +1,518 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PICKUP",
+ "kind": "ability",
+ "identifier": "PICKUP",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T123936Z"
+ },
+ "record": {
+  "ability": "PICKUP",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "ALOLAN_MEOWTH and ALOLAN_PERSIAN declare ability PICKUP (passive NONE in the catalog). The strategy is shared; differences are stars and stats. Other units are not covered. The passive PICKUP (random item at fight start, other units) is a different mechanism with the same name and is not covered here.",
+  "appliesTo": [
+   {
+    "key": "ALOLAN_MEOWTH",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "PICKUP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ALOLAN_PERSIAN",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "PICKUP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ALOLAN_MEOWTH": {
+    "evidence": [
+     "unit-alolan-meowth"
+    ]
+   },
+   "ALOLAN_PERSIAN": {
+    "evidence": [
+     "unit-alolan-persian"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PICKUP] = new PickupStrategy()",
+   "strategy": "PickupStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pickup",
+    "pk-class",
+    "base-flags",
+    "base-pp",
+    "pk-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target special damage (30/60/120/240 raw by caster stars: 30 for ALOLAN_MEOWTH, 60 for ALOLAN_PERSIAN) plus a steal, resolved BEFORE the damage. Steal branch A (target holds at least one item AND the caster holds fewer than 3): the first item in the target's item Set (insertion order, no choice) is removed from the target (items.delete plus removal of its stat bonuses; battle copy only) and passed to the caster's addItem. addItem can silently refuse (a synergy stone whose type the caster already has, EVIOLITE or RARE_CANDY without an evolution, RARE_CANDY while holding EVIOLITE, or an item the caster already holds): in those cases the item is simply lost from the target and not gained. Branch B (otherwise: target has no items, OR the caster already has 3 items even if the target has items): if the target has a player (a real player's side; undefined for PvE and ghost opponents) it loses min(its gold, caster stars) gold (1 for Meowth, 2 for Persian) and, if the caster has a player, that player gains the same amount (statistic counted); a ghost caster gives no gold even though the target still loses it. Then, independently, handleSpecialDamage(raw, SPECIAL, crit) is applied to the target: the steal happens even if the target is protected / skydiving / magicBounce (those only cancel the damage). Requested amounts: damage raw 30/60 and gold requested = caster stars; applied: damage after AP, crit, SPE_DEF division (ceil, min 1) and later handleDamage steps; gold capped by the target's current gold.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target); item/gold are taken from that same target",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "pk-class",
+    "base-flags",
+    "pk-item",
+    "pk-money",
+    "pk-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area, no cells read",
+   "evidence": [
+    "pk-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "item steal (branch A)",
+    "declaredRaw": {
+     "items": 1,
+     "condition": "target.items.size > 0 && caster.items.size < 3"
+    },
+    "scaling": "none: not affected by AP, crit or stars",
+    "resolution": "Requested: move the first item of the target's Set. Applied: removeItem deletes it from the target and removes its stat bonuses (only the battle entity, permanent = false, so the board copy keeps it for the next fight); the caster's addItem then adds it unless it returns early (3 items, same-type synergy stone, EVIOLITE / RARE_CANDY rules) or already holds that item (Set unchanged). When addItem refuses, the item is lost for this fight. Item gain effects and a synergy added by the item are applied on the caster by addItem. Which item is first depends on the Set order and is not chosen.",
+    "evidence": [
+     "pk-item",
+     "add-item",
+     "remove-item",
+     "remove-item-effect"
+    ]
+   },
+   {
+    "kind": "gold steal (branch B)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 2
+     },
+     "note": "amount = min(target player's gold, caster stars)"
+    },
+    "perUnitRaw": {
+     "ALOLAN_MEOWTH": 1,
+     "ALOLAN_PERSIAN": 2
+    },
+    "scaling": "none: not affected by AP or crit; uses the caster's stars (pokemon.stars), not the damage table",
+    "resolution": "Requested = caster stars (max(target.player.money)(pokemon.stars) = Math.min). Applied = same value unless the target's gold is lower. Only if target.player exists (not for PvE or ghost opponents). The target loses it via addMoney(-x, false, target); a ghost target origin makes addMoney return without change, but target.player is undefined for ghosts. The caster's player gains it via addMoney(x, true, caster) only if the caster has a player; if the caster is a ghost the gain is skipped. The money count statistic increases by the amount only when the caster has a player. Branch B also runs when the target has items but the caster holds 3.",
+    "evidence": [
+     "pk-money",
+     "entity-player",
+     "add-money",
+     "max-fn"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "ALOLAN_MEOWTH": 30,
+     "ALOLAN_PERSIAN": 60
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. handleSpecialDamage returns takenDamage 0 and deals nothing when the target is protected, skydiving or has magicBounce (a magicBounce target may reflect damage to the caster unless the caster holds PROTECTIVE_PADS). The returned takenDamage is NOT read by this strategy, so item and gold theft do not depend on it. A POWER_LENS on the target retaliates against the caster (not enumerated further).",
+    "evidence": [
+     "pk-dmg",
+     "pk-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "ALOLAN_MEOWTH": 1,
+    "ALOLAN_PERSIAN": 2
+   },
+   "declaredRawDamage": {
+    "ALOLAN_MEOWTH": 30,
+    "ALOLAN_PERSIAN": 60
+   },
+   "goldStolenMax": {
+    "ALOLAN_MEOWTH": 1,
+    "ALOLAN_PERSIAN": 2
+   },
+   "note": "indexed by the casting entity's stars; 3 (120) and 4 (240, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 90 and range 1 for both. Gold stolen = stars.",
+   "evidence": [
+    "pk-dmg",
+    "pk-money",
+    "unit-alolan-meowth",
+    "unit-alolan-persian"
+   ]
+  },
+  "positionalConditions": "No positional condition; the branch depends only on the target's item count, the caster's item count (< 3) and whether the target has a player.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the steal and the damage; successive casts take the next item of the target's Set, and the caster's item count grows (once at 3, branch B (gold) is used even if the target still has items).",
+  "rawVsResolved": "Declared raw: damage 30/60 (Meowth/Persian), gold 1/2 (stars), 1 item. Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1), unless blocked (protect / skydiving / magicBounce). Item stolen only if the caster's addItem accepts it (the target loses it regardless). Gold stolen = min(target gold, stars), only against a real player's side. Steal is independent of damage, defense, shield or death.",
+  "sourceTables": [
+   {
+    "id": "pickupDamage",
+    "file": "app/core/abilities/pickup.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multipliers were read"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_PASSIVE: Passive.PICKUP also exists (random item at fight start via Simulation.applyItemsEffects) but is declared by other units with skill SLASH; ALOLAN_MEOWTH and ALOLAN_PERSIAN have passive NONE, so the passive does not apply to them and the two mechanisms are independent",
+   "Order and identity of the item taken: the first element of the target's items Set; how that Set is ordered when items are added (including items added by effects) was not traced",
+   "removeItemEffect was read only through the stat-removal part (to line 860); removal of synergy types/effects granted by the removed item was not fully read",
+   "Whether the target's player gold and the caster's player are the intended sides in every game mode (PvE, ghost, sourcePlayer) - target.player was read as written; consulted: PokemonEntity.player getter, Player.addMoney, utils max()",
+   "Resurrection and other death-cancelling effects on the target do not affect the steal but may affect the damage; not enumerated",
+   "Whether any item or synergy effect changes PICKUP beyond what is listed; consulted: handleSpecialDamage, PokemonState.handleDamage (speDef step, minimum 1), addItem / removeItem, the sibling ABSORB candidate",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-alolan-meowth",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9251,
+     9266
+    ],
+    "symbol": "class AlolanMeowth",
+    "expect": "skill = Ability.PICKUP",
+    "note": "unit class block: skill / passive / stars / stats (no passive line)"
+   },
+   {
+    "id": "unit-alolan-persian",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9268,
+     9283
+    ],
+    "symbol": "class AlolanPersian",
+    "expect": "skill = Ability.PICKUP",
+    "note": "unit class block: skill / passive / stars / stats (no passive line)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pickup",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1074,
+     1074
+    ],
+    "symbol": "AbilityStrategies[Ability.PICKUP]",
+    "expect": "[Ability.PICKUP]: new PickupStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pk-class",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "PickupStrategy",
+    "expect": "class PickupStrategy extends AbilityStrategy",
+    "note": "requiresTarget not overridden (default true)"
+   },
+   {
+    "id": "pk-super",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PickupStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pk-dmg",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PickupStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "pk-item",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     17,
+     22
+    ],
+    "symbol": "PickupStrategy.process",
+    "expect": "target.items.size > 0 && pokemon.items.size < 3",
+    "note": "item branch: first item of target's Set moved to the caster"
+   },
+   {
+    "id": "pk-money",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     23,
+     31
+    ],
+    "symbol": "PickupStrategy.process",
+    "expect": "const moneyStolen = max(target.player.money)(pokemon.stars)",
+    "note": "else branch: gold theft, only if the target has a player"
+   },
+   {
+    "id": "pk-hit",
+    "file": "app/core/abilities/pickup.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "PickupStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage is dealt last, after the item/gold effect"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block damage only (takenDamage 0); the item/gold step has already run"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "add-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     782,
+     797
+    ],
+    "symbol": "PokemonEntity.addItem",
+    "expect": "(isIn(SynergyStones, item) && this.types.has(type))",
+    "note": "addItem can return silently (3 items, same-type synergy stone, EVIOLITE / RARE_CANDY without evolution, RARE_CANDY with EVIOLITE) and only adds when the item is not already held"
+   },
+   {
+    "id": "remove-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     823
+    ],
+    "symbol": "PokemonEntity.removeItem",
+    "expect": "this.items.delete(item)",
+    "note": "non-permanent: only the battle entity loses the item (permanent = false)"
+   },
+   {
+    "id": "remove-item-effect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     848,
+     851
+    ],
+    "symbol": "PokemonEntity.removeItemEffect",
+    "expect": "this.applyStat(stat as Stat, -value)",
+    "note": "stats of the item are removed from the target; the rest of removeItemEffect (synergy removal, effects) was read only to line 860"
+   },
+   {
+    "id": "entity-player",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     289,
+     300
+    ],
+    "symbol": "PokemonEntity.player get",
+    "expect": "return undefined // PvE or ghost player",
+    "note": "target.player: sourcePlayer, else the simulation's blue/red player when it is a Player, else undefined"
+   },
+   {
+    "id": "add-money",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     286,
+     295
+    ],
+    "symbol": "Player.addMoney",
+    "expect": "if (origin?.isGhostOpponent)",
+    "note": "ghost origin: no change at all; otherwise money += value"
+   },
+   {
+    "id": "max-fn",
+    "file": "app/utils/number.ts",
+    "lines": [
+     5,
+     8
+    ],
+    "symbol": "max",
+    "expect": "Math.min(maximum, value)",
+    "note": ""
+   },
+   {
+    "id": "pass-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     499,
+     503
+    ],
+    "symbol": "Simulation.applyItemsEffects",
+    "expect": "pokemon.passive === Passive.PICKUP && pokemon.items.size === 0",
+    "note": "passive PICKUP (different enum, different units) gives a random item at fight start"
+   },
+   {
+    "id": "pass-unit",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13444,
+     13444
+    ],
+    "symbol": "class with passive",
+    "expect": "passive = Passive.PICKUP",
+    "note": "passive PICKUP is declared by other units whose skill is SLASH"
+   }
+  ],
+  "passiveNameNote": {
+   "note": "Passive.PICKUP is a separate mechanism declared by other units (skill SLASH); not applied to ALOLAN_MEOWTH / ALOLAN_PERSIAN (passive NONE).",
+   "evidence": [
+    "pass-sim",
+    "pass-unit"
+   ]
+  }
+ }
+}
