@@ -1,0 +1,556 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PRISMATIC_LASER",
+ "kind": "ability",
+ "identifier": "PRISMATIC_LASER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T184001Z"
+ },
+ "record": {
+  "ability": "PRISMATIC_LASER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PRISMATIC_LASER: Necrozma (3 stars, range 1) and Ultra Necrozma (4 stars, range 3), both with passive PRISM (not covered) and maxPP 100. The strategy is shared; unit differences are the star count (table index). The strategy does not read the caster's range.",
+  "appliesTo": [
+   {
+    "key": "NECROZMA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PRISMATIC_LASER",
+    "declaredPassive": "PRISM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ULTRA_NECROZMA",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "PRISMATIC_LASER",
+    "declaredPassive": "PRISM",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NECROZMA": {
+    "evidence": [
+     "unit-necrozma"
+    ]
+   },
+   "ULTRA_NECROZMA": {
+    "evidence": [
+     "unit-ultra_necrozma"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PRISMATIC_LASER] = new PrismaticLaserStrategy()",
+   "strategy": "PrismaticLaserStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pl",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "pl-class",
+    "pl-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw [30, 40, 50, 60, 120] by caster stars: 50 for Necrozma, 60 for Ultra Necrozma) to every enemy-team unit in the three board columns centred on the CAST TARGET's column (target x-1, x, x+1; off-board columns skipped), over the full height of each column. After each hit, the enemy is pushed one cell along its column (toward y-1 for a RED_TEAM caster, toward y+1 otherwise) if that cell is on the board and empty and the enemy can be moved; the push is a forced displacement. Cells are scanned from the far end so a pushed unit lands on an already-scanned cell and is not hit twice.",
+  "targeting": {
+   "who": "every enemy-team entity on the board cells with x in {target.x - 1, target.x, target.x + 1} (within the board) and any y",
+   "needsTarget": true,
+   "note": "The target only fixes the central column; it is hit because it stands in it (unless it is moved or removed first). Allies and empty cells are skipped. The scan reads each cell at the moment it is reached, after earlier pushes in the same column.",
+   "evidence": [
+    "pl-cols",
+    "pl-rows",
+    "pl-cell",
+    "get-entity",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "three adjacent full-height board columns centred on the target's column; push direction along the column (y-1 for a RED caster, y+1 otherwise)",
+   "evidence": [
+    "pl-flip",
+    "pl-cols",
+    "pl-rows",
+    "pl-newy"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy-team unit in the three columns (each hit once)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 40,
+      "3": 50,
+      "4": 60,
+      "5": 120,
+      "fallback": 120
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "NECROZMA": 50,
+     "ULTRA_NECROZMA": 60
+    },
+    "scaling": "requested = table[stars-1] per enemy hit, no falloff. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x (1 + (critPower - 1) x critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect (consumed by the first hit); x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce (see core-mechanics §A/§J). No heal, PP, shield or status is requested.",
+    "evidence": [
+     "pl-table",
+     "pl-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "each enemy hit, after its damage call",
+    "declaredRaw": {
+     "cells": 1,
+     "label": "requested displacement: one cell along the column"
+    },
+    "scaling": "fixed one cell; no AP, crit or star scaling.",
+    "resolution": "requested one cell; applied only if the next cell exists (0 <= newY < rows) and holds no entity, and moveTo(forcedDisplacement = true) does not return early: it is refused when the pushed entity cannot be moved (skydiving, locked, Heavy Duty Boots) or, for an occupied destination, when the occupant cannot be moved (the destination is empty by the guard). If applied, the entity goes to moving state (re-targets), the cells are swapped and its cooldown is set to 100. The push check follows the damage call whether or not the damage was blocked or the unit died.",
+    "evidence": [
+     "pl-newy",
+     "pl-free",
+     "pl-move",
+     "move-to",
+     "swap",
+     "can-be-moved",
+     "get-entity"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NECROZMA": 3,
+    "ULTRA_NECROZMA": 4
+   },
+   "declaredRawDamage": {
+    "NECROZMA": 50,
+    "ULTRA_NECROZMA": 60
+   },
+   "note": "indexed by the casting entity's stars (3 and 4 for the listed units, bare factory values). The 5th table entry (120) equals the fallback and is reachable only at 5 stars. Range (1 vs 3) does not enter the strategy.",
+   "evidence": [
+    "pl-table",
+    "unit-necrozma",
+    "unit-ultra_necrozma"
+   ]
+  },
+  "positionalConditions": "Hit set depends on the cast target's column (x) and the board's column count; the push direction depends on the caster's team (RED_TEAM flips the scan and push direction). A pushed unit needs an empty cell ahead of it; a unit at the end of its column, or directly behind another unit, is not moved. Because the scan starts at the end toward which units are pushed, a column of adjacent units does not shift as a block.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the columns from the current target position.",
+  "rawVsResolved": "Requested: damage 50 (Necrozma) or 60 (Ultra Necrozma) per enemy in the three columns, displacement one cell. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage; a protect / skydiving / magicBounce unit takes none. Applied displacement is conditional on an empty on-board next cell and canBeMoved.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "pattern": "\\[([0-9, ]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) and whether a unit killed by the damage is still on its cell when the push check runs",
+   "Board rows/columns values were not read (only used symbolically)"
+  ],
+  "unresolved": [
+   "Passive PRISM (both units) was not investigated",
+   "Whether a unit killed by the hit still occupies its cell at the push check (death handling not read)",
+   "Which board side RED and BLUE casters occupy was not read; direction is stated only as y-1 / y+1",
+   "Whether magicBounce on a hit unit bounces damage back to the caster per hit (handleSpecialDamage branch read, interactions per target not traced)",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "can-be-moved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.locked &&",
+    "note": "canBeMoved is false while skydiving, locked or holding Heavy Duty Boots"
+   },
+   {
+    "id": "reg-pl",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1094,
+     1094
+    ],
+    "symbol": "AbilityStrategies[Ability.PRISMATIC_LASER]",
+    "expect": "[Ability.PRISMATIC_LASER]: new PrismaticLaserStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pl-class",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PrismaticLaserStrategy",
+    "expect": "export class PrismaticLaserStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "pl-super",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pl-flip",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "const flip = pokemon.team === Team.RED_TEAM",
+    "note": "flip is true for a RED_TEAM caster"
+   },
+   {
+    "id": "pl-cols",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     15,
+     17
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "const x = target.positionX + dx",
+    "note": "three columns centred on the TARGET's column, skipped when off the board"
+   },
+   {
+    "id": "pl-rows",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     18,
+     22
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "let y = flip ? 0 : board.rows - 1;",
+    "note": "scan direction: RED casters scan y ascending (0 .. rows-1), others descending (rows-1 .. 0)"
+   },
+   {
+    "id": "pl-cell",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     23,
+     24
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "if (entityOnCell && entityOnCell.team !== pokemon.team) {",
+    "note": "only enemy-team entities are affected"
+   },
+   {
+    "id": "pl-table",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "[30, 40, 50, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "5-entry damage table by caster stars (3 -> 50, 4 -> 60); 120 fallback"
+   },
+   {
+    "id": "pl-hit",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     25,
+     31
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "entityOnCell.handleSpecialDamage(",
+    "note": "SPECIAL damage, default apBoost"
+   },
+   {
+    "id": "pl-newy",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     33,
+     33
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "const newY = y + (flip ? -1 : 1)",
+    "note": "push direction: one cell toward y-1 for RED casters, toward y+1 otherwise"
+   },
+   {
+    "id": "pl-free",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     34,
+     38
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "board.getEntityOnCell(x, newY) == null",
+    "note": "push only if the next cell is on the board and empty"
+   },
+   {
+    "id": "pl-move",
+    "file": "app/core/abilities/prismatic-laser.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "PrismaticLaserStrategy.process",
+    "expect": "entityOnCell.moveTo(x, newY, board, true)",
+    "note": "forced displacement"
+   },
+   {
+    "id": "get-entity",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getEntityOnCell",
+    "expect": "return this.cells[this.columns * y + x]",
+    "note": "undefined when off the board"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "forced displacement is refused when the entity cannot be moved; otherwise toMovingState, swapCells and cooldown = 100"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": "swaps the two cells"
+   },
+   {
+    "id": "unit-necrozma",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13083,
+     13096
+    ],
+    "symbol": "class Necrozma",
+    "expect": "skill = Ability.PRISMATIC_LASER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-ultra_necrozma",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13098,
+     13115
+    ],
+    "symbol": "class UltraNecrozma",
+    "expect": "skill = Ability.PRISMATIC_LASER",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
