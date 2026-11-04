@@ -1,0 +1,441 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/NIGHT_SHADE",
+ "kind": "ability",
+ "identifier": "NIGHT_SHADE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T003915Z"
+ },
+ "record": {
+  "ability": "NIGHT_SHADE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo (Misdreavus 1 star, Mismagius 2 stars, both passive NONE) declare NIGHT_SHADE in this production reference. Shared strategy; only the star count and stats differ.",
+  "appliesTo": [
+   {
+    "key": "MISDREAVUS",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "NIGHT_SHADE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MISMAGIUS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "NIGHT_SHADE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MISDREAVUS": {
+    "evidence": [
+     "unit-misdreavus"
+    ]
+   },
+   "MISMAGIUS": {
+    "evidence": [
+     "unit-mismagius"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.NIGHT_SHADE] = new NightShadeStrategy()",
+   "strategy": "NightShadeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-ns",
+    "ns-class",
+    "base-flags",
+    "base-pp",
+    "ns-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target TRUE damage based on the target's MAX HP. Requested amount = ceil(F x target.maxHP x (2 + AP/100)) with F = 0.125 / 0.165 / 0.25 / 0.35 by caster stars (Misdreavus 1 star = 0.125, Mismagius 2 stars = 0.165). The ability passes apBoost = false to handleSpecialDamage, so the AP term in the formula is the only AP scaling: AP appears once inside the requested amount (the second F term of the description). Crit multiplies the amount (critPower, not reduced by Rocky Helmet or Black Augurite because the type is TRUE) only if the cast crits. The target's defenses are not applied (TRUE), the item and effect reductions in handleDamage are skipped for TRUE, and the result is at least 1; shields on the target absorb the damage first (takenDamage includes the shield part).",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "ns-class",
+    "base-flags",
+    "ns-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "ns-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.125,
+      "2": 0.165,
+      "3": 0.25,
+      "4": 0.35,
+      "fallback": 0.35
+     },
+     "unit": "fraction of target.maxHP, requested before the (2 + AP/100) factor"
+    },
+    "perUnitRaw": {
+     "MISDREAVUS": 0.125,
+     "MISMAGIUS": 0.165
+    },
+    "scaling": "requested = ceil(F x target.maxHP x (2 + AP/100)), AP = caster.ap at the cast; at AP 0 this is ceil(2 F x maxHP). apBoost is false, so handleSpecialDamage adds no further AP term. Cast crit multiplies by 1 + (critPower - 1) x critReductionFactor; the Rocky Helmet negation and Black Augurite reduction are explicitly skipped for TRUE (critReductionFactor stays 1). Illustration only (arithmetic, not a fight): target maxHP 500, Misdreavus, AP 0 -> 62.5 x 2 = 125; AP 100 -> ceil(62.5 x 3) = 188.",
+    "resolution": "applied change: handleSpecialDamage returns takenDamage 0 for a target with protect, skydiving or magicBounce (magicBounce reflection only for SPECIAL, so none for TRUE); otherwise handleDamage runs: a dead or resurrecting target gives 0; an enraged attacker doubles the damage; for TRUE the defense division is skipped and the item/effect reductions (Poke Doll, Guts/Sturdy/Defiant/Coaching, Wonder Guard) are inside the non-TRUE guard; ceil with minimum 1; the shield is consumed first and the returned takenDamage (rounded) is the shield part plus min(residual, current HP). The three amounts therefore differ: requested (formula above), applied to defences (equal to requested for TRUE, x2 if the attacker is enraged, other attacker-side multipliers in handleDamage not enumerated) and takenDamage (shield + HP actually lost, capped by current HP). Big Eater Belt / Twist Band helpers are not involved (no stat change).",
+    "evidence": [
+     "ns-pct",
+     "ns-flat",
+     "ns-ap",
+     "ns-hit",
+     "special-ap",
+     "special-block",
+     "special-crit",
+     "rocky-true",
+     "hd-dead",
+     "hd-enraged",
+     "hd-true",
+     "hd-guard",
+     "hd-min",
+     "td-shield",
+     "td-return",
+     "tr-en"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MISDREAVUS": 1,
+    "MISMAGIUS": 2
+   },
+   "declaredFraction": {
+    "MISDREAVUS": 0.125,
+    "MISMAGIUS": 0.165
+   },
+   "note": "indexed by the caster's stars; 3 and 4 star fractions (0.25, 0.35, fallback 0.35) are not reachable by the two listed units. maxPP 100 and range 3 for both.",
+   "evidence": [
+    "ns-pct",
+    "unit-misdreavus",
+    "unit-mismagius"
+   ]
+  },
+  "positionalConditions": "None read beyond needing a target (range 3 for both units).",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes from the target's current maxHP.",
+  "rawVsResolved": "Declared: fraction 0.125 (1 star) / 0.165 (2 stars) of target max HP, labelled raw. Requested amount = ceil(fraction x maxHP x (2 + AP/100)). Applied: TRUE damage, no defence division, at least 1, x2 for an enraged attacker, crit multiplier if the cast crits, then shield first; takenDamage reports shield part + HP lost. The English description writes the fraction twice with the second marked as AP-scaled; that is how the source's factor (2 + AP/100) reads, and nothing in the source adds a second AP scaling (apBoost false).",
+  "sourceTables": [
+   {
+    "id": "nightShadeFraction",
+    "file": "app/core/abilities/night-shade.ts",
+    "pattern": "const flatDamagePercent =\\s*\\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Attacker-side multipliers in handleDamage beyond the enraged doubling (electric / psychic field x1.2 and later modifiers) and what happens after the shield step (items, resurrection, Cover Band, Fossil) were not traced for this ability; consulted core-mechanics.md section A and the handleDamage TRUE branch only",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
+  ],
+  "unresolved": [
+   "Whether the factor (2 + AP/100) matches the intended design is not decided here; the English description (two terms, the second marked AP-scaled) agrees with how the code reads, and the code is what is recorded",
+   "Resurrection paths, Shiny Charm, Fossil and Cover Band branches of handleDamage were not enumerated for TRUE damage; they would change the returned takenDamage",
+   "No other unit sharing the identifier exists in the queue; units not listed are not covered",
+   "Mechanical checks only; no probe was run and no fight observed"
+  ],
+  "evidence": [
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget default true; canCritByDefault = false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "apBoost default true: damage x (1 + AP/100)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor, reduced by Rocky Helmet / Black Augurite for non-TRUE damage"
+   },
+   {
+    "id": "unit-misdreavus",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13192,
+     13210
+    ],
+    "symbol": "class Misdreavus",
+    "expect": "skill = Ability.NIGHT_SHADE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-mismagius",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13212,
+     13229
+    ],
+    "symbol": "class Mismagius",
+    "expect": "skill = Ability.NIGHT_SHADE",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-ns",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1053,
+     1053
+    ],
+    "symbol": "AbilityStrategies[Ability.NIGHT_SHADE]",
+    "expect": "[Ability.NIGHT_SHADE]: new NightShadeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "ns-class",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "NightShadeStrategy",
+    "expect": "class NightShadeStrategy extends AbilityStrategy",
+    "note": "requiresTarget / canCritByDefault not overridden"
+   },
+   {
+    "id": "ns-super",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "NightShadeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ns-pct",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "NightShadeStrategy.process",
+    "expect": "[0.125, 0.165, 0.25, 0.35][pokemon.stars - 1] ?? 0.35",
+    "note": "fraction of max HP by stars"
+   },
+   {
+    "id": "ns-flat",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "NightShadeStrategy.process",
+    "expect": "const flatDamage = flatDamagePercent * target.maxHP",
+    "note": "target's max HP, not current HP"
+   },
+   {
+    "id": "ns-ap",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "NightShadeStrategy.process",
+    "expect": "Math.ceil(flatDamage * (2 + pokemon.ap / 100))",
+    "note": "requested amount: ceil(fraction x maxHP x (2 + AP/100))"
+   },
+   {
+    "id": "ns-hit",
+    "file": "app/core/abilities/night-shade.ts",
+    "lines": [
+     18,
+     25
+    ],
+    "symbol": "NightShadeStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "TRUE damage, attacker = caster, crit passed, apBoost = false (6th argument)"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     450
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
+    "note": "dead or resurrecting target: takenDamage 0"
+   },
+   {
+    "id": "hd-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "attacker enraged: damage x2"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE: no defense division"
+   },
+   {
+    "id": "hd-guard",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     568,
+     568
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attackType !== AttackType.TRUE) {",
+    "note": "damage reduction items / effects are skipped for TRUE"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum of 1 after ceil"
+   },
+   {
+    "id": "td-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     618,
+     618
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let residualDamage = reducedDamage",
+    "note": "shield part plus min(residual, hp)"
+   },
+   {
+    "id": "td-return",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     806,
+     806
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage = Math.round(takenDamage)",
+    "note": "returned takenDamage rounded"
+   },
+   {
+    "id": "rocky-true",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     415,
+     415
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.items.has(Item.ROCKY_HELMET) && attackType !== AttackType.TRUE",
+    "note": "Rocky Helmet crit negation does not apply to TRUE"
+   },
+   {
+    "id": "tr-en",
+    "file": "app/public/dist/client/locales/en/translation.json",
+    "lines": [
+     2061,
+     2061
+    ],
+    "symbol": "ABILITY_DESCRIPTION.NIGHT_SHADE",
+    "expect": "\"NIGHT_SHADE\": \"Deal [12.5,16.5,25,35,ND=1]% + [12.5,16.5,25,35,SP,ND=1]% of target's max HP as TRUE.\"",
+    "note": "English description shows the fraction twice (second term marked SP = AP-scaled); recorded as text only"
+   }
+  ]
+ }
+}
