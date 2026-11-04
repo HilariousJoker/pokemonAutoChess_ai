@@ -1,0 +1,634 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/POISON_JAB",
+ "kind": "ability",
+ "identifier": "POISON_JAB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T123936Z"
+ },
+ "record": {
+  "ability": "POISON_JAB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "GLIGAR and GLISCOR declare ability POISON_JAB and passive GLISCOR in the catalog. The strategy is shared; differences are stars and stats. Other units are not covered. The passive GLISCOR is documented here only for its effect on poison ticks.",
+  "appliesTo": [
+   {
+    "key": "GLIGAR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_JAB",
+    "declaredPassive": "GLISCOR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GLISCOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_JAB",
+    "declaredPassive": "GLISCOR",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GLIGAR": {
+    "evidence": [
+     "unit-gligar"
+    ]
+   },
+   "GLISCOR": {
+    "evidence": [
+     "unit-gliscor"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.POISON_JAB] = new PoisonJabStrategy()",
+   "strategy": "PoisonJabStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pj",
+    "pj-class",
+    "base-flags",
+    "base-pp",
+    "pj-super",
+    "pp-gate",
+    "cast-crit"
+   ]
+  },
+  "summary": "Single-target ability that does four things in this order: (1) SPECIAL damage to the target (30/60 raw for caster stars 1/2; the table value is read before super.process); (2) one poison stack of 3000 ms (fixed, before the target's reductions) on the target with the caster as origin; (3) the same poison stack of 3000 ms on the CASTER itself (origin = itself), which is subject to the caster's own IMMUNITY_POISON / Rune Protect, duration reductions and stack cap; (4) the caster is moved to the target's cell with forced displacement, which swaps the two entities: the target ends on the caster's former cell. The move does nothing if the caster or the occupant of the destination has canBeMoved false. For these two units the self-poison is mitigated by passive GLISCOR: their own poison tick uses (stacks - 2) instead of stacks, so 1 stack heals, 2 stacks do nothing and 3 stacks deal 5 % max HP. Requested amounts: damage raw 30/60; applied: after AP, crit, SPE_DEF division (ceil, min 1), 0 if the target is protect/skydiving/magicBounce (poison and the swap still happen).",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target); poison hits the target and the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the base default true; how the target is chosen before the cast was not read.",
+   "evidence": [
+    "pj-class",
+    "base-flags",
+    "pj-hit",
+    "pj-poison-t",
+    "pj-poison-s"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; swap of cells between caster and target (no path, no area)",
+   "evidence": [
+    "pj-move",
+    "moveto",
+    "swap"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "GLIGAR": 30,
+     "GLISCOR": 60
+    },
+    "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); multiplied by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. handleSpecialDamage returns takenDamage 0 and deals nothing when the target is protected, skydiving or has magicBounce (a magicBounce target may reflect damage to the caster). The takenDamage return value is NOT read by this strategy.",
+    "evidence": [
+     "pj-dmg",
+     "pj-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "displacement (swap with target)",
+    "declaredRaw": {
+     "destination": "target's cell",
+     "forcedDisplacement": true
+    },
+    "scaling": "none",
+    "resolution": "moveTo(target.positionX, target.positionY, board, true): if the caster cannot be moved, or the entity on the destination cell cannot be moved, nothing happens; otherwise both are switched to the moving state, the cells are swapped (the target takes the caster's old cell, each entity updates its board effects) and the caster's cooldown is set to 100. The coordinates are read after damage and poison, so if the target died or moved the destination is whatever occupies that cell at that moment (not traced).",
+    "evidence": [
+     "pj-move",
+     "moveto",
+     "swap",
+     "set-cell"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison (target)",
+    "target": "the cast target",
+    "declaredRaw": {
+     "stacks": 1,
+     "durationMs": 3000
+    },
+    "scaling": "none: one stack and a fixed 3000 ms, not scaled by AP, crit or stars",
+    "applicationOrder": "after the damage call, before the self-poison and the swap",
+    "guards": "triggerPoison does nothing if the target has IMMUNITY_POISON or its status has runeProtect. When it applies: poisonOrigin = caster; stacks + 1 capped at 3 (4 with VENOMOUS, 5 with TOXIC on the caster); the 3000 ms passes through the TARGET's duration reductions (SWIFT_SWIM, HYDRATION, WATER_VEIL / SURGE_SURFER, ODD_KEYSTONE) and replaces the timer only if longer. Reactions inside triggerPoison (GUTS / TOXIC_BOOST attack bonus, Pecha Berry) are in the SLUDGE candidate and were not re-read.",
+    "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms: 5% of max HP per stack, TRUE damage with the poison origin as attacker (modifiers: see the SLUDGE candidate).",
+    "evidence": [
+     "pj-poison-t",
+     "poison-trig",
+     "poison-guard",
+     "poison-max",
+     "poison-origin",
+     "poison-add",
+     "poison-dur",
+     "poison-longer",
+     "reductions",
+     "tick",
+     "tick-period"
+    ]
+   },
+   {
+    "status": "poison (caster, self-inflicted)",
+    "target": "the caster",
+    "declaredRaw": {
+     "stacks": 1,
+     "durationMs": 3000
+    },
+    "scaling": "none",
+    "applicationOrder": "after the target's poison, before the swap",
+    "guards": "same triggerPoison guards evaluated on the caster (IMMUNITY_POISON, Rune Protect, the caster's own duration reductions and stack cap, origin = caster so VENOMOUS / TOXIC on itself raise the cap). Repeated casts stack up to the cap.",
+    "combatEffect": "for GLIGAR and GLISCOR passive GLISCOR makes the tick poisonMaxHP x 0.05 x (stacks - 2): negative (a heal of the rounded absolute value) at 1 stack, zero (no call) at 2 stacks, 5 % max HP at 3 stacks; the poison timer and stack clearing are unchanged.",
+    "evidence": [
+     "pj-poison-s",
+     "poison-guard",
+     "poison-max",
+     "poison-origin",
+     "poison-add",
+     "poison-dur",
+     "tick-gliscor",
+     "tick-sign",
+     "tick-period"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GLIGAR": 1,
+    "GLISCOR": 2
+   },
+   "declaredRawDamage": {
+    "GLIGAR": 30,
+    "GLISCOR": 60
+   },
+   "note": "indexed by the casting entity's stars; 3 (120) and 4 (240, also the fallback) are not reachable by the two units' bare star counts (1, 2). maxPP 100 and range 1 for both. Poison stack count, duration and the swap do not depend on stars.",
+   "evidence": [
+    "pj-dmg",
+    "unit-gligar",
+    "unit-gliscor"
+   ]
+  },
+  "positionalConditions": "No range or cell condition in the strategy beyond the cast target; the swap needs both entities to be movable.",
+  "repeatedCastsAndModes": "No stored state in the strategy and no modes. Each cast repeats damage, both poison calls and the swap; stacks accumulate up to the cap on both entities.",
+  "rawVsResolved": "Declared raw: damage 30/60 (Gligar/Gliscor), 1 poison stack of 3000 ms on each of target and caster. Damage dealt = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1), 0 if blocked. Poison duration = 3000 after each entity's own reductions, stacks capped at 3 (4/5 with VENOMOUS/TOXIC on the origin). Swap result depends on canBeMoved of both entities.",
+  "sourceTables": [
+   {
+    "id": "poisonJabDamage",
+    "file": "app/core/abilities/poison-jab.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
+   "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multipliers were read"
+  ],
+  "unresolved": [
+   "What happens when the target dies from the damage before the poison and the swap (whether the dead entity still occupies its cell, whether moveTo then swaps with it); death handling was not traced",
+   "Whether canBeMoved is false for particular states or items (not enumerated); only the check in moveTo was read",
+   "Poison side reactions (GUTS / TOXIC_BOOST attack bonus, Pecha Berry) and the other poison-tick modifiers were taken from the SLUDGE candidate, not re-read",
+   "Passive GLISCOR was read only in Status.updatePoison (grep of app/core and status.ts found no other reference); other uses of the identifier were not enumerated",
+   "Resurrection and other death-cancelling effects on the target are not enumerated",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-gligar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7949,
+     7968
+    ],
+    "symbol": "class Gligar",
+    "expect": "skill = Ability.POISON_JAB",
+    "note": "unit class block: skill / passive GLISCOR / stars / stats"
+   },
+   {
+    "id": "unit-gliscor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7970,
+     7988
+    ],
+    "symbol": "class Gliscor",
+    "expect": "skill = Ability.POISON_JAB",
+    "note": "unit class block: skill / passive GLISCOR / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pj",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1081,
+     1081
+    ],
+    "symbol": "AbilityStrategies[Ability.POISON_JAB]",
+    "expect": "[Ability.POISON_JAB]: new PoisonJabStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pj-class",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PoisonJabStrategy",
+    "expect": "class PoisonJabStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault not overridden (true / false)"
+   },
+   {
+    "id": "pj-dmg",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw damage table by caster stars"
+   },
+   {
+    "id": "pj-super",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "pj-hit",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": ""
+   },
+   {
+    "id": "pj-poison-t",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "target.status.triggerPoison(3000, target, pokemon)",
+    "note": "one stack on the target, fixed 3000 ms"
+   },
+   {
+    "id": "pj-poison-s",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "pokemon.status.triggerPoison(3000, pokemon, pokemon)",
+    "note": "one stack on the CASTER too, origin = itself"
+   },
+   {
+    "id": "pj-move",
+    "file": "app/core/abilities/poison-jab.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "PoisonJabStrategy.process",
+    "expect": "pokemon.moveTo(target.positionX, target.positionY, board, true)",
+    "note": "forced displacement: caster and target swap cells"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "caster or occupant of the destination with canBeMoved false: nothing happens; otherwise board.swapCells (target ends on the caster's old cell)"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": "the two entities exchange cells"
+   },
+   {
+    "id": "set-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     43,
+     63
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.delete(effectOnPreviousCell)",
+    "note": "each entity loses the board effects of its old cell and gains those of the new one unless IMMUNITY_BOARD_EFFECTS"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "POISON_JAB does not set canCritByDefault: crit is rolled only with ABILITY_CRIT"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage only; poison and the swap are separate calls"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "triggerPoison(",
+    "note": ""
+   },
+   {
+    "id": "poison-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     578
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "default cap 3; origin VENOMOUS 4, TOXIC 5"
+   },
+   {
+    "id": "poison-origin",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     580,
+     580
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonOrigin = origin",
+    "note": "latest applier becomes poisonOrigin (the caster itself for the self-poison)"
+   },
+   {
+    "id": "poison-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "one stack per call, capped"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "poison-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     592,
+     592
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "if (duration > this.poisonCooldown) {",
+    "note": "the timer is replaced only if longer"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     619,
+     619
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "poison tick: 5% max HP per stack (further modifiers: see the SLUDGE candidate)"
+   },
+   {
+    "id": "tick-gliscor",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     621,
+     623
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "pkm.maxHP * 0.05 * (this.poisonStacks - 2)",
+    "note": "passive GLISCOR (both units): own tick uses stacks - 2"
+   },
+   {
+    "id": "tick-sign",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     646,
+     658
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "if (poisonDamage < 0) {",
+    "note": "negative -> heal of round(-x); positive -> TRUE damage; zero -> nothing"
+   },
+   {
+    "id": "tick-period",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     668,
+     668
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "this.poisonDamageCooldown = 1000",
+    "note": "tick every 1000 ms"
+   }
+  ]
+ }
+}
