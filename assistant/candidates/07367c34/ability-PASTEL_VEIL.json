@@ -1,0 +1,563 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PASTEL_VEIL",
+ "kind": "ability",
+ "identifier": "PASTEL_VEIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261104T064116Z"
+ },
+ "record": {
+  "ability": "PASTEL_VEIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PASTEL_VEIL (passive NONE in the catalog). Shared strategy; they differ by stars and stats.",
+  "appliesTo": [
+   {
+    "key": "GALARIAN_PONYTA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PASTEL_VEIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GALARIAN_RAPIDASH",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PASTEL_VEIL",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GALARIAN_PONYTA": {
+    "evidence": [
+     "unit-galarian_ponyta"
+    ]
+   },
+   "GALARIAN_RAPIDASH": {
+    "evidence": [
+     "unit-galarian_rapidash"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PASTEL_VEIL] = new PastelVeilStrategy()",
+   "strategy": "PastelVeilStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-pastel_veil",
+    "pv-class",
+    "pv-flag",
+    "base-flags",
+    "base-pp",
+    "pv-super"
+   ]
+  },
+  "summary": "Dash-and-shield: the caster picks the ALLY farthest from it (distanceM, strictly greater, caster excluded) and the free cell adjacent to that ally that is farthest from the caster, collects every same-team entity (including the caster) on the supercover line from its own cell to that cell, moves (swaps) to the destination, then each collected ally gets all negative-status cooldowns cleared and a shield of 20 / 40 / 80 / 160 by the caster's stars (fallback 160), scaled by the caster's AP (x(1 + AP/100)) and the cast crit, halved if the receiver is enraged, +25 % (rounded down) if the receiver holds Big Eater Belt. If no destination exists (no ally other than the caster, or no free cell found) the caster does not move and only the caster is cleansed and shielded. The line is collected before the move, so the caster's own start cell is in the set and the shield lands on the caster at its new cell.",
+  "targeting": {
+   "who": "no cast target is used (requiresTarget false; the target argument only feeds the suppressed default animation). The destination is chosen by Board.getFarthestTargetCoordinateAvailablePlace(pokemon, true).",
+   "needsTarget": false,
+   "note": "Ties on distance keep the first ally in board forEach order. Retained-selectedCell quirk: selectedCell is not cleared when a later, farther ally has no free adjacent cell, so the destination can be a free cell next to an EARLIER (less far) ally; the closest-available-place fallback is used only if no cell was ever selected. The MERCILESS effect in isTargettableBy can also admit low-HP enemies (hp <= 10) as candidates even with targetEnemies false.",
+   "evidence": [
+    "pv-flag",
+    "pv-far",
+    "far-fn",
+    "far-target",
+    "far-gt",
+    "far-cell",
+    "far-fallback",
+    "targettable"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's cell to the destination cell; the destination is a free cell adjacent to the farthest ally",
+   "cellsCollected": "all on-board cells crossed including start and end; only cells holding a same-team entity matter",
+   "evidence": [
+    "pv-cells",
+    "pv-collect",
+    "between-fn",
+    "between-loop",
+    "between-push"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "movement (self)",
+    "declaredRaw": {
+     "destination": "free cell adjacent to the farthest ally, farthest from the caster"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false) swaps cells unconditionally (forcedDisplacement false, so canBeMoved is not consulted), sets the caster to the moving state and cooldown = 100. The line is collected before the swap.",
+    "evidence": [
+     "pv-move",
+     "moveto",
+     "pv-cells",
+     "pv-collect"
+    ]
+   },
+   {
+    "kind": "shield (allies on the line, including self)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "GALARIAN_PONYTA": 20,
+     "GALARIAN_RAPIDASH": 40
+    },
+    "scaling": "requested amount = table value. addShield(value, caster, apBoost 1, crit): Big Eater Belt on the receiver x1.25 (rounded down) first (applyBigEaterBeltStatBuff), then x(1 + caster AP/100), then x critPower if the cast crit, then x0.5 if the receiver is enraged, then rounded; the shield stacks onto the existing shield and is only added if the receiver's hp > 0",
+    "resolution": "applied shield = round(table x [belt] x (1 + AP/100) x [crit] x [enraged]); a receiver at hp <= 0 gets nothing. The caster's shieldDone counter rises by the applied amount. If no destination was found the set is empty and the caster alone is added (self-only fallback).",
+    "evidence": [
+     "pv-shield",
+     "pv-addshield",
+     "ent-addshield",
+     "belt",
+     "state-shield",
+     "pv-fallback"
+    ]
+   },
+   {
+    "kind": "cleanse (allies on the line, including self)",
+    "declaredRaw": {},
+    "scaling": "none",
+    "resolution": "Status.clearNegativeStatus(ally, caster) zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armorReduction, locked and blind, sets curse false (adding 2000 ms to a running curse cooldown \"on purpose\"), and zeroes possessedCooldown except that a possessed ally is not freed when the caster is on its team (always true here, so possession is kept). The method has no runeProtect check. It runs BEFORE the shield for each ally. How the cleared cooldowns become removed flags (status update loop) and whether poison stacks reset were not read.",
+    "evidence": [
+     "pv-apply",
+     "clear-neg"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "negative statuses (cleared, not applied)",
+    "target": "allies on the line including the caster",
+    "declaredRaw": {},
+    "scaling": "none",
+    "applicationOrder": "per ally: cleanse first, then shield; after the move",
+    "guards": "no runeProtect guard inside clearNegativeStatus; possession is kept for same-team possessors",
+    "combatEffect": "not traced (status update loop not read)",
+    "evidence": [
+     "pv-apply",
+     "clear-neg"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "allies on the line including the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160
+     }
+    },
+    "requestedVsApplied": "requested = table value; applied includes Big Eater Belt x1.25 (down), AP, crit, enraged x0.5, rounding",
+    "evidence": [
+     "pv-shield",
+     "ent-addshield",
+     "belt",
+     "state-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GALARIAN_PONYTA": 1,
+    "GALARIAN_RAPIDASH": 2
+   },
+   "declaredRawShield": {
+    "GALARIAN_PONYTA": 20,
+    "GALARIAN_RAPIDASH": 40
+   },
+   "note": "Indexed by the caster's stars; 3 stars (80) and 4 stars (160, also the fallback) are not reachable by the two units' bare star counts. maxPP 80, range 1 for both.",
+   "evidence": [
+    "pv-shield",
+    "unit-galarian_ponyta",
+    "unit-galarian_rapidash"
+   ]
+  },
+  "positionalConditions": "Needs at least one ally other than the caster with a free adjacent cell (or any free cell, via the fallback) for the dash; otherwise self-only. The dash ends beyond the farthest ally, so the line usually crosses the allies in between. Allies adjacent to the line but not on a crossed cell are not hit.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast repeats the dash, cleanse and shield; shields stack.",
+  "rawVsResolved": "Requested shield: 20 (Ponyta) / 40 (Rapidash). Applied per ally: round(table x [1.25 down if the receiver holds Big Eater Belt] x (1 + AP/100) x [critPower if crit] x [0.5 if the receiver is enraged]); the self-only fallback uses the same formula on the caster. The destination is the farthest-from-caster free cell next to the farthest ally unless the retained-selectedCell or closest-place fallback applies.",
+  "sourceTables": [
+   {
+    "id": "pastelVeilShield",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (requiresTarget false; the pp >= maxPP && canCast gate was not re-read here)",
+   "How cleared status cooldowns become removed flags in the status update loop, and poison-stack reset",
+   "Crit resolution (canCritByDefault defaults to false; the damage-side multiplier is not relevant here)",
+   "Board.swapCells behaviour with a board effect or a moving ally"
+  ],
+  "unresolved": [
+   "The stale-selectedCell case was read from the source, not run",
+   "Whether benched/untargettable allies are skipped: only the status.untargettable check was read",
+   "Behaviour when no cell is free anywhere: board.getClosestAvailablePlace was not read, so the fallback result is unverified",
+   "Behaviour in a real fight is unobserved: this is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-galarian_ponyta",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9021,
+     9040
+    ],
+    "symbol": "class GalarianPonyta",
+    "expect": "skill = Ability.PASTEL_VEIL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-galarian_rapidash",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9041,
+     9059
+    ],
+    "symbol": "class GalarianRapidash",
+    "expect": "skill = Ability.PASTEL_VEIL",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-pastel_veil",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1069,
+     1069
+    ],
+    "symbol": "AbilityStrategies[Ability.PASTEL_VEIL]",
+    "expect": "[Ability.PASTEL_VEIL]: new PastelVeilStrategy()",
+    "note": ""
+   },
+   {
+    "id": "pv-class",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "PastelVeilStrategy",
+    "expect": "class PastelVeilStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "pv-flag",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "PastelVeilStrategy",
+    "expect": "requiresTarget = false",
+    "note": "can be cast without walking up to a target"
+   },
+   {
+    "id": "pv-super",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim=true: the base class broadcasts no default animation"
+   },
+   {
+    "id": "pv-shield",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "const shield = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": ""
+   },
+   {
+    "id": "pv-far",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     13,
+     16
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(",
+    "note": "called with targetAlly=true"
+   },
+   {
+    "id": "pv-cells",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     17,
+     22
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "line from the caster's cell to the destination"
+   },
+   {
+    "id": "pv-collect",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     27,
+     29
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "if (cell.value && cell.value.team === pokemon.team)",
+    "note": "every same-team entity on the line, including the caster's own start cell"
+   },
+   {
+    "id": "pv-move",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "pokemon.moveTo(farthestCoordinate.x, farthestCoordinate.y, board, false)",
+    "note": "forcedDisplacement=false: swaps cells, unconditional"
+   },
+   {
+    "id": "pv-fallback",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "if (alliesHit.size === 0) alliesHit.add(pokemon)",
+    "note": "only reachable when no destination was found"
+   },
+   {
+    "id": "pv-apply",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     43,
+     43
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "ally.status.clearNegativeStatus(ally, pokemon)",
+    "note": "clear then shield for each ally hit"
+   },
+   {
+    "id": "pv-addshield",
+    "file": "app/core/abilities/pastel-veil.ts",
+    "lines": [
+     44,
+     44
+    ],
+    "symbol": "PastelVeilStrategy.process",
+    "expect": "ally.addShield(shield, pokemon, 1, crit)",
+    "note": "apBoost 1, crit = cast crit"
+   },
+   {
+    "id": "far-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     564,
+     568
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": ""
+   },
+   {
+    "id": "far-target",
+    "file": "app/core/board.ts",
+    "lines": [
+     583,
+     583
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (entity && entity.isTargettableBy(pokemon, !targetAlly, targetAlly))",
+    "note": "targetAlly=true -> allies (not enemies) are the candidates"
+   },
+   {
+    "id": "far-gt",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance)",
+    "note": "strictly greater: ties keep the first in forEach order; the caster (distance 0) is never chosen"
+   },
+   {
+    "id": "far-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     604,
+     604
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (cellDistance > maxCellDistance)",
+    "note": "free adjacent cell of that ally that is farthest from the caster; selectedCell is NOT reset when a later, farther ally has no free adjacent cell"
+   },
+   {
+    "id": "far-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     611,
+     618
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget)",
+    "note": "fallback to getClosestAvailablePlace of the farthest ally only if no cell was ever selected"
+   },
+   {
+    "id": "between-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     293,
+     304
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number",
+    "note": "supercover line; start cell pushed first when on board"
+   },
+   {
+    "id": "between-loop",
+    "file": "app/core/board.ts",
+    "lines": [
+     324,
+     324
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "const decision = (1 + 2 * ix) * ny - (1 + 2 * iy) * nx",
+    "note": "walks to the end cell"
+   },
+   {
+    "id": "between-push",
+    "file": "app/core/board.ts",
+    "lines": [
+     341,
+     341
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "cells.push({ x, y, value: this.cells[this.columns * y + x] })",
+    "note": "the end cell (the free destination) is included but empty at collection time"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     262,
+     274
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "isTargettableBy(",
+    "note": "untargettable entities are excluded; the MERCILESS clause can also admit enemies at hp <= 10 even when targetEnemies is false"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     883,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean)",
+    "note": "board.swapCells then cooldown = 100; moving state set for the caster"
+   },
+   {
+    "id": "ent-addshield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     505,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "return this.state.addShield(this, value, caster, apBoost, crit)",
+    "note": "preceded by applyBigEaterBeltStatBuff(this, value, caster)"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1826,
+     1839
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "x1.25 rounded down (nbDigits 0) for a positive value when the RECEIVING ally holds Big Eater Belt"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     383,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling, then crit, then enraged x0.5, round, shield += value (min 0); only if the receiver's hp > 0"
+   },
+   {
+    "id": "clear-neg",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     99,
+     122
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity)",
+    "note": "sets the negative-status cooldowns to 0, curse=false (+2000 ms on a running curseCooldown), possessedCooldown=0 unless the possessor is on the same team"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "default requiresTarget true; canCritByDefault false on the next line"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   }
+  ]
+ }
+}
