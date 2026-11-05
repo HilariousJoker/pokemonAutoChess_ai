@@ -1,0 +1,603 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PSYBEAM",
+ "kind": "ability",
+ "identifier": "PSYBEAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T003947Z"
+ },
+ "record": {
+  "ability": "PSYBEAM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PSYBEAM: Staryu (1 star) and Starmie (2 stars); both range 2, maxPP 100, no passive. The strategy is shared; unit differences are the star index into the damage and confusion-duration tables. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "STARMIE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "PSYBEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "STARYU",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "PSYBEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "STARMIE": {
+    "evidence": [
+     "unit-starmie"
+    ]
+   },
+   "STARYU": {
+    "evidence": [
+     "unit-staryu"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PSYBEAM] = new PsybeamStrategy()",
+   "strategy": "PsybeamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Needs a target (inherited requiresTarget = true). Fires a line from the caster through the cast target to the board edge (effectInLine: supercover cells from the caster's cell toward a point 12 cells away along the caster-to-target angle). Every enemy-team entity on those cells takes requested SPECIAL damage 25 (1 star) / 50 (2 stars) (table 25 / 50 / 100 / 200, 200 as fallback) through handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT), then an independent 50% roll (luck-adjusted: p^(1 - luck/100)) triggers confusion of 2000 ms (1 star) / 3000 ms (2 stars) (table 2000 / 3000 / 4000 / 5000, 5000 as fallback) on that enemy. The roll and triggerConfusion happen for every enemy on the line even when the damage was blocked by protect / skydiving / Magic Bounce. triggerConfusion is called without apBoost, so AP does not scale the duration; it does nothing on an already confused enemy, with Rune Protect or IMMUNITY_CONFUSION; sandstorm weather multiplies the duration by 1.3, then SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions apply; a Persim Berry holder eats the berry (clears confusion, immunity, heal 50, +10 special defense).",
+  "targeting": {
+   "who": "every enemy-team entity on the line cells; allies and the caster's own cell are skipped by the team filter",
+   "needsTarget": true,
+   "note": "The target only fixes the line's angle; it is hit only if its cell lies on the computed line (effectInLine has no fallback that touches the original target). Enemies behind the target are hit too.",
+   "evidence": [
+    "cls",
+    "base",
+    "line",
+    "filter",
+    "el-angle",
+    "el-final",
+    "el-cells"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster through the cast target to the board edge; every touched cell counts, diagonal crossings included",
+   "evidence": [
+    "el-class",
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy on the line",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "STARMIE": 50,
+     "STARYU": 25
+    },
+    "scaling": "requested = table[stars-1] ?? 200. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT because canCritByDefault is false.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 when the target is protected / skydiving / Magic Bounce. Requested, applied and takenDamage are three different amounts. Damage is requested once per enemy on the line.",
+    "evidence": [
+     "dmg-table",
+     "hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "CONFUSION",
+    "target": "each enemy on the line, per independent roll",
+    "durationMs": "table by stars",
+    "probability": 0.5,
+    "apScaled": false,
+    "declaredRaw": {
+     "byStars": {
+      "1": 2000,
+      "2": 3000,
+      "3": 4000,
+      "4": 5000,
+      "fallback": 5000
+     },
+     "chance": 0.5,
+     "label": "requested duration (ms) and chance"
+    },
+    "perUnitRaw": {
+     "STARMIE": 3000,
+     "STARYU": 2000
+    },
+    "scaling": "none from AP or crit (apBoost not passed). The chance is chance(0.5, caster): effective probability = 0.5^(1 - luck/100) capped at 1, so luck above 0 raises it.",
+    "resolution": "triggerConfusion does nothing if the enemy is already confused, has Rune Protect (status.runeProtect) or IMMUNITY_CONFUSION. Otherwise duration x1.3 in SANDSTORM, then SWIFT_SWIM x0.7 (else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3), then -10% per Odd Keystone of the enemy's player, rounded; confusion = true and confusionCooldown = that value. Persim Berry holders eat the berry (confusion cleared at once), a PSYDUCK-passive target gains +100 AP. updateConfusion clears the flag and the unit's target when the cooldown runs out. The roll happens even when the damage was blocked by protect. Requested duration vs applied: the table value is the request, the stored cooldown is the result after the weather and reductions.",
+    "evidence": [
+     "conf-table",
+     "chance",
+     "chance-fn",
+     "trigger-conf",
+     "reductions",
+     "persim",
+     "upd-conf",
+     "upd-call"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "STARMIE": 2,
+    "STARYU": 1
+   },
+   "declaredRawDamage": {
+    "STARMIE": 50,
+    "STARYU": 25
+   },
+   "declaredRawConfusionMs": {
+    "STARMIE": 3000,
+    "STARYU": 2000
+   },
+   "note": "Both tables are indexed by the casting entity's stars. 100 / 200 damage and 4000 / 5000 ms are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "evidence": [
+    "dmg-table",
+    "conf-table",
+    "unit-staryu",
+    "unit-starmie"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point). Range 2 only governs when the unit casts; the line itself extends to the board edge.",
+  "repeatedCastsAndModes": "No stored state. Each cast rolls every enemy on the line independently; an enemy already confused is not re-confused (no refresh).",
+  "rawVsResolved": "Declared raw: damage 25 / 50 (STARYU / STARMIE) and confusion 2000 / 3000 ms with chance 0.5. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied damage after speDef, minimum 1 and shield; takenDamage = shield + HP part. Confusion duration is requested raw, then stored after weather, status reductions and Odd Keystones; AP does not change it.",
+  "sourceTables": [
+   {
+    "id": "dmg-tbl",
+    "file": "app/core/abilities/psybeam.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "conf-tbl",
+    "file": "app/core/abilities/psybeam.ts",
+    "pattern": "const confusionDuration = \\[([0-9, ]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
+   "How a confused unit targets and attacks (getTargetWhenConfused, random orientation) was not re-traced here; see the CONFUSION candidate"
+  ],
+  "unresolved": [
+   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "Whether the two units reach a different star count than the factory value (evolution, merging) was not examined",
+   "Persim Berry and PSYDUCK-passive side effects were read from triggerConfusion / eatBerry only; their downstream stat effects were not traced",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-staryu",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10351,
+     10365
+    ],
+    "symbol": "class Staryu",
+    "expect": "skill = Ability.PSYBEAM",
+    "note": "unit class block: stars 1, maxPP 100, range 2, no passive"
+   },
+   {
+    "id": "unit-starmie",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10367,
+     10380
+    ],
+    "symbol": "class Starmie",
+    "expect": "skill = Ability.PSYBEAM",
+    "note": "unit class block: stars 2, maxPP 100, range 2, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1096,
+     1096
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.PSYBEAM]: new PsybeamStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     9,
+     16
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "class declares no requiresTarget / canCritByDefault; inherited defaults apply"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, default animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "[25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table by the caster's stars, 200 fallback"
+   },
+   {
+    "id": "conf-table",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "[2000,3000,4000,5000][pokemon.stars - 1] ?? 5000",
+    "note": "confusion duration table (ms) by stars, 5000 fallback"
+   },
+   {
+    "id": "line",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "callback runs for every cell on the line"
+   },
+   {
+    "id": "filter",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "cell.value != null && cell.value.team !== pokemon.team",
+    "note": "only enemy-team entities are affected"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "SPECIAL damage with the caster as attacker and the cast's crit flag; apBoost left at its default"
+   },
+   {
+    "id": "chance",
+    "file": "app/core/abilities/psybeam.ts",
+    "lines": [
+     29,
+     31
+    ],
+    "symbol": "PsybeamStrategy.process",
+    "expect": "if (chance(0.5, pokemon)) {",
+    "note": "independent 50% roll per enemy hit, then triggerConfusion(confusionDuration, enemy, caster) with apBoost omitted (false)"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "effective probability = min(cap, p^(1 - luck/100)); luck of the caster"
+   },
+   {
+    "id": "el-class",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     925
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": "line helper"
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target; 12-cell reach"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     936
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": "rounded end point along that angle"
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     937,
+     939
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped)"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier (reduced by Rocky Helmet / Black Augurite on the target)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "trigger-conf",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     806,
+     835
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "!this.runeProtect &&",
+    "note": "refused when already confused, Rune Protect, or IMMUNITY_CONFUSION; apBoost false here so no AP factor; sandstorm x1.3; reductions; Persim Berry; PSYDUCK passive"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1304
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per Odd Keystone"
+   },
+   {
+    "id": "persim",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1648,
+     1654
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.effects.add(EffectEnum.IMMUNITY_CONFUSION)",
+    "note": "a Persim Berry holder clears the confusion it just got, gains IMMUNITY_CONFUSION, heals 50 and +10 special defense"
+   },
+   {
+    "id": "upd-conf",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     837,
+     844
+    ],
+    "symbol": "Status.updateConfusion",
+    "expect": "if (this.confusionCooldown - dt <= 0) {",
+    "note": "confusion ends when the cooldown runs out and the unit's target is cleared"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     259,
+     261
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateConfusion(dt, pokemon)",
+    "note": "updated every status update while confused"
+   }
+  ]
+ }
+}
