@@ -1,0 +1,590 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PSYSHOCK",
+ "kind": "ability",
+ "identifier": "PSYSHOCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T003947Z"
+ },
+ "record": {
+  "ability": "PSYSHOCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PSYSHOCK: Psyduck (1 star) and Golduck (2 stars); both range 1, maxPP 100, passive PSYDUCK. The strategy is shared; unit differences are the star index into the PP table. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "GOLDUCK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHOCK",
+    "declaredPassive": "PSYDUCK",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PSYDUCK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHOCK",
+    "declaredPassive": "PSYDUCK",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOLDUCK": {
+    "evidence": [
+     "unit-golduck"
+    ]
+   },
+   "PSYDUCK": {
+    "evidence": [
+     "unit-psyduck"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PSYSHOCK] = new PsyShockStrategy()",
+   "strategy": "PsyShockStrategy extends AbilityStrategy (file psy-shock.ts)",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Needs a target (inherited requiresTarget = true); the default ability animation is suppressed (preventDefaultAnim true). Requested ppBurn = table[stars-1] x (1 + AP/100) with table 20 / 40 / 80 / 160 (160 fallback), not rounded, i.e. 20 (Psyduck) / 40 (Golduck) at AP 0. ppStolen = min(target.pp, ppBurn) and extraPP = ppBurn - ppStolen. The strategy then (1) asks the target to lose ppStolen PP through addPP(-ppStolen, caster, 0, false), (2) gives the caster a shield of the full ppBurn through addShield(ppBurn, caster, 0, false) - not just the stolen part, and (3) if extraPP > 0, deals extraPP as SPECIAL damage to the target through handleSpecialDamage with the cast's crit flag and apBoost false (AP is already inside ppBurn). Requested, downstream and stored amounts differ: addPP rounds -ppStolen and may be dropped (status.tree, resurrecting) or turned positive (Twist Band on the target; a positive value is then also subject to silence / protect / NO_PP_GAIN); addShield first applies Big Eater Belt (x1.25, rounded down) on the caster, then rounds, halves it if the caster is enraged, and needs the caster alive; the damage is divided by the target's special defence, rounded up with a minimum of 1 and takes the shield first.",
+  "targeting": {
+   "who": "the cast target (PP loss and leftover damage); the caster itself (shield)",
+   "needsTarget": true,
+   "note": "Single target. Nothing is done to any other unit.",
+   "evidence": [
+    "cls",
+    "base",
+    "pp-call",
+    "shield-call",
+    "extra"
+   ]
+  },
+  "geometry": {
+   "shape": "single target, no area",
+   "evidence": [
+    "pp-call",
+    "shield-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "pp_drain",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "raw ppBurn base per star (before the AP factor)"
+    },
+    "perUnitRaw": {
+     "GOLDUCK": 40,
+     "PSYDUCK": 20
+    },
+    "scaling": "requested ppBurn = table[stars-1] x (1 + AP/100), unrounded; ppStolen = min(target.pp, ppBurn). The addPP call then uses apBoost 0 and crit false, so the AP and crit factors are not applied a second time.",
+    "resolution": "addPP(-ppStolen): value = Math.round(-ppStolen x 1 x 1 x 1) (fatigue only halves positive requests, so it does not apply); Twist Band on the target flips the value to positive; a negative value is dropped while the target has status.tree or is resurrecting; the final pp = clamp(pp + value, 0, 2 x maxPP - 1). Status.protect does not block a negative value (it blocks positive PP gain; section J3). Applied = the rounded value when not dropped; with a fractional ppBurn the rounding means the target loses the rounded amount while the shield and extraPP use the unrounded number. Twist Band reverses the effect into a PP gain for the target if it is not silenced, protected or under NO_PP_GAIN.",
+    "evidence": [
+     "burn",
+     "stolen",
+     "max-fn",
+     "pp-call",
+     "addpp",
+     "addpp-guards",
+     "twist"
+    ]
+   },
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "requested shield = ppBurn (full, including the part that exceeds the target's PP)"
+    },
+    "perUnitRaw": {
+     "GOLDUCK": 40,
+     "PSYDUCK": 20
+    },
+    "scaling": "requested = table[stars-1] x (1 + AP/100) at AP 0 shown as the per-unit raw values; downstream: Big Eater Belt on the caster multiplies a positive value by 1.25 rounded down (before the state step); addShield then uses apBoost 0 (no second AP factor), crit false, halves a positive value when the caster is enraged, and rounds with Math.round.",
+    "resolution": "applied only if the caster's hp > 0; shield = max(0, shield + value); caster.shieldDone grows by the shield. The amount does not depend on how much PP the target had (ppBurn, not ppStolen). Requested = ppBurn; downstream request = after Big Eater Belt; stored change = after the enraged halving and rounding.",
+    "evidence": [
+     "burn",
+     "shield-call",
+     "entity-shield",
+     "belt",
+     "state-shield"
+    ]
+   },
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target, only when extraPP > 0",
+    "declaredRaw": {
+     "label": "requested damage = ppBurn - ppStolen (the part of the burn that the target's PP could not cover)"
+    },
+    "scaling": "requested = extraPP (AP already inside ppBurn, apBoost false so no second AP factor); handleSpecialDamage then multiplies by 2 once with DOUBLE_DAMAGE, by 1.2 with STRANGE_STEAM_BOARD_EFFECT and, on a crit (needs ABILITY_CRIT; canCritByDefault false), by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). The same crit flag is not applied to the PP loss or the shield.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the target's shield absorb first. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 if the target is protected / skydiving / Magic Bounce. A Magic Bounce target also queues a bounce. If the target has at least ppBurn PP no damage is requested at all.",
+    "evidence": [
+     "extra",
+     "special-sig",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "the caster",
+    "declaredRaw": "ppBurn (full)",
+    "perUnitRaw": {
+     "GOLDUCK": 40,
+     "PSYDUCK": 20
+    },
+    "scaling": "Big Eater Belt x1.25 rounded down on the caster; enraged halves; rounded; no AP factor applied twice",
+    "evidence": [
+     "shield-call",
+     "entity-shield",
+     "belt",
+     "state-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GOLDUCK": 2,
+    "PSYDUCK": 1
+   },
+   "declaredRawPpBurn": {
+    "GOLDUCK": 40,
+    "PSYDUCK": 20
+   },
+   "note": "The table is indexed by the casting entity's stars. 80 / 160 are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "evidence": [
+    "burn",
+    "unit-psyduck",
+    "unit-golduck"
+   ]
+  },
+  "positionalConditions": "None beyond the inherited requirement that the unit has a target in range to cast.",
+  "repeatedCastsAndModes": "No stored state. Each cast recomputes ppBurn from the caster's current AP; shields from earlier casts stack on the caster's shield value.",
+  "rawVsResolved": "Declared raw: 20 / 40 PP (PSYDUCK / GOLDUCK) before the AP factor. Requested ppBurn = raw x (1 + AP/100), unrounded. ppStolen = min(target PP, ppBurn). Applied PP change = Math.round(-ppStolen) unless dropped, flipped by Twist Band or blocked by tree / resurrecting. Shield requested = ppBurn; downstream request after Big Eater Belt; stored after enraged halving and rounding. Damage requested = ppBurn - ppStolen; applied after multipliers; takenDamage = shield part + HP part.",
+  "sourceTables": [
+   {
+    "id": "burn-tbl",
+    "file": "app/core/abilities/psy-shock.ts",
+    "pattern": "\\(\\[([0-9, ]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
+   "The PSYDUCK passive: it was located only at the two read sites (onHit 10% self-confusion when hit, +100 AP in triggerConfusion); whether further handlers exist outside app/ lines searched by name was not established, and its AP gain feeds ppBurn via the (1 + AP/100) factor",
+   "Which targets can hold PP at all (units with maxPP and NO_PP_GAIN / tree interactions) was not examined beyond addPP's guards"
+  ],
+  "unresolved": [
+   "Whether the two units reach a different star count than the factory value (Psyduck evolves to Golduck) was not examined",
+   "Magic Bounce reflection is mentioned from the read lines 360-396 of handleSpecialDamage only; the bounce damage was not traced further",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-psyduck",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4371,
+     4386
+    ],
+    "symbol": "class Psyduck",
+    "expect": "skill = Ability.PSYSHOCK",
+    "note": "unit class block: stars 1, maxPP 100, range 1, passive PSYDUCK, evolves to Golduck"
+   },
+   {
+    "id": "unit-golduck",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4388,
+     4402
+    ],
+    "symbol": "class Golduck",
+    "expect": "skill = Ability.PSYSHOCK",
+    "note": "unit class block: stars 2, maxPP 100, range 1, passive PSYDUCK"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1104,
+     1104
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.PSYSHOCK]: new PsyShockStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     7,
+     14
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "fifth argument true = preventDefaultAnim: no default ability broadcast; the class declares no requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter; the broadcast is skipped when preventDefaultAnim is true"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "burn",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "([20, 40, 80, 160][pokemon.stars - 1] ?? 160) * (1 + pokemon.ap / 100)",
+    "note": "ppBurn = table by stars x (1 + AP/100); not rounded here"
+   },
+   {
+    "id": "stolen",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "const ppStolen = max(target.pp)(ppBurn)",
+    "note": "ppStolen = min(target.pp, ppBurn); extraPP = ppBurn - ppStolen"
+   },
+   {
+    "id": "max-fn",
+    "file": "app/utils/number.ts",
+    "lines": [
+     5,
+     8
+    ],
+    "symbol": "max",
+    "expect": "Math.min(maximum, value)",
+    "note": "max(cap)(v) returns min(cap, v)"
+   },
+   {
+    "id": "pp-call",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "target.addPP(-ppStolen, pokemon, 0, false)",
+    "note": "negative PP request on the target, apBoost 0, no crit"
+   },
+   {
+    "id": "shield-call",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "pokemon.addShield(ppBurn, pokemon, 0, false)",
+    "note": "the caster shields itself for the full ppBurn (not ppStolen), apBoost 0, no crit"
+   },
+   {
+    "id": "extra",
+    "file": "app/core/abilities/psy-shock.ts",
+    "lines": [
+     22,
+     31
+    ],
+    "symbol": "PsyShockStrategy.process",
+    "expect": "if (extraPP > 0) {",
+    "note": "leftover is dealt as SPECIAL damage to the target with the caster's crit flag and apBoost false"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "value = round(base x (1 + apBoost x AP/100) x crit x fatigue(positive only)); Twist Band; blocks; clamp"
+   },
+   {
+    "id": "addpp-guards",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     529
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "a negative value is dropped while the target has status.tree or is resurrecting; positive values need no silence / protect / NO_PP_GAIN"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "Twist Band holder: a negative value from an enemy or the environment becomes positive"
+   },
+   {
+    "id": "entity-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt first, then the state's addShield"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value x1.25 rounded down for a Big Eater Belt holder (nbDigits 0)"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     420
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "needs hp > 0; apBoost 0 so no AP factor; x critPower only on crit (false here); x0.5 when the recipient is enraged; Math.round; shield = max(0, shield + value); shieldDone credited"
+   },
+   {
+    "id": "special-sig",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "apBoost parameter defaults true; Psy Shock passes false"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "with apBoost false the AP factor is not applied again (AP is already inside ppBurn)"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier (reduced by Rocky Helmet / Black Augurite on the target)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "passive-hit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     990,
+     992
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "target.passive === Passive.PSYDUCK && chance(0.1, this)",
+    "note": "PSYDUCK passive: an attacker that hits a PSYDUCK-passive unit has a 10% chance (luck-adjusted) to confuse it for 3000 ms; read only, effect on this ability not traced"
+   },
+   {
+    "id": "passive-conf",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     831,
+     833
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "if (pkm.passive === Passive.PSYDUCK) {",
+    "note": "a PSYDUCK-passive unit that becomes confused gains +100 AP via addAbilityPower; AP raises ppBurn at the next cast"
+   }
+  ],
+  "passiveInteraction": {
+   "PSYDUCK": "Both units carry the PSYDUCK passive: being hit by an attacker can confuse the unit (10%, 3000 ms), and any confusion gives it +100 AP, which raises the next ppBurn, the shield and any leftover damage. Read at two sites only.",
+   "evidence": [
+    "passive-hit",
+    "passive-conf"
+   ]
+  }
+ }
+}
