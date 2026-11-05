@@ -1,0 +1,551 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROCK_WRECKER",
+ "kind": "ability",
+ "identifier": "ROCK_WRECKER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T064126Z"
+ },
+ "record": {
+  "ability": "ROCK_WRECKER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ROCK_WRECKER: Dwebble (1 star) and Crustle (2 stars). The strategy is shared; unit differences are the star count (table index), stats and maxPP. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "CRUSTLE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROCK_WRECKER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DWEBBLE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ROCK_WRECKER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CRUSTLE": {
+    "evidence": [
+     "unit-crustle"
+    ]
+   },
+   "DWEBBLE": {
+    "evidence": [
+     "unit-dwebble"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROCK_WRECKER] = new RockWreckerStrategy()",
+   "strategy": "RockWreckerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "rw-class",
+    "rw-super"
+   ]
+  },
+  "summary": "In this order: (1) the cast target gets flinch for 2000 ms (requested, no star scaling); (2) it takes SPECIAL damage (raw 80/160/320/640 by the caster's stars), so the flinch is already active when the damage resolves: if the target has a shield, only half of the reduced damage (rounded up) goes to the shield and the other half (rounded up) goes to HP; (3) the CASTER gets fatigue for 4000 ms (requested, no AP scaling), which halves the caster's positive PP gains (rounded) while it lasts. Both statuses are refused by Rune Protect on their holder and are not blocked by protect; the damage is.",
+  "targeting": {
+   "who": "flinch and damage: the cast target; fatigue: the caster itself",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true). No area or secondary target. Which unit is chosen as cast target is decided by generic targeting code, which was not read.",
+   "evidence": [
+    "rw-flinch",
+    "rw-hit",
+    "rw-fatigue",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "rw-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 80,
+      "2": 160,
+      "3": 320,
+      "4": 640,
+      "fallback": 640
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "CRUSTLE": 160,
+     "DWEBBLE": 80
+    },
+    "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce. Flinch was applied just before, so the shield split described above applies to this hit when the status was accepted.",
+    "evidence": [
+     "rw-table",
+     "rw-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "hd-flinch"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "flinch",
+    "target": "the cast target",
+    "declaredRaw": {
+     "duration": 2000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none from AP or crit",
+    "applicationOrder": "first, before the damage",
+    "guards": "refused if the TARGET's status has runeProtect; the refusal neither sets the flag nor cancels the damage. When applied, the duration passes through applyStatusDurationReductions(duration, pkm) where pkm is the entity the strategy supplied, here the TARGET: SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), then each Odd Keystone in the target's player's items a further 10 %. A new application replaces the remaining time only if longer.",
+    "effectWhileActive": "the only combat consumer found in app/core is the shield branch of PokemonState.handleDamage: with a shield, half of the reduced damage goes to the shield and half to HP (both rounded up; the shield-depletion overflow rules still apply). Without a shield, flinch changes nothing there. The curse-vulnerability check in status.ts also reads the flag (not traced).",
+    "evidence": [
+     "rw-flinch",
+     "st-fl",
+     "st-fl-upd",
+     "st-red",
+     "hd-flinch"
+    ]
+   },
+   {
+    "status": "fatigue",
+    "target": "the caster",
+    "declaredRaw": {
+     "duration": 4000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none: triggerFatigue's apBoost argument defaults to false and the strategy does not pass it, so AP does not lengthen it",
+    "applicationOrder": "last, after the damage",
+    "guards": "refused if the CASTER's status has runeProtect; when applied, the duration passes through applyStatusDurationReductions(duration, pkm) with pkm = the caster (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone of the caster's player, as above). A new application replaces the remaining time only if longer.",
+    "effectWhileActive": "PokemonEntity.addPP multiplies positive PP gains by 0.5 while status.fatigue is true (value then rounded; negative values are not halved). The cast's own PP spend (done in the base process before fatigue starts) is not affected. addPP is called by attacks, abilities and items; other PP sources that bypass addPP were not enumerated.",
+    "evidence": [
+     "rw-fatigue",
+     "st-fat",
+     "st-fat-upd",
+     "st-red",
+     "addpp-fat"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "CRUSTLE": 2,
+    "DWEBBLE": 1
+   },
+   "declaredRawDamage": {
+    "CRUSTLE": 160,
+    "DWEBBLE": 80
+   },
+   "note": "Only the damage table (80/160/320/640, fallback 640) is indexed by the casting entity's stars; the flinch (2000 ms) and fatigue (4000 ms) durations are fixed. The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "evidence": [
+    "rw-table",
+    "rw-flinch",
+    "rw-fatigue",
+    "unit-crustle",
+    "unit-dwebble"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), re-applies flinch to the target and fatigue to the caster (remaining time replaced only if longer, so they do not stack) and deals its damage again. Because fatigue halves the caster's positive PP gains for 4000 ms after each cast, the next cast may come later; that timing effect was not simulated.",
+  "rawVsResolved": "Requested: flinch 2000 ms, damage 80 (Dwebble) / 160 (Crustle), fatigue 4000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1; with flinch and a shield the shield takes ceil(50 %) and HP takes ceil(50 %) of the reduced damage; takenDamage includes shield damage and is 0 when the target has protect / skydiving / magicBounce. Applied status durations are the requested ones after the holder's own reductions, and nothing is applied under Rune Protect. Fatigue halves positive PP gains with rounding; it grants no heal or shield (shared helper reference: knowledge core-mechanics.md section J, addPP guards and fatigue rounding).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not"
+  ],
+  "unresolved": [
+   "The flinch and fatigue durations are literals in the strategy (2000 / 4000), not tables, so they are not in sourceTables",
+   "Fatigue's effect was traced only through addPP; other PP routes that bypass addPP (if any) were not searched beyond the status.fatigue references in app/core",
+   "If the damage kills the target or triggers an on-death effect, effects keyed to that were not traced; the caster's fatigue is applied regardless of the damage result",
+   "The in-code comment mentions [80,160,SP] damage; the executed table is 80/160/320/640 (the comment is ignored)",
+   "Helpers consulted: Status.triggerFlinch / triggerFatigue / applyStatusDurationReductions, the flinch shield branch of PokemonState.handleDamage and the fatigue factor in PokemonEntity.addPP were read (see evidence); no routing uncertainties are listed for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "st-fat",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     172,
+     187
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "triggerFatigue(",
+    "note": "refused if runeProtect; apBoost default false so no AP scaling; duration through applyStatusDurationReductions(duration, pkm); cooldown replaced only if longer"
+   },
+   {
+    "id": "st-fat-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     564,
+     570
+    ],
+    "symbol": "Status.updateFatigue",
+    "expect": "updateFatigue(dt: number) {",
+    "note": "cooldown counted down by dt; flag cleared at 0"
+   },
+   {
+    "id": "st-fl",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     976,
+     987
+    ],
+    "symbol": "Status.triggerFlinch",
+    "expect": "triggerFlinch(duration: number, pkm: PokemonEntity, origin?: PokemonEntity) {",
+    "note": "refused if runeProtect; flag set; duration through applyStatusDurationReductions(duration, pkm); cooldown replaced only if longer"
+   },
+   {
+    "id": "st-fl-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     988,
+     994
+    ],
+    "symbol": "Status.updateFlinch",
+    "expect": "updateFlinch(dt: number) {",
+    "note": "cooldown counted down by dt; flag cleared at 0"
+   },
+   {
+    "id": "st-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1306
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 of the entity passed as pkm, then Odd Keystone 10 % each of pkm's player"
+   },
+   {
+    "id": "hd-flinch",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     628
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.flinch) {",
+    "note": "with flinch and a shield, only half of the reduced damage (ceil) goes to the shield and the other half (ceil) is residual HP damage; both halves count in takenDamage"
+   },
+   {
+    "id": "addpp-fat",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     512,
+     521
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "positive PP gains are halved while fatigue is active (value rounded afterwards)"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1128,
+     1128
+    ],
+    "symbol": "AbilityStrategies[Ability.ROCK_WRECKER]",
+    "expect": "[Ability.ROCK_WRECKER]: new RockWreckerStrategy()",
+    "note": ""
+   },
+   {
+    "id": "rw-class",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RockWreckerStrategy",
+    "expect": "export class RockWreckerStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "rw-super",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RockWreckerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "rw-table",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "RockWreckerStrategy.process",
+    "expect": "const damage = [80, 160, 320, 640][pokemon.stars - 1] ?? 640",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "rw-flinch",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "RockWreckerStrategy.process",
+    "expect": "target.status.triggerFlinch(2000, pokemon)",
+    "note": "flinch on the target for 2000 ms, BEFORE the damage; the pkm argument is the TARGET"
+   },
+   {
+    "id": "rw-hit",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "RockWreckerStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target with default apBoost"
+   },
+   {
+    "id": "rw-fatigue",
+    "file": "app/core/abilities/rock-wrecker.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "RockWreckerStrategy.process",
+    "expect": "pokemon.status.triggerFatigue(4000, pokemon, pokemon)",
+    "note": "fatigue on the caster for 4000 ms, AFTER the damage"
+   },
+   {
+    "id": "unit-crustle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20630,
+     20643
+    ],
+    "symbol": "class Crustle",
+    "expect": "skill = Ability.ROCK_WRECKER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-dwebble",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20614,
+     20628
+    ],
+    "symbol": "class Dwebble",
+    "expect": "skill = Ability.ROCK_WRECKER",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
