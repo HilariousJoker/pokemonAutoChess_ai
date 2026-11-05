@@ -1,0 +1,540 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PSYSTRIKE",
+ "kind": "ability",
+ "identifier": "PSYSTRIKE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T003947Z"
+ },
+ "record": {
+  "ability": "PSYSTRIKE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PSYSTRIKE: Mewtwo and Shadow Mewtwo (both 3 stars, maxPP 110, range 3, no passive). The strategy is shared; both listed units are identical in stars, so they share the same raw damage. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "MEWTWO",
+    "stars": 3,
+    "maxPP": 110,
+    "range": 3,
+    "declaredSkill": "PSYSTRIKE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHADOW_MEWTWO",
+    "stars": 3,
+    "maxPP": 110,
+    "range": 3,
+    "declaredSkill": "PSYSTRIKE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MEWTWO": {
+    "evidence": [
+     "unit-mewtwo"
+    ]
+   },
+   "SHADOW_MEWTWO": {
+    "evidence": [
+     "unit-shadow-mewtwo"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PSYSTRIKE] = new PsystrikeStrategy()",
+   "strategy": "PsystrikeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Needs a target (inherited requiresTarget = true). The line end is the farthest targettable unit on the board by Manhattan distance (board scan row by row, the first at the maximum wins), or the cast target when none is found. Every enemy-team entity on the supercover line from the caster's cell to that unit (both endpoints) is collected; if none, the farthest unit is added. Each collected enemy takes requested SPECIAL damage 80 (both listed units are 3 stars; table 20 / 40 / 80 / 160, 160 fallback) through handleSpecialDamage with the cast's crit flag (crit needs ABILITY_CRIT), and right after its own damage call the enemy is moved by forced displacement to the free cell, among the cells on the lines from its position to the two back corners of its own team's side, that is farthest by Chebyshev distance (no move if no such cell, or if the enemy is skydiving, locked or holds Heavy Duty Boots). The teleport happens whether or not the damage was blocked.",
+  "targeting": {
+   "who": "every enemy-team entity on the line cells between the caster and the farthest targettable unit; the farthest unit (or the cast target) as fallback",
+   "needsTarget": true,
+   "note": "The line end does not come from the cast target but from getFarthestTarget (Manhattan distance, strictly greater, scan order); the cast target is used only when that returns undefined. The caster's own cell is on the line but filtered out as same-team; allies are skipped.",
+   "evidence": [
+    "cls",
+    "base",
+    "farthest",
+    "far-def",
+    "targettable",
+    "cells",
+    "between",
+    "fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's cell to the farthest targettable unit's cell, endpoints included; teleport destinations lie on the supercover lines from each hit enemy to its team's two back-row corners",
+   "evidence": [
+    "cells",
+    "between",
+    "far-def",
+    "tele-def",
+    "distm"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each collected enemy (once per enemy, set semantics)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "MEWTWO": 80,
+     "SHADOW_MEWTWO": 80
+    },
+    "scaling": "requested = table[stars-1] ?? 160. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 for a protected / skydiving / Magic Bounce target. Requested, applied and takenDamage are three different amounts.",
+    "evidence": [
+     "dmg-table",
+     "hit",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "each collected enemy, after that enemy's damage call",
+    "declaredRaw": {
+     "description": "forced moveTo of the enemy to getTeleportationCell(enemy position, enemy team)"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "getTeleportationCell collects the free cells on the supercover lines from the enemy's current cell to its team's two back-row corners, sorts by Chebyshev distance from the enemy (greatest first, ties in collection order) and returns the first; undefined when no free cell exists. moveTo(\u2026, true) returns without moving when the enemy cannot be moved (skydiving, locked, Heavy Duty Boots); otherwise the unit goes to its moving state, the cells are swapped and its cooldown is set to 100. Enemies are processed in insertion (line) order, so earlier teleports change which cells are free for later ones, and the enemy's position is read after its own damage.",
+    "evidence": [
+     "tele-call",
+     "tele-def",
+     "distc",
+     "moveto",
+     "canbemoved"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "MEWTWO": 3,
+    "SHADOW_MEWTWO": 3
+   },
+   "declaredRawDamage": {
+    "MEWTWO": 80,
+    "SHADOW_MEWTWO": 80
+   },
+   "note": "Only the damage depends on stars (index stars-1 of the casting entity). 20 / 40 / 160 are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "evidence": [
+    "dmg-table",
+    "unit-mewtwo",
+    "unit-shadow-mewtwo"
+   ]
+  },
+  "positionalConditions": "Line end: board scan order y outer, x inner with strictly greater Manhattan distance, so ties go to the first scanned. Teleport: depends on the enemy's team (which two corners) and on free cells along those lines; if none is free the enemy stays.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes the line and the teleports.",
+  "rawVsResolved": "Declared raw: 80 for both listed units. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield; takenDamage = shield + HP part. The teleport is not a numeric amount: it is requested for every collected enemy and applied only if a free cell exists and the enemy can be moved.",
+  "sourceTables": [
+   {
+    "id": "dmg-tbl",
+    "file": "app/core/abilities/psystrike.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
+   "Whether an enemy killed by its damage call is removed from its cell before getTeleportationCell runs (death handling was not traced), which decides whether a dead enemy's cell still counts as occupied and whether it is teleported",
+   "Which side of the board each team's back corners are on in a real fight (derived only from the corner constants in getTeleportationCell)"
+  ],
+  "unresolved": [
+   "isTargettableBy was read (untargettable and MERCILESS) but which units are untargettable in a real fight was not examined",
+   "Whether two listed units in different stars can occur (Mewtwo and Shadow Mewtwo are 3 stars at factory) was not examined",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-mewtwo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7106,
+     7122
+    ],
+    "symbol": "class Mewtwo",
+    "expect": "skill = Ability.PSYSTRIKE",
+    "note": "unit class block: stars 3, maxPP 110, range 3, no passive"
+   },
+   {
+    "id": "unit-shadow-mewtwo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7124,
+     7140
+    ],
+    "symbol": "class ShadowMewtwo",
+    "expect": "skill = Ability.PSYSTRIKE",
+    "note": "unit class block: stars 3, maxPP 110, range 3, no passive, regional"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1105,
+     1105
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.PSYSTRIKE]: new PsystrikeStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "fifth argument true = default animation suppressed (the strategy broadcasts its own below); no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "[20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "damage table by the caster's stars, 160 fallback"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board) ?? target",
+    "note": "line end = the farthest targettable unit, else the cast target"
+   },
+   {
+    "id": "far-def",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (distance > maxDistance) {",
+    "note": "scan board row by row (y outer, x inner); targettable units by the caster; Manhattan distance, strictly greater wins so the first at the maximum is kept; undefined if none"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "targettable unless untargettable; default targetEnemies true (same-team units excluded); MERCILESS low-HP exception"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "enemies on the supercover line from the caster's cell to the farthest target's cell (both endpoints) are collected into a set"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line including both endpoints that are on the board"
+   },
+   {
+    "id": "fallback",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     34,
+     36
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "if (targetsHit.size === 0) {",
+    "note": "if no enemy was collected the farthest target is added"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     37,
+     44
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "SPECIAL damage per collected enemy with the caster as attacker and the cast's crit flag; apBoost default"
+   },
+   {
+    "id": "tele-call",
+    "file": "app/core/abilities/psystrike.ts",
+    "lines": [
+     46,
+     53
+    ],
+    "symbol": "PsystrikeStrategy.process",
+    "expect": "enemy.moveTo(teleportationCell.x, teleportationCell.y, board, true)",
+    "note": "after each enemy's damage, a teleportation cell is computed from the enemy's current position and team, and the enemy is moved there by a forced displacement"
+   },
+   {
+    "id": "tele-def",
+    "file": "app/core/board.ts",
+    "lines": [
+     348,
+     381
+    ],
+    "symbol": "Board.getTeleportationCell",
+    "expect": "candidates.sort(",
+    "note": "candidates = free cells on the supercover lines from the enemy's cell to each of the two back corners for the enemy's team (BLUE: (0,0),(columns-1,0); RED: (0,rows-1),(columns-1,rows-1)); the one with the greatest Chebyshev distance from the enemy wins, ties keep collection order; undefined if none"
+   },
+   {
+    "id": "distc",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "distanceC",
+    "expect": "Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "distm",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "forced: returns without moving when the unit cannot be moved or the occupant of the destination cannot (destination here is free); otherwise toMovingState, swapCells, cooldown = 100"
+   },
+   {
+    "id": "canbemoved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.status.skydiving &&",
+    "note": "canBeMoved is false while skydiving, locked or holding Heavy Duty Boots"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier (reduced by Rocky Helmet / Black Augurite on the target)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   }
+  ]
+ }
+}
