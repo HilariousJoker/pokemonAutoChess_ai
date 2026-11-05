@@ -1,0 +1,407 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROCK_HEAD",
+ "kind": "ability",
+ "identifier": "ROCK_HEAD",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T064126Z"
+ },
+ "record": {
+  "ability": "ROCK_HEAD",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ROCK_HEAD: Tyrunt (1 star) and Tyrantrum (2 stars). The strategy is shared; unit differences are the star count (multiplier index) and the atk and def read at cast time. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "TYRANTRUM",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "ROCK_HEAD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TYRUNT",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "ROCK_HEAD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TYRANTRUM": {
+    "evidence": [
+     "unit-tyrantrum"
+    ]
+   },
+   "TYRUNT": {
+    "evidence": [
+     "unit-tyrunt"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROCK_HEAD] = new RockHeadStrategy()",
+   "strategy": "RockHeadStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "rh-class",
+    "rh-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage to the cast target equal to Math.round(multiplier x (the caster's current atk + current def)), multiplier 1.2 / 1.2 / 1.5 / 3 by the caster's stars (1.2 for both Tyrunt and Tyrantrum). The figure is requested damage before the usual AP and crit scaling; there is no secondary effect, recoil, buff or status. Because atk and def are read at cast time, earlier buffs, items or synergies change it; an armor-reduction status on the caster does not (the raw def field is read).",
+  "targeting": {
+   "who": "the cast target",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true). No area or secondary target. Which unit is chosen as cast target is decided by generic targeting code, which was not read.",
+   "evidence": [
+    "rh-hit",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "rh-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "formula": "Math.round(multiplier x (pokemon.atk + pokemon.def))",
+     "byStars": {
+      "1": 1.2,
+      "2": 1.2,
+      "3": 1.5,
+      "4": 3,
+      "fallback": 3
+     },
+     "label": "requested damage = multiplier (by stars) x (caster atk + caster def at cast time)"
+    },
+    "perUnitRaw": {
+     "TYRANTRUM": 1.2,
+     "TYRUNT": 1.2
+    },
+    "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record. The base figure depends on atk + def at cast time (current values, not the catalog values).",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce.",
+    "evidence": [
+     "rh-table",
+     "rh-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TYRANTRUM": 2,
+    "TYRUNT": 1
+   },
+   "declaredRawMultiplier": {
+    "TYRANTRUM": 1.2,
+    "TYRUNT": 1.2
+   },
+   "note": "The multiplier table (1.2 / 1.2 / 1.5 / 3, fallback 3) is indexed by the casting entity's stars; 1 and 2 stars share 1.2, so Tyrunt and Tyrantrum differ only in their atk and def. The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "evidence": [
+    "rh-table",
+    "unit-tyrantrum",
+    "unit-tyrunt"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0) and deals its damage again, recomputed from the then-current atk and def.",
+  "rawVsResolved": "Requested: round(1.2 x (atk + def)) for both listed units, from the caster's current atk and def. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1; takenDamage includes shield damage (and with flinch half goes to the shield) and is 0 when the target has protect / skydiving / magicBounce. No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
+  "sourceTables": [
+   {
+    "id": "multiplier",
+    "file": "app/core/abilities/rock-head.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not"
+  ],
+  "unresolved": [
+   "The catalog atk and def of the two units are starting values; the real figure uses atk and def at cast time, which items, synergies and earlier buffs change (not enumerated here)",
+   "The damage is computed before handleSpecialDamage; if the target has protect / skydiving / magic bounce the damage is blocked (magic bounce may redirect SPECIAL damage; that branch was not traced) and the ability has no other effect",
+   "Helpers consulted: handleSpecialDamage and the SPE_DEF, shield and takenDamage steps of PokemonState.handleDamage were read (see evidence); no routing uncertainties are listed for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1124,
+     1124
+    ],
+    "symbol": "AbilityStrategies[Ability.ROCK_HEAD]",
+    "expect": "[Ability.ROCK_HEAD]: new RockHeadStrategy()",
+    "note": ""
+   },
+   {
+    "id": "rh-class",
+    "file": "app/core/abilities/rock-head.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RockHeadStrategy",
+    "expect": "export class RockHeadStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "rh-super",
+    "file": "app/core/abilities/rock-head.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RockHeadStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "rh-table",
+    "file": "app/core/abilities/rock-head.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "RockHeadStrategy.process",
+    "expect": "const damage = Math.round(([1.2, 1.2, 1.5, 3][pokemon.stars - 1] ?? 3) * (pokemon.atk + pokemon.def))",
+    "note": "damage = round(multiplier by stars x (current atk + current def))"
+   },
+   {
+    "id": "rh-hit",
+    "file": "app/core/abilities/rock-head.ts",
+    "lines": [
+     16,
+     23
+    ],
+    "symbol": "RockHeadStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target; explicit sixth argument true = apBoost (same as the default)"
+   },
+   {
+    "id": "unit-tyrantrum",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8302,
+     8315
+    ],
+    "symbol": "class Tyrantrum",
+    "expect": "skill = Ability.ROCK_HEAD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-tyrunt",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8286,
+     8300
+    ],
+    "symbol": "class Tyrunt",
+    "expect": "skill = Ability.ROCK_HEAD",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
