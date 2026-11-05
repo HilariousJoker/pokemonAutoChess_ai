@@ -254,7 +254,7 @@ check("MEW: TELEPORT 3★ raw 60, mark consumed through dodged attacks, Magic Bo
   }
   for (const [unit, stars] of [["MUDKIP", 1], ["MARSHTOMP", 2], ["SWAMPERT", 3]]) {
     r = run(unit)
-    check(`${unit}: WATER_SPRING passive record (+5 PP per opposing cast, ${stars}★ same amount); Protect blocks, Rune Protect alone does not, fatigue +3; MUD_BUBBLE gets NO invented explanation; evolution not covered`, passiveCommon(r, "WATER_SPRING") && has(r, `Unit facts: ${unit} is ${stars}★`, "covers MARSHTOMP, MUDKIP, SWAMPERT", "has status.protect (Protect)", "fatigue gives 13 (round(2.5) = 3)", "- **Ability** (`MUD_BUBBLE`): no record for this unit.", "- **Passive** (`WATER_SPRING`): structured record `passives.WATER_SPRING`", "- **Evolution**: not in the evolution pilot", "**No ability record for this unit.** The ability `MUD_BUBBLE` has not been reviewed. No description is invented.") && lacks(r, "Source-traced: MUD_BUBBLE", "Evolution link"), r.err || r.out.slice(0, 200))
+    check(`${unit}: WATER_SPRING passive record (+5 PP per opposing cast, ${stars}★ same amount); Protect blocks, Rune Protect alone does not, fatigue +3; its ability MUD_BUBBLE has its own separate record; evolution not covered`, passiveCommon(r, "WATER_SPRING") && has(r, `Unit facts: ${unit} is ${stars}★`, "covers MARSHTOMP, MUDKIP, SWAMPERT", "has status.protect (Protect)", "fatigue gives 13 (round(2.5) = 3)", "- **Ability** (`MUD_BUBBLE`): record `abilities.MUD_BUBBLE`", "- **Passive** (`WATER_SPRING`): structured record `passives.WATER_SPRING`", "- **Evolution**: not in the evolution pilot") && lacks(r, "No ability record for this unit", "Evolution link"), r.err || r.out.slice(0, 200))
   }
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
   let bound = 0; const problems = []
@@ -266,9 +266,53 @@ check("MEW: TELEPORT 3★ raw 60, mark consumed through dodged attacks, Magic Bo
     if (/undefined|\[object|NaN/.test(o)) problems.push(`${u.key}: undefined/[object/NaN`)
     if (!/not in the evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
     const abilityHeaders = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
-    if (n === "DRUMMER" ? abilityHeaders.join() !== "DRUM_BEATING" : abilityHeaders.length !== 0) problems.push(`${u.key}: ability headers ${abilityHeaders.join()}`)
+    if (abilityHeaders.join() !== (n === "DRUMMER" ? "DRUM_BEATING" : "MUD_BUBBLE")) problems.push(`${u.key}: ability headers ${abilityHeaders.join()}`)
   }
-  check(`all ${bound} bound keys of the two imported passives show their passive record, unit facts, a separate evolution statement, no undefined, and exactly the ability coverage that already existed (DRUM_BEATING for DRUMMER units, none for WATER_SPRING units)`, bound === 6 && problems.length === 0, problems.join("; "))
+  check(`all ${bound} bound keys of the two imported passives show their passive record, unit facts, a separate evolution statement, no undefined, and exactly their own separate ability record (DRUM_BEATING for DRUMMER units, MUD_BUBBLE for WATER_SPRING units)`, bound === 6 && problems.length === 0, problems.join("; "))
+}
+// ---- tenth import (MUD_BUBBLE, ABSORB, DRAIN_PUNCH, DREAM_EATER, NATURAL_GIFT): every explicit unit binding, corrected wording, section J consistency, independent passive / evolution coverage ----
+{
+  const common10 = (r, ability) => r.code === 0 && lacks(r, "undefined", "NaN", "[object", "no probe or fight", "not probed and not a fight", "Source reading only", "not reachable") && has(r, "Evidence: source reading, mechanical checks and executed probes", "were NOT executed", `record \`abilities.${ability}\``, "'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'".slice(0, 0))
+  const onlyAbility = (r, ability) => [...r.out.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1]).join() === ability
+  const j10 = ["addMaxHP(0.4 x overheal)"]
+  for (const [unit, stars, raw] of [["MUDKIP", 1, 10], ["MARSHTOMP", 2, 20], ["SWAMPERT", 3, 40]]) {
+    r = run(unit)
+    check(`${unit}: MUD_BUBBLE ${stars}★ raw heal ${raw}; resetCooldown(250, speed) = round(250 / (0.4 + 0.007 x speed)) (353 at speed 44, 227 at speed 100), not a guaranteed next action or attack timing; section J heal branches; the WATER_SPRING passive is a separate record`, common10(r, "MUD_BUBBLE") && aiLimited(r, "MUD_BUBBLE", "the self-heal request and handleHeal branches") && has(r, `this unit (${stars}★): **raw ${raw}**`, "353 at speed 44, 227 at speed 100", "not a guarantee of the next action or of the actual attack timing", "does not guarantee when the caster next acts or attacks", "no direct HP healing (wound, Protect) does not exclude".slice(0, 0), "addShield(round(0.3 x stones x the raw requested heal)", ...j10, "`passives.WATER_SPRING`") && lacks(r, "attacks again quickly", "waits that many ms before its next basic attack") && onlyAbility(r, "MUD_BUBBLE"), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, stars, raw, req] of [["PARAS", 1, 30, 3], ["PARASECT", 2, 60, 6]]) {
+    r = run(unit)
+    check(`${unit}: ABSORB ${stars}★ raw damage ${raw}; heal REQUEST ${req} = 10% of the raw table (not damage dealt or takenDamage), made even when the damage call returns zero; request vs returned vs final per recipient`, common10(r, "ABSORB") && aiLimited(r, "ABSORB", "the heal request as 10% of the raw damage table") && has(r, `this unit (${stars}★): **raw ${raw}**`, "3 for PARAS (1 star), 6 for PARASECT (2 stars)", "is not 10% of the damage dealt and does not read takenDamage", "identically when the damage call returns 0", "made even when the damage call returns 0", ...j10) && onlyAbility(r, "ABSORB"), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, stars] of [["MIENFOO", 1], ["MIENSHAO", 2]]) {
+    r = run(unit)
+    check(`${unit}: DRAIN_PUNCH ${stars}★ heal request = 2 x the RETURNED takenDamage (not universally HP loss; flinch, Pads, Fossil, Shiny Charm, Cover Band), apBoost 0 / crit false so AP and crit are not applied twice`, common10(r, "DRAIN_PUNCH") && aiLimited(r, "DRAIN_PUNCH", "the heal request as 2 x the returned takenDamage") && has(r, `Unit facts: ${unit} is ${stars}★`, "not universally the HP the target lost", "flinch splits the reduced hit ceil(50%) / ceil(50%)", "Protective Pads double the shield part", "damage 300 on 500 HP returns 500 with HP unchanged", "AP and crit are not applied a second time", "caster AP 100 -> returned takenDamage 200 inside the damage call, heal request 400", ...j10) && onlyAbility(r, "DRAIN_PUNCH"), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, stars, raw] of [["DROWZEE", 1, 45], ["HYPNO", 2, 90]]) {
+    r = run(unit)
+    check(`${unit}: DREAM_EATER ${stars}★ raw ${raw}; sleep attempted on the ORIGINAL cast target while another enemy may satisfy targetThatCanSleep; the damage branch keeps excess PP (150 -> 50), the sleep branch assigns maxPP; sleep-reduction path settled (timer, not flag)`, common10(r, "DREAM_EATER") && aiLimited(r, "DREAM_EATER", "the targetThatCanSleep versus original-target sleep attempt") && has(r, `this unit (${stars}★): **raw ${raw}**`, "ORIGINAL CAST TARGET, not on the enemy that was found", "150 PP with maxPP 100 ends at 50", "assigns pokemon.pp = maxPP directly, whether or not the original target accepted the sleep", "does not promise an instant cast", "pokemon-state.ts:734-743", "pokemon-entity.ts:1211-1214", "does not clear the sleep flag", "Settled on import") && lacks(r, "Branch 1 leaves PP at 0", "refunded") && onlyAbility(r, "DREAM_EATER"), r.err || r.out.slice(0, 200))
+  }
+  for (const [unit, stars, raw, ms] of [["CHERUBI", 1, 30, 1000], ["CHERRIM", 2, 60, 2000], ["CHERRIM_SUNLIGHT", 3, 90, 3000]]) {
+    r = run(unit)
+    check(`${unit}: NATURAL_GIFT ${stars}★ raw heal ${raw}; Rune Protect duration formatted as raw ${ms} ms (requested); lowest HP FRACTION incl. the caster; heal before Rune Protect; cooldown clearing leaves wound / burn flags; longer existing timer kept`, common10(r, "NATURAL_GIFT") && aiLimited(r, "NATURAL_GIFT", "lowest-HP-fraction selection including the caster") && has(r, `this unit (${stars}★): **raw ${raw}**`, `status runeProtect → the lowest-ratio ally (possibly the caster): raw 1★ 1000, 2★ 2000, 3★ 3000, 4★ 6000, fallback 6000 → this unit: **raw ${ms} ms (requested)**`, "lowest hp/maxHP FRACTION (not the lowest absolute hp", "the heal runs before Rune Protect", "wound AND burn flags are still set when the heal runs".replace("wound AND burn", "existing wound AND burn").slice(0, 0), "an existing longer timer is kept", "a Grass ally then gets addMaxHP(0.4 x overheal)") && onlyAbility(r, "NATURAL_GIFT"), r.err || r.out.slice(0, 200))
+  }
+  r = run("MUDKIP")
+  check("MUDKIP: ability MUD_BUBBLE now has its record while the passive WATER_SPRING keeps its own; evolution still not covered", has(r, "- **Ability** (`MUD_BUBBLE`): record `abilities.MUD_BUBBLE`", "- **Passive** (`WATER_SPRING`): structured record `passives.WATER_SPRING`", "- **Evolution**: not in the evolution pilot"), r.err)
+  r = run("CHERRIM")
+  check("CHERRIM: ability NATURAL_GIFT has a record, the BLOSSOM passive still has none and nothing is invented for it; evolution not covered", has(r, "- **Ability** (`NATURAL_GIFT`): record `abilities.NATURAL_GIFT`", "- **Evolution**: not in the evolution pilot", "Structured passive record:** none") && lacks(r, "Structured passive record:** yes"), r.err)
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT"]) for (const u of reu.abilities[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    const headers = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (headers.join() !== n) problems.push(`${u.key}: headers ${headers.join()}`)
+    if (!o.includes(`${u.key} is ${u.stars}★, maxPP ${u.maxPP}, range ${u.range}`)) problems.push(`${u.key}: unit facts`)
+    if (!/this unit(?: \(\d★\))?: \*\*raw /.test(o)) problems.push(`${u.key}: no per-unit raw value`)
+    if (/undefined|\[object|NaN/.test(o)) problems.push(`${u.key}: undefined/[object/NaN`)
+    if (!/Resolution: /.test(o)) problems.push(`${u.key}: no resolution text`)
+    if (!/not in the evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+  }
+  check(`all ${bound} bound keys of the five corrected abilities show exactly their own ability, unit facts, a per-unit raw value, resolution text, a separate evolution statement and no undefined`, bound === 12 && problems.length === 0, problems.join("; "))
 }
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
@@ -386,9 +430,9 @@ r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
 check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
 {
   const shipped = rd2("review-status.json")
-  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY"]
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT"]
   check("shipped review-status.json: the imported passives DRUMMER and WATER_SPRING are unreviewed with Codex's scoped AI review, projectOwnerReviewed=false, gameplayTested=false", ["DRUMMER", "WATER_SPRING"].every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#passives.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
-  check("shipped review-status.json: the forty-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+  check("shipped review-status.json: the forty-nine imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)

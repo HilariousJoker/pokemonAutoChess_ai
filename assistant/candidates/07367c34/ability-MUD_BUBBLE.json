@@ -59,7 +59,7 @@
     "mb-impl"
    ]
   },
-  "summary": "Self-heal: the caster heals itself by a requested 10 / 20 / 40 / 80 (80 fallback) by caster stars, scaled by its own AP and by its crit factor if the cast crit, then resets its attack cooldown to a short 250 ms-based value so it attacks again quickly.",
+  "summary": "Self-heal then a cooldown reset. The caster requests a heal of 10 / 20 / 40 / 80 (80 fallback; table by caster stars) on itself with apBoost 1 and the cast's crit flag, so its own AP and critPower scale the request. handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things. Then pokemon.resetCooldown(250, pokemon.speed) stores round(250 / (0.4 + 0.007 x speed)) in pokemon.cooldown - 353 at speed 44, 227 at speed 100 - replacing whatever value was there (also a longer one). That is a stored timer value, not a guarantee of the next action or of the actual attack timing: the attacking and moving states count it down and may overwrite it, and entering either state sets it to 0.",
   "targeting": {
    "who": "the caster only (heal target and caster are the same entity); the cast target is unused",
    "needsTarget": false,
@@ -89,14 +89,21 @@
      "note": "requested heal before scaling"
     },
     "scaling": "requested amount: heal x (1 + 1 x AP/100) (apBoost 1 is passed) and x critPower if the cast crit (canCritByDefault false, so only with ABILITY_CRIT)",
-    "resolution": "applied amount: PokemonState.handleHeal gives 0 if the caster is wounded (and under BLOODMOON weather with Blood Stones converts that into a shield of 0.3 x stones x heal), and nothing if hp is 0 or protect is on; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at the caster's missing HP; an overheal with a GRASS synergy effect adds 0.4 x overheal max HP",
+    "resolution": "requested = table x (1 + AP/100) x critPower if the cast crit; handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things.",
     "evidence": [
      "mb-heal",
      "entity-heal",
      "heal-state",
      "heal-modifiers",
      "heal-overheal",
-     "wound"
+     "wound",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-protect",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state"
     ],
     "perUnitRaw": {
      "MARSHTOMP": 20,
@@ -110,14 +117,20 @@
     "declaredRaw": {
      "baseDuration": 250,
      "formula": "cooldown = round(250 / (0.4 + speed x 0.007)) using the caster's current speed",
-     "note": "requested; with the catalog speed 44 this gives 353, a different number if speed is changed in the fight"
+     "note": "requested base 250; 353 at speed 44, 227 at speed 100 (stored value, not an attack time)"
     },
     "scaling": "speed only (no AP or crit)",
-    "resolution": "sets pokemon.cooldown (the attack timer): AttackingState attacks only when cooldown <= 0 and counts it down by dt, so the caster waits that many ms before its next basic attack; it replaces whatever value cooldown had (also a longer one)",
+    "resolution": "resetCooldown(250, speed) assigns pokemon.cooldown = round(250 / (0.4 + 0.007 x speed)) (353 at speed 44, 227 at speed 100) and replaces any earlier value, longer or shorter. AttackingState.update resets the cooldown to the 1000-based value at the start of an attack update (attacking-state.ts:22-25) and counts it down by dt otherwise (:110); MovingState.update sets a movement value (:23) and counts down (:65); entering either state sets the cooldown to 0 (:117, :181). So this stored value only means 'the next update of the current state that finds cooldown <= 0 acts'; it does not guarantee when the caster next acts or attacks (state changes, other writers and the unit's own speed changes intervene), and the strategy reads pokemon.speed without the paralysis halving that AttackingState applies to its own reset.",
     "evidence": [
      "mb-cooldown",
      "reset-cooldown",
-     "cooldown-use"
+     "cooldown-use",
+     "att-reset",
+     "att-countdown",
+     "att-enter",
+     "mov-set",
+     "mov-countdown",
+     "mov-enter"
     ]
    }
   ],
@@ -135,7 +148,7 @@
     "MUDKIP": 10,
     "SWAMPERT": 40
    },
-   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 80 and the fallback 80 are not reached by these units' bare star counts (1, 2, 3). Cooldown reset (250) does not depend on stars. maxPP is 60 and range 1 for all three.",
+   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 80 and the fallback 80 is declared in the table but unused by the three bound baseline classes (stars 1, 2, 3). Cooldown reset (250) does not depend on stars. maxPP is 60 and range 1 for all three.",
    "evidence": [
     "mb-heal",
     "unit-mudkip",
@@ -145,7 +158,7 @@
   },
   "positionalConditions": "None; no target is needed.",
   "repeatedCastsAndModes": "No state is kept; each cast heals independently and resets the cooldown again. No modes.",
-  "rawVsResolved": "Requested heal: 10 (MUDKIP) / 20 (MARSHTOMP) / 40 (SWAMPERT). Requested = declared x (1 + AP/100) x critPower-if-crit; received heal after the burn / enraged / buff / weather modifiers, rounding and the cap at missing HP (0 when wounded or protected). Cooldown requested 250 base, applied round(250 / (0.4 + 0.007 x speed)).",
+  "rawVsResolved": "Requested heal: 10 (MUDKIP) / 20 (MARSHTOMP) / 40 (SWAMPERT) before AP and crit; handleHeal's returned healReceived / overheal come after the wound, protect, modifier, rounding and missing-HP steps; the final stored hp / maxHP / shield also include the Blood Moon / Blood Stone addShield request and the Grass addMaxHP(0.4 x overheal) request with their item helpers. Cooldown: requested base 250, stored round(250 / (0.4 + 0.007 x speed)) = 353 at speed 44, 227 at speed 100 - a timer value, not a timing guarantee.",
   "sourceTables": [
    {
     "id": "mudBubbleHeal",
@@ -158,12 +171,13 @@
   "dependsOnUnverifiedGenericCombat": [
    "Target selection and when the cast fires in a real fight (PP gain, canCast, movement; only the requiresTarget=false branch of MovingState was read)",
    "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the heal-side multiplier were read)",
-   "Other callers that read or reset pokemon.cooldown besides AttackingState (only the lines cited were read)"
+   "Other callers that read or reset pokemon.cooldown besides AttackingState and MovingState (only the lines cited were read)"
   ],
   "unresolved": [
    "Consulted: PokemonEntity.handleHeal and resetCooldown, PokemonState.handleHeal, castAbility, MovingState cast branch, AttackingState cooldown use",
    "Whether items or synergies change the heal beyond what is listed (healing-modifying items other than those in handleHeal were not searched)",
-   "Queue record lists no routing uncertainties; the WATER_SPRING passive of these units is not part of this record"
+   "Queue record lists no routing uncertainties; the WATER_SPRING passive of these units is not part of this record",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleHeal, addShield, addMaxHP, resetCooldown) and the real MudBubbleStrategy strategy text were run against stand-in units, boards and call targets (probes/pinned-helper-probe.mjs, sections SHARED_HELPERS and IMPORT_RECHECK_2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (1 star, HP 50/100, speed 44): heal request 10 -> HP 60, cooldown 353; speed 100 -> 227; a prior 5000 is replaced; a wounded caster under Blood Moon with a stone gets addShield(3) and no HP; a full-HP Grass caster gets overheal 10 and addMaxHP(4) (final 104)."
   ],
   "evidence": [
    {
@@ -374,7 +388,164 @@
     "symbol": "Swampert",
     "expect": "skill = Ability.MUD_BUBBLE",
     "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns 0 / 0"
+   },
+   {
+    "id": "sh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal ordinary branch guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary healing needs hp > 0 and no status.protect; status.runeProtect is not read"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies the item helpers, raises maxHP and, for a living unit, current HP by the same value"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the caster argument; enraged halves; rounded"
+   },
+   {
+    "id": "att-reset",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     22,
+     25
+    ],
+    "symbol": "AttackingState.update cooldown reset",
+    "expect": "pokemon.resetCooldown(1000, speed)",
+    "note": "an attack update that finds cooldown <= 0 first resets it to the 1000-based value (paralysis halves the speed used there)"
+   },
+   {
+    "id": "att-countdown",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     108,
+     111
+    ],
+    "symbol": "AttackingState.update countdown",
+    "expect": "pokemon.cooldown = Math.max(0, pokemon.cooldown - dt)",
+    "note": "otherwise the cooldown is counted down by dt"
+   },
+   {
+    "id": "att-enter",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     113,
+     118
+    ],
+    "symbol": "AttackingState.onEnter",
+    "expect": "pokemon.cooldown = 0",
+    "note": "entering the attacking state sets the cooldown to 0"
+   },
+   {
+    "id": "mov-countdown",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     64,
+     66
+    ],
+    "symbol": "MovingState.update countdown",
+    "expect": "pokemon.cooldown = Math.max(0, pokemon.cooldown - dt)",
+    "note": "a moving update with a positive cooldown counts it down by dt"
+   },
+   {
+    "id": "mov-enter",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     179,
+     182
+    ],
+    "symbol": "MovingState.onEnter",
+    "expect": "pokemon.cooldown = 0",
+    "note": "entering the moving state sets the cooldown to 0"
+   },
+   {
+    "id": "mov-set",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "MovingState.update cooldown",
+    "expect": "pokemon.cooldown = Math.round(500 / getMoveSpeed(pokemon))",
+    "note": "a moving update with cooldown <= 0 writes a movement-based value before the cast branch can run"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS, IMPORT_RECHECK_2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T235235Z",
+   "reason": "resetCooldown(250, speed) described as the stored value round(250 / (0.4 + 0.007 x speed)) (353 at speed 44, 227 at speed 100), not a guaranteed next action or attack timing; healing text synchronised with core-mechanics.md section J",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS, IMPORT_RECHECK_2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

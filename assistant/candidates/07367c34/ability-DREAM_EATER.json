@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Two branches, chosen by scanning the whole board (row by row) for the first enemy that is asleep. (1) If one exists: the caster moves to a random nearest empty orthogonal neighbour cell of that sleeper (Manhattan distance 1) if one is free, then deals SPECIAL damage (requested 45/90/150/250 by stars) to that sleeper - not necessarily the unit the caster was targeting - and requests a heal equal to 1 x the takenDamage that call returned. (2) If no enemy is asleep: it looks for any enemy that can be put to sleep (checking the cast target first, then enemies in board order, requiring no Rune Protect, not skydiving, no IMMUNITY_SLEEP effect and ccCooldown <= 0); if such an enemy exists it requests sleep on the CAST TARGET (not on the enemy that was found), for [3000, 4000, 5000, 6000] ms by stars x (1 + caster AP/100) rounded, and sets the caster's PP to maxPP so the next ability gate is satisfied immediately (the PP spent by the base class is refunded); no damage and no heal in this branch. If nobody can be put to sleep, nothing happens and the PP stays spent. The sleep request still passes triggerSleep's own guards on the cast target (already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP, ccCooldown), so the PP refill can happen without any sleep being applied when the cast target is the unit that fails the guards while another enemy qualifies. Requested raw numbers: DROWZEE (1 star) 45 damage / 3000 ms; HYPNO (2 stars) 90 damage / 4000 ms.",
+  "summary": "Two branches, chosen by scanning the whole board for the first enemy that is asleep. (1) A sleeping enemy exists: the caster moves to a nearest empty neighbour cell of that sleeper if one is free, then deals SPECIAL damage (requested 45 / 90 / 150 / 250 by stars) to that sleeper - not necessarily the cast target - and requests a heal of 1 x the takenDamage that call returned (apBoost 0, crit false). takenDamage is the returned figure (shield part, capped HP part, zero for blocked / dead / Shiny Charm, Fossil extension, cover ally's result), not universally the HP lost. handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things. (2) No enemy is asleep: the code builds targetThatCanSleep = the first of [cast target, then every enemy in board order] that has no Rune Protect, is not skydiving, lacks IMMUNITY_SLEEP and has ccCooldown <= 0. If one is found, sleep is attempted on the ORIGINAL CAST TARGET, not on the enemy that was found, for round([3000, 4000, 5000, 6000][stars - 1] x (1 + AP/100)) ms through triggerSleep, whose own guards (already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP, ccCooldown) can refuse it; and the strategy then assigns pokemon.pp = maxPP directly, whether or not the original target accepted the sleep. If nobody qualifies nothing happens. PP: the base class cost is max(0, pp - maxPP), so the damage branch RETAINS the excess (150 PP with maxPP 100 ends at 50, never 'zero'); the sleep branch overwrites PP with maxPP (100 PP stays 100, 150 PP becomes 100), which is not a universal refund of the cost and does not promise an instant cast (the cast gate and canCast still apply). Requested numbers: DROWZEE (1 star) 45 damage / 3000 ms; HYPNO (2 stars) 90 damage / 4000 ms.",
   "targeting": {
    "who": "branch 1: the first sleeping enemy found scanning the board by rows (y, then x), anywhere on the board; branch 2: the cast target passed to the strategy (the sleep is requested on it), after a candidate check that includes other enemies",
    "needsTarget": true,
@@ -105,7 +105,7 @@
      "HYPNO": 90
     },
     "scaling": "requested raw amount; AP: x (1 + caster AP/100) (apBoost explicitly true); the cast's crit factor only if the cast crit (canCritByDefault false, needs ABILITY_CRIT)",
-    "resolution": "applied change: blocked by protect / skydiving / magicBounce on the sleeper (takenDamage 0, so no heal); otherwise handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, min 1, then shield, Shiny Charm, Fossil and Cover Band branches fix takenDamage (rounded). The hit shortens the sleeper's remaining sleep by 300 ms (each damage instance received); the sleeper is not woken outright by this source.",
+    "resolution": "applied change: blocked by protect / skydiving / magicBounce on the sleeper (takenDamage 0, so no heal); otherwise handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, min 1, then shield, Shiny Charm, Fossil and Cover Band branches fix takenDamage (rounded). The sleep reduction is settled: PokemonState.handleDamage calls pokemon.onDamageReceived only when takenDamage > 0 and the recipient survives (hp > 0) (pokemon-state.ts:734-743), and onDamageReceived subtracts 300 from a positive sleepCooldown (pokemon-entity.ts:1211-1214), once per such damage instance. It is not called for blocked (protect / skydiving / magic bounce, takenDamage 0), dead or lethal-hit recipients or when Shiny Charm zeroes takenDamage; with a Cover Band redirect the original target is not called (the cover ally's own handleDamage is, for the cover ally); a shield that absorbs everything still counts (takenDamage > 0). The subtraction does not clear the sleep flag: sleepCooldown can go negative while sleep stays true until updateSleep runs in the status update (probe: 200 -> -100, flag still true, then false with ccCooldown 1500).",
     "evidence": [
      "de-find",
      "de-dmg",
@@ -123,7 +123,11 @@
      "td-fossil",
      "td-cover",
      "td-return",
-     "sleep-hit"
+     "sleep-hit",
+     "td-flinch",
+     "td-pads",
+     "de-onreceived",
+     "de-sleep-flag"
     ]
    },
    {
@@ -132,13 +136,20 @@
      "multiplierOfTakenDamage": 1
     },
     "scaling": "1 x takenDamage returned by handleSpecialDamage; apBoost 0 and crit false are passed, so neither AP nor crit scales it",
-    "resolution": "handleHeal then applies: a wounded caster receives no HP heal (with Blood Moon weather and a Blood Stone held by the caster's player a shield of round(0.3 x stones x heal) is requested instead); nothing for a caster at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP; overheal on a GRASS-synergy unit adds 0.4 x overheal max HP. takenDamage 0 requests a heal of 0.",
+    "resolution": "requested = 1 x the returned takenDamage (0 requests 0). handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things.",
     "evidence": [
      "de-heal",
      "heal-wound",
      "heal-mods",
      "heal-grass",
-     "td-dead"
+     "td-dead",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-protect",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state"
     ]
    },
    {
@@ -158,7 +169,7 @@
      "HYPNO": 4000
     },
     "scaling": "duration = round(base x (1 + caster AP/100)) computed in the strategy (not through an apBoost parameter); no crit scaling",
-    "resolution": "applied duration: triggerSleep on the cast target then applies, in order, weather (NIGHT x1.3, ZENITH x0.7), enraged /2, then SWIFT_SWIM x0.7 (else HYDRATION x0.5, else WATER_VEIL or SURGE_SURFER x0.3), then Odd Keystone x(1 - 0.1 x count held by the target's player), rounded. It is skipped if the target already sleeps, has Rune Protect, is skydiving, has IMMUNITY_SLEEP or has ccCooldown above 0 (1500 ms after a sleep ends). A Chesto Berry on the target is eaten when sleep starts. Each damage instance received shortens it by 300 ms.",
+    "resolution": "applied duration: triggerSleep on the cast target then applies, in order, weather (NIGHT x1.3, ZENITH x0.7), enraged /2, then SWIFT_SWIM x0.7 (else HYDRATION x0.5, else WATER_VEIL or SURGE_SURFER x0.3), then Odd Keystone x(1 - 0.1 x count held by the target's player), rounded. It is skipped if the target already sleeps, has Rune Protect, is skydiving, has IMMUNITY_SLEEP or has ccCooldown above 0 (1500 ms after a sleep ends). A Chesto Berry on the target is eaten when sleep starts. Each damage instance that reaches onDamageReceived (positive takenDamage on a surviving recipient, effects[0]) shortens a positive sleepCooldown by 300 ms without clearing the sleep flag.",
     "evidence": [
      "de-else",
      "de-if",
@@ -177,7 +188,7 @@
      "pp": "maxPP"
     },
     "scaling": "none",
-    "resolution": "pokemon.pp = maxPP whenever a candidate that can sleep was found, whether or not the sleep request on the cast target then succeeded; with the base-class cost already paid, the net PP after the cast is full.",
+    "resolution": "pokemon.pp = maxPP is assigned whenever a candidate that can sleep was found, whether or not triggerSleep then accepted the sleep on the cast target. After the base cost max(0, pp - maxPP) this OVERWRITES the PP: 100 stays 100, 150 becomes 100 (the retained excess is lost). It is not a refund of the cost in general and does not promise an instant cast.",
     "evidence": [
      "de-pp",
      "de-if",
@@ -199,7 +210,7 @@
      "unit": "ms (requested)"
     },
     "scaling": "x (1 + caster AP/100), rounded",
-    "applicationOrder": "after the candidate search; PP refilled afterwards",
+    "applicationOrder": "after the candidate search; PP then assigned maxPP directly (whether or not the sleep was accepted)",
     "guards": "triggerSleep: not already asleep, not Rune Protect, not skydiving, not IMMUNITY_SLEEP, ccCooldown <= 0",
     "combatEffect": "a sleeping unit cannot move or act except with the COMATOSE passive (canMove / state checks); sleep ends when the cooldown runs out and gives 1500 ms of crowd-control immunity",
     "evidence": [
@@ -225,7 +236,7 @@
     "DROWZEE": 3000,
     "HYPNO": 4000
    },
-   "note": "both tables are indexed by the casting entity's stars; the 3- and 4-star values (150/250 damage, 5000/6000 ms) are not reachable by the two units' bare star counts. maxPP 100 and range 2 for both.",
+   "note": "both tables are indexed by the casting entity's stars; the 3- and 4-star values (150/250 damage, 5000/6000 ms) are declared in the tables but unused by the two bound baseline classes. maxPP 100 and range 2 for both.",
    "evidence": [
     "de-dmg",
     "de-dur",
@@ -234,8 +245,8 @@
    ]
   },
   "positionalConditions": "Branch 1 ignores range and the cast target: it uses the first sleeping enemy anywhere on the board in row-major order and teleports (swaps) the caster next to it when a free orthogonal neighbour exists. Branch 2 works on the cast target.",
-  "repeatedCastsAndModes": "No stored state. Branch 2 refills PP, so the next cast is possible as soon as the base gate is met and, if the target is still asleep, takes branch 1. Branch 1 leaves PP at 0.",
-  "rawVsResolved": "Requested (raw): 45 / 90 damage, 3000 / 4000 ms sleep, heal 1 x takenDamage. Applied: damage x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting (takenDamage is shield part + HP part, 0 if blocked or Shiny Charm, + Fossil addition, or the cover ally's result); heal passes the handleHeal modifiers and the missing-HP cap; sleep duration x (1 + AP/100) then weather, enraged, duration reductions and the triggerSleep guards (the sleep can be refused while the PP refill still happens).",
+  "repeatedCastsAndModes": "No stored state. Branch 2 sets PP to maxPP, so the next cast is possible as soon as the cast gate is met again (canCast and a target still apply) and, if the target is then asleep, takes branch 1. Branch 1 keeps the excess PP above the base cost (150 PP with maxPP 100 ends at 50), it does not zero it.",
+  "rawVsResolved": "Requested (raw): 45 / 90 damage, 3000 / 4000 ms sleep, heal 1 x takenDamage. Applied: damage x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting (takenDamage is shield part + HP part, 0 if blocked or Shiny Charm, + Fossil addition, or the cover ally's result); heal passes the handleHeal modifiers and the missing-HP cap; sleep duration x (1 + AP/100) then weather, enraged, duration reductions and the triggerSleep guards (the sleep can be refused while the PP assignment still happens). The heal request (1 x returned takenDamage), handleHeal's returned healReceived / overheal and the final stored values are separate, as are the sleep duration requested (3000 / 4000 x (1 + AP/100)), the duration triggerSleep applies and the sleepCooldown after later 300 ms reductions.",
   "sourceTables": [
    {
     "id": "dreamEaterDamage",
@@ -256,14 +267,14 @@
    "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers) - only SPE_DEF division, ceil/min 1 and the takenDamage branches were located",
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
-   "How a sleeping unit is treated by targeting and attack states beyond the canMove/canCast checks (the other sleep sites in attacking-state / movement were only listed, not read)"
+   "How a sleeping unit is treated by targeting and attack states beyond the canMove / canCast checks (the other sleep sites in attacking-state / movement were only listed, not read)"
   ],
   "unresolved": [
-   "The source reads as if the sleep is meant for targetThatCanSleep but is applied to the cast target; this record states what the code does and does not know the intent",
-   "Whether the entity damage-received function containing the 300 ms sleep reduction runs for every damage source including SPECIAL ability damage (its name and callers were not read)",
+   "The source reads as if the sleep is meant for targetThatCanSleep but is applied to the cast target; this record states what the code does (executed: the original target with Rune Protect refuses the sleep while another enemy qualified and PP became maxPP) and does not know the intent",
+   "Settled on import: the single caller of onDamageReceived is pokemon-state.ts:734-743 (positive takenDamage on a surviving recipient), so SPECIAL ability damage reduces sleep by 300 ms whenever that condition holds (blocked, dead, lethal, Shiny-Charm-zeroed and Cover-Band-redirected original targets excluded); other damage sources that reach handleDamage follow the same rule, other writers of sleepCooldown were not enumerated",
    "Resurrection paths other than the cited branches and other death-cancelling effects on the sleeper were not enumerated",
    "Whether any other item or synergy effect changes DREAM_EATER beyond what is listed",
-   "Both units have passive NONE; no routing uncertainty in the queue record; not probed and not a fight; source reading only"
+   "Both units have passive NONE; no routing uncertainty in the queue record. Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleDamage, handleSpecialDamage, handleHeal, triggerSleep, updateSleep and the sleep-reduction lines of onDamageReceived) and the real DreamEaterStrategy strategy text were run against stand-in units, boards and call targets (probes/pinned-helper-probe.mjs, sections TAKEN_DAMAGE, SHARED_HELPERS and IMPORT_RECHECK_2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game."
   ],
   "evidence": [
    {
@@ -771,7 +782,142 @@
     "symbol": "heal-grass",
     "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
     "note": "overheal on a GRASS-synergy unit adds 0.4 x overheal max HP"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns 0 / 0"
+   },
+   {
+    "id": "sh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal ordinary branch guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary healing needs hp > 0 and no status.protect; status.runeProtect is not read"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies the item helpers, raises maxHP and, for a living unit, current HP by the same value"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the caster argument; enraged halves; rounded"
+   },
+   {
+    "id": "td-flinch",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     622,
+     626
+    ],
+    "symbol": "PokemonState.handleDamage flinch split",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "with flinch and a shield the reduced hit is split ceil(50%) shield / ceil(50%) residual"
+   },
+   {
+    "id": "td-pads",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     630,
+     635
+    ],
+    "symbol": "PokemonState.handleDamage Protective Pads",
+    "expect": "attacker.items.has(Item.PROTECTIVE_PADS) &&",
+    "note": "an attacker's Protective Pads double the shield part"
+   },
+   {
+    "id": "de-onreceived",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     734,
+     743
+    ],
+    "symbol": "PokemonState.handleDamage onDamageReceived call",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "the only caller of onDamageReceived: runs when takenDamage > 0 and the recipient's hp > 0 after the hit"
+   },
+   {
+    "id": "de-sleep-flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     788,
+     804
+    ],
+    "symbol": "Status.updateSleep",
+    "expect": "this.sleep = false",
+    "note": "the sleep flag is cleared only by updateSleep when sleepCooldown - dt <= 0 (and ccCooldown is raised to 1500)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "TAKEN_DAMAGE, SHARED_HELPERS, IMPORT_RECHECK_2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T235235Z",
+   "reason": "targetThatCanSleep may be another enemy while sleep is attempted on the original target; base PP cost keeps the excess, the sleep branch assigns maxPP; sleep-reduction caller settled; section J branches",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "TAKEN_DAMAGE, SHARED_HELPERS, IMPORT_RECHECK_2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target SPECIAL damage whose requested amount is the caster's current ATK x a star multiplier (x2 at 1 and 2 stars, x3 at 3, x4 at 4), then the caster requests a heal of 2 x the takenDamage returned by that damage call. takenDamage is what handleDamage reports (shield part plus HP part, 0 when blocked, reset by Shiny Charm, Fossil addition, or the Cover Band ally's result), so the heal follows the damage actually taken and not the requested amount. The damage is also multiplied by (1 + caster AP/100) (apBoost explicitly true) and by the crit factor if the cast crit, then reduced by the target's SPE_DEF (ceil, min 1). The heal request is not scaled by AP or crit (apBoost 0, crit false); it is then modified by handleHeal (wound = no heal, x1.3 heal-received effect, x0.5 burn, x0.5 enraged, x1.2 ZENITH, capped at missing HP). Both listed units have multiplier x2 (Mienfoo ATK-based amount is 2 x its ATK at cast time, as is Mienshao).",
+  "summary": "Single-target SPECIAL damage whose requested amount is the caster's current ATK x a star multiplier (x2 at 1 and 2 stars, x3 at 3, x4 at 4), then the caster requests a heal of 2 x the takenDamage returned by that damage call. takenDamage is the figure handleDamage RETURNS, not universally the HP the target lost: it includes the part absorbed by a shield (flinch splits the reduced hit ceil(50%) / ceil(50%); an attacker's Protective Pads double the shield part), caps the HP part at current HP, is 0 when blocked (protect / skydiving / magic bounce), dead, resurrecting or when Shiny Charm triggers, is extended by the Fossil branch (damage 300 on 500 HP returns 500 with HP unchanged) and is the cover ally's result when a Cover Band holder takes a lethal hit. The heal REQUEST is therefore 2 x that returned figure, not 2 x the requested damage and not 2 x the HP lost. The damage is also multiplied by (1 + caster AP/100) (apBoost explicitly true) and by the crit factor if the cast crit, then reduced by the target's SPE_DEF (ceil, min 1). The heal call passes apBoost 0 and crit false, so AP and crit are not applied a second time (AP already acted once inside the damage call and is reflected in the returned takenDamage). handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things. Both listed units have multiplier x2 (Mienfoo ATK-based amount is 2 x its ATK at cast time, as is Mienshao).",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -112,7 +112,9 @@
      "td-shiny",
      "td-fossil",
      "td-cover",
-     "td-return"
+     "td-return",
+     "td-flinch",
+     "td-pads"
     ]
    },
    {
@@ -120,15 +122,22 @@
     "declaredRaw": {
      "multiplierOfTakenDamage": 2
     },
-    "scaling": "2 x takenDamage (the value returned by handleSpecialDamage); apBoost 0 and crit false are passed, so neither AP nor crit scales it",
-    "resolution": "handleHeal then applies: a wounded caster receives no HP heal (healReceived 0; with Blood Moon weather and a Blood Stone held by the caster's player a shield of round(0.3 x stones x heal) is requested instead); nothing for a caster at 0 hp or protected; x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather; rounded and capped at missing HP; overheal (heal beyond missing HP) is not added as HP, but on a unit with the GRASS synergy effect it adds 0.4 x overheal max HP (pokemon-state.ts:373-376). takenDamage 0 requests a heal of 0. healDone and a spectator broadcast are bookkeeping only.",
+    "scaling": "2 x takenDamage (the value returned by handleSpecialDamage); apBoost 0 and crit false are passed, so neither AP nor crit scales the heal request again (probe: caster AP 100 -> returned takenDamage 200 inside the damage call, heal request 400, apBoost 0)",
+    "resolution": "requested = 2 x the returned takenDamage (0 requests 0). handleHeal is called in this order (core-mechanics.md section J2): the wound branch first - a wounded recipient gets no HP, but with BLOODMOON weather and a Blood Stone owned by its player the same call requests addShield(round(0.3 x stones x the raw requested heal), recipient, apBoost, crit) with the recipient as the shield's caster, which the entity addShield (Big Eater Belt) turns into the final shield; then the guard hp > 0 && !status.protect (an unwounded Protected recipient gets nothing; Rune Protect alone does not block); then the modifiers (AP, crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, ZENITH x1.2), Math.round and the cap at missing HP; the post-modifier overheal on a Grass-synergy recipient requests addMaxHP(0.4 x overheal), which also raises current HP. 'No direct HP healing' therefore does not mean 'no shield or max-HP / current-HP effect'. Requested amount, handleHeal's returned healReceived / overheal and the final stored hp / maxHP / shield are three different things. healDone and a spectator broadcast are bookkeeping only.",
     "evidence": [
      "dp-heal-mult",
      "dp-heal",
      "heal-wound",
      "heal-mods",
      "heal-grass",
-     "td-dead"
+     "td-dead",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-protect",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-heal-burn"
     ]
    }
   ],
@@ -144,7 +153,7 @@
     "MIENFOO": "2 x ATK",
     "MIENSHAO": "2 x ATK"
    },
-   "note": "the multiplier is indexed by the casting entity's stars; the 3-star (x3) and 4-star (x4, also the fallback) values are not reachable by the listed units' bare star counts. maxPP 60 and range 1 for both. The heal multiplier is 2 for every star.",
+   "note": "the multiplier is indexed by the casting entity's stars; the 3-star (x3) and 4-star (x4, also the fallback) values are declared in the table but unused by the two bound baseline classes. maxPP 60 and range 1 for both. The heal multiplier is 2 for every star.",
    "evidence": [
     "dp-mult",
     "dp-heal-mult",
@@ -154,7 +163,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats damage and heal; ATK changes between casts change the amount.",
-  "rawVsResolved": "Requested (raw): damage 2 x ATK (1 and 2 stars), heal 2 x takenDamage. Applied: damage x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting; takenDamage = shield part + HP part (0 if blocked/Shiny Charm, + Fossil addition, or the cover ally's result); the heal request 2 x takenDamage then passes handleHeal modifiers and the missing-HP cap, so HP actually restored can be much lower.",
+  "rawVsResolved": "Requested (raw): damage 2 x ATK (1 and 2 stars), heal 2 x takenDamage. Applied: damage x (1 + AP/100) [x crit], / (1 + 0.05 x SPE_DEF) ceil min 1, shield accounting; takenDamage = shield part + HP part (0 if blocked/Shiny Charm, + Fossil addition, or the cover ally's result); the heal request 2 x the returned takenDamage then passes handleHeal (returned healReceived / overheal after the wound, protect, modifier and missing-HP steps), so the HP actually restored can be much lower or zero; the final stored changes also include a wounded caster's Blood Moon / Blood Stone addShield request (probe: request 200 -> addShield 60) and a Grass caster's addMaxHP(0.4 x overheal) request.",
   "sourceTables": [
    {
     "id": "drainPunchMultiplier",
@@ -172,7 +181,7 @@
   "unresolved": [
    "Resurrection paths other than the cited branches and other death-cancelling effects on the target were not enumerated; they would change the returned takenDamage",
    "Whether any other item or synergy effect changes DRAIN_PUNCH beyond what is listed",
-   "Both units have passive NONE; no routing uncertainty in the queue record; not probed and not a fight; source reading only"
+   "Both units have passive NONE; no routing uncertainty in the queue record. Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleDamage, handleSpecialDamage, handleHeal, addShield) and the real DrainPunchStrategy strategy text were run against stand-in units, boards and call targets (probes/pinned-helper-probe.mjs, sections TAKEN_DAMAGE and IMPORT_RECHECK_2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (ATK 50 -> raw request 100): plain 100 -> heal request 200; shield 40 -> returned 100 but 60 HP lost; shield 200 -> returned 100, 0 HP lost; flinch + shield 200 -> returned 100, 50 HP lost; Protective Pads + shield 30 -> returned 200, 170 HP lost, request 400; overkill on 40 HP -> returned 40, request 80; Fossil (raw 300) -> returned 500 with HP unchanged, request 1000; Shiny Charm and Protect -> 0; Cover Band -> the cover ally's 100."
   ],
   "evidence": [
    {
@@ -493,7 +502,120 @@
     "symbol": "heal-grass",
     "expect": "pokemon.hasSynergyEffect(Synergy.GRASS)",
     "note": "overheal on a GRASS-synergy unit adds 0.4 x overheal max HP"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns 0 / 0"
+   },
+   {
+    "id": "sh-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal ordinary branch guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary healing needs hp > 0 and no status.protect; status.runeProtect is not read"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies the item helpers, raises maxHP and, for a living unit, current HP by the same value"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the caster argument; enraged halves; rounded"
+   },
+   {
+    "id": "sh-heal-burn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     345
+    ],
+    "symbol": "PokemonState.handleHeal burn modifier",
+    "expect": "if (pokemon.status.burn) {",
+    "note": "a recipient whose burn flag is set has its heal multiplied by 0.5"
+   },
+   {
+    "id": "td-flinch",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     622,
+     626
+    ],
+    "symbol": "PokemonState.handleDamage flinch split",
+    "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
+    "note": "with flinch and a shield the reduced hit is split ceil(50%) shield / ceil(50%) residual"
+   },
+   {
+    "id": "td-pads",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     630,
+     635
+    ],
+    "symbol": "PokemonState.handleDamage Protective Pads",
+    "expect": "attacker.items.has(Item.PROTECTIVE_PADS) &&",
+    "note": "an attacker's Protective Pads double the shield part"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "TAKEN_DAMAGE, SHARED_HELPERS, IMPORT_RECHECK_2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261104T235235Z",
+   "reason": "heal request is 2 x the returned takenDamage (not universally HP loss) with the named accounting exceptions; apBoost 0 / crit false so AP and crit are not applied twice; section J branches",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "TAKEN_DAMAGE, SHARED_HELPERS, IMPORT_RECHECK_2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
