@@ -1,0 +1,507 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHADOW_CLONE",
+ "kind": "ability",
+ "identifier": "SHADOW_CLONE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T124101Z"
+ },
+ "record": {
+  "ability": "SHADOW_CLONE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SHUPPET (1 star) and BANETTE (2 stars) declare SHADOW_CLONE (passive NONE, maxPP 120, range 1). The strategy is shared. MEGA_BANETTE is not listed and is not covered (its skill line is commented out in the class block seen near line 564 and was not read). Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "BANETTE",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SHADOW_CLONE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHUPPET",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SHADOW_CLONE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BANETTE": {
+    "evidence": [
+     "unit-banette"
+    ]
+   },
+   "SHUPPET": {
+    "evidence": [
+     "unit-shuppet"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHADOW_CLONE] = new ShadowCloneStrategy()",
+   "strategy": "ShadowCloneStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "sh-class",
+    "sh-super"
+   ]
+  },
+  "summary": "Summons an allied copy and steals an item. The strategy looks for the empty board cell nearest to the caster (Manhattan distance over the whole board, any side). If none exists, nothing else happens (no item is stolen). Otherwise a fresh unit of the same name (factory stars and base stats, same emotion and shiny flag, no items) is created; if the cast target holds items, one is picked at random and removed from the TARGET (fight entity only); the clone is added to the caster's team at the free cell with isSpawn true; its maxHP is set to max(1, ceil(hpPct x caster.maxHP x (1 + caster.AP/100) x (critPower only if the cast crit))) with hpPct 0.5 / 0.5 / 0.9 / 1.0 by the CASTER's stars (SHUPPET 0.5, BANETTE 0.5), and its hp is set to that maxHP; finally the stolen item, if any, is given to the clone via addItem. addItem returns silently without adding when the clone already has 3 items, the item is a synergy stone of a type the clone already has, or the Eviolite / Rare Candy rules fail, in which case the stolen item is simply lost for the fight. No damage, heal, shield or PP gain is requested by the ability itself: the setting of hp/maxHP on a new entity is a direct assignment, not a call to handleHeal / addShield / addMaxHP, so the shared heal rules (core-mechanics.md section J) do not apply. The requested maxHP is the formula above; Big Eater Belt / Twist Band helpers are not involved. The stolen item's effects on the target are removed by removeItem and applied to the clone by addItem when accepted.",
+  "targeting": {
+   "who": "the cast target is used only as the item victim; the clone appears next to the caster, not the target",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true; target.items is read without a null check, so a target is assumed.",
+   "evidence": [
+    "sh-steal",
+    "sh-place",
+    "sh-add",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "one spawn cell: the empty cell with the smallest Manhattan distance to the caster, anywhere on the board (including the enemy half); ties resolved by sort order over a row-by-row scan",
+   "evidence": [
+    "sh-place",
+    "closest",
+    "closest-free",
+    "dist-m"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "summon",
+    "target": "the caster's team",
+    "declaredRaw": {
+     "description": "addPokemon(createPokemonFromName(caster name), free cell, caster team, isSpawn true)"
+    },
+    "scaling": "clone stats are the factory base stats of the same name; the clone's maxHP and hp are overwritten as in the next effect",
+    "resolution": "only when a free cell exists; synergy and item effects of the new entity are applied by addPokemon at creation (before the stolen item is added); onSpawn effects run with isSpawn true",
+    "evidence": [
+     "sh-place",
+     "sh-if",
+     "sh-create",
+     "sh-add",
+     "closest",
+     "add-pkm",
+     "add-entity",
+     "add-eff"
+    ]
+   },
+   {
+    "kind": "statChange",
+    "stat": "maxHP and hp of the clone",
+    "target": "the clone",
+    "declaredRaw": {
+     "description": "clone.maxHP = max(1, ceil(hpPct x caster.maxHP x (1 + caster.AP/100) x crit factor)); clone.hp = clone.maxHP",
+     "hpPctByStars": {
+      "1": 0.5,
+      "2": 0.5,
+      "3": 0.9,
+      "4": 1.0
+     },
+     "fallback": 1.0,
+     "label": "requested fraction of the caster's maxHP"
+    },
+    "perUnitRaw": {
+     "SHUPPET": 0.5,
+     "BANETTE": 0.5
+    },
+    "scaling": "hpPct by the CASTER's current stars; AP scales it as (1 + AP/100); crit factor critPower only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false); Math.ceil, minimum 1",
+    "resolution": "direct assignment on the new entity: not handleHeal, no wound / protect / Grass overheal / Blood Stone branch, not addShield / addMaxHP, so no Big Eater Belt or Twist Band involvement. Requested = formula; applied = the stored maxHP and hp (equal). Uses the caster's CURRENT maxHP, which includes buffs and items.",
+    "evidence": [
+     "sh-hp",
+     "sh-maxhp",
+     "sh-hp2"
+    ]
+   },
+   {
+    "kind": "itemTheft",
+    "target": "the cast target to the clone",
+    "declaredRaw": {
+     "description": "one random item of the target"
+    },
+    "scaling": "none",
+    "resolution": "if the target holds at least one item, one is chosen uniformly at random, removed from the target entity (permanent false: the board unit keeps it) and, after the clone is added, offered to the clone with addItem. addItem silently refuses in the cases listed in the summary; the theft is not undone in that case. Nothing is stolen when there is no free cell.",
+    "evidence": [
+     "sh-steal",
+     "sh-remove",
+     "sh-item",
+     "add-item",
+     "rem-item"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SHUPPET": 1,
+    "BANETTE": 2
+   },
+   "hpPct": {
+    "SHUPPET": 0.5,
+    "BANETTE": 0.5
+   },
+   "note": "Only hpPct is indexed by the casting entity's stars (fallback 1.0). The clone's own stars are the factory value for the name, not the caster's current stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "sh-hp",
+    "unit-shuppet",
+    "unit-banette"
+   ]
+  },
+  "positionalConditions": "The spawn cell depends on which cells are empty at cast time; if the board is full nothing happens.",
+  "repeatedCastsAndModes": "Single mode. Each cast spends maxPP (120) of PP and may create another clone while free cells exist; clones are same-name units and can cast too. Whether a clone can itself clone indefinitely was not traced further.",
+  "rawVsResolved": "Requested: hpPct 0.5 of the caster's maxHP (before AP/crit), one random item stolen. Applied: maxHP/hp after AP, crit, ceil and the minimum of 1; item moved only if a free cell exists and addItem accepts it.",
+  "sourceTables": [
+   {
+    "id": "hppct",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "pattern": "const hpPct = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.1.declaredRaw.hpPctByStars",
+    "unitValuesPath": "starBehavior.hpPct"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Which synergy and onSpawn effects apply to the new clone (applySynergyEffects and onSpawn were only seen, not read)"
+  ],
+  "unresolved": [
+   "The class block of MEGA_BANETTE (near line 551-564) was seen but not read; it is not covered",
+   "Whether a Pok\u00e9mon with the isSpawn flag is excluded from end-of-fight accounting, synergies or round-win checks was not traced",
+   "The effect of applySynergyEffects on the clone (it has the factory types and the team's synergy levels) was not traced",
+   "Whether the target can be null when the strategy runs (target.items is read without a check)",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "Consulted for helpers: core-mechanics.md sections B, H; Board.getClosestAvailablePlace, distanceM, Simulation.addPokemon, PokemonEntity.addItem / removeItem; no heal / PP / shield helper is involved",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1148,
+     1148
+    ],
+    "symbol": "AbilityStrategies[Ability.SHADOW_CLONE]",
+    "expect": "[Ability.SHADOW_CLONE]: new ShadowCloneStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "defaults requiresTarget = true, canCritByDefault = false (NightDazeStrategy overrides neither)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "sh-class",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "ShadowCloneStrategy",
+    "expect": "export class ShadowCloneStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "sh-super",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "sh-place",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     18,
+     21
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "board.getClosestAvailablePlace(",
+    "note": "spawn cell nearest to the caster"
+   },
+   {
+    "id": "sh-if",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "if (spawnPosition) {",
+    "note": "everything below, including the item theft, only happens when a free cell exists"
+   },
+   {
+    "id": "sh-create",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     24,
+     27
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "PokemonFactory.createPokemonFromName(pokemon.name, {",
+    "note": "fresh unit of the same name with the caster emotion / shiny; no items, factory stars"
+   },
+   {
+    "id": "sh-steal",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     28,
+     32
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "itemStolen = pickRandomIn(schemaValues(target.items))",
+    "note": "random item of the target, then removed from the target entity (permanent false)"
+   },
+   {
+    "id": "sh-remove",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "target.removeItem(itemStolen)",
+    "note": ""
+   },
+   {
+    "id": "sh-add",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     34,
+     40
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "pokemon.simulation.addPokemon(",
+    "note": "clone added on the caster team at the free cell, isSpawn true"
+   },
+   {
+    "id": "sh-hp",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     41,
+     41
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "const hpPct = [0.5, 0.5, 0.9, 1.0][pokemon.stars - 1] ?? 1.0",
+    "note": ""
+   },
+   {
+    "id": "sh-maxhp",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     42,
+     49
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "(1 + pokemon.ap / 100) *",
+    "note": "clone.maxHP = max(1, ceil(hpPct x caster.maxHP x (1 + caster.AP/100) x (crit ? critPower : 1)))"
+   },
+   {
+    "id": "sh-hp2",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "clone.hp = clone.maxHP",
+    "note": ""
+   },
+   {
+    "id": "sh-item",
+    "file": "app/core/abilities/shadow-clone.ts",
+    "lines": [
+     51,
+     51
+    ],
+    "symbol": "ShadowCloneStrategy.process",
+    "expect": "if (itemStolen) clone.addItem(itemStolen)",
+    "note": "addItem may silently refuse"
+   },
+   {
+    "id": "closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     566
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "candidateCells.sort((a, b) => a.distance - b.distance)",
+    "note": "free cells only, sorted by Manhattan distance; scan is row by row, so ties follow stable sort over scan order; null when no free cell"
+   },
+   {
+    "id": "closest-free",
+    "file": "app/core/board.ts",
+    "lines": [
+     555,
+     555
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "if (value === undefined) {",
+    "note": ""
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "distanceM",
+    "expect": "Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "add-pkm",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     337,
+     344
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "addPokemon(",
+    "note": ""
+   },
+   {
+    "id": "add-entity",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     345,
+     346
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "const pokemonEntity = new PokemonEntity(pokemon, x, y, team, this)",
+    "note": ""
+   },
+   {
+    "id": "add-eff",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     349,
+     351
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "if (!skipSynergyEffects) this.applySynergyEffects(pokemonEntity)",
+    "note": "synergy and item effects of the new entity (the clone has no items yet at this point)"
+   },
+   {
+    "id": "add-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     782,
+     794
+    ],
+    "symbol": "PokemonEntity.addItem",
+    "expect": "this.items.size >= 3 ||",
+    "note": "silently returns when the entity already has 3 items, the item is a synergy stone of a type it has, or Eviolite / Rare Candy rules fail"
+   },
+   {
+    "id": "rem-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     822
+    ],
+    "symbol": "PokemonEntity.removeItem",
+    "expect": "this.items.delete(item)",
+    "note": ""
+   },
+   {
+    "id": "unit-shuppet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     521,
+     535
+    ],
+    "symbol": "class Shuppet",
+    "expect": "skill = Ability.SHADOW_CLONE",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-banette",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     537,
+     551
+    ],
+    "symbol": "class Banette",
+    "expect": "skill = Ability.SHADOW_CLONE",
+    "note": "unit class block"
+   }
+  ]
+ }
+}
