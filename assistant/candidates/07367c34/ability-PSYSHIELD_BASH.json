@@ -1,0 +1,642 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PSYSHIELD_BASH",
+ "kind": "ability",
+ "identifier": "PSYSHIELD_BASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T003947Z"
+ },
+ "record": {
+  "ability": "PSYSHIELD_BASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PSYSHIELD_BASH: Stantler (3 stars, passive STANTLER) and Wyrdeer (4 stars, no passive); both range 1, maxPP 100. The strategy is shared; unit differences are the star index into the damage table. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "STANTLER",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHIELD_BASH",
+    "declaredPassive": "STANTLER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WYRDEER",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHIELD_BASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "STANTLER": {
+    "evidence": [
+     "unit-stantler",
+     "passive-enum"
+    ]
+   },
+   "WYRDEER": {
+    "evidence": [
+     "unit-wyrdeer"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PSYSHIELD_BASH] = new PsyshieldBashStrategy()",
+   "strategy": "PsyshieldBashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Needs a target in range (inherited requiresTarget = true). Asks the board helper for a destination (the free cell next to the farthest targettable enemy, chosen by Manhattan distance, not necessarily the cast target). If a destination exists, the enemies standing on the supercover line from the caster's current cell to that destination are collected (before the caster moves), then the caster moves there with moveTo (not forced displacement). Regardless of whether a destination existed, the caster then gets Protect for a fixed 1000 ms (no AP or crit scaling; ignored if already protected or enraged). If no enemy was collected, the cast target is added so it is always hit. Each collected enemy takes requested SPECIAL damage 50 (Stantler, 3 stars) / 60 (Wyrdeer, 4 stars) (table 30 / 40 / 50 / 60 / 120, fallback 120) via handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT).",
+  "targeting": {
+   "who": "every enemy-team entity standing on the cells between the caster and the helper's destination (both endpoints included); the cast target only as fallback when none was collected",
+   "needsTarget": true,
+   "note": "The destination comes from the helper's scan of targettable enemies, not from the cast target. The destination is a free cell, so no enemy stands on it; the caster's own cell is on the line but filtered out as same-team. Cells are read before the caster moves.",
+   "evidence": [
+    "cls",
+    "base",
+    "farthest",
+    "cells",
+    "fallback",
+    "board-far",
+    "targettable",
+    "board-between"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's starting cell to the destination cell chosen by the helper",
+   "evidence": [
+    "cells",
+    "board-between",
+    "board-far",
+    "board-far-cells",
+    "board-far-dist",
+    "board-far-fallback",
+    "closest-free"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each collected enemy (once per enemy, set semantics)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 40,
+      "3": 50,
+      "4": 60,
+      "5": 120,
+      "fallback": 120
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "STANTLER": 50,
+     "WYRDEER": 60
+    },
+    "scaling": "requested = table[stars-1] ?? 120. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 for a protected / skydiving / Magic Bounce target. Requested, applied and takenDamage are three different amounts. The damage is dealt after the caster moved, so the caster's own protect does not affect it.",
+    "evidence": [
+     "dmg-table",
+     "hit",
+     "fallback",
+     "special-block",
+     "special-ap",
+     "special-dd",
+     "special-steam",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "displacement",
+    "target": "the caster",
+    "declaredRaw": {
+     "description": "moveTo the destination chosen by getFarthestTargetCoordinateAvailablePlace"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "moveTo(x, y, board, false): toMovingState, board.swapCells (the destination is free, so the caster just changes cell), cooldown = 100 for faster retargeting; canBeMoved is checked only for forced displacement, so it is not consulted. No move when the helper returns null (no targettable enemy or no free cell).",
+    "evidence": [
+     "farthest",
+     "move",
+     "moveto",
+     "swap",
+     "board-far"
+    ]
+   },
+   {
+    "kind": "status",
+    "target": "the caster",
+    "declaredRaw": {
+     "status": "protect",
+     "durationMs": 1000,
+     "label": "requested protect duration"
+    },
+    "perUnitRaw": {
+     "STANTLER": 1000,
+     "WYRDEER": 1000
+    },
+    "scaling": "none from stars, AP or crit (a fixed 1000)",
+    "resolution": "triggerProtect(1000): ignored when the caster is already protected (no refresh) or enraged; otherwise protect = true and protectCooldown = 1000, cleared by updateProtect. While protected the caster takes 0 from basic and ability damage and cannot gain positive PP or ordinary healing (status.protect, not Rune Protect; core-mechanics.md section J). Applied whether or not a destination was found.",
+    "evidence": [
+     "protect",
+     "trig",
+     "upd"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PROTECT",
+    "target": "the caster",
+    "durationMs": 1000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 1000
+    },
+    "perUnitRaw": {
+     "STANTLER": 1000,
+     "WYRDEER": 1000
+    },
+    "scaling": "none",
+    "resolution": "not stackable, not applied to an enraged caster",
+    "evidence": [
+     "protect",
+     "trig",
+     "upd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "STANTLER": 3,
+    "WYRDEER": 4
+   },
+   "declaredRawDamage": {
+    "STANTLER": 50,
+    "WYRDEER": 60
+   },
+   "note": "Only the damage depends on stars (index stars-1 of the casting entity). Protect duration and destination logic are star-independent. 30 / 40 (1-2 stars) and 120 (5 stars / fallback) are not reached by the listed units at their factory star counts. Whether other mechanics change a star count was not examined.",
+   "evidence": [
+    "dmg-table",
+    "unit-stantler",
+    "unit-wyrdeer"
+   ]
+  },
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as FLAME_CHARGE, NUZZLE and AQUA_JET): board.forEach scans cells row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered, so equal distances keep the first one scanned. For such an enemy the running cell maximum is reset and its free adjacent cells are compared by distance from the caster, the first strictly farther one winning; selectedCell is replaced only when that enemy has at least one free adjacent cell, so if a farther enemy has none, the cell chosen for an earlier, nearer enemy is retained (and that enemy is the helper's target). The fallback (the free cell closest by Manhattan distance to the farthest enemy, anywhere on the board, possibly not adjacent) runs only if selectedCell is still null at the end. If the helper returns null the caster does not move and only the cast target is hit.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast repositions the caster again; a cast while Protect is still active does not refresh it.",
+  "rawVsResolved": "Declared raw: damage 50 (STANTLER) / 60 (WYRDEER) and a fixed 1000 ms Protect. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield; takenDamage = shield + HP part. Protect: requested 1000 ms, applied only when the caster is neither protected nor enraged.",
+  "sourceTables": [
+   {
+    "id": "dmg-tbl",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "pattern": "const damage = \\[([0-9, ]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
+   "What the STANTLER passive does: Passive.STANTLER appears only in the Stantler class and the Passive enum in app/ (git grep at the pinned commit), with no handler found there; any effect elsewhere is not covered"
+  ],
+  "unresolved": [
+   "How common the retained-selectedCell case is on real boards was not examined; the same helper nuance applies to FLAME_CHARGE, NUZZLE and AQUA_JET",
+   "Whether the caster can already stand on a cell with an enemy-free line (e.g. destination equal to current cell) was not examined",
+   "Whether the two units reach a different star count than the factory value (Stantler evolves to Wyrdeer through a state-based rule) was not examined",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-stantler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5547,
+     5574
+    ],
+    "symbol": "class Stantler",
+    "expect": "skill = Ability.PSYSHIELD_BASH",
+    "note": "unit class block: stars 3, maxPP 100, range 1, passive STANTLER, evolves to Wyrdeer"
+   },
+   {
+    "id": "unit-wyrdeer",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     5576,
+     5588
+    ],
+    "symbol": "class Wyrdeer",
+    "expect": "skill = Ability.PSYSHIELD_BASH",
+    "note": "unit class block: stars 4, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "passive-enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     155,
+     155
+    ],
+    "symbol": "Passive",
+    "expect": "STANTLER = \"STANTLER\"",
+    "note": "the only other reference to Passive.STANTLER in app/ besides the unit declaration (git grep at the pinned commit)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1103,
+     1103
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.PSYSHIELD_BASH]: new PsyshieldBashStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     6,
+     13
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "class declares no requiresTarget / canCritByDefault; inherited defaults apply"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, default animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "dmg-table",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "[30, 40, 50, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "damage table by the caster's stars, 120 fallback"
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": "destination chosen by the board helper"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     26,
+     36
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "cell.value && cell.value.team != pokemon.team",
+    "note": "enemies on the supercover line from the caster's cell to the destination are collected into a set before the caster moves"
+   },
+   {
+    "id": "move",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "pokemon.moveTo(farthestCoordinate.x, farthestCoordinate.y, board, false)",
+    "note": "the caster moves to the destination (forcedDisplacement false)"
+   },
+   {
+    "id": "protect",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "pokemon.status.triggerProtect(1000)",
+    "note": "fixed 1000 ms Protect on the caster, applied after the move whether or not a destination existed"
+   },
+   {
+    "id": "fallback",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "if no enemy was collected (or no destination) the cast target is hit"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/psyshield-bash.ts",
+    "lines": [
+     43,
+     51
+    ],
+    "symbol": "PsyshieldBashStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "SPECIAL damage per collected enemy, caster as attacker, cast's crit flag, apBoost default"
+   },
+   {
+    "id": "board-far",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     571
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "helper definition: farthest targettable enemy by Manhattan distance; destination = a free adjacent cell"
+   },
+   {
+    "id": "board-far-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "strictly greater: the first enemy found at a distance wins in scan order (y outer, x inner)"
+   },
+   {
+    "id": "board-far-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (cellDistance > maxCellDistance) {",
+    "note": "free adjacent cells compared by Manhattan distance from the caster; selectedCell replaced only when that enemy has a free adjacent cell"
+   },
+   {
+    "id": "board-far-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     627
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback: closest free cell to the farthest enemy, only when no selectedCell exists at the end"
+   },
+   {
+    "id": "closest-free",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     566
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "candidateCells.sort((a, b) => a.distance - b.distance)",
+    "note": "free cell with the smallest Manhattan distance to the given coordinates (stable sort, scan order on ties); null if none"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "an entity counts as a farthest-target candidate unless untargettable; enemies when targetEnemies, plus MERCILESS low-HP case"
+   },
+   {
+    "id": "board-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line including both endpoints that are on the board"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "this.setEntityOnCell(x1, y1, entity0)",
+    "note": "cells are swapped; the destination from the helper is free, so the caster simply moves"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "moveTo: toMovingState, swap, cooldown = 100; canBeMoved checked only for forced displacement"
+   },
+   {
+    "id": "trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect cannot stack and is not applied to enraged units"
+   },
+   {
+    "id": "upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "if (this.protectCooldown - dt <= 0) {",
+    "note": "protect ends when the cooldown would reach 0"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + AP/100); apBoost defaults true"
+   },
+   {
+    "id": "special-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 2",
+    "note": "DOUBLE_DAMAGE doubles once"
+   },
+   {
+    "id": "special-steam",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     405,
+     411
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1.2",
+    "note": "STRANGE_STEAM_BOARD_EFFECT x1.2"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier (reduced by Rocky Helmet / Black Augurite on the target)"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   }
+  ]
+ }
+}
