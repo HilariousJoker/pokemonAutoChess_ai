@@ -1,0 +1,422 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SCREECH",
+ "kind": "ability",
+ "identifier": "SCREECH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T124101Z"
+ },
+ "record": {
+  "ability": "SCREECH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "KRICKETOT (1 star) and KRICKETUNE (2 stars) declare SCREECH (passive NONE, maxPP 60, range 1). The strategy is shared; only the debuff amount depends on the casting unit's stars. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "KRICKETOT",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "SCREECH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KRICKETUNE",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "SCREECH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KRICKETOT": {
+    "evidence": [
+     "unit-kricketot"
+    ]
+   },
+   "KRICKETUNE": {
+    "evidence": [
+     "unit-kricketune"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SCREECH] = new ScreechStrategy()",
+   "strategy": "ScreechStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "sc-class",
+    "sc-super",
+    "sc-bc"
+   ]
+  },
+  "summary": "Area defense debuff centred on the CASTER (not the target): every enemy within radius 2 of the caster (strict squared distance < 6.25 from the caster's cell, caster cell excluded; off-board cells skipped) has addDefense(debuff, caster, 1, crit) called, with a requested raw change of -2 / -4 / -8 / -16 by caster stars (KRICKETOT -2, KRICKETUNE -4). No damage is dealt. The requested amount is modified by addDefense before it is stored: value = Math.round(value x (1 + caster AP/100) x (critPower only if the cast crit; canCritByDefault is false so only with ABILITY_CRIT)), so AP makes the debuff more negative. Then the Big Eater Belt helper does nothing for an enemy holder (it scales only positive values and negative values from the holder's own team), but the Twist Band helper flips a negative value from another team into a positive one, so an enemy holding Twist Band gains DEF by the absolute amount instead of losing it. Finally target.def = max(0, def + value): DEF cannot go below 0. The change is not temporary in this code (no timer is created here; the permanent flag is false, so only the combat entity changes, not the board unit). Requested amount (table), applied change (after AP, crit, Twist Band, and the floor at 0) are different amounts. No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "targeting": {
+   "who": "all enemies within radius 2 of the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true, and the cast target is passed to the base process only for the (suppressed) default animation; it does not influence who is hit. Allies and empty cells skipped.",
+   "evidence": [
+    "sc-cells",
+    "sc-filter",
+    "base-flags",
+    "sc-super"
+   ]
+  },
+  "geometry": {
+   "shape": "disc of radius 2 around the caster's cell, centre excluded: squared distance <= 6 from the caster, i.e. offsets with dx^2+dy^2 < 6.25 (so (2,2) offsets are out); clipped to the board",
+   "evidence": [
+    "sc-cells",
+    "radius",
+    "radius-dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "statChange",
+    "stat": "DEF",
+    "target": "each enemy in the disc",
+    "declaredRaw": {
+     "description": "addDefense(debuff, caster, 1, crit)",
+     "byStars": {
+      "1": -2,
+      "2": -4,
+      "3": -8,
+      "4": -16
+     },
+     "fallback": -16,
+     "label": "requested DEF change (raw)"
+    },
+    "perUnitRaw": {
+     "KRICKETOT": -2,
+     "KRICKETUNE": -4
+    },
+    "scaling": "requested = -2 (KRICKETOT) / -4 (KRICKETUNE). addDefense: Math.round(value x (1 + 1 x caster.ap / 100) x (crit ? caster.critPower : 1)); AP therefore enlarges the debuff (e.g. AP 100 doubles it before rounding)",
+    "resolution": "Three amounts: requested = table value; value after AP/crit rounding (the 'declared after scaling' amount); applied change = that value after the Big Eater Belt helper (no effect on an enemy holder: negative value from another team) and the Twist Band helper (an enemy Twist Band holder has the negative value multiplied by -1, i.e. gains DEF), then stored as def = max(0, def + value), so the actual DEF loss is at most the target's current DEF. permanent is false: only the fight entity is changed. The debuff has no duration in this record: no restore step was read for the strategy.",
+    "evidence": [
+     "sc-deb",
+     "sc-add",
+     "add-def",
+     "add-def-ap",
+     "add-def-perm",
+     "belt-helper",
+     "belt-round",
+     "twist-helper",
+     "base-flags",
+     "cast"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KRICKETOT": 1,
+    "KRICKETUNE": 2
+   },
+   "declaredRawDebuff": {
+    "KRICKETOT": -2,
+    "KRICKETUNE": -4
+   },
+   "note": "Only the debuff table is indexed by the casting entity's stars (fallback -16); the radius is fixed. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "sc-deb",
+    "unit-kricketot",
+    "unit-kricketune"
+   ]
+  },
+  "positionalConditions": "Measured from the caster's own cell at cast time; the cast target's position is irrelevant. Enemies exactly at offsets (+-2,+-2) are outside; all other offsets with |dx|,|dy| <= 2 are inside.",
+  "repeatedCastsAndModes": "Single mode. Each cast spends maxPP (60) of PP. Repeated casts stack: each subtracts again from the current DEF, down to 0. The default animation is suppressed (preventDefaultAnim true) and an animation is broadcast per hit cell instead.",
+  "rawVsResolved": "Requested: DEF -2 / -4 raw on each enemy within radius 2 of the caster. Applied: round(raw x (1 + AP/100) x crit factor), flipped to a gain for an enemy Twist Band holder, then clamped so DEF never goes below 0. No damage and no status.",
+  "sourceTables": [
+   {
+    "id": "debuff",
+    "file": "app/core/abilities/screech.ts",
+    "pattern": "const debuff = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "starBehavior.declaredRawDebuff"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "How DEF enters damage resolution is documented in core-mechanics.md section A and was not re-read here"
+  ],
+  "unresolved": [
+   "Whether the DEF reduction is ever undone during the same fight (no restore step is part of the strategy; other code that resets stats was not audited)",
+   "Whether a Twist Band holder on the enemy team is common enough to matter; only the helper behaviour is recorded",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "Consulted for helpers: core-mechanics.md sections A, H, I; the actual addDefense / applyBigEaterBeltStatBuff / applyTwistBandBuff definitions (pokemon-entity.ts) and the KING_SHIELD candidate; no heal / PP / shield helper is involved",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1140,
+     1140
+    ],
+    "symbol": "AbilityStrategies[Ability.SCREECH]",
+    "expect": "[Ability.SCREECH]: new ScreechStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and counts the cast"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "sc-class",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ScreechStrategy",
+    "expect": "export class ScreechStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "sc-super",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "preventDefaultAnim = true; per-cell broadcast below"
+   },
+   {
+    "id": "sc-deb",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "const debuff = [-2, -4, -8, -16][pokemon.stars - 1] ?? -16",
+    "note": ""
+   },
+   {
+    "id": "sc-cells",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     14,
+     19
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "pokemon.positionX,",
+    "note": "board.getCellsInRadius(caster x, caster y, 2, false)"
+   },
+   {
+    "id": "sc-filter",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": ""
+   },
+   {
+    "id": "sc-add",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "cell.value.addDefense(debuff, pokemon, 1, crit)",
+    "note": "apBoost 1, crit flag of the cast; permanent omitted (false)"
+   },
+   {
+    "id": "sc-bc",
+    "file": "app/core/abilities/screech.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "ScreechStrategy.process",
+    "expect": "pokemon.broadcastAbility({ targetX: cell.x, targetY: cell.y })",
+    "note": "display only"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     267,
+     288
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "radius = Math.floor(Math.abs(radius)) + 0.5",
+    "note": "radius 2 becomes 2.5; strict distanceSquared < 6.25; center excluded when includesCenter is false"
+   },
+   {
+    "id": "radius-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     283,
+     283
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "distanceSquared < radiusSquared",
+    "note": ""
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "stat adder: DEF floored at 0"
+   },
+   {
+    "id": "add-def-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     681,
+     687
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "value = Math.round(value x (1 + apBoost x caster AP/100) x (crit ? caster.critPower : 1)) for a non-environment caster"
+   },
+   {
+    "id": "add-def-perm",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     695,
+     697
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "if (permanent && !this.isGhostOpponent) {",
+    "note": "not taken: permanent is false"
+   },
+   {
+    "id": "belt-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value > 0 || (value < 0 && caster !== \"environment\" && caster.team === pokemon.team)",
+    "note": "positive values, and negative values from a same-team caster (a buff being lost), are scaled for a Big Eater Belt holder"
+   },
+   {
+    "id": "belt-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1848,
+     1850
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 with rounding mode down"
+   },
+   {
+    "id": "twist-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 && pokemon.items.has(Item.TWIST_BAND)",
+    "note": "flips only negative values from the environment or another team; not applicable to self-inflicted changes"
+   },
+   {
+    "id": "unit-kricketot",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13262,
+     13276
+    ],
+    "symbol": "class Kricketot",
+    "expect": "skill = Ability.SCREECH",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-kricketune",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13278,
+     13291
+    ],
+    "symbol": "class Kricketune",
+    "expect": "skill = Ability.SCREECH",
+    "note": "unit class block"
+   }
+  ]
+ }
+}
