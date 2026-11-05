@@ -1,0 +1,644 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SAND_SPIT",
+ "kind": "ability",
+ "identifier": "SAND_SPIT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T124101Z"
+ },
+ "record": {
+  "ability": "SAND_SPIT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SILICOBRA (1 star) and SANDACONDA (2 stars) declare SAND_SPIT (passive NONE, maxPP 80, range 1). The strategy is shared; only the damage depends on the casting unit's stars. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "SANDACONDA",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SAND_SPIT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SILICOBRA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SAND_SPIT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SANDACONDA": {
+    "evidence": [
+     "unit-sandaconda"
+    ]
+   },
+   "SILICOBRA": {
+    "evidence": [
+     "unit-silicobra"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SAND_SPIT] = new SandSpitStrategy()",
+   "strategy": "SandSpitStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ss-class",
+    "ss-super"
+   ]
+  },
+  "summary": "Cone attack in front of the caster. The caster turns toward its cast target (getCellsInFront overwrites pokemon.orientation), and the three cells one step away in that orientation and its two neighbouring orientations are collected (off-board cells dropped). Every ENEMY occupying one of those cells takes special damage (raw table 30 / 60 / 120 / 240 by caster stars: SILICOBRA 30, SANDACONDA 60) and is then Blinded for a fixed 2000 ms. The blind call is made regardless of what the damage call returned, so a victim that is protected, skydiving or has magicBounce still receives the blind (unless already blinded or Rune Protected). Unlike NIGHT_DAZE, the blind duration is NOT AP-scaled (triggerBlinded is called without apBoost, default false), only halved if the victim is enraged and then reduced by the victim's duration reductions. Requested damage (table), applied damage (after AP, crit, defenses, floor of 1) and the returned takenDamage (shield damage included, not read here) are three different amounts. No heal, PP gain or shield is part of this ability, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "targeting": {
+   "who": "the cast target fixes the orientation only; victims are all enemies standing in the three front cells, which need not include the cast target itself",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true. Allies in the cells are skipped; empty cells skipped. Whether the cast target is always inside the three cells (range 1 unit, adjacent target) was not traced for displaced or confused casters.",
+   "evidence": [
+    "ss-cells",
+    "ss-filter",
+    "cif",
+    "cif-orient",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "three cells at distance 1 from the caster: in the orientation toward the target and in the two orientations next to it in OrientationArray (indexes +1 and +7 mod 8); clipped at board edges; the range argument is the constant 1",
+   "evidence": [
+    "ss-cells",
+    "cif-orient",
+    "cif-3",
+    "cif-loop",
+    "cif-onboard"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "target": "each enemy in the three front cells",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240
+     },
+     "fallback": 240,
+     "label": "raw special damage by caster stars (requested amount)"
+    },
+    "perUnitRaw": {
+     "SILICOBRA": 30,
+     "SANDACONDA": 60
+    },
+    "scaling": "requested = 30 (SILICOBRA) / 60 (SANDACONDA). Applied: x(1 + caster AP/100) (apBoost default true); crit factor 1 + (critPower - 1) x reduction only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false)",
+    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the victim is protected, skydiving or has magicBounce (magicBounce additionally reflects damage x star factor to the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, includes shield damage, unused here). Each victim gets the full damage (no split). No heal is derived from the damage.",
+    "evidence": [
+     "ss-dmg",
+     "ss-hsd",
+     "hsd-block",
+     "mb",
+     "hsd-ap",
+     "hsd-crit",
+     "hd-speDef",
+     "hd-min",
+     "hd-shield",
+     "hd-enr",
+     "base-flags",
+     "cast"
+    ]
+   },
+   {
+    "kind": "statusApplication",
+    "target": "each enemy in the three front cells",
+    "declaredRaw": {
+     "description": "triggerBlinded(2000, victim, caster)",
+     "durationMs": 2000
+    },
+    "scaling": "requested 2000 ms, no AP scaling (apBoost omitted)",
+    "resolution": "see statusEffects.0",
+    "evidence": [
+     "ss-blind",
+     "bl-sig"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BLINDED",
+    "target": "each enemy in the three front cells",
+    "durationMs": 2000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 2000,
+     "label": "fixed raw duration before enrage and reductions"
+    },
+    "scaling": "requested = 2000 ms; NOT AP-scaled (triggerBlinded default apBoost = false, so the origin's AP is ignored); no star or crit scaling",
+    "resolution": "Requested vs applied. Applied only if the victim is not already blinded and has no rune protect (a blinded victim is NOT refreshed); protect/skydiving/magicBounce do not prevent it. Then /2 if the victim is enraged, then SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3 and Odd Keystone -10% each, rounded into blindCooldown. Effect found: while blinded, the victim's basic attacks give their target +0.5 dodge chance; the dodge roll is skipped by XRAY_VISION, LOCK_ON and against a paralysed, sleeping, frozen or locked target. Ends when blindCooldown runs out. Effects on abilities or movement were not found.",
+    "evidence": [
+     "ss-blind",
+     "bl-sig",
+     "bl-guard",
+     "bl-enr",
+     "bl-red",
+     "bl-set",
+     "bl-end",
+     "red-water",
+     "red-odd",
+     "bl-eff",
+     "bl-eff2",
+     "dodge-chk"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SILICOBRA": 1,
+    "SANDACONDA": 2
+   },
+   "declaredRawDamage": {
+    "SILICOBRA": 30,
+    "SANDACONDA": 60
+   },
+   "note": "Only the damage table is indexed by the casting entity's stars (fallback 240); the blind duration and the cone size are fixed. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "ss-dmg",
+    "unit-silicobra",
+    "unit-sandaconda"
+   ]
+  },
+  "positionalConditions": "The cone is oriented from the caster's position toward the cast target at cast time; damage and blind are applied cell by cell in the collected order, and a cell's occupant is read from the cell snapshot taken before the loop. Allies and empty cells are skipped.",
+  "repeatedCastsAndModes": "Single mode. Each cast spends maxPP (80) of PP via the base process and overwrites the caster's orientation. No stored state between casts.",
+  "rawVsResolved": "Requested: special damage 30 / 60 raw and Blinded 2000 ms raw (no AP) on each enemy in the three front cells. Applied: damage after AP, crit, speDef and the floor of 1 (zero if protected / skydiving / magicBounce); blind after the already-blinded / rune-protect guards, enrage halving and duration reductions (still applied when the damage was blocked).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/sand-spit.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "starBehavior.declaredRawDamage"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "magicBounce reflection details were not traced beyond the formula quoted"
+  ],
+  "unresolved": [
+   "The concrete order of OrientationArray (which two neighbouring directions are hit for each orientation) was not read in this record; only that they are indexes +1 and +7 mod 8",
+   "Whether the damage to one victim can kill or move another before it is processed (cells are snapshotted before the loop; dead entities are filtered only by handleDamage)",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "Consulted for helpers: core-mechanics.md sections A and H, NIGHT_DAZE candidate (same damage + blind pattern); no heal / PP / shield helper is involved",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1135,
+     1135
+    ],
+    "symbol": "AbilityStrategies[Ability.SAND_SPIT]",
+    "expect": "[Ability.SAND_SPIT]: new SandSpitStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "defaults requiresTarget = true, canCritByDefault = false (NightDazeStrategy overrides neither)"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "ss-class",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SandSpitStrategy",
+    "expect": "export class SandSpitStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "ss-super",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "ss-dmg",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": ""
+   },
+   {
+    "id": "ss-cells",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "board.getCellsInFront(pokemon, target, 1)",
+    "note": ""
+   },
+   {
+    "id": "ss-filter",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": ""
+   },
+   {
+    "id": "ss-hsd",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     19,
+     25
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "return value (takenDamage) is not read"
+   },
+   {
+    "id": "ss-blind",
+    "file": "app/core/abilities/sand-spit.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "SandSpitStrategy.process",
+    "expect": "cell.value.status.triggerBlinded(2000, cell.value, pokemon)",
+    "note": "apBoost argument omitted (default false)"
+   },
+   {
+    "id": "cif",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     188
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": ""
+   },
+   {
+    "id": "cif-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     195,
+     202
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "pokemon.orientation = this.orientation(",
+    "note": "side effect: overwrites the caster orientation"
+   },
+   {
+    "id": "cif-3",
+    "file": "app/core/board.ts",
+    "lines": [
+     204,
+     208
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "OrientationArray[(OrientationArray.indexOf(pokemon.orientation) + 1) % 8]",
+    "note": "front orientation plus both neighbours in OrientationArray"
+   },
+   {
+    "id": "cif-loop",
+    "file": "app/core/board.ts",
+    "lines": [
+     213,
+     213
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "for (let r = 1; r <= range; r++) {",
+    "note": "range 1: one step from the caster in each of the three orientations"
+   },
+   {
+    "id": "cif-onboard",
+    "file": "app/core/board.ts",
+    "lines": [
+     227,
+     229
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells dropped"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage) but the blind call is not gated by it"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + caster AP / 100)"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+   },
+   {
+    "id": "hd-speDef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage reduced by the target speDef (halved by armorReduction)"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 damage"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-enr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "damage x2 if the attacker is enraged"
+   },
+   {
+    "id": "mb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     361,
+     361
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce &&",
+    "note": ""
+   },
+   {
+    "id": "bl-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1260,
+     1260
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "if (!this.blinded && !this.runeProtect) {",
+    "note": "not applied if already blinded or rune protected"
+   },
+   {
+    "id": "bl-sig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1258,
+     1258
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "apBoost = false",
+    "note": "default apBoost is false in triggerBlinded"
+   },
+   {
+    "id": "bl-enr",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1264,
+     1264
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "duration = duration / 2",
+    "note": "an enraged victim gets half"
+   },
+   {
+    "id": "bl-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1267,
+     1267
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "bl-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1270,
+     1270
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "this.blindCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "bl-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1276,
+     1276
+    ],
+    "symbol": "Status.updateBlinded",
+    "expect": "this.blinded = false",
+    "note": "blinded ends when blindCooldown runs out"
+   },
+   {
+    "id": "bl-eff",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     97,
+     97
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "dodgeChance += 0.5",
+    "note": "a blinded attacker gives its basic-attack target +0.5 dodge chance"
+   },
+   {
+    "id": "bl-eff2",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     96,
+     96
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "if (pokemon.status.blinded) {",
+    "note": "pokemon is the attacker"
+   },
+   {
+    "id": "dodge-chk",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     101,
+     101
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "chance(dodgeChance, target, 0.9) &&",
+    "note": "a dodge roll; XRAY_VISION, LOCK_ON and a paralysed / sleeping / frozen / locked target prevent the dodge"
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone"
+   },
+   {
+    "id": "unit-silicobra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18882,
+     18896
+    ],
+    "symbol": "class Silicobra",
+    "expect": "skill = Ability.SAND_SPIT",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-sandaconda",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18898,
+     18912
+    ],
+    "symbol": "class Sandaconda",
+    "expect": "skill = Ability.SAND_SPIT",
+    "note": "unit class block"
+   }
+  ]
+ }
+}
