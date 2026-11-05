@@ -1,0 +1,495 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHEER_COLD",
+ "kind": "ability",
+ "identifier": "SHEER_COLD",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T183931Z"
+ },
+ "record": {
+  "ability": "SHEER_COLD",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SNOVER (1 star) and ABOMASNOW (2 stars), maxPP 120, range 1, declare SHEER_COLD. MEGA_ABOMASNOW has the skill commented out and uses Ability.DEFAULT, so it is not covered. The ability and the Ice-synergy effect EffectEnum.SHEER_COLD share a name only (routing uncertainty NAME_SHARED_WITH_EFFECT, resolved below).",
+  "appliesTo": [
+   {
+    "key": "ABOMASNOW",
+    "stars": 2,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SHEER_COLD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SNOVER",
+    "stars": 1,
+    "maxPP": 120,
+    "range": 1,
+    "declaredSkill": "SHEER_COLD",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SNOVER": {
+    "evidence": [
+     "unit-snover"
+    ]
+   },
+   "ABOMASNOW": {
+    "evidence": [
+     "unit-abomasnow"
+    ]
+   },
+   "MEGA_ABOMASNOW": {
+    "evidence": [
+     "unit-mega"
+    ],
+    "note": "not covered: skill is Ability.DEFAULT"
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHEER_COLD] = new SheerColdStrategy()",
+   "strategy": "SheerColdStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "nameSharedWithEffect": "Ability.SHEER_COLD (this strategy) and EffectEnum.SHEER_COLD are different things: the enum effect is added in simulation.ts when an Ice synergy tier applies (adds SPE_DEF 50) and makes the attacker's damage x1.3 against a frozen target inside PokemonState.handleDamage. SheerColdStrategy never reads or sets EffectEnum.SHEER_COLD. If a caster happens to hold the synergy effect, that x1.3 applies to this ability's damage as to any other damage, against a frozen target.",
+   "evidence": [
+    "reg",
+    "sc-class",
+    "base-flags",
+    "base-pp",
+    "sc-super",
+    "cast-crit",
+    "as-gate",
+    "eff-sim",
+    "eff-frozen"
+   ]
+  },
+  "summary": "Single-target SPECIAL hit on the cast target with a chance to replace the damage by 9999. Normal raw damage 50/100/200/400 by caster stars (50 for SNOVER, 100 for ABOMASNOW). executeChance = base 0.1/0.2/0.3/0.6 by stars x (1 + max(0, (casterHP - targetHP) / targetHP)); it is set to 0 if the target has the ICE synergy type, else to 1 if the target is frozen (status.freeze). chance() rolls it with the caster's luck as exponent (p^(1 - luck/100), cap 1; probability 0 never succeeds, probability 1 always does). On success the requested raw damage is 9999, otherwise the table value. Either goes through handleSpecialDamage as SPECIAL with the cast crit flag and apBoost true, so AP, crit, SPE_DEF division, shields and protect apply: 9999 is the requested amount, not a guaranteed kill. Returned takenDamage is ignored.",
+  "targeting": {
+   "who": "the cast target passed to the strategy (the caster's current target)",
+   "needsTarget": true,
+   "note": "requiresTarget is the inherited default true; how the target is chosen before the cast was not read here.",
+   "evidence": [
+    "sc-class",
+    "base-flags",
+    "as-gate",
+    "sc-call"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "sc-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 50,
+      "2": 100,
+      "3": 200,
+      "4": 400,
+      "fallback": 400
+     },
+     "executeAmount": 9999,
+     "executeChanceBase": {
+      "byStars": {
+       "1": 0.1,
+       "2": 0.2,
+       "3": 0.3,
+       "4": 0.6,
+       "fallback": 0.6
+      }
+     }
+    },
+    "perUnitRaw": {
+     "SNOVER": 50,
+     "ABOMASNOW": 100
+    },
+    "perUnitExecuteBase": {
+     "SNOVER": 0.1,
+     "ABOMASNOW": 0.2
+    },
+    "scaling": "requested = (9999 on a successful execute roll, else the raw table value) x (1 + AP/100) [x (1 + (critPower - 1) x critReductionFactor) if the cast crit]. The execute chance is computed from current HP: the factor (1 + max(0, (casterHP - targetHP)/targetHP)) is 1 when the caster has no more HP than the target and grows with the HP lead (e.g. caster HP twice the target's: factor 2). It is not clamped above 1 before chance(), which caps the final probability at 1.",
+    "resolution": "requested amount (as above) divided by (1 + 0.05 x SPE_DEF) (armorReduction halves SPE_DEF, WONDER_ROOM swaps DEF and SPE_DEF), damage-reduction items/effects, ceil, minimum 1, then the shield step; the applied change is therefore the part of that which fits in shield plus current HP. A target with protect, skydiving or magicBounce takes 0 (magicBounce can reflect part of the damage). The Ice-synergy effect x1.3 (frozen target) applies in handleDamage only if the caster has EffectEnum.SHEER_COLD. takenDamage is returned and discarded; see knowledge core-mechanics section J.",
+    "evidence": [
+     "sc-chance",
+     "sc-ice",
+     "sc-dmg",
+     "sc-exec",
+     "sc-call",
+     "min-fn",
+     "chance-fn",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-handle",
+     "hd-spe",
+     "armor",
+     "hd-min",
+     "hd-shield",
+     "eff-frozen"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "SNOVER": 1,
+    "ABOMASNOW": 2
+   },
+   "declaredRawDamage": {
+    "SNOVER": 50,
+    "ABOMASNOW": 100
+   },
+   "executeChanceBase": {
+    "SNOVER": 0.1,
+    "ABOMASNOW": 0.2
+   },
+   "note": "both tables are indexed by the casting entity's stars; 3-star and 4-star values (200/400 and 0.3/0.6) are not reachable by these units' bare star counts.",
+   "evidence": [
+    "sc-chance",
+    "sc-dmg"
+   ]
+  },
+  "positionalConditions": "None positional. Conditions on the target at cast time: ICE synergy type (executeChance 0, checked first), else status.freeze (executeChance 1). Conditions on HP: the chance factor uses current caster and target HP.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast rolls independently.",
+  "rawVsResolved": "Declared raw 50/100/200/400 by caster stars (50 for SNOVER, 100 for ABOMASNOW), or 9999 on a successful execute roll. Requested = raw x (1 + AP/100) [x crit factor]. Applied = requested / (1 + 0.05 x SPE_DEF) (ceil, at least 1) and shield handling; the 9999 case is still reduced by SPE_DEF and AP and absorbed by shields, so it is a requested amount, not a guaranteed kill.",
+  "sourceTables": [
+   {
+    "id": "sheerColdDamage",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "pattern": "let damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "sheerColdExecuteChance",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\] \\?\\? 0\\.6\\)",
+    "recordPath": "effects.0.declaredRaw.executeChanceBase.byStars",
+    "unitValuesPath": "effects.0.perUnitExecuteBase"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Damage-reduction items and effects other than those visible in handleDamage lines read here",
+   "Which enemy becomes the cast target before the cast, and the real-fight timing of PP gain and freeze",
+   "How the freeze status is applied and for how long (only status.freeze at cast time is read)"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: resolved by reading simulation.ts and pokemon-state.ts: the enum effect SHEER_COLD is the Ice synergy tier effect, unrelated to this strategy except for the x1.3 vs frozen targets that applies to any damage the caster deals",
+   "Whether any item or synergy effect changes SHEER_COLD beyond the generic handleSpecialDamage steps read",
+   "Units not listed in appliesTo are not covered (MEGA_ABOMASNOW has the skill commented out)",
+   "A target with 0 current HP would make the execute-chance division produce Infinity or NaN; whether that can occur at cast time was not examined",
+   "No probe was run; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-snover",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3007,
+     3021
+    ],
+    "symbol": "class Snover",
+    "expect": "skill = Ability.SHEER_COLD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-abomasnow",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3023,
+     3037
+    ],
+    "symbol": "class Abomasnow",
+    "expect": "skill = Ability.SHEER_COLD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-mega",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     3051,
+     3051
+    ],
+    "symbol": "class MegaAbomasnow",
+    "expect": "//skill = Ability.SHEER_COLD",
+    "note": "MEGA_ABOMASNOW has the skill commented out (skill = Ability.DEFAULT); not covered"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1153,
+     1153
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SHEER_COLD]: new SheerColdStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "sc-class",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "SheerColdStrategy",
+    "expect": "export class SheerColdStrategy extends AbilityStrategy {",
+    "note": "class (no requiresTarget override: inherits true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "sc-super",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "sc-chance",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     17,
+     19
+    ],
+    "symbol": "process",
+    "expect": "let executeChance =",
+    "note": "execute chance = base by stars x (1 + max(0, (casterHP - targetHP)/targetHP))"
+   },
+   {
+    "id": "sc-ice",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     20,
+     21
+    ],
+    "symbol": "process",
+    "expect": "if (target.types.has(Synergy.ICE)) executeChance = 0",
+    "note": "Ice-type target: chance 0; else frozen target: chance 1"
+   },
+   {
+    "id": "sc-dmg",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "process",
+    "expect": "let damage = [50, 100, 200, 400][pokemon.stars - 1] ?? 400",
+    "note": "normal raw damage by stars"
+   },
+   {
+    "id": "sc-exec",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "process",
+    "expect": "if (chance(executeChance, pokemon)) damage = 9999",
+    "note": "execute roll replaces the damage with 9999"
+   },
+   {
+    "id": "sc-call",
+    "file": "app/core/abilities/sheer-cold.ts",
+    "lines": [
+     25,
+     32
+    ],
+    "symbol": "process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage through handleSpecialDamage with crit and apBoost true"
+   },
+   {
+    "id": "min-fn",
+    "file": "app/utils/number.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "min",
+    "expect": "export const min =",
+    "note": "min(m)(v) = Math.max(m, v): a lower bound"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     14
+    ],
+    "symbol": "chance",
+    "expect": "export function chance(",
+    "note": "probability 0 -> false; else Math.random() < min(cap, p^(1 - luck/100)), cap 1"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     21,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "pokemon.effects.has(EffectEnum.ABILITY_CRIT) ||",
+    "note": "crit only rolled with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "as-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (pokemon.pp >= pokemon.maxPP && pokemon.canCast) {",
+    "note": "cast with the current target"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost (apBoost true)"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     431
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit factor"
+   },
+   {
+    "id": "hsd-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hand-off to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-spe",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL division by SPE_DEF"
+   },
+   {
+    "id": "armor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": "0.05"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil and minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     620,
+     623
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.shield > 0) {",
+    "note": "shield absorbs part of the damage"
+   },
+   {
+    "id": "eff-frozen",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     501,
+     506
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "attacker.effects.has(EffectEnum.SHEER_COLD)",
+    "note": "Ice-synergy effect of the same name: x1.3 against a frozen target (separate from the ability)"
+   },
+   {
+    "id": "eff-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1061,
+     1064
+    ],
+    "symbol": "Simulation (synergy effects)",
+    "expect": "case EffectEnum.SHEER_COLD:",
+    "note": "EffectEnum.SHEER_COLD: adds the effect and 50 SPE_DEF; not the ability"
+   }
+  ]
+ }
+}
