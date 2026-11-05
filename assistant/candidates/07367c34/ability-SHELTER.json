@@ -1,0 +1,400 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHELTER",
+ "kind": "ability",
+ "identifier": "SHELTER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T183931Z"
+ },
+ "record": {
+  "ability": "SHELTER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "HISUI_SLIGGOO (2 stars) and HISUI_GOODRA (3 stars), maxPP 100, range 1, declare SHELTER (passive NONE in the catalog; both are regional units).",
+  "appliesTo": [
+   {
+    "key": "HISUI_GOODRA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHELTER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HISUI_SLIGGOO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHELTER",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HISUI_SLIGGOO": {
+    "evidence": [
+     "unit-hisui-sliggoo"
+    ]
+   },
+   "HISUI_GOODRA": {
+    "evidence": [
+     "unit-hisui-goodra"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHELTER] = new ShelterStrategy()",
+   "strategy": "ShelterStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "sh-class",
+    "base-flags",
+    "base-pp",
+    "sh-super",
+    "cast-crit",
+    "as-gate"
+   ]
+  },
+  "summary": "Self defense buff, no damage. The caster gains raw 3/6/12/24 DEF by caster stars (6 for HISUI_SLIGGOO at 2 stars, 12 for HISUI_GOODRA at 3 stars), passed through addDefense with apBoost 1 and the cast crit flag: requested = round(raw x (1 + AP/100) x (critPower if the cast crit else 1)); then Big Eater Belt (x1.25, rounded down, positive value) is applied and Twist Band does nothing to a positive value; DEF cannot go below 0. The change is fight-only (permanent is not passed). Afterwards a SMOKE board effect is added at the cell given by pokemon.targetX / targetY (the coordinates of the caster's current target, not the caster's own cell), which puts the SMOKE effect on whoever stands there (unless that entity holds Heavy-Duty Boots) and, the first time, broadcasts a client animation. A reader of the SMOKE effect that changes combat was not found in app/core, app/types or app/config; the only reader found is the client animation.",
+  "targeting": {
+   "who": "the caster itself (DEF gain); the SMOKE board effect lands on the cell of the caster's current target",
+   "needsTarget": true,
+   "note": "requiresTarget is the inherited default true, so a target in range is needed to start the cast. The cast target argument is unused; the smoke cell uses pokemon.targetX / targetY, which setTarget sets to the target's position, or to -1 when there is none. If the coordinates were -1 the board index would not exist; whether that can happen at cast time was not examined.",
+   "evidence": [
+    "sh-class",
+    "base-flags",
+    "as-gate",
+    "sh-add",
+    "sh-smoke",
+    "settarget"
+   ]
+  },
+  "geometry": {
+   "shape": "self, plus one board cell (the caster's target's cell at cast time) for the SMOKE effect",
+   "evidence": [
+    "sh-smoke",
+    "abe",
+    "settarget",
+    "setentity"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "buff (self DEF)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3,
+      "2": 6,
+      "3": 12,
+      "4": 24,
+      "fallback": 24
+     }
+    },
+    "perUnitRaw": {
+     "HISUI_SLIGGOO": 6,
+     "HISUI_GOODRA": 12
+    },
+    "scaling": "requested = round(raw x (1 + AP/100) x (critPower if the cast crit, else 1)); apBoost 1 and the cast's crit flag are passed, so AP and crit both scale it (crit only if the cast crit, which needs ABILITY_CRIT)",
+    "resolution": "applied = requested after Big Eater Belt (x1.25 rounded down, the value is positive) and Twist Band (no effect on a positive value; self-cast anyway), added to current DEF with a floor of 0. Fight-only. Shared helper rules: knowledge core-mechanics section I / J.",
+    "evidence": [
+     "sh-def",
+     "sh-add",
+     "h-def-calc",
+     "h-def",
+     "beb",
+     "twb"
+    ]
+   },
+   {
+    "kind": "board effect (SMOKE)",
+    "declaredRaw": "EffectEnum.SMOKE on one cell",
+    "scaling": "none",
+    "resolution": "Board.addBoardEffect adds EffectEnum.SMOKE to the entity currently on that cell unless it holds Heavy-Duty Boots, records it on the cell the first time (later calls on the same cell do not re-broadcast), and board.setEntityOnCell moves effects with entities (lost on leaving a cell that has the effect, gained on entering one unless IMMUNITY_BOARD_EFFECTS). A combat reader of the SMOKE effect was not found in app/core, app/types or app/config; the client animation is the only reader found.",
+    "evidence": [
+     "sh-smoke",
+     "abe",
+     "setentity",
+     "smoke-enum",
+     "smoke-client"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "HISUI_SLIGGOO": 2,
+    "HISUI_GOODRA": 3
+   },
+   "declaredRawDefense": {
+    "HISUI_SLIGGOO": 6,
+    "HISUI_GOODRA": 12
+   },
+   "note": "indexed by the casting entity's stars; the 1-star and 4-star values (3, 24) are not reachable by these units' bare star counts.",
+   "evidence": [
+    "sh-def"
+   ]
+  },
+  "positionalConditions": "The smoke cell is the caster's target's cell at cast time; nothing else is positional.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast adds DEF again (accumulating, subject to the DEF floor); the SMOKE effect on a cell is a set, so it does not stack.",
+  "rawVsResolved": "Declared raw DEF 3/6/12/24 by caster stars (6 for HISUI_SLIGGOO, 12 for HISUI_GOODRA). Requested = round(raw x (1 + AP/100) x crit factor); applied = requested x1.25 rounded down with Big Eater Belt, otherwise unchanged, then limited by DEF >= 0. Unlike most self-buffs here, AP and crit do scale this one (apBoost 1).",
+  "sourceTables": [
+   {
+    "id": "shelterDefense",
+    "file": "app/core/abilities/shelter.ts",
+    "pattern": "const defGain = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "What the SMOKE effect does on an entity in combat (no combat reader found in app/core, app/types or app/config; the client reader is only an animation)",
+   "Which enemy becomes the cast target before the cast, and the real-fight timing of PP gain",
+   "Whether the target coordinates can be -1 at cast time"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect changes SHELTER beyond the generic helpers read",
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Whether the SMOKE effect matters in combat was searched by name only in app/core, app/types and app/config",
+   "No probe was run; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-hisui-sliggoo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2662,
+     2684
+    ],
+    "symbol": "class HisuiSliggoo",
+    "expect": "skill = Ability.SHELTER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-hisui-goodra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     2686,
+     2707
+    ],
+    "symbol": "class HisuiGoodra",
+    "expect": "skill = Ability.SHELTER",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1157,
+     1157
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SHELTER]: new ShelterStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "sh-class",
+    "file": "app/core/abilities/shelter.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "ShelterStrategy",
+    "expect": "export class ShelterStrategy extends AbilityStrategy {",
+    "note": "class (no requiresTarget override: inherits true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "sh-super",
+    "file": "app/core/abilities/shelter.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "sh-def",
+    "file": "app/core/abilities/shelter.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "const defGain = [3, 6, 12, 24][pokemon.stars - 1] ?? 24",
+    "note": "raw DEF gain by stars"
+   },
+   {
+    "id": "sh-add",
+    "file": "app/core/abilities/shelter.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addDefense(defGain, pokemon, 1, crit)",
+    "note": "self DEF gain, apBoost 1, cast crit flag, not permanent"
+   },
+   {
+    "id": "sh-smoke",
+    "file": "app/core/abilities/shelter.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "process",
+    "expect": "board.addBoardEffect(",
+    "note": "SMOKE board effect at the caster's current target coordinates"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     21,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "pokemon.effects.has(EffectEnum.ABILITY_CRIT) ||",
+    "note": "crit only rolled with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "as-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (pokemon.pp >= pokemon.maxPP && pokemon.canCast) {",
+    "note": "cast with the current target"
+   },
+   {
+    "id": "h-def-calc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     684,
+     687
+    ],
+    "symbol": "addDefense",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "DEF value rounded after AP and crit scaling"
+   },
+   {
+    "id": "h-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     692,
+     692
+    ],
+    "symbol": "addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "DEF floor 0"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "x1.25 rounded down for buffs"
+   },
+   {
+    "id": "twb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band flips only negative values"
+   },
+   {
+    "id": "settarget",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     323,
+     333
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "setTarget(target: IPokemonEntity | null) {",
+    "note": "targetX/targetY = the target's position, or -1 when there is no target"
+   },
+   {
+    "id": "abe",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     654
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "addBoardEffect(",
+    "note": "adds the effect to the entity on the cell (unless Heavy-Duty Boots) and to the cell's effect set, broadcast once"
+   },
+   {
+    "id": "setentity",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     68
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "setEntityOnCell(x: number, y: number, entity: PokemonEntity | undefined) {",
+    "note": "entities lose / gain the previous / new cell's board effects when they move (unless IMMUNITY_BOARD_EFFECTS)"
+   },
+   {
+    "id": "smoke-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     181,
+     181
+    ],
+    "symbol": "BoardEffects",
+    "expect": "EffectEnum.SMOKE,",
+    "note": "SMOKE is listed among the board effects"
+   },
+   {
+    "id": "smoke-client",
+    "file": "app/public/src/game/components/battle-manager.ts",
+    "lines": [
+     966,
+     966
+    ],
+    "symbol": "BattleManager",
+    "expect": "if (event.effect === EffectEnum.SMOKE) {",
+    "note": "the only reader of the SMOKE board event found: a client-side animation"
+   }
+  ]
+ }
+}
