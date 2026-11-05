@@ -59,11 +59,11 @@
     "cast"
    ]
   },
-  "summary": "Needs a target (inherited requiresTarget = true). Fires a line from the caster through the cast target to the board edge (effectInLine: supercover cells from the caster's cell toward a point 12 cells away along the caster-to-target angle). Every enemy-team entity on those cells takes requested SPECIAL damage 25 (1 star) / 50 (2 stars) (table 25 / 50 / 100 / 200, 200 as fallback) through handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT), then an independent 50% roll (luck-adjusted: p^(1 - luck/100)) triggers confusion of 2000 ms (1 star) / 3000 ms (2 stars) (table 2000 / 3000 / 4000 / 5000, 5000 as fallback) on that enemy. The roll and triggerConfusion happen for every enemy on the line even when the damage was blocked by protect / skydiving / Magic Bounce. triggerConfusion is called without apBoost, so AP does not scale the duration; it does nothing on an already confused enemy, with Rune Protect or IMMUNITY_CONFUSION; sandstorm weather multiplies the duration by 1.3, then SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions apply; a Persim Berry holder eats the berry (clears confusion, immunity, heal 50, +10 special defense).",
+  "summary": "Needs a target (inherited requiresTarget = true). Fires a line from the caster through the cast target to the board edge (effectInLine: supercover cells from the caster's cell toward a point 12 cells away along the caster-to-target angle). Every enemy-team entity on those cells takes requested SPECIAL damage 25 (1 star) / 50 (2 stars) (table 25 / 50 / 100 / 200, 200 as fallback) through handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT), then an independent 50% roll (luck-adjusted: p^(1 - luck/100)) triggers confusion of 2000 ms (1 star) / 3000 ms (2 stars) (table 2000 / 3000 / 4000 / 5000, 5000 as fallback) on that enemy. The roll and triggerConfusion happen for every enemy on the line even when the damage call returned 0 (protect / skydiving / Magic Bounce). Protect does not itself block confusion; Rune Protect, an existing confusion and IMMUNITY_CONFUSION (the actual triggerConfusion guards) do. triggerConfusion is called without apBoost, so AP does not scale the duration (2000 / 3000 ms requested); it does nothing on an already confused enemy, with Rune Protect or IMMUNITY_CONFUSION; sandstorm weather multiplies the duration by 1.3, then SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystone reductions apply; a Persim Berry holder eats the berry (requests: confusion cleared, IMMUNITY_CONFUSION added, heal(50) and addSpecialDefense(10, self, 0, false), each of which passes its own helper before any final value exists), and a target with the PSYDUCK passive requests addAbilityPower(100, self, 0, false) - a request, not a complete account of the PSYDUCK passive.",
   "targeting": {
    "who": "every enemy-team entity on the line cells; allies and the caster's own cell are skipped by the team filter",
    "needsTarget": true,
-   "note": "The target only fixes the line's angle; it is hit only if its cell lies on the computed line (effectInLine has no fallback that touches the original target). Enemies behind the target are hit too.",
+   "note": "The target only fixes the line's angle; effectInLine has no fallback that touches the original target. On the ordinary 8-column x 6-row board the real effectInLine and getCellsBetween reached the target's own cell for all 2256 ordered pairs of distinct positions (enumerated in the probe; not a proof for arbitrary boards). Enemies behind the target are hit too.",
    "evidence": [
     "cls",
     "base",
@@ -104,7 +104,7 @@
      "STARYU": 25
     },
     "scaling": "requested = table[stars-1] ?? 200. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT because canCritByDefault is false.",
-    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 when the target is protected / skydiving / Magic Bounce. Requested, applied and takenDamage are three different amounts. Damage is requested once per enemy on the line.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. The returned takenDamage is not read by this strategy (how handleDamage builds it, and its exceptions, are in core-mechanics.md section J1); the requested and the applied amount differ. Damage is requested once per enemy on the line.",
     "evidence": [
      "dmg-table",
      "hit",
@@ -138,7 +138,8 @@
       "fallback": 5000
      },
      "chance": 0.5,
-     "label": "requested duration (ms) and chance"
+     "label": "requested duration (ms) and chance",
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "STARMIE": 3000,
@@ -154,8 +155,13 @@
      "reductions",
      "persim",
      "upd-conf",
-     "upd-call"
-    ]
+     "upd-call",
+     "persim-case",
+     "psyduck-ap"
+    ],
+    "guards": "triggerConfusion does nothing if the enemy is already confused, has Rune Protect (status.runeProtect) or IMMUNITY_CONFUSION; Protect, damage results and takenDamage are not consulted",
+    "applicationOrder": "per enemy on the line: damage call first, then an independent chance(0.5, caster) roll (probability 0.5^(1 - luck/100), capped at 1), then triggerConfusion",
+    "combatEffect": "a confused unit's targeting is handled by the CONFUSION record / state code; here: updateConfusion clears the flag when the cooldown runs out. Persim Berry and the PSYDUCK passive react inside triggerConfusion as requests to their helpers (partial passive information only)."
    }
   ],
   "buffs": [],
@@ -173,7 +179,7 @@
     "STARMIE": 3000,
     "STARYU": 2000
    },
-   "note": "Both tables are indexed by the casting entity's stars. 100 / 200 damage and 4000 / 5000 ms are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "note": "Both tables are indexed by the casting entity's stars. The 100 / 200 damage and 4000 / 5000 ms entries are declared in the tables but unused by the two bound baseline classes. Whether other mechanics change a unit's star count was not examined.",
    "evidence": [
     "dmg-table",
     "conf-table",
@@ -181,9 +187,9 @@
     "unit-starmie"
    ]
   },
-  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point). Range 2 only governs when the unit casts; the line itself extends to the board edge.",
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point); the enumeration over the ordinary 8x6 board found the cast target's cell on the line in every case. Range 2 only governs when the unit casts; the line itself extends to the board edge.",
   "repeatedCastsAndModes": "No stored state. Each cast rolls every enemy on the line independently; an enemy already confused is not re-confused (no refresh).",
-  "rawVsResolved": "Declared raw: damage 25 / 50 (STARYU / STARMIE) and confusion 2000 / 3000 ms with chance 0.5. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied damage after speDef, minimum 1 and shield; takenDamage = shield + HP part. Confusion duration is requested raw, then stored after weather, status reductions and Odd Keystones; AP does not change it.",
+  "rawVsResolved": "Declared raw: damage 25 / 50 (STARYU / STARMIE) and confusion 2000 / 3000 ms with chance 0.5. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied damage after speDef, minimum 1 and shield. The returned takenDamage is not read by this strategy (section J1). Confusion duration is requested raw (ms, not AP-scaled), then stored after weather, status reductions and Odd Keystones; the stored cooldown (e.g. 2600 ms under sandstorm for a 2000 ms request) is the downstream result. Persim Berry heal / special defense and the PSYDUCK +100 AP are requests whose final results pass their helpers.",
   "sourceTables": [
    {
     "id": "dmg-tbl",
@@ -206,11 +212,11 @@
    "How a confused unit targets and attacks (getTargetWhenConfused, random orientation) was not re-traced here; see the CONFUSION candidate"
   ],
   "unresolved": [
-   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "Whether the cast target is on the computed line on boards other than the ordinary 8x6 one: for that board the enumeration of all 2256 ordered distinct position pairs found it on the line every time; arbitrary boards are not proven",
    "Whether the two units reach a different star count than the factory value (evolution, merging) was not examined",
-   "Persim Berry and PSYDUCK-passive side effects were read from triggerConfusion / eatBerry only; their downstream stat effects were not traced",
+   "Persim Berry and PSYDUCK-passive reactions were read from triggerConfusion / eatBerry only and are described as requests (heal 50, special defense 10, +100 AP) to stand-in helpers; their final results and the rest of the PSYDUCK passive are not covered by this record",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (effectInLine, getCellsBetween, triggerConfusion, chance, handleSpecialDamage) and the real PsybeamStrategy strategy text were run against stand-in units and boards with controlled callbacks (probes/pinned-helper-probe.mjs, sections IMPORT_RECHECK_3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (controlled rolls): enemies in front of and behind the target are hit; the roll and triggerConfusion occur when the damage call returned 0 and against Protect; Rune Protect, an existing confusion and IMMUNITY_CONFUSION refuse it; 2 stars at AP 100 still requests 3000 ms; sandstorm stores 2600 for a 2000 request; luck 50 raises the roll probability to 0.707."
   ],
   "evidence": [
    {
@@ -597,7 +603,43 @@
     "symbol": "Status.update",
     "expect": "this.updateConfusion(dt, pokemon)",
     "note": "updated every status update while confused"
+   },
+   {
+    "id": "persim-case",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1648,
+     1653
+    ],
+    "symbol": "PokemonEntity.eatBerry PERSIM_BERRY case",
+    "expect": "this.addSpecialDefense(10, this, 0, false)",
+    "note": "Persim Berry: confusion cleared, IMMUNITY_CONFUSION added, heal(50) and addSpecialDefense(10, self, 0, false) requested"
+   },
+   {
+    "id": "psyduck-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     831,
+     833
+    ],
+    "symbol": "Status.triggerConfusion PSYDUCK reaction",
+    "expect": "pkm.addAbilityPower(100, pkm, 0, false)",
+    "note": "a confused PSYDUCK-passive unit requests +100 AP"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "IMPORT_RECHECK_3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261105T012908Z",
+   "reason": "damage then independent luck-adjusted confusion rolls (also when damage returns zero); Protect does not block confusion; duration not AP-scaled and in ms; geometry narrowed (2256 pairs on the ordinary board); Persim Berry / PSYDUCK AP as requests",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "IMPORT_RECHECK_3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

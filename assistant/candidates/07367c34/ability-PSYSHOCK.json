@@ -59,7 +59,7 @@
     "cast"
    ]
   },
-  "summary": "Needs a target (inherited requiresTarget = true); the default ability animation is suppressed (preventDefaultAnim true). Requested ppBurn = table[stars-1] x (1 + AP/100) with table 20 / 40 / 80 / 160 (160 fallback), not rounded, i.e. 20 (Psyduck) / 40 (Golduck) at AP 0. ppStolen = min(target.pp, ppBurn) and extraPP = ppBurn - ppStolen. The strategy then (1) asks the target to lose ppStolen PP through addPP(-ppStolen, caster, 0, false), (2) gives the caster a shield of the full ppBurn through addShield(ppBurn, caster, 0, false) - not just the stolen part, and (3) if extraPP > 0, deals extraPP as SPECIAL damage to the target through handleSpecialDamage with the cast's crit flag and apBoost false (AP is already inside ppBurn). Requested, downstream and stored amounts differ: addPP rounds -ppStolen and may be dropped (status.tree, resurrecting) or turned positive (Twist Band on the target; a positive value is then also subject to silence / protect / NO_PP_GAIN); addShield first applies Big Eater Belt (x1.25, rounded down) on the caster, then rounds, halves it if the caster is enraged, and needs the caster alive; the damage is divided by the target's special defence, rounded up with a minimum of 1 and takes the shield first.",
+  "summary": "Needs a target (inherited requiresTarget = true); the default ability animation is suppressed (preventDefaultAnim true). Requested ppBurn = table[stars-1] x (1 + AP/100) with table 20 / 40 / 80 / 160 (160 fallback), not rounded, i.e. 20 (Psyduck) / 40 (Golduck) at AP 0 and 21 for a 1-star caster with AP 5. ppStolen = min(target.pp, ppBurn) and extraPP = ppBurn - ppStolen are both computed BEFORE any PP is removed and are never recomputed: a tree or resurrecting target that drops the loss, or a Twist Band that reverses it, leaves extraPP and the shield request unchanged. The strategy then (1) asks the target to lose ppStolen PP through addPP(-ppStolen, caster, 0, false), (2) gives the caster a shield of the full ppBurn through addShield(ppBurn, caster, 0, false) - not just the stolen part, and (3) if extraPP > 0, deals extraPP as SPECIAL damage to the target through handleSpecialDamage with the cast's crit flag and apBoost false (AP is already inside ppBurn). Requested, downstream and stored amounts differ: addPP rounds -ppStolen and may be dropped (status.tree, resurrecting) or turned positive (Twist Band on the target; a positive value is then also subject to silence / protect / NO_PP_GAIN); the entity addShield first applies Big Eater Belt (x1.25 with a floor) on the caster, then the state's addShield halves a positive value when the caster is enraged, then applies Math.round (ppBurn 21: 21 plain, 11 enraged because 10.5 rounds up, 26 with a Belt, 13 with a Belt and enraged), and needs the caster alive; addPP applies Protect and fatigue before Twist Band: a negative request is not halved by fatigue, Protect does not block a negative value, and Twist Band flips the rounded request before the positive-gain guards (silence, Protect, NO_PP_GAIN), with fatigue not applied afterwards to the flipped gain; crit applies only to the excess damage and no second AP factor applies to the shield or the excess damage; the excess damage is divided by the target's special defence, rounded up with a minimum of 1 and takes the shield first; a Magic Bounce target blocks it (returned takenDamage 0) and queues a delayed reflection only when the damage is positive and the attacker does not hold Protective Pads.",
   "targeting": {
    "who": "the cast target (PP loss and leftover damage); the caster itself (shield)",
    "needsTarget": true,
@@ -98,7 +98,7 @@
      "PSYDUCK": 20
     },
     "scaling": "requested ppBurn = table[stars-1] x (1 + AP/100), unrounded; ppStolen = min(target.pp, ppBurn). The addPP call then uses apBoost 0 and crit false, so the AP and crit factors are not applied a second time.",
-    "resolution": "addPP(-ppStolen): value = Math.round(-ppStolen x 1 x 1 x 1) (fatigue only halves positive requests, so it does not apply); Twist Band on the target flips the value to positive; a negative value is dropped while the target has status.tree or is resurrecting; the final pp = clamp(pp + value, 0, 2 x maxPP - 1). Status.protect does not block a negative value (it blocks positive PP gain; section J3). Applied = the rounded value when not dropped; with a fractional ppBurn the rounding means the target loses the rounded amount while the shield and extraPP use the unrounded number. Twist Band reverses the effect into a PP gain for the target if it is not silenced, protected or under NO_PP_GAIN.",
+    "resolution": "addPP(-ppStolen): value = Math.round(-ppStolen x 1 x 1 x 1) (fatigue only halves positive requests, so it does not apply to the negative request); applyTwistBandBuff then flips the rounded value to positive for a Twist Band holder when the caster is an enemy - after the fatigue factor, so the flipped gain is not halved; a negative value is dropped while the target has status.tree or is resurrecting; the final pp = clamp(pp + value, 0, 2 x maxPP - 1). Status.protect does not block a negative value (it blocks positive PP gain; section J3). Applied = the rounded value when not dropped; with a fractional ppBurn the rounding means the target loses the rounded amount while the shield and extraPP use the unrounded number. Twist Band reverses the effect into a PP gain for the target if it is not silenced, protected or under NO_PP_GAIN.",
     "evidence": [
      "burn",
      "stolen",
@@ -119,7 +119,7 @@
      "GOLDUCK": 40,
      "PSYDUCK": 20
     },
-    "scaling": "requested = table[stars-1] x (1 + AP/100) at AP 0 shown as the per-unit raw values; downstream: Big Eater Belt on the caster multiplies a positive value by 1.25 rounded down (before the state step); addShield then uses apBoost 0 (no second AP factor), crit false, halves a positive value when the caster is enraged, and rounds with Math.round.",
+    "scaling": "requested = table[stars-1] x (1 + AP/100) at AP 0 shown as the per-unit raw values; downstream order: Big Eater Belt on the caster multiplies a positive value by 1.25 rounded down (entity addShield, first); the state's addShield then uses apBoost 0 (no second AP factor) and crit false, halves a positive value when the caster is enraged (second) and rounds with Math.round (last). ppBurn 21 gives 21 plain, 11 enraged, 26 with a Belt, 13 with a Belt and enraged.",
     "resolution": "applied only if the caster's hp > 0; shield = max(0, shield + value); caster.shieldDone grows by the shield. The amount does not depend on how much PP the target had (ppBurn, not ppStolen). Requested = ppBurn; downstream request = after Big Eater Belt; stored change = after the enraged halving and rounding.",
     "evidence": [
      "burn",
@@ -136,8 +136,8 @@
     "declaredRaw": {
      "label": "requested damage = ppBurn - ppStolen (the part of the burn that the target's PP could not cover)"
     },
-    "scaling": "requested = extraPP (AP already inside ppBurn, apBoost false so no second AP factor); handleSpecialDamage then multiplies by 2 once with DOUBLE_DAMAGE, by 1.2 with STRANGE_STEAM_BOARD_EFFECT and, on a crit (needs ABILITY_CRIT; canCritByDefault false), by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). The same crit flag is not applied to the PP loss or the shield.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the target's shield absorb first. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 if the target is protected / skydiving / Magic Bounce. A Magic Bounce target also queues a bounce. If the target has at least ppBurn PP no damage is requested at all.",
+    "scaling": "requested = extraPP (AP already inside ppBurn, apBoost false so no second AP factor); handleSpecialDamage then multiplies by 2 once with DOUBLE_DAMAGE, by 1.2 with STRANGE_STEAM_BOARD_EFFECT and, on a crit (needs ABILITY_CRIT; canCritByDefault false), by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). The same crit flag is not applied to the PP loss or the shield (addPP and addShield receive crit false; no second AP factor either).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the target's shield absorb first. The returned takenDamage is not read by this strategy (how handleDamage builds it, and its exceptions, are in core-mechanics.md section J1); the requested and the applied amount differ. extraPP is requested whenever ppBurn exceeds the target's PP at the time of the cast, whatever addPP then did. A Magic Bounce target (status.magicBounce) blocks the damage and queues a delayed bounce only when the damage is positive and the attacker does not hold Protective Pads; a Protected, skydiving or Magic Bounce target returns takenDamage 0. If the target has at least ppBurn PP no damage is requested at all.",
     "evidence": [
      "extra",
      "special-sig",
@@ -151,7 +151,8 @@
      "hd-spedef",
      "hd-min1",
      "hd-shield",
-     "hd-taken"
+     "hd-taken",
+     "bounce-reflect"
     ]
    }
   ],
@@ -183,7 +184,7 @@
     "GOLDUCK": 40,
     "PSYDUCK": 20
    },
-   "note": "The table is indexed by the casting entity's stars. 80 / 160 are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "note": "The table is indexed by the casting entity's stars. The 80 / 160 entries are declared in the table but unused by the two bound baseline classes. Whether other mechanics change a unit's star count was not examined.",
    "evidence": [
     "burn",
     "unit-psyduck",
@@ -192,7 +193,7 @@
   },
   "positionalConditions": "None beyond the inherited requirement that the unit has a target in range to cast.",
   "repeatedCastsAndModes": "No stored state. Each cast recomputes ppBurn from the caster's current AP; shields from earlier casts stack on the caster's shield value.",
-  "rawVsResolved": "Declared raw: 20 / 40 PP (PSYDUCK / GOLDUCK) before the AP factor. Requested ppBurn = raw x (1 + AP/100), unrounded. ppStolen = min(target PP, ppBurn). Applied PP change = Math.round(-ppStolen) unless dropped, flipped by Twist Band or blocked by tree / resurrecting. Shield requested = ppBurn; downstream request after Big Eater Belt; stored after enraged halving and rounding. Damage requested = ppBurn - ppStolen; applied after multipliers; takenDamage = shield part + HP part.",
+  "rawVsResolved": "Declared raw: 20 / 40 PP (PSYDUCK / GOLDUCK) before the AP factor. Requested ppBurn = raw x (1 + AP/100), unrounded. ppStolen = min(target PP, ppBurn). ppStolen and extraPP are fixed before the PP change. Applied PP change = Math.round(-ppStolen) unless dropped (tree / resurrecting) or flipped by Twist Band (the flipped gain then faces silence / Protect / NO_PP_GAIN; Protect alone does not block the negative loss; fatigue does not halve either). Shield requested = ppBurn (the full amount, not ppStolen); downstream request after Big Eater Belt; stored after enraged halving then rounding. Damage requested = ppBurn - ppStolen; applied after multipliers. The returned takenDamage is not read by this strategy (section J1).",
   "sourceTables": [
    {
     "id": "burn-tbl",
@@ -210,9 +211,9 @@
   ],
   "unresolved": [
    "Whether the two units reach a different star count than the factory value (Psyduck evolves to Golduck) was not examined",
-   "Magic Bounce reflection is mentioned from the read lines 360-396 of handleSpecialDamage only; the bounce damage was not traced further",
+   "Magic Bounce reflection conditions were read (lines 354-396 of handleSpecialDamage: positive SPECIAL damage, attacker without Protective Pads, a 500 ms delayed command) and the queueing was executed against a stand-in; the reflected damage itself and its later results were not traced",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addPP, addShield, applyBigEaterBeltStatBuff, applyTwistBandBuff, handleSpecialDamage, handleDamage) and the real PsyShockStrategy strategy text were run against stand-in units and boards with controlled callbacks (probes/pinned-helper-probe.mjs, sections SHARED_HELPERS and IMPORT_RECHECK_3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (1 star, AP 5 -> ppBurn 21, target PP 10): calls addPP(-10), addShield(21), then the excess damage request 11 with apBoost false; target PP 50 -> addPP(-21), no excess damage; tree and resurrecting targets drop the loss while the requests stay 11 and 21; Twist Band flips -10 into +10 (the target's own +2 / +3 PP from the excess hit is added in those numbers); Protect blocks the flipped gain but not the negative loss; shield 21 / 11 enraged / 26 Belt / 13 Belt and enraged; crit true only on the damage call."
   ],
   "evidence": [
    {
@@ -577,6 +578,17 @@
     "symbol": "Status.triggerConfusion",
     "expect": "if (pkm.passive === Passive.PSYDUCK) {",
     "note": "a PSYDUCK-passive unit that becomes confused gains +100 AP via addAbilityPower; AP raises ppBurn at the next cast"
+   },
+   {
+    "id": "bounce-reflect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     367
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage Magic Bounce condition",
+    "expect": "!attacker.items.has(Item.PROTECTIVE_PADS)",
+    "note": "a Magic Bounce target queues a reflection only for positive SPECIAL damage from an attacker without Protective Pads; the damage itself is blocked either way"
    }
   ],
   "passiveInteraction": {
@@ -585,6 +597,20 @@
     "passive-hit",
     "passive-conf"
    ]
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS, IMPORT_RECHECK_3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261105T012908Z",
+   "reason": "ppBurn / ppStolen / extraPP before the PP loss and never recomputed; shield rounding order Belt, enrage, round; Protect permits negative loss; Twist flips before guards; no second AP; crit only on excess damage; Magic Bounce conditions",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS, IMPORT_RECHECK_3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

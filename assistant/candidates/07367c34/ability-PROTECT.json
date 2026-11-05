@@ -59,7 +59,7 @@
     "cast"
    ]
   },
-  "summary": "Self-buff. After the base PP spend, the caster gets the Protect status for a requested duration of round(table[stars-1] x (2 + AP/100) x critFactor) ms, with table 500 / 1500 / 2500 / 4000 (4000 as fallback) and critFactor 1 + (critPower - 1) x 0.5 when the cast crit, else 1. At AP 0 and no crit that is 1000 ms (Kabuto, 1 star) and 5000 ms (Deoxys Defense, 3 stars). triggerProtect does nothing if the caster is already protected (no refresh, no extension) or enraged, so the requested duration is only applied when neither holds. The strategy inherits requiresTarget = true: the cast needs a target in range even though the target is never used. While protected the caster takes 0 from basic attacks (unsuccessful) and from ability damage (handleSpecialDamage), handleDamage reports takenDamage 0, positive PP gain is dropped and ordinary healing returns 0 / 0 (the wound branch of handleHeal runs before that guard; core-mechanics.md section J). Protect is the status.protect flag; Rune Protect (status.runeProtect) is a different flag and neither blocks PP / healing nor implies Protect.",
+  "summary": "Self-buff. After the base PP spend, the caster gets the Protect status for a requested duration of round(flatDuration x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)) ms with flatDuration = [500, 1500, 2500, 4000][stars - 1] (4000 fallback), with table 500 / 1500 / 2500 / 4000 (4000 as fallback) and critFactor 1 + (critPower - 1) x 0.5 when the cast crit, else 1. At AP 0 and no crit that is 1000 ms (Kabuto, 1 star) and 5000 ms (Deoxys Defense, 3 stars); a 1-star caster with AP 100, critPower 2 and a crit requests round(500 x 3 x 1.5) = 2250 ms. triggerProtect does nothing if the caster is already protected (no refresh, no extension) or enraged, so the requested duration is only applied when neither holds. The strategy inherits requiresTarget = true: the cast needs a target in range even though the target is never used. On the paths cited in this record, a protected caster takes no damage from basic attacks (unsuccessful) or ability damage (handleSpecialDamage returns early; handleDamage returns takenDamage 0), positive PP gain is dropped and ordinary healing returns 0 / 0 (the wound branch of handleHeal runs before that guard; core-mechanics.md section J). Those are the paths that were read: this record does not claim that Protect blocks every other status application, forced or voluntary movement, item effect or direct HP writer. Protect is the status.protect flag; Rune Protect (status.runeProtect) is a different flag and neither blocks PP / healing nor implies Protect.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": true,
@@ -115,13 +115,14 @@
      "description": "damage, ability damage, positive PP and ordinary healing blocked"
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "basic attack on the protected unit: isAttackSuccessful false, damage 0 (PokemonState.attack). Ability damage: handleSpecialDamage returns early (spellBlockedCount++) and handleDamage returns death false / takenDamage 0. Positive PP: addPP drops the value (negative PP values are not blocked by this flag). Ordinary healing: handleHeal skips its main branch when hp > 0 and protect is set and returns healReceived 0 / overheal 0; the wound branch earlier in handleHeal is not governed by this flag (core-mechanics.md section J, probe SHARED_HELPERS: Protect returns 0 / 0, Rune Protect alone does not). This is the shared status.protect behaviour; it is not an effect of Rune Protect.",
+    "resolution": "basic attack on the protected unit: isAttackSuccessful false, damage 0 (PokemonState.attack). Ability damage: handleSpecialDamage returns early (spellBlockedCount++) and handleDamage returns death false / takenDamage 0. Positive PP: addPP drops the value (negative PP values are not blocked by this flag). Ordinary healing: handleHeal skips its main branch when hp > 0 and protect is set and returns healReceived 0 / overheal 0; the wound branch earlier in handleHeal is not governed by this flag (core-mechanics.md section J, probe SHARED_HELPERS: Protect returns 0 / 0, Rune Protect alone does not). This is the shared status.protect behaviour; it is not an effect of Rune Protect (a different flag, set by triggerRuneProtect, which triggerProtect does not consult). The five paths listed are the ones read; other damage, status, movement or HP-writing paths were not traced and are not claimed to be blocked.",
     "evidence": [
      "protect-basic",
      "special-block",
      "hd-protect",
      "protect-heal",
-     "protect-pp"
+     "protect-pp",
+     "rune-trig"
     ]
    }
   ],
@@ -139,13 +140,21 @@
       "3": 2500,
       "4": 4000
      },
-     "label": "raw flat duration table (ms)"
+     "label": "raw flat duration table (ms)",
+     "byStars": {
+      "1": 500,
+      "2": 1500,
+      "3": 2500,
+      "4": 4000,
+      "fallback": 4000
+     },
+     "unit": "ms (flat table value, before the AP factor 2 + AP/100 and the crit factor)"
     },
     "perUnitRaw": {
      "DEOXYS_DEFENSE": 2500,
      "KABUTO": 500
     },
-    "scaling": "AP factor 2 + AP/100; crit factor 1 + (critPower - 1) x 0.5 (needs ABILITY_CRIT)",
+    "scaling": "AP factor 2 + AP/100; crit factor 1 + (critPower - 1) x 0.5 (needs ABILITY_CRIT); computed request round(flat x (2 + AP/100) x crit factor): at AP 0 without crit KABUTO 1000 ms, DEOXYS_DEFENSE 5000 ms; one star / AP 100 / critPower 2 / crit true = 2250 ms",
     "resolution": "not stackable, not applied to an enraged caster, no refresh; ends in updateProtect",
     "evidence": [
      "dur",
@@ -154,7 +163,14 @@
      "trig",
      "upd",
      "upd-call"
-    ]
+    ],
+    "perUnitComputedRequestMsAtAp0NoCrit": {
+     "DEOXYS_DEFENSE": 5000,
+     "KABUTO": 1000
+    },
+    "guards": "triggerProtect does nothing when the caster already has Protect (no refresh, no extension) or is enraged; Rune Protect on the caster is not consulted",
+    "applicationOrder": "after the base PP spend; the only effect of the strategy",
+    "combatEffect": "status.protect is the flag tested by the cited damage, PP and healing paths (see effects[1]); it ends in updateProtect when protectCooldown - dt <= 0. Other paths were not traced."
    }
   ],
   "buffs": [],
@@ -168,7 +184,7 @@
     "DEOXYS_DEFENSE": 2500,
     "KABUTO": 500
    },
-   "note": "The table index is the casting entity's stars at cast time. 1500 (2 stars) and 4000 (4 stars / fallback) are not reached by the listed units at their factory star counts. Kabuto declares stars 1 and evolves to Kabutops, which is not covered here. Whether other mechanics change an entity's star count was not examined.",
+   "note": "The table index is the casting entity's stars at cast time. The 1500 (2 stars) and 4000 (4 stars / fallback) entries are declared in the table but unused by the two bound baseline classes. Kabuto declares stars 1 and evolves to Kabutops, which is not covered here. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "dur",
     "unit-deoxys-defense",
@@ -177,7 +193,7 @@
   },
   "positionalConditions": "None. Self-cast; the only positional requirement is the inherited requiresTarget (a target in range).",
   "repeatedCastsAndModes": "No stored state beyond the status. A cast while protect is still active spends PP and counts as a cast but does not extend or refresh the duration (triggerProtect refuses). A cast while enraged also applies nothing.",
-  "rawVsResolved": "Declared raw: 500 / 1500 / 2500 / 4000 ms by stars (500 for KABUTO, 2500 for DEOXYS_DEFENSE). Requested duration = raw x (2 + AP/100) x critFactor, rounded: 1000 ms and 5000 ms at AP 0 without crit. Applied duration = requested when the caster is neither protected nor enraged, otherwise 0 change. Blocked damage is not a number: takenDamage is 0 and no damage is requested to the caster's HP while protected.",
+  "rawVsResolved": "Declared raw: 500 / 1500 / 2500 / 4000 ms by stars (500 for KABUTO, 2500 for DEOXYS_DEFENSE). Requested duration = raw x (2 + AP/100) x critFactor, rounded: 1000 ms and 5000 ms at AP 0 without crit. Applied duration = requested when the caster is neither protected nor enraged, otherwise 0 change. Raw flat duration 500 / 1500 / 2500 / 4000 ms; computed request round(flat x (2 + AP/100) x crit factor), e.g. 1000 ms, 5000 ms and 2250 ms for the three examples above; stored length = the request only when the caster is neither protected nor enraged. While protected, the cited damage paths return 0 and request nothing against HP; no universal claim about other paths is made.",
   "sourceTables": [
    {
     "id": "dur-table",
@@ -185,6 +201,13 @@
     "pattern": "\\[([0-9, ]+)\\]\\[pokemon\\.stars",
     "recordPath": "effects.0.declaredRaw.durationMsByStars",
     "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "dur-table-status",
+    "file": "app/core/abilities/protect.ts",
+    "pattern": "\\[([0-9, ]+)\\]\\[pokemon\\.stars",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
    }
   ],
   "numericExamples": [],
@@ -198,7 +221,7 @@
    "Exact timing granularity of updateProtect (the dt passed per status update) was not examined, so the real-time length is the requested duration only up to update-step rounding",
    "Whether the two units reach a different star count than the factory value (evolution, merging) was not examined",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerProtect, updateProtect, addPP, handleHeal, handleDamage) and the real ProtectStrategy strategy text were run against stand-in units and boards with controlled callbacks (probes/pinned-helper-probe.mjs, sections SHARED_HELPERS and IMPORT_RECHECK_3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster): Kabuto 1000 ms, Deoxys Defense 5000 ms, 2250 ms for 1 star / AP 100 / critPower 2 / crit; requiresTarget true; an existing Protect keeps its remaining time; an enraged caster gets none; Rune Protect on the caster changes nothing."
   ],
   "evidence": [
    {
@@ -409,7 +432,32 @@
     "symbol": "PokemonEntity.addPP",
     "expect": "!(value > 0 && this.status.protect) &&",
     "note": "positive PP gain is dropped while protected"
+   },
+   {
+    "id": "rune-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.runeProtect = true",
+    "note": "Rune Protect is a different flag with its own cooldown, set here; triggerProtect never reads it"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS, IMPORT_RECHECK_3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261105T012908Z",
+   "reason": "duration formula round(flat x (2 + AP/100) x crit factor) with examples; requiresTarget inherited; no refresh, enrage blocks; Protect distinct from Rune Protect and not claimed to block every path; statusEffects duration normalised (byStars + unit)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "SHARED_HELPERS, IMPORT_RECHECK_3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

@@ -60,7 +60,7 @@
     "cast"
    ]
   },
-  "summary": "Needs a target in range (inherited requiresTarget = true). Asks the board helper for a destination (the free cell next to the farthest targettable enemy, chosen by Manhattan distance, not necessarily the cast target). If a destination exists, the enemies standing on the supercover line from the caster's current cell to that destination are collected (before the caster moves), then the caster moves there with moveTo (not forced displacement). Regardless of whether a destination existed, the caster then gets Protect for a fixed 1000 ms (no AP or crit scaling; ignored if already protected or enraged). If no enemy was collected, the cast target is added so it is always hit. Each collected enemy takes requested SPECIAL damage 50 (Stantler, 3 stars) / 60 (Wyrdeer, 4 stars) (table 30 / 40 / 50 / 60 / 120, fallback 120) via handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT).",
+  "summary": "Needs a target in range (inherited requiresTarget = true). Asks the board helper getFarthestTargetCoordinateAvailablePlace for a destination: normally a free cell next to the farthest targettable enemy (Manhattan distance, not necessarily the cast target), but the helper keeps the cell chosen for an EARLIER nearer enemy when a farther enemy has no free adjacent cell (retained-earlier-cell case), and only when no cell was selected at all does it fall back to the closest free cell to the farthest enemy, which need not be adjacent (executed: retained cell (4,1) next to the nearer enemy; fallback (7,3), two cells from the enemy at (7,5)). If a destination exists, the enemies standing on the supercover line from the caster's current cell to that destination are collected (before the caster moves), then the caster moves there with moveTo(x, y, board, false): an unforced self-move that does not consult canBeMoved (executed: a locked caster holding Heavy Duty Boots still moves). Regardless of whether a destination existed, after the movement opportunity and before any damage the caster requests Protect for a fixed 1000 ms (no AP or crit scaling; an existing Protect is not refreshed and an enraged caster gets none). If the hit set is empty - no destination, or no enemy on the line - the ORIGINAL CAST TARGET is added without another team check (executed with an ally as the cast target and with an off-line enemy). Each collected enemy takes requested SPECIAL damage 50 (Stantler, 3 stars) / 60 (Wyrdeer, 4 stars) (table 30 / 40 / 50 / 60 / 120, fallback 120) via handleSpecialDamage with the caster as attacker and the cast's crit flag (crit needs ABILITY_CRIT).",
   "targeting": {
    "who": "every enemy-team entity standing on the cells between the caster and the helper's destination (both endpoints included); the cast target only as fallback when none was collected",
    "needsTarget": true,
@@ -109,7 +109,7 @@
      "WYRDEER": 60
     },
     "scaling": "requested = table[stars-1] ?? 120. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT.",
-    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 for a protected / skydiving / Magic Bounce target. Requested, applied and takenDamage are three different amounts. The damage is dealt after the caster moved, so the caster's own protect does not affect it.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. The returned takenDamage is not read by this strategy (how handleDamage builds it, and its exceptions, are in core-mechanics.md section J1); the requested and the applied amount differ. The damage is dealt after the caster moved and after its Protect was requested; the caster's own Protect does not affect damage dealt by it.",
     "evidence": [
      "dmg-table",
      "hit",
@@ -134,13 +134,14 @@
      "description": "moveTo the destination chosen by getFarthestTargetCoordinateAvailablePlace"
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "moveTo(x, y, board, false): toMovingState, board.swapCells (the destination is free, so the caster just changes cell), cooldown = 100 for faster retargeting; canBeMoved is checked only for forced displacement, so it is not consulted. No move when the helper returns null (no targettable enemy or no free cell).",
+    "resolution": "moveTo(x, y, board, false): toMovingState, board.swapCells (the destination is free, so the caster just changes cell), cooldown = 100 for faster retargeting; canBeMoved is checked only for forced displacement (forcedDisplacement is false here), so a locked caster or one holding Heavy Duty Boots still moves. The destination is the helper's retained earlier cell when the farthest enemy has no free adjacent cell, or the nonadjacent closest-free-cell fallback; no move when the helper returns null (no targettable enemy or no free cell).",
     "evidence": [
      "farthest",
      "move",
      "moveto",
      "swap",
-     "board-far"
+     "board-far",
+     "moveto-unforced"
     ]
    },
    {
@@ -172,19 +173,24 @@
     "probability": 1,
     "apScaled": false,
     "declaredRaw": {
-     "durationMs": 1000
+     "durationMs": 1000,
+     "duration": 1000,
+     "unit": "ms (fixed request)"
     },
     "perUnitRaw": {
      "STANTLER": 1000,
      "WYRDEER": 1000
     },
-    "scaling": "none",
+    "scaling": "none (a fixed 1000 ms request; no AP, crit or star scaling)",
     "resolution": "not stackable, not applied to an enraged caster",
     "evidence": [
      "protect",
      "trig",
      "upd"
-    ]
+    ],
+    "guards": "triggerProtect does nothing when the caster already has Protect (no refresh) or is enraged; applied whether or not a destination existed",
+    "applicationOrder": "after the movement opportunity (moveTo, when a destination exists) and before the damage calls",
+    "combatEffect": "status.protect on the caster for the cited damage, PP and healing paths (see the PROTECT record for what was read); ends in updateProtect after 1000 ms"
    }
   ],
   "buffs": [],
@@ -198,16 +204,16 @@
     "STANTLER": 50,
     "WYRDEER": 60
    },
-   "note": "Only the damage depends on stars (index stars-1 of the casting entity). Protect duration and destination logic are star-independent. 30 / 40 (1-2 stars) and 120 (5 stars / fallback) are not reached by the listed units at their factory star counts. Whether other mechanics change a star count was not examined.",
+   "note": "Only the damage depends on stars (index stars-1 of the casting entity). Protect duration and destination logic are star-independent. The 30 / 40 (1-2 stars) and 120 (5 stars / fallback) entries are declared in the table but unused by the two bound baseline classes; the full table 30 / 40 / 50 / 60 / 120 is kept. Whether other mechanics change a star count was not examined.",
    "evidence": [
     "dmg-table",
     "unit-stantler",
     "unit-wyrdeer"
    ]
   },
-  "positionalConditions": "Selection in board.ts:568-630 (same helper as FLAME_CHARGE, NUZZLE and AQUA_JET): board.forEach scans cells row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered, so equal distances keep the first one scanned. For such an enemy the running cell maximum is reset and its free adjacent cells are compared by distance from the caster, the first strictly farther one winning; selectedCell is replaced only when that enemy has at least one free adjacent cell, so if a farther enemy has none, the cell chosen for an earlier, nearer enemy is retained (and that enemy is the helper's target). The fallback (the free cell closest by Manhattan distance to the farthest enemy, anywhere on the board, possibly not adjacent) runs only if selectedCell is still null at the end. If the helper returns null the caster does not move and only the cast target is hit.",
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as FLAME_CHARGE, NUZZLE and AQUA_JET; the retained-earlier-cell and nonadjacent-fallback cases were executed with the real helper on an 8x6 stand-in board): board.forEach scans cells row by row; only targettable enemies whose Manhattan distance from the caster is strictly greater than the running maximum are considered, so equal distances keep the first one scanned. For such an enemy the running cell maximum is reset and its free adjacent cells are compared by distance from the caster, the first strictly farther one winning; selectedCell is replaced only when that enemy has at least one free adjacent cell, so if a farther enemy has none, the cell chosen for an earlier, nearer enemy is retained (and that enemy is the helper's target). The fallback (the free cell closest by Manhattan distance to the farthest enemy, anywhere on the board, possibly not adjacent) runs only if selectedCell is still null at the end. If the helper returns null the caster does not move and only the cast target is hit.",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repositions the caster again; a cast while Protect is still active does not refresh it.",
-  "rawVsResolved": "Declared raw: damage 50 (STANTLER) / 60 (WYRDEER) and a fixed 1000 ms Protect. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield; takenDamage = shield + HP part. Protect: requested 1000 ms, applied only when the caster is neither protected nor enraged.",
+  "rawVsResolved": "Declared raw: damage 50 (STANTLER) / 60 (WYRDEER) and a fixed 1000 ms Protect. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield; the returned takenDamage is not read by this strategy (section J1). Protect: requested 1000 ms, applied only when the caster is neither protected nor enraged. Raw damage table 30 / 40 / 50 / 60 / 120 (STANTLER 3 stars raw 50, WYRDEER 4 stars raw 60).",
   "sourceTables": [
    {
     "id": "dmg-tbl",
@@ -227,7 +233,7 @@
    "Whether the caster can already stand on a cell with an enemy-free line (e.g. destination equal to current cell) was not examined",
    "Whether the two units reach a different star count than the factory value (Stantler evolves to Wyrdeer through a state-based rule) was not examined",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (getFarthestTargetCoordinateAvailablePlace, getClosestAvailablePlace, getCellsBetween, swapCells, moveTo, triggerProtect, isTargettableBy) and the real PsyshieldBashStrategy strategy text were run against stand-in units and boards with controlled callbacks (probes/pinned-helper-probe.mjs, sections IMPORT_RECHECK_3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (BLUE_TEAM / RED_TEAM stand-in units, damage calls are controlled recorders): the order move (unforced) -> Protect 1000 -> damage; on-line enemies hit and an off-line cast target not; retained earlier cell and nonadjacent fallback; no destination -> Protect 1000 then the original target (an ally) damaged; locked caster with boots still moves; existing Protect keeps 300 ms; enraged caster gets none."
   ],
   "evidence": [
    {
@@ -636,7 +642,32 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
     "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "moveto-unforced",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     891
+    ],
+    "symbol": "PokemonEntity.moveTo forced guard",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "the canBeMoved test applies only when forcedDisplacement is true; the strategy passes false"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "IMPORT_RECHECK_3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261105T012908Z",
+   "reason": "destination helper retained-earlier-cell and nonadjacent fallback; unforced self-move bypassing canBeMoved; Protect 1000 after movement before damage including without destination; empty hit set uses the original target; statusEffects duration normalised",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "IMPORT_RECHECK_3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

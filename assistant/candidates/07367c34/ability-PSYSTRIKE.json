@@ -59,11 +59,11 @@
     "cast"
    ]
   },
-  "summary": "Needs a target (inherited requiresTarget = true). The line end is the farthest targettable unit on the board by Manhattan distance (board scan row by row, the first at the maximum wins), or the cast target when none is found. Every enemy-team entity on the supercover line from the caster's cell to that unit (both endpoints) is collected; if none, the farthest unit is added. Each collected enemy takes requested SPECIAL damage 80 (both listed units are 3 stars; table 20 / 40 / 80 / 160, 160 fallback) through handleSpecialDamage with the cast's crit flag (crit needs ABILITY_CRIT), and right after its own damage call the enemy is moved by forced displacement to the free cell, among the cells on the lines from its position to the two back corners of its own team's side, that is farthest by Chebyshev distance (no move if no such cell, or if the enemy is skydiving, locked or holds Heavy Duty Boots). The teleport happens whether or not the damage was blocked.",
+  "summary": "Needs a target (inherited requiresTarget = true). The line end is the farthest TARGETTABLE unit by Manhattan distance (board scan row by row, the first at the maximum wins), or the cast target when none is found. 'Targettable' here is isTargettableBy(caster): enemies, and also - for a caster with the MERCILESS effect - allies with hp <= 10; both bound Mewtwo forms declare the MONSTER synergy and MONSTER's effects include MERCILESS (applied to MONSTER-typed entities when the team's tier is active), so the endpoint is not universally an enemy. Every ENEMY-team entity on the supercover line from the caster's cell to that unit (both endpoints) is collected; if none, the farthest unit is inserted WITHOUT checking its team (a conditional ally-damage fallback: executed with a 5-hp ally under MERCILESS; intent not guessed). Each collected enemy takes requested SPECIAL damage 80 (both listed units are 3 stars; table 20 / 40 / 80 / 160, 160 fallback) through handleSpecialDamage with the cast's crit flag (crit needs ABILITY_CRIT), and right after its own damage call the unit is moved (requested as forced displacement) to the free cell, among the cells on the lines from its position to the two back corners of its own team's side, that is farthest by Chebyshev distance. The movement is requested after the damage call with no check that the damage succeeded or that the unit survived or is still on the board; Protect does not block the movement primitive; a locked, skydiving or Heavy Duty Boots unit is not moved, and nothing is moved when no free destination exists. Do not read this as a promise of successful teleportation after lethal damage or removal (the probe's lethal case is a controlled callback that sets hp to 0).",
   "targeting": {
-   "who": "every enemy-team entity on the line cells between the caster and the farthest targettable unit; the farthest unit (or the cast target) as fallback",
+   "who": "every enemy-team entity on the line cells between the caster and the farthest targettable unit; if none, the farthest unit (or the cast target) is inserted without a team check",
    "needsTarget": true,
-   "note": "The line end does not come from the cast target but from getFarthestTarget (Manhattan distance, strictly greater, scan order); the cast target is used only when that returns undefined. The caster's own cell is on the line but filtered out as same-team; allies are skipped.",
+   "note": "The line end does not come from the cast target but from getFarthestTarget (Manhattan distance, strictly greater, scan order); the cast target is used only when that returns undefined. The caster's own cell is on the line but filtered out as same-team; allies standing on the line are skipped by the filter, but an ally that is itself the endpoint can be inserted by the empty-set fallback.",
    "evidence": [
     "cls",
     "base",
@@ -72,7 +72,12 @@
     "targettable",
     "cells",
     "between",
-    "fallback"
+    "fallback",
+    "merciless-target",
+    "monster-effects",
+    "merciless-apply",
+    "mewtwo-monster",
+    "shadow-mewtwo-monster"
    ]
   },
   "geometry": {
@@ -105,7 +110,7 @@
      "SHADOW_MEWTWO": 80
     },
     "scaling": "requested = table[stars-1] ?? 160. handleSpecialDamage multiplies by (1 + AP/100) (apBoost default true), x2 once with DOUBLE_DAMAGE, x1.2 with STRANGE_STEAM_BOARD_EFFECT, and on a crit by 1 + (critPower - 1) x the target's crit reduction factor (Rocky Helmet / Black Augurite). Crit needs ABILITY_CRIT.",
-    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. takenDamage (not stored by this strategy) = shield damage + HP damage capped at current HP; 0 for a protected / skydiving / Magic Bounce target. Requested, applied and takenDamage are three different amounts.",
+    "resolution": "applied = requested after those multipliers, handed to PokemonState.handleDamage: divided by (1 + ARMOR_FACTOR x speDef of the target), rounded up with a minimum of 1, absorbed first by the target's shield. The returned takenDamage is not read by this strategy (how handleDamage builds it, and its exceptions, are in core-mechanics.md section J1); the requested and the applied amount differ.",
     "evidence": [
      "dmg-table",
      "hit",
@@ -129,7 +134,7 @@
      "description": "forced moveTo of the enemy to getTeleportationCell(enemy position, enemy team)"
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "getTeleportationCell collects the free cells on the supercover lines from the enemy's current cell to its team's two back-row corners, sorts by Chebyshev distance from the enemy (greatest first, ties in collection order) and returns the first; undefined when no free cell exists. moveTo(\u2026, true) returns without moving when the enemy cannot be moved (skydiving, locked, Heavy Duty Boots); otherwise the unit goes to its moving state, the cells are swapped and its cooldown is set to 100. Enemies are processed in insertion (line) order, so earlier teleports change which cells are free for later ones, and the enemy's position is read after its own damage.",
+    "resolution": "getTeleportationCell collects the free cells on the supercover lines from the enemy's current cell to its team's two back-row corners, sorts by Chebyshev distance from the enemy (greatest first, ties in collection order) and returns the first; undefined when no free cell exists. moveTo(…, true) returns without moving when the unit cannot be moved (skydiving, locked, Heavy Duty Boots) or the destination holds a unit that cannot be moved; otherwise the unit goes to its moving state, the cells are swapped and its cooldown is set to 100. Protect is not consulted. No survival or success check precedes the request. Enemies are processed in insertion (line) order, so earlier teleports change which cells are free for later ones, and the enemy's position is read after its own damage.",
     "evidence": [
      "tele-call",
      "tele-def",
@@ -151,7 +156,7 @@
     "MEWTWO": 80,
     "SHADOW_MEWTWO": 80
    },
-   "note": "Only the damage depends on stars (index stars-1 of the casting entity). 20 / 40 / 160 are not reached by the listed units at their factory star counts. Whether other mechanics change a unit's star count was not examined.",
+   "note": "Only the damage depends on stars (index stars-1 of the casting entity). The 20 / 40 / 160 entries are declared in the table but unused by the two bound baseline classes. Whether other mechanics change a unit's star count was not examined.",
    "evidence": [
     "dmg-table",
     "unit-mewtwo",
@@ -160,7 +165,7 @@
   },
   "positionalConditions": "Line end: board scan order y outer, x inner with strictly greater Manhattan distance, so ties go to the first scanned. Teleport: depends on the enemy's team (which two corners) and on free cells along those lines; if none is free the enemy stays.",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes the line and the teleports.",
-  "rawVsResolved": "Declared raw: 80 for both listed units. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield; takenDamage = shield + HP part. The teleport is not a numeric amount: it is requested for every collected enemy and applied only if a free cell exists and the enemy can be moved.",
+  "rawVsResolved": "Declared raw: 80 for both listed units. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied after speDef, minimum 1 and shield. The returned takenDamage is not read by this strategy (section J1). The teleport is not a numeric amount: it is requested for every collected unit after its damage call and applied only if a free destination exists and the unit can be moved; the returned takenDamage is not read by this strategy (section J1).",
   "sourceTables": [
    {
     "id": "dmg-tbl",
@@ -173,14 +178,14 @@
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
    "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
-   "Whether an enemy killed by its damage call is removed from its cell before getTeleportationCell runs (death handling was not traced), which decides whether a dead enemy's cell still counts as occupied and whether it is teleported",
+   "Whether a unit killed by its damage call is removed from its cell before getTeleportationCell runs (death handling was not traced): the strategy itself performs no survival check, so whether a lethal hit is followed by a successful move depends on that untraced step; the probe only shows the strategy still requests the move",
    "Which side of the board each team's back corners are on in a real fight (derived only from the corner constants in getTeleportationCell)"
   ],
   "unresolved": [
-   "isTargettableBy was read (untargettable and MERCILESS) but which units are untargettable in a real fight was not examined",
+   "isTargettableBy was read and executed (untargettable; MERCILESS allies with hp <= 10); which units are untargettable, and whether a team's MERCILESS tier is active, in a real fight was not examined",
    "Whether two listed units in different stars can occur (Mewtwo and Shadow Mewtwo are 3 stars at factory) was not examined",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (getFarthestTarget, isTargettableBy, getCellsBetween, getTeleportationCell, canBeMoved, moveTo) and the real PsystrikeStrategy strategy text were run against stand-in units and boards with controlled callbacks (probes/pinned-helper-probe.mjs, sections IMPORT_RECHECK_3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (damage calls are controlled recorders): two enemies on the line each get a request of 80 and are moved to their team's back corners ((7,5) and (0,5)); locked, skydiving and boots units are damaged but not moved; Protect does not block the move; a unit set to hp 0 by the recorder is still moved; a 5-hp ally is damaged and moved only for a MERCILESS caster; with no free destination nothing moves."
   ],
   "evidence": [
    {
@@ -534,7 +539,76 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
     "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "merciless-target",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     281,
+     285
+    ],
+    "symbol": "PokemonEntity.isTargettableBy MERCILESS clause",
+    "expect": "attacker.effects.has(EffectEnum.MERCILESS) &&",
+    "note": "an attacker with MERCILESS may target any other entity with hp <= 10, allies included"
+   },
+   {
+    "id": "monster-effects",
+    "file": "app/config/game/synergies.ts",
+    "lines": [
+     78,
+     83
+    ],
+    "symbol": "SynergyEffects MONSTER",
+    "expect": "EffectEnum.MERCILESS",
+    "note": "the MONSTER synergy's effects include MERCILESS"
+   },
+   {
+    "id": "merciless-apply",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     912,
+     918
+    ],
+    "symbol": "Simulation.applyEffect MERCILESS case",
+    "expect": "types.has(Synergy.MONSTER)",
+    "note": "MERCILESS is added to entities of MONSTER type when the team effect is active"
+   },
+   {
+    "id": "mewtwo-monster",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7107,
+     7111
+    ],
+    "symbol": "Mewtwo types",
+    "expect": "Synergy.MONSTER",
+    "note": "Mewtwo declares the MONSTER synergy"
+   },
+   {
+    "id": "shadow-mewtwo-monster",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7125,
+     7129
+    ],
+    "symbol": "Shadow Mewtwo types",
+    "expect": "Synergy.MONSTER",
+    "note": "Shadow Mewtwo declares the MONSTER synergy"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "IMPORT_RECHECK_3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261105T012908Z",
+   "reason": "endpoint not universally an enemy (MERCILESS / MONSTER); empty hit set inserts the endpoint unchecked; movement requested after damage without a success check; Protect does not block the movement primitive",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "IMPORT_RECHECK_3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
