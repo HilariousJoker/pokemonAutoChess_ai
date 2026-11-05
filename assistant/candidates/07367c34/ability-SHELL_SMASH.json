@@ -1,0 +1,588 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHELL_SMASH",
+ "kind": "ability",
+ "identifier": "SHELL_SMASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T183931Z"
+ },
+ "record": {
+  "ability": "SHELL_SMASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SHELLDER (1 star) and CLOYSTER (2 stars), maxPP 110, range 1, declare SHELL_SMASH (passive NONE in the catalog).",
+  "appliesTo": [
+   {
+    "key": "CLOYSTER",
+    "stars": 2,
+    "maxPP": 110,
+    "range": 1,
+    "declaredSkill": "SHELL_SMASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHELLDER",
+    "stars": 1,
+    "maxPP": 110,
+    "range": 1,
+    "declaredSkill": "SHELL_SMASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SHELLDER": {
+    "evidence": [
+     "unit-shellder"
+    ]
+   },
+   "CLOYSTER": {
+    "evidence": [
+     "unit-cloyster"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHELL_SMASH] = new ShellSmashStrategy()",
+   "strategy": "ShellSmashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "ss-class",
+    "base-flags",
+    "base-pp",
+    "ss-super",
+    "cast-crit",
+    "as-gate"
+   ]
+  },
+  "summary": "Hits every enemy standing on the eight cells adjacent to the caster with SPECIAL damage (raw 15/30/60/120 by caster stars: 15 for SHELLDER, 30 for CLOYSTER), using the cast crit flag; then, after the damage, applies to the caster itself +20 AP, +2 attack, +20 speed, -2 DEF and -2 SPE_DEF. All five stat calls pass apBoost 0 and crit false, so neither AP nor crit scales the stat changes. Self-buff helpers still apply: with a Big Eater Belt every change (the buffs and the self-inflicted -2s, because the caster is on the same team) is multiplied by 1.25 rounded down (+25 AP, +2 attack, +25 speed, -3 DEF, -3 SPE_DEF); Twist Band does not flip these self-debuffs (the caster is on the holder's team); a Nullify Bandanna turns the AP gain into round(0.2 x 20) = 4 attack (itself then passed through the attack helper); DEF, SPE_DEF cannot go below 0, attack not below 1, AP not below -100, speed is clamped to 0..300. The buffs come after the damage, so the new AP does not raise this cast's damage.",
+  "targeting": {
+   "who": "every enemy on the caster's adjacent cells; the cast target argument is not used for selection",
+   "needsTarget": true,
+   "note": "requiresTarget is the inherited default true, so a target in range is needed to start the cast; the strategy then ignores it and hits whoever is adjacent (possibly nobody, in which case only the self stat changes happen). How the cast target is chosen was not read here.",
+   "evidence": [
+    "ss-class",
+    "base-flags",
+    "as-gate",
+    "ss-cells",
+    "ss-filter",
+    "adj"
+   ]
+  },
+  "geometry": {
+   "shape": "the 8 cells around the caster (3x3 block without the centre), on-board cells only; entities of the caster's own team are skipped",
+   "evidence": [
+    "ss-cells",
+    "adj",
+    "ss-filter",
+    "ss-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (adjacent enemies)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "SHELLDER": 15,
+     "CLOYSTER": 30
+    },
+    "scaling": "requested = raw x (1 + AP/100) per enemy (apBoost defaults true in handleSpecialDamage, using the caster's AP before the +20 below) [x (1 + (critPower - 1) x critReductionFactor) if the cast crit]",
+    "resolution": "per enemy: requested / (1 + 0.05 x SPE_DEF) (armorReduction halves SPE_DEF, WONDER_ROOM swaps DEF and SPE_DEF), damage-reduction items/effects, ceil, minimum 1, then the shield step. A target with protect, skydiving or magicBounce takes 0 (magicBounce may reflect). takenDamage is returned and discarded by this strategy; see knowledge core-mechanics section J.",
+    "evidence": [
+     "ss-dmg",
+     "ss-cells",
+     "ss-filter",
+     "ss-hit",
+     "adj",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-handle",
+     "hd-spe",
+     "hd-min"
+    ]
+   },
+   {
+    "kind": "self stat changes",
+    "declaredRaw": {
+     "abilityPower": 20,
+     "attack": 2,
+     "speed": 20,
+     "defense": -2,
+     "specialDefense": -2
+    },
+    "scaling": "none: apBoost 0 and crit false for all five calls; the declared value is the requested value",
+    "resolution": "applied change = requested after the helpers: Big Eater Belt x1.25 rounded down (also on the negative values because caster === holder's team): +25 / +2 (2.5 floored) / +25 / -3 (-2.5 floored) / -3; Twist Band does not invert (caster on the same team); Nullify Bandanna: AP replaced by round(0.2 x 20) = 4 attack (before the Big Eater Belt step inside addAttack); the stored change is further limited by DEF >= 0, SPE_DEF >= 0, attack >= 1, AP >= -100, speed 0..300 (MELMETAL passive would turn speed into half attack; not a listed unit). Changes are applied to the in-fight entity only (permanent is not passed).",
+    "evidence": [
+     "ss-ap",
+     "ss-atk",
+     "ss-spd",
+     "ss-def",
+     "ss-sdef",
+     "h-ap",
+     "h-ap-null",
+     "h-atk",
+     "h-spd",
+     "h-spd-mel",
+     "h-def",
+     "h-sdef",
+     "beb",
+     "twb",
+     "round",
+     "maxspeed"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "SHELLDER": 1,
+    "CLOYSTER": 2
+   },
+   "declaredRawDamage": {
+    "SHELLDER": 15,
+    "CLOYSTER": 30
+   },
+   "note": "damage is indexed by the casting entity's stars; the 3-star and 4-star values (60, 120) are not reachable by these units' bare star counts. The stat changes do not depend on stars.",
+   "evidence": [
+    "ss-dmg"
+   ]
+  },
+  "positionalConditions": "Adjacent cells only (distance 1 in the 3x3 block); an enemy two cells away is not hit. Cells off the board are skipped.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast applies the stat changes again, so they accumulate within the fight (subject to the floors/clamps above); the damage uses the caster's current AP, which already includes earlier casts' +20.",
+  "rawVsResolved": "Declared raw damage 15/30/60/120 by caster stars (15 for SHELLDER, 30 for CLOYSTER) per adjacent enemy. Requested = raw x (1 + AP/100) [x crit factor]; applied after SPE_DEF division, minimum 1 and shields. Declared stat changes +20 AP, +2 attack, +20 speed, -2 DEF, -2 SPE_DEF are requested values; stored changes follow the helper rules above.",
+  "sourceTables": [
+   {
+    "id": "shellSmashDamage",
+    "file": "app/core/abilities/shell-smash.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Damage-reduction items and effects other than those visible in handleDamage lines read here",
+   "Which enemy becomes the cast target before the cast, and the real-fight timing of PP gain",
+   "Whether other stat-modifying effects outside the helpers read here alter the stored stats"
+  ],
+  "unresolved": [
+   "Whether any item or synergy effect changes SHELL_SMASH beyond the generic helpers read",
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Whether the stat changes are permanent in any mode: the calls do not pass permanent, so they are fight-only per the helper signature",
+   "No probe was run; source reading only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-shellder",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8922,
+     8936
+    ],
+    "symbol": "class Shellder",
+    "expect": "skill = Ability.SHELL_SMASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-cloyster",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8938,
+     8951
+    ],
+    "symbol": "class Cloyster",
+    "expect": "skill = Ability.SHELL_SMASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1155,
+     1155
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SHELL_SMASH]: new ShellSmashStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "ss-class",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "ShellSmashStrategy",
+    "expect": "export class ShellSmashStrategy extends AbilityStrategy {",
+    "note": "class (no requiresTarget override: inherits true)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent"
+   },
+   {
+    "id": "ss-super",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process"
+   },
+   {
+    "id": "ss-dmg",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "raw damage by stars"
+   },
+   {
+    "id": "ss-cells",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the eight adjacent cells of the caster"
+   },
+   {
+    "id": "ss-hit",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     18,
+     24
+    ],
+    "symbol": "process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage to every adjacent entity of the other team, with the cast crit flag"
+   },
+   {
+    "id": "ss-filter",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "process",
+    "expect": "if (cell && cell.value && cell.value.team !== pokemon.team) {",
+    "note": "only occupied adjacent cells holding the other team"
+   },
+   {
+    "id": "ss-ap",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addAbilityPower(20, pokemon, 0, false)",
+    "note": "+20 AP, apBoost 0, crit false"
+   },
+   {
+    "id": "ss-atk",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addAttack(2, pokemon, 0, false)",
+    "note": "+2 attack"
+   },
+   {
+    "id": "ss-spd",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addSpeed(20, pokemon, 0, false)",
+    "note": "+20 speed"
+   },
+   {
+    "id": "ss-def",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addDefense(-2, pokemon, 0, false)",
+    "note": "-2 DEF"
+   },
+   {
+    "id": "ss-sdef",
+    "file": "app/core/abilities/shell-smash.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "process",
+    "expect": "pokemon.addSpecialDefense(-2, pokemon, 0, false)",
+    "note": "-2 SPE_DEF"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     161
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "3x3 block around the cell, centre excluded by default, on-board only"
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     21,
+     24
+    ],
+    "symbol": "castAbility",
+    "expect": "pokemon.effects.has(EffectEnum.ABILITY_CRIT) ||",
+    "note": "crit only rolled with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "as-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (pokemon.pp >= pokemon.maxPP && pokemon.canCast) {",
+    "note": "cast with the current target"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block (takenDamage 0)"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP boost (apBoost defaults true)"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     431
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "if (crit && attacker) {",
+    "note": "crit factor"
+   },
+   {
+    "id": "hsd-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hand-off to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-spe",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL division by SPE_DEF"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "ceil and minimum 1"
+   },
+   {
+    "id": "h-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     640,
+     640
+    ],
+    "symbol": "addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "AP floor -100 after rounding, Big Eater Belt, Twist Band"
+   },
+   {
+    "id": "h-ap-null",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     629,
+     629
+    ],
+    "symbol": "addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false) // AP is gained as Attack instead",
+    "note": "Nullify Bandanna: AP gain becomes round(0.2 x value) attack"
+   },
+   {
+    "id": "h-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     744,
+     744
+    ],
+    "symbol": "addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "attack floor 1"
+   },
+   {
+    "id": "h-spd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "speed clamp 0..MAX_SPEED"
+   },
+   {
+    "id": "h-spd-mel",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     763,
+     763
+    ],
+    "symbol": "addSpeed",
+    "expect": "this.addAttack(value * 0.5, caster, apBoost, crit, permanent)",
+    "note": "Passive.MELMETAL turns speed into half attack"
+   },
+   {
+    "id": "h-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     692,
+     692
+    ],
+    "symbol": "addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "DEF floor 0"
+   },
+   {
+    "id": "h-sdef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     718,
+     718
+    ],
+    "symbol": "addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "SPE_DEF floor 0"
+   },
+   {
+    "id": "beb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "x1.25 rounded down for buffs and for negative changes caused by a same-team caster"
+   },
+   {
+    "id": "twb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band flips negative values only when the caster is environment or the other team"
+   },
+   {
+    "id": "round",
+    "file": "app/utils/number.ts",
+    "lines": [
+     16,
+     32
+    ],
+    "symbol": "roundToNDigits",
+    "expect": "export const roundToNDigits = (",
+    "note": "mode down = Math.floor (so -2.5 -> -3)"
+   },
+   {
+    "id": "maxspeed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": "300"
+   }
+  ]
+ }
+}
