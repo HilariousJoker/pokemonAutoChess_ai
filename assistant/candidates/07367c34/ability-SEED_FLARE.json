@@ -1,0 +1,566 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SEED_FLARE",
+ "kind": "ability",
+ "identifier": "SEED_FLARE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T124101Z"
+ },
+ "record": {
+  "ability": "SEED_FLARE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "SHAYMIN (3 stars, passive SHAYMIN) and SHAYMIN_SKY (4 stars, passive ZENITH) declare SEED_FLARE (maxPP 100, range 3). The strategy is shared; damage depends on the casting unit's stars. The passives SHAYMIN and ZENITH are separate identifiers and are not covered. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "SHAYMIN",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "SEED_FLARE",
+    "declaredPassive": "SHAYMIN",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHAYMIN_SKY",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "SEED_FLARE",
+    "declaredPassive": "ZENITH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SHAYMIN": {
+    "evidence": [
+     "unit-shaymin"
+    ]
+   },
+   "SHAYMIN_SKY": {
+    "evidence": [
+     "unit-shaymin-sky"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SEED_FLARE] = new SeedFlareStrategy()",
+   "strategy": "SeedFlareStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "sf-class",
+    "sf-super"
+   ]
+  },
+  "summary": "Large area around the CASTER (not the target): every enemy within radius 5 of the caster (strict squared distance < 30.25, caster cell excluded; clipped to the board) first has addSpecialDefense(spDefDebuff, caster, 0, false) called, then takes special damage. Raw tables by caster stars: damage 20 / 25 / 30 / 35 / 70 (SHAYMIN at 3 stars 30, SHAYMIN_SKY at 4 stars 35); SPE_DEF change -3 / -3 / -3 / -3 / -6 (-3 for both listed units). The debuff is called with apBoost 0 and crit false, so addSpecialDefense does not scale it by AP or crit (Math.round of the raw value); the damage is scaled normally by AP and, only with ABILITY_CRIT, by crit. Order per victim: debuff first, damage second, so the damage is computed against the already reduced SPE_DEF (SPE_DEF is floored at 0 by the adder). Helpers: Big Eater Belt does nothing for an enemy holder (it scales positive values and negatives from the holder's own team only); Twist Band flips a negative value from another team, so an enemy Twist Band holder gains +3 SPE_DEF instead of losing 3, and then takes the damage against the higher SPE_DEF. The change is not permanent (permanent false) and no restore step exists in the strategy. Requested damage (table), applied damage (after AP, crit, defenses, floor of 1) and the unused returned takenDamage (shield damage included) are three different amounts. No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "targeting": {
+   "who": "all enemies within radius 5 of the caster",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true; the cast target is passed to the base process only. Allies and empty cells skipped.",
+   "evidence": [
+    "sf-cells",
+    "sf-filter",
+    "base-flags",
+    "sf-super"
+   ]
+  },
+  "geometry": {
+   "shape": "disc of radius 5 around the caster's cell, centre excluded: offsets with dx^2+dy^2 < 30.25; clipped to the board",
+   "evidence": [
+    "sf-cells",
+    "radius",
+    "radius-dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "statChange",
+    "stat": "SPE_DEF",
+    "target": "each enemy in the disc",
+    "declaredRaw": {
+     "description": "addSpecialDefense(spDefDebuff, caster, 0, false)",
+     "byStars": {
+      "1": -3,
+      "2": -3,
+      "3": -3,
+      "4": -3,
+      "5": -6
+     },
+     "fallback": -6,
+     "label": "requested SPE_DEF change (raw)"
+    },
+    "perUnitRaw": {
+     "SHAYMIN": -3,
+     "SHAYMIN_SKY": -3
+    },
+    "scaling": "requested = -3 for both listed units. addSpecialDefense with apBoost 0 and crit false: Math.round(value x 1 x 1) = value, so no AP or crit scaling",
+    "resolution": "Three amounts: requested = -3; value after the rounding step = -3; applied change = after the Big Eater Belt helper (no effect on an enemy holder) and the Twist Band helper (an enemy Twist Band holder has it multiplied by -1 and gains 3), then speDef = max(0, speDef + value), so the actual loss is at most the current SPE_DEF. permanent is false: only the fight entity changes. Applied before the damage to the same victim.",
+    "applicationOrder": "first",
+    "evidence": [
+     "sf-deb",
+     "sf-add",
+     "add-sd",
+     "add-sd-ap",
+     "add-sd-perm",
+     "belt-helper",
+     "belt-round",
+     "twist-helper"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "each enemy in the disc",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+     "byStars": {
+      "1": 20,
+      "2": 25,
+      "3": 30,
+      "4": 35,
+      "5": 70
+     },
+     "fallback": 70,
+     "label": "raw special damage by caster stars (requested amount)"
+    },
+    "perUnitRaw": {
+     "SHAYMIN": 30,
+     "SHAYMIN_SKY": 35
+    },
+    "scaling": "requested = 30 (SHAYMIN) / 35 (SHAYMIN_SKY). Applied: x(1 + caster AP/100) (apBoost default true); crit factor 1 + (critPower - 1) x reduction only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false)",
+    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the victim is protected, skydiving or has magicBounce (the SPE_DEF change was already applied by then; magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef) using the victim's SPE_DEF AFTER the debuff, armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, includes shield damage, unused here). Each victim takes the full amount (no split).",
+    "applicationOrder": "second",
+    "evidence": [
+     "sf-dmg",
+     "sf-hsd",
+     "hsd-block",
+     "mb",
+     "hsd-ap",
+     "hsd-crit",
+     "hd-speDef",
+     "hd-min",
+     "hd-shield",
+     "hd-enr",
+     "base-flags",
+     "cast"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SHAYMIN": 3,
+    "SHAYMIN_SKY": 4
+   },
+   "declaredRawDamage": {
+    "SHAYMIN": 30,
+    "SHAYMIN_SKY": 35
+   },
+   "note": "Both tables have a fifth entry (70 damage, -6 SPE_DEF) for a 5-star caster; neither listed unit has 5 stars in the factory. Fallback is 70 / -6. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "sf-dmg",
+    "sf-deb",
+    "unit-shaymin",
+    "unit-shaymin-sky"
+   ]
+  },
+  "positionalConditions": "Measured from the caster's own cell at cast time; the cast target's position is irrelevant. Cells are snapshotted before the loop.",
+  "repeatedCastsAndModes": "Single mode. Each cast spends maxPP (100) of PP. Repeated casts stack the SPE_DEF reduction, down to 0.",
+  "rawVsResolved": "Requested: SPE_DEF -3 and special damage 30 / 35 raw on each enemy within radius 5 of the caster. Applied: SPE_DEF change unscaled (apBoost 0), flipped to a gain for an enemy Twist Band holder, clamped at 0; damage after AP, crit, the reduced SPE_DEF and the floor of 1 (zero if protected / skydiving / magicBounce, while the SPE_DEF change is still applied).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/seed-flare.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "starBehavior.declaredRawDamage"
+   },
+   {
+    "id": "debuff",
+    "file": "app/core/abilities/seed-flare.ts",
+    "pattern": "const spDefDebuff = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "magicBounce reflection details were not traced beyond the formula quoted"
+  ],
+  "unresolved": [
+   "Whether the SPE_DEF reduction is ever undone during the same fight (no restore step in the strategy; other code that resets stats was not audited)",
+   "Whether damage to one victim can kill or move another before it is processed (cells are snapshotted before the loop; dead entities are filtered only by handleDamage)",
+   "The SHAYMIN and ZENITH passives are separate identifiers and may change AP, stars or stats; not covered",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "Consulted for helpers: core-mechanics.md sections A, H, I; the addSpecialDefense / applyBigEaterBeltStatBuff / applyTwistBandBuff definitions in pokemon-entity.ts; KING_SHIELD candidate; no heal / PP / shield helper is involved",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1143,
+     1143
+    ],
+    "symbol": "AbilityStrategies[Ability.SEED_FLARE]",
+    "expect": "[Ability.SEED_FLARE]: new SeedFlareStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP and counts the cast"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "default flags"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": "cast gate"
+   },
+   {
+    "id": "sf-class",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SeedFlareStrategy",
+    "expect": "export class SeedFlareStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "sf-super",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "sf-dmg",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "const damage = [20, 25, 30, 35, 70][pokemon.stars - 1] ?? 70",
+    "note": ""
+   },
+   {
+    "id": "sf-deb",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "const spDefDebuff = [-3, -3, -3, -3, -6][pokemon.stars - 1] ?? -6",
+    "note": ""
+   },
+   {
+    "id": "sf-cells",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": ".getCellsInRadius(pokemon.positionX, pokemon.positionY, 5, false)",
+    "note": "radius 5 around the caster, centre excluded"
+   },
+   {
+    "id": "sf-filter",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "cell.value && pokemon.team !== cell.value.team",
+    "note": ""
+   },
+   {
+    "id": "sf-add",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "cell.value.addSpecialDefense(spDefDebuff, pokemon, 0, false)",
+    "note": "apBoost 0 and crit false: no AP or crit scaling; applied first"
+   },
+   {
+    "id": "sf-hsd",
+    "file": "app/core/abilities/seed-flare.ts",
+    "lines": [
+     22,
+     28
+    ],
+    "symbol": "SeedFlareStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "applied second, after the debuff; return value not read"
+   },
+   {
+    "id": "radius",
+    "file": "app/core/board.ts",
+    "lines": [
+     267,
+     288
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "radius = Math.floor(Math.abs(radius)) + 0.5",
+    "note": "radius 5 becomes 5.5; strict distanceSquared < 30.25; centre excluded"
+   },
+   {
+    "id": "radius-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     283,
+     283
+    ],
+    "symbol": "Board.getCellsInRadius",
+    "expect": "distanceSquared < radiusSquared",
+    "note": ""
+   },
+   {
+    "id": "add-sd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     723
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "SPE_DEF floored at 0"
+   },
+   {
+    "id": "add-sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     708,
+     714
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "Math.round(value x (1 + apBoost x AP/100) x (crit ? critPower : 1)); with apBoost 0 and crit false this is the raw value"
+   },
+   {
+    "id": "add-sd-perm",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     721,
+     721
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "if (permanent && !this.isGhostOpponent) {",
+    "note": "not taken: permanent is false"
+   },
+   {
+    "id": "belt-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value > 0 || (value < 0 && caster !== \"environment\" && caster.team === pokemon.team)",
+    "note": "positive values, and negative values from a same-team caster (a buff being lost), are scaled for a Big Eater Belt holder"
+   },
+   {
+    "id": "belt-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1848,
+     1850
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 with rounding mode down"
+   },
+   {
+    "id": "twist-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value < 0 && pokemon.items.has(Item.TWIST_BAND)",
+    "note": "flips only negative values from the environment or another team; not applicable to self-inflicted changes"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage) but the blind call is not gated by it"
+   },
+   {
+    "id": "mb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     361,
+     361
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce &&",
+    "note": ""
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + caster AP / 100)"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+   },
+   {
+    "id": "hd-speDef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage reduced by the target speDef (halved by armorReduction)"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 damage"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-enr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "damage x2 if the attacker is enraged"
+   },
+   {
+    "id": "unit-shaymin",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7389,
+     7407
+    ],
+    "symbol": "class Shaymin",
+    "expect": "skill = Ability.SEED_FLARE",
+    "note": "unit class block (stars 3, passive SHAYMIN)"
+   },
+   {
+    "id": "unit-shaymin-sky",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7409,
+     7422
+    ],
+    "symbol": "class ShayminSky",
+    "expect": "skill = Ability.SEED_FLARE",
+    "note": "unit class block (stars 4, passive ZENITH)"
+   }
+  ]
+ }
+}
