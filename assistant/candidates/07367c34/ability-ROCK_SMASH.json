@@ -1,0 +1,517 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/ROCK_SMASH",
+ "kind": "ability",
+ "identifier": "ROCK_SMASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T064126Z"
+ },
+ "record": {
+  "ability": "ROCK_SMASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare ROCK_SMASH: Archen (1 star) and Archeops (2 stars). The strategy is shared; unit differences are the star count (table index), range 2 and maxPP. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "ARCHEN",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "ROCK_SMASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ARCHEOPS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "ROCK_SMASH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARCHEN": {
+    "evidence": [
+     "unit-archen"
+    ]
+   },
+   "ARCHEOPS": {
+    "evidence": [
+     "unit-archeops"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.ROCK_SMASH] = new RockSmashStrategy()",
+   "strategy": "RockSmashStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "rsm-class",
+    "rsm-super"
+   ]
+  },
+  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by the caster's stars) to the cast target, then applies armor reduction to that target for 3000/6000/9000/18000 ms (requested). While armor reduction lasts, the target's DEF and SPE_DEF are halved (Math.round(x/2)) inside later damage calculations. The status is applied AFTER the damage call, so this cast's own damage uses the target's normal SPE_DEF. The application is refused if the target has Rune Protect; the damage is not affected by that refusal, and the status call is not blocked by protect.",
+  "targeting": {
+   "who": "damage and status: the cast target",
+   "needsTarget": true,
+   "note": "The caster must reach its target (requiresTarget true); range is 2 for both units. No area or secondary target. Which unit is chosen as cast target is decided by generic targeting code, which was not read.",
+   "evidence": [
+    "rsm-hit",
+    "rsm-ar",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "rsm-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "ARCHEN": 25,
+     "ARCHEOPS": 50
+    },
+    "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce.",
+    "evidence": [
+     "rsm-table",
+     "rsm-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armorReduction",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 6000,
+      "3": 9000,
+      "4": 18000,
+      "fallback": 18000
+     },
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
+     "ARCHEN": 3000,
+     "ARCHEOPS": 6000
+    },
+    "scaling": "none from AP or crit (the duration is not multiplied by AP)",
+    "applicationOrder": "after the damage",
+    "guards": "refused if the TARGET's status has runeProtect (checked on the target in triggerArmorReduction); a refusal neither sets nor clears the flag and does not undo the damage. When applied, the duration passes through applyStatusDurationReductions(duration, pkm) where pkm is the entity the strategy supplied, here the TARGET (unlike RAGING_BULL, which supplies the caster): a target with SWIFT_SWIM gets x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), then each Odd Keystone in the target's player's items takes a further 10 % (Math.round). A new application replaces the remaining time only if longer (no stacking).",
+    "effectWhileActive": "handleDamage uses Math.round(def / 2) and Math.round(speDef / 2) for the target (before a WONDER_ROOM swap), so PHYSICAL and SPECIAL hits taken during the window are divided by smaller defenses. updateArmorReduction counts the cooldown down by dt and clears the flag at 0.",
+    "evidence": [
+     "rsm-dur",
+     "rsm-ar",
+     "st-ar",
+     "st-ar-upd",
+     "st-red",
+     "hd-ar"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ARCHEN": 1,
+    "ARCHEOPS": 2
+   },
+   "declaredRawDamage": {
+    "ARCHEN": 25,
+    "ARCHEOPS": 50
+   },
+   "declaredRawArmorBreakMs": {
+    "ARCHEN": 3000,
+    "ARCHEOPS": 6000
+   },
+   "note": "Both tables are indexed by the casting entity's stars; the 3- and 4-star columns (100 / 200 and 9000 / 18000 ms, also the ?? fallbacks) are not reachable by the two listed units' factory star counts. Whether other mechanics raise a star count was not examined.",
+   "evidence": [
+    "rsm-table",
+    "rsm-dur",
+    "unit-archen",
+    "unit-archeops"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), deals its damage again and re-applies armor reduction; the remaining time is replaced only when the new duration is longer, so recasts refresh to the full duration but do not add.",
+  "rawVsResolved": "Requested: damage 25 (Archen) / 50 (Archeops); armor reduction 3000 / 6000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF at that moment (not yet halved by this cast), with a minimum of 1; takenDamage includes shield damage and is 0 when the target has protect / skydiving / magicBounce. Applied armor reduction duration = requested after the target's own duration reductions (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER, Odd Keystone); not applied under Rune Protect. No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/rock-smash.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "armorBreakDuration",
+    "file": "app/core/abilities/rock-smash.ts",
+    "pattern": "const armorBreakDuration = \\[([^\\]]+)\\]",
+    "recordPath": "statusEffects.0.declaredRaw.byStars",
+    "unitValuesPath": "statusEffects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not"
+  ],
+  "unresolved": [
+   "If the target already has armorReduction active (from another source) when the damage is dealt, the halved defenses apply to this cast's damage too; the record describes the usual no-prior-status case",
+   "A Rune-Protect refusal does not prove the target's armorReduction flag is false (see the RAGING_BULL record for the flag/cooldown detail); the flag was not re-traced here",
+   "If the damage kills the target or triggers an on-death effect, the following triggerArmorReduction call on the dead target was not traced",
+   "Helpers consulted: Status.triggerArmorReduction / updateArmorReduction / applyStatusDurationReductions and the armorReduction branch of PokemonState.handleDamage were read (see evidence); no routing uncertainties are listed for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "st-ar",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     352
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity) {",
+    "note": "refused if runeProtect; else flag set, duration passed through applyStatusDurationReductions(duration, pkm) and the cooldown replaced only if longer"
+   },
+   {
+    "id": "st-ar-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     354,
+     360
+    ],
+    "symbol": "Status.updateArmorReduction",
+    "expect": "updateArmorReduction(dt: number) {",
+    "note": "cooldown counted down by dt; flag cleared at 0"
+   },
+   {
+    "id": "st-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1306
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 of the entity passed as pkm, then Odd Keystone 10 % each of pkm's player"
+   },
+   {
+    "id": "hd-ar",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     509,
+     515
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "let def = pokemon.status.armorReduction",
+    "note": "with armorReduction active, def and speDef are halved (Math.round) before the damage division"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1126,
+     1126
+    ],
+    "symbol": "AbilityStrategies[Ability.ROCK_SMASH]",
+    "expect": "[Ability.ROCK_SMASH]: new RockSmashStrategy()",
+    "note": ""
+   },
+   {
+    "id": "rsm-class",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "RockSmashStrategy",
+    "expect": "export class RockSmashStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "rsm-super",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "RockSmashStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "rsm-table",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "RockSmashStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "damage table by stars"
+   },
+   {
+    "id": "rsm-dur",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "RockSmashStrategy.process",
+    "expect": "const armorBreakDuration = [3000, 6000, 9000, 18000][pokemon.stars - 1] ?? 18000",
+    "note": "armor reduction duration (ms) by stars"
+   },
+   {
+    "id": "rsm-hit",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "RockSmashStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target with default apBoost"
+   },
+   {
+    "id": "rsm-ar",
+    "file": "app/core/abilities/rock-smash.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "RockSmashStrategy.process",
+    "expect": "target.status.triggerArmorReduction(armorBreakDuration, target)",
+    "note": "armor reduction on the target after the damage; the pkm argument is the TARGET"
+   },
+   {
+    "id": "unit-archen",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7918,
+     7932
+    ],
+    "symbol": "class Archen",
+    "expect": "skill = Ability.ROCK_SMASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-archeops",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7934,
+     7947
+    ],
+    "symbol": "class Archeops",
+    "expect": "skill = Ability.ROCK_SMASH",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
