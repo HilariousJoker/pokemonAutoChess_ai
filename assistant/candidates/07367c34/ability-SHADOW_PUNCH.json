@@ -1,0 +1,465 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SHADOW_PUNCH",
+ "kind": "ability",
+ "identifier": "SHADOW_PUNCH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T183931Z"
+ },
+ "record": {
+  "ability": "SHADOW_PUNCH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "GOLETT and GOLURK declare SHADOW_PUNCH in this production reference (passive NONE in the catalog). The cast itself deals no damage: it teleports the caster beside the lowest-health-fraction enemy and arms a one-shot bonus applied by the caster's NEXT attack.",
+  "appliesTo": [
+   {
+    "key": "GOLETT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHADOW_PUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOLURK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SHADOW_PUNCH",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOLETT": {
+    "evidence": [
+     "unit-golett"
+    ]
+   },
+   "GOLURK": {
+    "evidence": [
+     "unit-golurk"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SHADOW_PUNCH] = new ShadowPunchStrategy()",
+   "strategy": "ShadowPunchStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "note": "requiresTarget is false: MovingState casts at pp >= maxPP && canCast with target null, without walking up to an enemy; AttackingState also casts it (with the current target passed in, which this strategy ignores) under the same pp/canCast gate.",
+   "evidence": [
+    "reg",
+    "sp-class",
+    "base-flags",
+    "base-pp",
+    "sp-super",
+    "ms-gate",
+    "as-gate"
+   ]
+  },
+  "summary": "No damage on cast. The caster (after the base PP spend) picks the enemy with the smallest hp/maxHP, moves to the free cell closest to that enemy (cell search around the enemy's own x/y with the opposite team's row direction, else the first free cell of the enemy's team side), and adds the SHADOW_PUNCH_NEXT_ATTACK effect. On the caster's next attack that reaches the attack routine, bonus SPECIAL damage of 30/60/120/240 by caster stars, times (1 + AP/100), times the crit factor only if the caster has ABILITY_CRIT and that attack rolled a crit (reduced by the target's critReductionFactor), is added to the attack's special damage and the effect is removed. If no enemy exists the effect is not added and nothing moves.",
+  "targeting": {
+   "who": "no cast target is used (the target argument is ignored); the destination is chosen from all board entities of the other team, whether targettable or not",
+   "needsTarget": false,
+   "note": "the bonus later hits whatever target the caster's next attack has, which need not be the enemy chosen at cast time; targettability of the chosen enemy was not read (the filter is only cell.team !== pokemon.team).",
+   "evidence": [
+    "sp-class",
+    "sp-select",
+    "sp-effect",
+    "atk-special"
+   ]
+  },
+  "geometry": {
+   "shape": "relocation by swap, then a one-shot buff; no area",
+   "note": "Destination = first free on-board cell in the helper's offset list [0,0],[-1,0],[+1,0],[0,-1],[-1,-1],[+1,-1],[-1,+1],[+1,+1],[0,+1],[-2,0],... applied to the enemy's x,y with dy multiplied by +1 when the passed team is BLUE_TEAM (0) else -1; the team passed is (enemy.team + 1) % 2, i.e. the caster's side. [0,0] is the enemy's own occupied cell, so it is skipped. moveTo(forcedDisplacement=false) does a plain swapCells with whatever occupies the cell (the cell is free, so no swap partner), then toMovingState and cooldown 100.",
+   "evidence": [
+    "sp-select",
+    "sp-move",
+    "free-to-entity",
+    "free-cell",
+    "free-loop",
+    "free-fallback",
+    "team-enum",
+    "moveto",
+    "swap",
+    "orient"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "movement",
+    "declaredRaw": "none (destination chosen by the closest-free-cell helper)",
+    "scaling": "none",
+    "resolution": "if getClosestFreeCellToPokemonEntity returns null (no free cell at all) the caster does not move and its orientation is unchanged, but it still receives the next-attack effect. When a cell is found, orientation is set via board.orientation(coord.x, coord.y, caster.x, caster.y, ...) (arguments x0,y0 = destination, x1,y1 = caster's current cell) before moveTo; because the destination is free, moveTo swaps the caster with an empty cell.",
+    "evidence": [
+     "sp-move",
+     "free-to-entity",
+     "free-cell",
+     "free-fallback",
+     "moveto",
+     "swap",
+     "orient"
+    ]
+   },
+   {
+    "kind": "damage (deferred, next attack)",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "GOLETT": 30,
+     "GOLURK": 60
+    },
+    "scaling": "ceil(raw x (1 + AP/100) x critFactor) where critFactor = 1 + (critPower - 1) x critReductionFactor only if the caster has ABILITY_CRIT and the attack rolled crit, else 1. It is added to the attack's specialDamage, then the whole specialDamage is rounded and applied with the attack's own special damage (if the unit's attack is special) in one handleSpecialDamage call.",
+    "resolution": "requested amount = the ceil above; applied amount is whatever handleSpecialDamage -> handleDamage leaves after SPE_DEF division, shields, protect, items; takenDamage reported is shield part plus HP lost (see knowledge core-mechanics \u00a7J). The bonus is added even when the attack itself was dodged or blocked (isAttackSuccessful false only zeroes the base damage), but handleSpecialDamage still returns 0 for a target with status.protect / skydiving. The effect is deleted at the moment the bonus is computed, so it is consumed by the first attack that reaches this code, whether or not damage lands.",
+    "evidence": [
+     "sp-bonus",
+     "atk-crit",
+     "atk-protect",
+     "atk-round",
+     "atk-special",
+     "effect-enum"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "GOLETT": 1,
+    "GOLURK": 2
+   },
+   "declaredRawDamage": {
+    "GOLETT": 30,
+    "GOLURK": 60
+   },
+   "note": "indexed by the casting entity's stars; the 4-star value (240, also the fallback) is not reachable by these units' bare star counts. maxPP and range are in appliesTo.",
+   "evidence": [
+    "sp-bonus"
+   ]
+  },
+  "positionalConditions": "Target of the relocation: sort of board cells with an entity of the other team by hp/maxHP ascending, first element; the sort is stable, so ties keep board cell order (row y outer, x inner as stored in board.cells). No hp, targettability or alive check is applied in this strategy beyond the team test. If the helper's offsets are all occupied, getFirstFreeCell(team) returns the first free cell of the passed team's own side, scanning rows from that side's edge.",
+  "repeatedCastsAndModes": "The effect is a Set member, so a second cast before the next attack does not stack: the bonus is applied once. No modes. Each cast relocates the caster again.",
+  "rawVsResolved": "Declared raw bonus 30/60/120/240 by caster stars (30 for GOLETT, 60 for GOLURK). Requested = ceil(raw x (1 + AP/100) x crit factor); the dealt amount is lower after SPE_DEF (ceil, min 1) and shield handling inside handleDamage, and 0 against protect/skydiving. The base attack damage is separate and unchanged by this ability.",
+  "sourceTables": [
+   {
+    "id": "shadowPunchBonus",
+    "file": "app/core/pokemon-state.ts",
+    "pattern": "\\(\\[(30, 60, 120, 240)\\]\\[pokemon\\.stars - 1\\] \\?\\? 240\\)",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL SPE_DEF division, the minimum of 1 and the shield step were summarised from shared references",
+   "Which enemies the game treats as valid cast targets in a real fight (the strategy applies only a team filter)",
+   "Movement side effects of toMovingState and the cooldown set to 100 (retargeting after the jump)"
+  ],
+  "unresolved": [
+   "Whether the effect is cleared at the end of a fight if no attack consumes it was not examined",
+   "Whether any item or synergy effect changes SHADOW_PUNCH",
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Interaction with TRIPLE attack or multi-hit attacks (isTripleAttack) was not read: the effect is deleted by the first attack call that reaches the block",
+   "Behaviour is source reading only; no probe was run for this record"
+  ],
+  "evidence": [
+   {
+    "id": "unit-golett",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15536,
+     15554
+    ],
+    "symbol": "class Golett",
+    "expect": "skill = Ability.SHADOW_PUNCH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-golurk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15556,
+     15573
+    ],
+    "symbol": "class Golurk",
+    "expect": "skill = Ability.SHADOW_PUNCH",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1150,
+     1150
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SHADOW_PUNCH]: new ShadowPunchStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "sp-class",
+    "file": "app/core/abilities/shadow-punch.ts",
+    "lines": [
+     7,
+     9
+    ],
+    "symbol": "class ShadowPunchStrategy",
+    "expect": "requiresTarget = false",
+    "note": "class and flag"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base defaults (overridden to false here)"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and count.ult increment"
+   },
+   {
+    "id": "sp-super",
+    "file": "app/core/abilities/shadow-punch.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process call (broadcast, PP spend)"
+   },
+   {
+    "id": "sp-select",
+    "file": "app/core/abilities/shadow-punch.ts",
+    "lines": [
+     10,
+     15
+    ],
+    "symbol": "process",
+    "expect": "const lowestHealthEnemy = (",
+    "note": "lowest hp/maxHP enemy among board cells"
+   },
+   {
+    "id": "sp-move",
+    "file": "app/core/abilities/shadow-punch.ts",
+    "lines": [
+     16,
+     32
+    ],
+    "symbol": "process",
+    "expect": "if (lowestHealthEnemy) {",
+    "note": "free cell next to that enemy, orientation, moveTo"
+   },
+   {
+    "id": "sp-effect",
+    "file": "app/core/abilities/shadow-punch.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "process",
+    "expect": "pokemon.effects.add(EffectEnum.SHADOW_PUNCH_NEXT_ATTACK)",
+    "note": "marks the next attack"
+   },
+   {
+    "id": "ms-gate",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     43,
+     46
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "cast without a target when requiresTarget is false"
+   },
+   {
+    "id": "as-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "if (pokemon.pp >= pokemon.maxPP && pokemon.canCast) {",
+    "note": "cast with the current target in the attacking state"
+   },
+   {
+    "id": "free-to-entity",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     491,
+     496
+    ],
+    "symbol": "Simulation.getClosestFreeCellToPokemonEntity",
+    "expect": "getClosestFreeCellToPokemonEntity(",
+    "note": "wrapper: cell search around the entity's own x/y with the given team"
+   },
+   {
+    "id": "free-cell",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     423,
+     430
+    ],
+    "symbol": "Simulation.getClosestFreeCellTo",
+    "expect": "getClosestFreeCellTo(\n",
+    "note": "offset priority list, first free on-board cell, else getFirstFreeCell"
+   },
+   {
+    "id": "free-loop",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     467,
+     474
+    ],
+    "symbol": "Simulation.getClosestFreeCellTo",
+    "expect": "const y = positionY + dy * (team === Team.BLUE_TEAM ? 1 : -1)",
+    "note": "dy sign depends on the team argument"
+   },
+   {
+    "id": "free-fallback",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     476,
+     476
+    ],
+    "symbol": "Simulation.getClosestFreeCellTo",
+    "expect": "return this.getFirstFreeCell(team)",
+    "note": "fallback when none of the offsets is free"
+   },
+   {
+    "id": "team-enum",
+    "file": "app/types/enum/Game.ts",
+    "lines": [
+     161,
+     163
+    ],
+    "symbol": "enum Team",
+    "expect": "BLUE_TEAM = 0",
+    "note": "BLUE_TEAM = 0, RED_TEAM = 1"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "swap with whatever stands on the cell; forcedDisplacement false skips canBeMoved checks"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "exchanges the two cells' entities"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     106
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "orientation from the cell vector"
+   },
+   {
+    "id": "effect-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     97,
+     97
+    ],
+    "symbol": "EffectEnum",
+    "expect": "SHADOW_PUNCH_NEXT_ATTACK = \"SHADOW_PUNCH_NEXT_ATTACK\"",
+    "note": "effect identifier"
+   },
+   {
+    "id": "atk-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     59,
+     59
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "const crit = chance(critChance, pokemon)",
+    "note": "per-attack crit roll"
+   },
+   {
+    "id": "atk-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "protect / skydiving zero only the attack's own damage"
+   },
+   {
+    "id": "sp-bonus",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     175,
+     185
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "([30, 60, 120, 240][pokemon.stars - 1] ?? 240) *",
+    "note": "bonus special damage on the next attack; effect deleted"
+   },
+   {
+    "id": "atk-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     236,
+     236
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "specialDamage = Math.round(specialDamage)",
+    "note": "rounding after all additions"
+   },
+   {
+    "id": "atk-special",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     259,
+     267
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "const { takenDamage, death } = target.handleSpecialDamage(",
+    "note": "combined special damage applied to the target"
+   }
+  ]
+ }
+}
