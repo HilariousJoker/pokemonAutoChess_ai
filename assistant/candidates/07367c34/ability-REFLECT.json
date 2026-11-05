@@ -1,0 +1,435 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/REFLECT",
+ "kind": "ability",
+ "identifier": "REFLECT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T064126Z"
+ },
+ "record": {
+  "ability": "REFLECT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare REFLECT: Espurr (1 star) and Meowstic male (2 stars). The strategy is shared; unit differences are the star count (the reflect factor index) and stats. Espurr also declares the passive ESPURR, which is not covered here. Meowstic female and other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "ESPURR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "REFLECT",
+    "declaredPassive": "ESPURR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MEOWSTIC_MALE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "REFLECT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ESPURR": {
+    "evidence": [
+     "unit-espurr"
+    ]
+   },
+   "MEOWSTIC_MALE": {
+    "evidence": [
+     "unit-meowstic_male"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.REFLECT] = new ReflectStrategy()",
+   "strategy": "ReflectStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "rf-class",
+    "rf-super"
+   ]
+  },
+  "summary": "Self-targeted status cast: the caster gains the reflect status for 3000 ms (stars 1-3; 5000 ms from 4 stars) via Status.triggerReflect. While reflect is active, every PHYSICAL hit it receives is fully negated (takenDamage 0). Unless the attacker holds Protective Pads or the hit is itself a retaliation, the attacker takes SPECIAL damage equal to round(factor x the incoming damage x (1 + the reflector's AP/100) x critPower if the reflector's ABILITY_CRIT roll succeeds), factor 0.5 / 0.75 / 1 / 1.5 by the reflector's stars (so 0.5 for Espurr, 0.75 for Meowstic). No damage is dealt by the cast itself. Recasting while active only extends the timer to the larger value.",
+  "targeting": {
+   "who": "the caster itself; the cast target is only the generic requiresTarget gate",
+   "needsTarget": true,
+   "note": "The strategy never reads target. Reflected damage goes to whoever attacks the reflecting unit with PHYSICAL damage during the window.",
+   "evidence": [
+    "rf-trigger",
+    "base-flags",
+    "hd-reflect"
+   ]
+  },
+  "geometry": {
+   "shape": "self; no area",
+   "evidence": [
+    "rf-trigger"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "status": "reflect",
+    "target": "the caster",
+    "declaredRaw": {
+     "durationMs": {
+      "byStars": {
+       "1": 3000,
+       "2": 3000,
+       "3": 3000,
+       "4": 5000,
+       "fallback": 5000
+      },
+      "label": "reflect duration, ms (raw)"
+     }
+    },
+    "perUnitRaw": {
+     "ESPURR": 3000,
+     "MEOWSTIC_MALE": 3000
+    },
+    "scaling": "No AP scaling and no duration reduction: triggerReflect(timer) stores the timer as is. The cooldown only rises (if timer > current, replace); a second cast does not stack.",
+    "resolution": "reflect = true until the cooldown counted down by updateReflect reaches 0. Not blocked by Rune Protect (triggerReflect has no runeProtect check). Ended early by RAGING_BULL, BRICK_BREAK or SHADOW_FORCE against the unit.",
+    "evidence": [
+     "rf-table",
+     "rf-trigger",
+     "st-trigger",
+     "st-update",
+     "rb-reflect",
+     "bb-reflect",
+     "sf-reflect"
+    ]
+   },
+   {
+    "kind": "reflect",
+    "damageType": "SPECIAL (to the attacker)",
+    "target": "the attacker of any PHYSICAL hit on the reflecting unit",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.5,
+      "2": 0.75,
+      "3": 1,
+      "4": 1.5,
+      "fallback": 1.5
+     },
+     "label": "reflect factor by the reflecting unit's stars (raw multiplier of the incoming damage)"
+    },
+    "perUnitRaw": {
+     "ESPURR": 0.5,
+     "MEOWSTIC_MALE": 0.75
+    },
+    "scaling": "reflected = Math.round(factor x damage x (1 + AP/100) x (critPower if reflectCrit)); damage is the incoming physical figure after the enraged / field / weather / Hisuian Typhlosion / Sheer Cold multipliers and BEFORE the defense division; AP and crit are the reflecting unit's own; reflectCrit needs the ABILITY_CRIT effect and a roll of its critChance.",
+    "resolution": "the reflected figure is sent to attacker.handleDamage as SPECIAL, so it is then reduced by the attacker's SPE_DEF (armor reduction halves it), has minimum 1 and can hit a shield. Skipped (nothing reflected) if the attacker holds Protective Pads, or the hit is a retaliation (isRetaliation). In every case the original physical hit returns takenDamage 0 and deals nothing to the reflecting unit. A Human-synergy heal effect from the reflected damage is also triggered (not traced further).",
+    "evidence": [
+     "hd-reflect",
+     "hd-reflect-factor",
+     "hd-reflect-dmg",
+     "hd-reflect-ret"
+    ]
+   }
+  ],
+  "statusEffects": [
+   "reflect on the caster, 3000 ms (stars 1-3) / 5000 ms (4+)"
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ESPURR": 1,
+    "MEOWSTIC_MALE": 2
+   },
+   "declaredRawDurationMs": {
+    "ESPURR": 3000,
+    "MEOWSTIC_MALE": 3000
+   },
+   "declaredRawReflectFactor": {
+    "ESPURR": 0.5,
+    "MEOWSTIC_MALE": 0.75
+   },
+   "note": "The duration table is indexed by the casting entity's stars (3000 for stars 1-3, 5000 from star 4 and as the ?? fallback); the reflect factor table in handleDamage is indexed by the reflecting entity's stars (0.5 / 0.75 / 1 / 1.5). The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "evidence": [
+    "rf-table",
+    "hd-reflect-factor",
+    "unit-espurr",
+    "unit-meowstic_male"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself.",
+  "repeatedCastsAndModes": "No modes. Each cast spends maxPP of PP (floor 0) and calls triggerReflect again; the timer is replaced only when the new duration exceeds the remaining one, so a recast during the window refreshes it up to the full duration but does not add.",
+  "rawVsResolved": "Requested: reflect for 3000 ms; reflect factor 0.5 (Espurr) / 0.75 (Meowstic). The cast has no damage of its own. Reflected damage = round(factor x pre-defense incoming physical damage x (1 + AP/100) x optional crit); the attacker then applies its own SPE_DEF reduction (minimum 1, shield first), so the damage it actually loses is smaller than the figure sent. The reflecting unit takes 0 from each physical hit while reflect is active, even when Protective Pads or retaliation stop the reflection. No heal, PP gain or shield is created by the ability itself.",
+  "sourceTables": [
+   {
+    "id": "duration",
+    "file": "app/core/abilities/reflect.ts",
+    "pattern": "const duration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.durationMs.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "reflectFactor",
+    "file": "app/core/pokemon-state.ts",
+    "pattern": "const reflectFactor = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether non-attack PHYSICAL damage sources (other abilities with AttackType.PHYSICAL, item or effect retaliations) all pass through handleDamage and are reflected as described was not enumerated"
+  ],
+  "unresolved": [
+   "The reflecting unit receives no damage from a physical hit even if reflection is skipped (Protective Pads / isRetaliation): this follows from the early return, but the Protective Pads item text was not compared",
+   "Interaction with AP: the reflected figure uses the reflector's AP; no AP scaling applies to the duration",
+   "Espurr's passive ESPURR is not covered by this record",
+   "Helpers consulted: Status.triggerReflect / updateReflect and the reflect branch of PokemonState.handleDamage were read (see evidence); handleDamage's later reduction steps (POKE_DOLL, GUTS and similar blocks) were seen but not analysed for the reflected hit",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1116,
+     1116
+    ],
+    "symbol": "AbilityStrategies[Ability.REFLECT]",
+    "expect": "[Ability.REFLECT]: new ReflectStrategy()",
+    "note": ""
+   },
+   {
+    "id": "rf-class",
+    "file": "app/core/abilities/reflect.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ReflectStrategy",
+    "expect": "export class ReflectStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "rf-super",
+    "file": "app/core/abilities/reflect.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "ReflectStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "rf-table",
+    "file": "app/core/abilities/reflect.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ReflectStrategy.process",
+    "expect": "const duration = [3000,3000,3000,5000][pokemon.stars - 1] ?? 5000",
+    "note": "duration (ms) by stars"
+   },
+   {
+    "id": "rf-trigger",
+    "file": "app/core/abilities/reflect.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ReflectStrategy.process",
+    "expect": "pokemon.status.triggerReflect(duration)",
+    "note": "self status; the cast target is not used"
+   },
+   {
+    "id": "st-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1026,
+     1031
+    ],
+    "symbol": "Status.triggerReflect",
+    "expect": "triggerReflect(timer: number) {",
+    "note": "sets reflect = true; cooldown = max(existing, timer); no runeProtect check, no duration reduction, no AP scaling"
+   },
+   {
+    "id": "st-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1033,
+     1039
+    ],
+    "symbol": "Status.updateReflect",
+    "expect": "updateReflect(dt: number) {",
+    "note": "counts the cooldown down by dt and clears reflect at 0"
+   },
+   {
+    "id": "hd-reflect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     522,
+     557
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.reflect && attackType === AttackType.PHYSICAL) {",
+    "note": "PHYSICAL damage against a reflecting unit: reflected to the attacker unless the attacker holds Protective Pads or the hit is itself a retaliation"
+   },
+   {
+    "id": "hd-reflect-factor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     531,
+     531
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "const reflectFactor = [0.5, 0.75, 1, 1.5][pokemon.stars - 1] ?? 1.5",
+    "note": "reflect factor by the reflecting unit's stars"
+   },
+   {
+    "id": "hd-reflect-dmg",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     535,
+     535
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "(1 + pokemon.ap / 100) *",
+    "note": "reflected damage = round(factor x damage x (1 + AP/100) x critPower if the reflector's ABILITY_CRIT roll succeeds)"
+   },
+   {
+    "id": "hd-reflect-ret",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     556,
+     556
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "return { death: false, takenDamage: 0 }",
+    "note": "the physical hit is always negated (takenDamage 0), whether or not anything was reflected"
+   },
+   {
+    "id": "rb-reflect",
+    "file": "app/core/abilities/raging-bull.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "RagingBullStrategy.process",
+    "expect": "target.status.reflect = false",
+    "note": "another ability removes the target's reflect"
+   },
+   {
+    "id": "bb-reflect",
+    "file": "app/core/abilities/brick-break.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "BrickBreakStrategy.process",
+    "expect": "target.status.reflect = false",
+    "note": "another ability removes the target's reflect"
+   },
+   {
+    "id": "sf-reflect",
+    "file": "app/core/abilities/shadow-force.ts",
+    "lines": [
+     54,
+     54
+    ],
+    "symbol": "ShadowForceStrategy.process",
+    "expect": "enemy.status.reflect = false",
+    "note": "another ability removes an enemy's reflect"
+   },
+   {
+    "id": "unit-espurr",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18491,
+     18516
+    ],
+    "symbol": "class Espurr",
+    "expect": "skill = Ability.REFLECT",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-meowstic_male",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18518,
+     18530
+    ],
+    "symbol": "class MeowsticMale",
+    "expect": "skill = Ability.REFLECT",
+    "note": "unit class block: skill / passive / stars / stats"
+   }
+  ]
+ }
+}
