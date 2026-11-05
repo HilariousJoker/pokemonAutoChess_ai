@@ -1,0 +1,415 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/PROTECT",
+ "kind": "ability",
+ "identifier": "PROTECT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T003947Z"
+ },
+ "record": {
+  "ability": "PROTECT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare PROTECT: Deoxys (Defense Forme) (DEOXYS_DEFENSE, 3 stars, maxPP 100, passive ALIEN_DNA) and Kabuto (1 star, maxPP 80, no passive); both range 1. The strategy is shared; unit differences are the star index into the duration table. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "DEOXYS_DEFENSE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PROTECT",
+    "declaredPassive": "ALIEN_DNA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "KABUTO",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "PROTECT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DEOXYS_DEFENSE": {
+    "evidence": [
+     "unit-deoxys-defense"
+    ]
+   },
+   "KABUTO": {
+    "evidence": [
+     "unit-kabuto"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.PROTECT] = new ProtectStrategy()",
+   "strategy": "ProtectStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base",
+    "base-proc",
+    "cast"
+   ]
+  },
+  "summary": "Self-buff. After the base PP spend, the caster gets the Protect status for a requested duration of round(table[stars-1] x (2 + AP/100) x critFactor) ms, with table 500 / 1500 / 2500 / 4000 (4000 as fallback) and critFactor 1 + (critPower - 1) x 0.5 when the cast crit, else 1. At AP 0 and no crit that is 1000 ms (Kabuto, 1 star) and 5000 ms (Deoxys Defense, 3 stars). triggerProtect does nothing if the caster is already protected (no refresh, no extension) or enraged, so the requested duration is only applied when neither holds. The strategy inherits requiresTarget = true: the cast needs a target in range even though the target is never used. While protected the caster takes 0 from basic attacks (unsuccessful) and from ability damage (handleSpecialDamage), handleDamage reports takenDamage 0, positive PP gain is dropped and ordinary healing returns 0 / 0 (the wound branch of handleHeal runs before that guard; core-mechanics.md section J). Protect is the status.protect flag; Rune Protect (status.runeProtect) is a different flag and neither blocks PP / healing nor implies Protect.",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": true,
+   "note": "requiresTarget is inherited (true), so the unit must have a target in range to cast; the target parameter is passed to process and used only for the animation coordinates in the base class, never by ProtectStrategy.",
+   "evidence": [
+    "cls",
+    "base",
+    "base-proc",
+    "apply"
+   ]
+  },
+  "geometry": {
+   "shape": "none (self only)",
+   "evidence": [
+    "apply"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "target": "the caster",
+    "declaredRaw": {
+     "status": "protect",
+     "durationMsByStars": {
+      "1": 500,
+      "2": 1500,
+      "3": 2500,
+      "4": 4000,
+      "fallback": 4000
+     },
+     "label": "raw flat duration table (ms), before the AP factor (2 + AP/100) and crit"
+    },
+    "perUnitRaw": {
+     "DEOXYS_DEFENSE": 2500,
+     "KABUTO": 500
+    },
+    "scaling": "requested duration = round(table[stars-1] x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)); the AP factor is 2 + AP/100, so at AP 0 the raw table value is doubled (KABUTO 1000 ms, DEOXYS_DEFENSE 5000 ms). The crit branch needs ABILITY_CRIT because canCritByDefault is false; with critPower 2 the crit factor is 1.5. This is a duration, not a stat or heal amount, so Big Eater Belt and Twist Band do not apply.",
+    "resolution": "requested duration -> triggerProtect(timer): ignored when the caster is already protected (no refresh) or enraged; otherwise protect = true and protectCooldown = timer. updateProtect(dt) runs on each status update while protect is true and clears the flag when protectCooldown - dt <= 0, so the applied length is the requested duration in simulation time, rounded to update steps. Applied = requested when the guard passes, otherwise nothing.",
+    "evidence": [
+     "dur",
+     "ap",
+     "crit",
+     "apply",
+     "trig",
+     "upd",
+     "upd-call"
+    ]
+   },
+   {
+    "kind": "protection",
+    "target": "the caster, for as long as status.protect is true",
+    "declaredRaw": {
+     "description": "damage, ability damage, positive PP and ordinary healing blocked"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "basic attack on the protected unit: isAttackSuccessful false, damage 0 (PokemonState.attack). Ability damage: handleSpecialDamage returns early (spellBlockedCount++) and handleDamage returns death false / takenDamage 0. Positive PP: addPP drops the value (negative PP values are not blocked by this flag). Ordinary healing: handleHeal skips its main branch when hp > 0 and protect is set and returns healReceived 0 / overheal 0; the wound branch earlier in handleHeal is not governed by this flag (core-mechanics.md section J, probe SHARED_HELPERS: Protect returns 0 / 0, Rune Protect alone does not). This is the shared status.protect behaviour; it is not an effect of Rune Protect.",
+    "evidence": [
+     "protect-basic",
+     "special-block",
+     "hd-protect",
+     "protect-heal",
+     "protect-pp"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PROTECT",
+    "target": "the caster",
+    "durationMs": "requested round(table x (2 + AP/100) x critFactor); see effects.0",
+    "probability": 1,
+    "apScaled": true,
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 500,
+      "2": 1500,
+      "3": 2500,
+      "4": 4000
+     },
+     "label": "raw flat duration table (ms)"
+    },
+    "perUnitRaw": {
+     "DEOXYS_DEFENSE": 2500,
+     "KABUTO": 500
+    },
+    "scaling": "AP factor 2 + AP/100; crit factor 1 + (critPower - 1) x 0.5 (needs ABILITY_CRIT)",
+    "resolution": "not stackable, not applied to an enraged caster, no refresh; ends in updateProtect",
+    "evidence": [
+     "dur",
+     "ap",
+     "crit",
+     "trig",
+     "upd",
+     "upd-call"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DEOXYS_DEFENSE": 3,
+    "KABUTO": 1
+   },
+   "declaredRawDurationMs": {
+    "DEOXYS_DEFENSE": 2500,
+    "KABUTO": 500
+   },
+   "note": "The table index is the casting entity's stars at cast time. 1500 (2 stars) and 4000 (4 stars / fallback) are not reached by the listed units at their factory star counts. Kabuto declares stars 1 and evolves to Kabutops, which is not covered here. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "dur",
+    "unit-deoxys-defense",
+    "unit-kabuto"
+   ]
+  },
+  "positionalConditions": "None. Self-cast; the only positional requirement is the inherited requiresTarget (a target in range).",
+  "repeatedCastsAndModes": "No stored state beyond the status. A cast while protect is still active spends PP and counts as a cast but does not extend or refresh the duration (triggerProtect refuses). A cast while enraged also applies nothing.",
+  "rawVsResolved": "Declared raw: 500 / 1500 / 2500 / 4000 ms by stars (500 for KABUTO, 2500 for DEOXYS_DEFENSE). Requested duration = raw x (2 + AP/100) x critFactor, rounded: 1000 ms and 5000 ms at AP 0 without crit. Applied duration = requested when the caster is neither protected nor enraged, otherwise 0 change. Blocked damage is not a number: takenDamage is 0 and no damage is requested to the caster's HP while protected.",
+  "sourceTables": [
+   {
+    "id": "dur-table",
+    "file": "app/core/abilities/protect.ts",
+    "pattern": "\\[([0-9, ]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.durationMsByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, target acquisition for a requiresTarget ability) - only the castAbility gate was read",
+   "The ALIEN_DNA passive of DEOXYS_DEFENSE was not examined; whether it alters AP, stars or the cast is not covered here",
+   "Protect effects on other damage paths not listed here (status application, displacement, item effects) were not traced"
+  ],
+  "unresolved": [
+   "Whether the effect of protect on forced displacement, targeting or status-application paths beyond the five cited blocks (basic attack, handleSpecialDamage, handleDamage, handleHeal, addPP) matters was not traced",
+   "Exact timing granularity of updateProtect (the dt passed per status update) was not examined, so the real-time length is the requested duration only up to update-step rounding",
+   "Whether the two units reach a different star count than the factory value (evolution, merging) was not examined",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-deoxys-defense",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7308,
+     7329
+    ],
+    "symbol": "class DeoxysDefense",
+    "expect": "skill = Ability.PROTECT",
+    "note": "unit class block: stars 3, maxPP 100, range 1, passive ALIEN_DNA"
+   },
+   {
+    "id": "unit-kabuto",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8145,
+     8159
+    ],
+    "symbol": "class Kabuto",
+    "expect": "skill = Ability.PROTECT",
+    "note": "unit class block: stars 1, maxPP 80, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1095,
+     1095
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.PROTECT]: new ProtectStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/protect.ts",
+    "lines": [
+     5,
+     12
+    ],
+    "symbol": "ProtectStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "class declares no requiresTarget or canCritByDefault, so the inherited defaults (true / false) apply; the target parameter is never used afterwards"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     6,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base flags: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-proc",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     9,
+     32
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spend, ult counter, default animation"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     26
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; nothing is cast while canCast is false"
+   },
+   {
+    "id": "dur",
+    "file": "app/core/abilities/protect.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "ProtectStrategy.process",
+    "expect": "[500, 1500, 2500, 4000][pokemon.stars - 1] ?? 4000",
+    "note": "flat duration table by the caster's stars, 4000 fallback"
+   },
+   {
+    "id": "ap",
+    "file": "app/core/abilities/protect.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "ProtectStrategy.process",
+    "expect": "flatDuration * (2 + pokemon.ap / 100)",
+    "note": "AP factor is (2 + AP/100): at AP 0 the table value is doubled"
+   },
+   {
+    "id": "crit",
+    "file": "app/core/abilities/protect.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "ProtectStrategy.process",
+    "expect": "(crit ? 1 + (pokemon.critPower - 1) * critScalingFactor : 1)",
+    "note": "crit factor 1 + (critPower - 1) x 0.5 (critScalingFactor 0.5), result rounded"
+   },
+   {
+    "id": "apply",
+    "file": "app/core/abilities/protect.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "ProtectStrategy.process",
+    "expect": "pokemon.status.triggerProtect(duration)",
+    "note": "protect applied to the caster only"
+   },
+   {
+    "id": "trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     750
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect cannot stack and is not applied to enraged units; sets protect true and protectCooldown = timer"
+   },
+   {
+    "id": "upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     752,
+     758
+    ],
+    "symbol": "Status.updateProtect",
+    "expect": "if (this.protectCooldown - dt <= 0) {",
+    "note": "protect ends when the cooldown would reach 0 or below; otherwise cooldown -= dt"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     251,
+     253
+    ],
+    "symbol": "Status.update",
+    "expect": "this.updateProtect(dt)",
+    "note": "updated on every status update while protect is true"
+   },
+   {
+    "id": "protect-basic",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     117
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a basic attack on a protected target: attack unsuccessful, damage 0"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protected target: ability (special) damage is blocked and spellBlockedCount incremented"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protected target: death false, takenDamage 0"
+   },
+   {
+    "id": "protect-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "ordinary heal branch is skipped while protected (wound branch runs earlier)"
+   },
+   {
+    "id": "protect-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     530
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.protect) &&",
+    "note": "positive PP gain is dropped while protected"
+   }
+  ]
+ }
+}
