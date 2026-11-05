@@ -1,0 +1,811 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SAND_TOMB",
+ "kind": "ability",
+ "identifier": "SAND_TOMB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261105T124101Z"
+ },
+ "record": {
+  "ability": "SAND_TOMB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "HIPPOPOTAS (1 star) and HIPPODOWN (2 stars) declare SAND_TOMB (passive SAND_STREAM, maxPP 100, range 1). The strategy is shared; damage and status duration depend on the casting unit's stars. The SAND_STREAM passive is a separate identifier and is not covered. Units not listed are not covered.",
+  "appliesTo": [
+   {
+    "key": "HIPPODOWN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SAND_TOMB",
+    "declaredPassive": "SAND_STREAM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HIPPOPOTAS",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SAND_TOMB",
+    "declaredPassive": "SAND_STREAM",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "HIPPODOWN": {
+    "evidence": [
+     "unit-hippodown"
+    ]
+   },
+   "HIPPOPOTAS": {
+    "evidence": [
+     "unit-hippopotas"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SAND_TOMB] = new SandTombStrategy()",
+   "strategy": "SandTombStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "st-class",
+    "st-super"
+   ]
+  },
+  "summary": "Single-target: the cast target is Paralysed and Silenced for the same requested duration (raw table 3000 / 5000 / 8000 / 16000 ms by caster stars: HIPPOPOTAS 3000, HIPPODOWN 5000) and then takes special damage (raw table 10 / 20 / 40 / 80: HIPPOPOTAS 10, HIPPODOWN 20). Order in the strategy: paralysis, silence, damage. Neither status duration is AP-scaled (triggerParalysis is called without apBoost; triggerSilence has no AP parameter) and neither depends on crit. Statuses are applied independently of the damage result, so a protected / skydiving / magicBounce target still gets both (subject to Rune Protect, IMMUNITY_PARALYSIS, and the Tree flag for silence). Requested duration/damage, applied duration (after weather and duration reductions, and the keep-the-larger timer rule) and the damage returned as takenDamage (shield damage included, unused here) are different amounts. No heal, PP gain or shield is part of this ability, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "targeting": {
+   "who": "the caster's cast target only",
+   "needsTarget": true,
+   "note": "requiresTarget is the default true; no area.",
+   "evidence": [
+    "st-para",
+    "st-sil",
+    "st-hsd",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "st-para",
+    "st-sil",
+    "st-hsd"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "statusApplication",
+    "target": "the target",
+    "declaredRaw": {
+     "description": "triggerParalysis(statusDuration, target, caster)",
+     "durationMsByStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     }
+    },
+    "perUnitRaw": {
+     "HIPPOPOTAS": 3000,
+     "HIPPODOWN": 5000
+    },
+    "scaling": "requested duration by caster stars; no AP, no crit",
+    "resolution": "see statusEffects.0",
+    "evidence": [
+     "st-dur",
+     "st-para"
+    ]
+   },
+   {
+    "kind": "statusApplication",
+    "target": "the target",
+    "declaredRaw": {
+     "description": "triggerSilence(statusDuration, target, caster)",
+     "durationMsByStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     }
+    },
+    "perUnitRaw": {
+     "HIPPOPOTAS": 3000,
+     "HIPPODOWN": 5000
+    },
+    "scaling": "requested duration by caster stars; no AP, no crit",
+    "resolution": "see statusEffects.1",
+    "evidence": [
+     "st-dur",
+     "st-sil"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "the target",
+    "damageType": "SPECIAL",
+    "declaredRaw": {
+     "description": "handleSpecialDamage(damage, board, AttackType.SPECIAL, caster, crit)",
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80
+     },
+     "fallback": 80,
+     "label": "raw special damage by caster stars (requested amount)"
+    },
+    "perUnitRaw": {
+     "HIPPOPOTAS": 10,
+     "HIPPODOWN": 20
+    },
+    "scaling": "requested = 10 (HIPPOPOTAS) / 20 (HIPPODOWN). Applied: x(1 + caster AP/100) (apBoost default true); crit factor 1 + (critPower - 1) x reduction only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false)",
+    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the target is protected, skydiving or has magicBounce (magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, includes shield damage, unused here). Damage is dealt last, after both statuses.",
+    "evidence": [
+     "st-dmg",
+     "st-hsd",
+     "hsd-block",
+     "mb",
+     "hsd-ap",
+     "hsd-crit",
+     "hd-speDef",
+     "hd-min",
+     "hd-shield",
+     "hd-enr",
+     "base-flags",
+     "cast"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PARALYSIS",
+    "target": "the target",
+    "durationMsByStars": {
+     "1": 3000,
+     "2": 5000,
+     "3": 8000,
+     "4": 16000,
+     "fallback": 16000
+    },
+    "perUnitRaw": {
+     "HIPPOPOTAS": 3000,
+     "HIPPODOWN": 5000
+    },
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000
+     },
+     "label": "raw requested duration"
+    },
+    "scaling": "none from AP or crit: apBoost is left at its default false, so no (1 + AP/100) factor",
+    "applicationOrder": "first, before silence and the damage",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then the target's duration reductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each, rounded). Timer rule: `if (duration > paralysisCooldown) paralysisCooldown = round(duration)`, the larger of the remaining time and the new reduced request. A CHERI_BERRY holder eats the berry after a successful application.",
+    "resolution": "Requested vs applied: applied duration is the table value after the weather and reduction steps and the keep-the-larger rule.",
+    "combatEffect": "a paralysed unit uses half speed for its attack cooldown and movement speed, and cannot dodge basic attacks. Other uses of status.paralysis were not read here (see the ZAP_CANNON candidate).",
+    "evidence": [
+     "st-dur",
+     "st-para",
+     "para-trig",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-red",
+     "para-longer",
+     "para-cheri",
+     "para-end",
+     "reductions",
+     "red-odd",
+     "red-water",
+     "para-atk",
+     "para-move",
+     "para-dodge"
+    ]
+   },
+   {
+    "status": "SILENCE",
+    "target": "the target",
+    "durationMsByStars": {
+     "1": 3000,
+     "2": 5000,
+     "3": 8000,
+     "4": 16000,
+     "fallback": 16000
+    },
+    "perUnitRaw": {
+     "HIPPOPOTAS": 3000,
+     "HIPPODOWN": 5000
+    },
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000
+     },
+     "label": "raw requested duration"
+    },
+    "scaling": "none: triggerSilence has no apBoost parameter, no AP or crit factor",
+    "applicationOrder": "second, after paralysis and before the damage",
+    "guards": "not applied if the target's status has runeProtect or the tree flag; MURKY weather multiplies the duration by 1.3; then the target's duration reductions as above. Timer rule: `if (duration > silenceCooldown) { silenceCooldown = duration; silenceOrigin = origin }` (not rounded); the silence flag is set true even when the timer is not extended.",
+    "resolution": "Requested vs applied: applied duration is the table value after the MURKY and reduction steps and the keep-the-larger rule. Ends when the cooldown runs out (updateSilence).",
+    "combatEffect": "canCast is false while silenced (also false with Nullify Bandana or TELEPORT_NEXT_ATTACK), and the attacking state's cast gate requires canCast. Other readers of status.silence were not audited.",
+    "evidence": [
+     "st-dur",
+     "st-sil",
+     "sil-trig",
+     "sil-guard",
+     "sil-murky",
+     "sil-red",
+     "sil-longer",
+     "sil-end",
+     "cancast",
+     "pp-gate",
+     "reductions",
+     "red-odd",
+     "red-water"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "HIPPOPOTAS": 1,
+    "HIPPODOWN": 2
+   },
+   "declaredRawDamage": {
+    "HIPPOPOTAS": 10,
+    "HIPPODOWN": 20
+   },
+   "declaredRawDuration": {
+    "HIPPOPOTAS": 3000,
+    "HIPPODOWN": 5000
+   },
+   "note": "Damage and status duration are both indexed by the casting entity's stars (fallbacks 80 and 16000). Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "st-dur",
+    "st-dmg",
+    "unit-hippopotas",
+    "unit-hippodown"
+   ]
+  },
+  "positionalConditions": "None; the target is whatever the cast target is.",
+  "repeatedCastsAndModes": "Single mode. Each cast spends maxPP (100) of PP. A repeat cast extends a status only if the new reduced duration exceeds the remaining time; the silenced caster-target pair has no stored state beyond silenceOrigin.",
+  "rawVsResolved": "Requested: paralysis and silence for 3000 / 5000 ms raw, special damage 10 / 20 raw. Applied: statuses after guards (Rune Protect, IMMUNITY_PARALYSIS, Tree), weather, reductions and the keep-the-larger rule; damage after AP, crit, speDef and the floor of 1 (zero if protected / skydiving / magicBounce; statuses are still applied in that case).",
+  "sourceTables": [
+   {
+    "id": "duration",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "pattern": "const statusDuration = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "statusEffects.0.durationMsByStars",
+    "unitValuesPath": "starBehavior.declaredRawDuration"
+   },
+   {
+    "id": "damage",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "starBehavior.declaredRawDamage"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence, canCast, target acquisition) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "magicBounce reflection details were not traced beyond the formula quoted"
+  ],
+  "unresolved": [
+   "What the Tree flag on status is and which units carry it was not traced",
+   "Other readers of status.silence and status.paralysis (items, passives, synergies) were not audited",
+   "The SAND_STREAM passive is a separate identifier and is not covered",
+   "Whether the listed units ever reach a different star count than the bare factory value",
+   "Consulted for helpers: core-mechanics.md sections A and H, ZAP_CANNON candidate (paralysis), NIGHT_DAZE candidate (damage); no heal / PP / shield helper is involved",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1136,
+     1136
+    ],
+    "symbol": "AbilityStrategies[Ability.SAND_TOMB]",
+    "expect": "[Ability.SAND_TOMB]: new SandTombStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "st-class",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SandTombStrategy",
+    "expect": "export class SandTombStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "st-super",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "st-dur",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "const statusDuration = [3000, 5000, 8000, 16000][pokemon.stars - 1] ?? 16000",
+    "note": "ms; not AP/crit scaled in the strategy"
+   },
+   {
+    "id": "st-dmg",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": ""
+   },
+   {
+    "id": "st-para",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "target.status.triggerParalysis(statusDuration, target, pokemon)",
+    "note": "first; apBoost left at default false"
+   },
+   {
+    "id": "st-sil",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "target.status.triggerSilence(statusDuration, target, pokemon)",
+    "note": "second"
+   },
+   {
+    "id": "st-hsd",
+    "file": "app/core/abilities/sand-tomb.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "SandTombStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "third; return value not read"
+   },
+   {
+    "id": "para-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     913
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "Status.triggerParalysis definition (the candidate cited line 181, a status-transfer call)"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+    "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     918,
+     918
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "apBoost defaults to false, so ZAP_CANNON's paralysis duration is not AP-scaled (the candidate cited line 554, which belongs to another status)"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     919
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather x1.3, less 20% per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "paralysis duration reductions (the candidate cited line 346, which is triggerArmorReduction)"
+   },
+   {
+    "id": "para-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "timer replaced only if longer"
+   },
+   {
+    "id": "para-cheri",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     935,
+     935
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "pkm.items.has(Item.CHERI_BERRY)",
+    "note": "a CHERI_BERRY holder eats the berry"
+   },
+   {
+    "id": "para-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     943,
+     943
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "this.healParalysis(pkm)",
+    "note": "paralysis healed when the timer runs out"
+   },
+   {
+    "id": "para-atk",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysed units use half speed for the attack cooldown"
+   },
+   {
+    "id": "para-move",
+    "file": "app/core/move-speed.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "getMoveSpeed",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "and for movement speed"
+   },
+   {
+    "id": "para-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     104,
+     104
+    ],
+    "symbol": "PokemonState.handleAttack",
+    "expect": "!target.status.paralysis &&",
+    "note": "a paralysed target cannot dodge"
+   },
+   {
+    "id": "reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1282
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each"
+   },
+   {
+    "id": "red-odd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1301,
+     1301
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * (1 - 0.1 * nbOddStones))",
+    "note": "Odd Keystone: -10% per stone"
+   },
+   {
+    "id": "red-water",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3"
+   },
+   {
+    "id": "sil-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     520
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "triggerSilence(duration: number, pkm: PokemonEntity, origin?: PokemonEntity)",
+    "note": "no apBoost parameter at all"
+   },
+   {
+    "id": "sil-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": ""
+   },
+   {
+    "id": "sil-murky",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     522,
+     524
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (pkm.simulation.weather === Weather.MURKY) {",
+    "note": "x1.3"
+   },
+   {
+    "id": "sil-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     526,
+     526
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "sil-longer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     529,
+     529
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (duration > this.silenceCooldown) {",
+    "note": "larger of remaining and new; not rounded"
+   },
+   {
+    "id": "sil-end",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     538,
+     544
+    ],
+    "symbol": "Status.updateSilence",
+    "expect": "this.silence = false",
+    "note": ""
+   },
+   {
+    "id": "cancast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     254
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.status.silence &&",
+    "note": "silence blocks casting"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce: no damage (magicBounce may reflect SPECIAL damage) but the blind call is not gated by it"
+   },
+   {
+    "id": "mb",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     361,
+     361
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce &&",
+    "note": ""
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "damage x (1 + caster AP / 100)"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor on the target (Rocky Helmet / Black Augurite reduce it)"
+   },
+   {
+    "id": "hd-speDef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage reduced by the target speDef (halved by armorReduction)"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "minimum 1 damage"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     645
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += damageOnShield",
+    "note": "shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-enr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     455
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "damage x2 if the attacker is enraged"
+   },
+   {
+    "id": "unit-hippopotas",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13293,
+     13308
+    ],
+    "symbol": "class Hippopotas",
+    "expect": "skill = Ability.SAND_TOMB",
+    "note": "unit class block"
+   },
+   {
+    "id": "unit-hippodown",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13310,
+     13325
+    ],
+    "symbol": "class Hippodown",
+    "expect": "skill = Ability.SAND_TOMB",
+    "note": "unit class block"
+   }
+  ]
+ }
+}
