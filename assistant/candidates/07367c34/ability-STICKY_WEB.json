@@ -1,0 +1,679 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STICKY_WEB",
+ "kind": "ability",
+ "identifier": "STICKY_WEB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T123938Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare STICKY_WEB: Dewpider (1 star) and Araquanid (2 stars), both maxPP 100, range 1, passive WATER_BUBBLE. Units are bound by the queue record only. The passive is a separate identifier and is not covered here.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STICKY_WEB] = new StickyWebStrategy()",
+   "strategy": "StickyWebStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "routingNote": "NAME_SHARED_WITH_EFFECT: STICKY_WEB is both an Ability (registry strategy above) and an EffectEnum / board effect of the same name. Both are used by this ability: the strategy places EffectEnum.STICKY_WEB on cells, and the effect's only consumer found is status.ts updateAllStatus (paralysis).",
+   "evidence": [
+    "reg",
+    "reg-sw",
+    "sw-class",
+    "sw-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "ab-enum",
+    "eff-enum",
+    "eff-board"
+   ]
+  },
+  "summary": "Single-target special damage plus a sticky-web board effect. The caster deals SPECIAL damage 20/35/70/140 (by the caster's stars; AP-scaled, crit only with ABILITY_CRIT) to its target, then marks the up-to-three on-board cells adjacent to the caster in the direction of the target (the facing cell and its two neighbours, range 1) with the STICKY_WEB board effect. The board effect is a property of the cell with no team check: any unit standing on such a cell (the target, other enemies, or the caster's own allies) is given the STICKY_WEB effect (unless it holds Heavy Duty Boots), and updateAllStatus then paralyses a unit that has the effect for 2000 ms whenever it is not already paralysed (Heavy Duty Boots, Rune Protect and IMMUNITY_PARALYSIS block it; storm weather and duration reductions change the duration). A unit that walks onto a marked cell gains the effect (unless IMMUNITY_BOARD_EFFECTS) and loses it on leaving. The strategy has no timer for the cell effect; only clearing code elsewhere (not enumerated) removes it.",
+  "targeting": {
+   "who": "damage: the cast target (requiresTarget stays true, so the unit walks to range first); web: the cells adjacent to the caster in the target's direction, regardless of who stands on them",
+   "needsTarget": true,
+   "note": "The target parameter is typed non-null. Damage is dealt before the cells are computed; getCellsInFront reads the target's position after damage and sets the caster's orientation as a side effect.",
+   "evidence": [
+    "sw-class",
+    "base-flags",
+    "sw-dmg",
+    "sw-cells",
+    "cif-orient",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "the caster's three cells in front: orientation toward the target plus the next and previous orientation in OrientationArray, one step each (range 1), dropped when off the board; empty and occupied cells are both returned",
+   "evidence": [
+    "sw-cells",
+    "cif",
+    "cif-orient",
+    "cif-dirs",
+    "cif-loop",
+    "cif-filter"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "stat": "HP",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 20,
+      "2": 35,
+      "3": 70,
+      "4": 140,
+      "fallback": 140
+     },
+     "damageType": "SPECIAL",
+     "apBoost": true,
+     "crit": "cast crit flag"
+    },
+    "perUnitRaw": {
+     "ARAQUANID": 35,
+     "DEWPIDER": 20
+    },
+    "scaling": "requested = table value indexed by the caster's stars (fallback 140). downstream request to handleDamage = requested x (1 + AP/100) (apBoost defaults to true), x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 with the strange-steam board effect, x (1 + (critPower - 1) x critReductionFactor) only when the cast crit flag is true (the cast crits only with ABILITY_CRIT, since canCritByDefault is false; Rocky Helmet on the target cancels it). handleDamage then applies the target's SPE_DEF (damage / (1 + 0.05 x speDef), half defenses under armor reduction), flat reductions, ceil and the floor of 1 (core-mechanics section A), and shields absorb first. The value returned as takenDamage (shield part included) is discarded by this strategy. Protect, skydiving or magic bounce on the target return takenDamage 0 before any damage (a magic bounce can reflect damage back); a Power Lens holding target retaliates against the caster.",
+    "resolution": "requested 20 (Dewpider) / 35 (Araquanid) -> downstream request after AP/crit -> final HP loss after SPE_DEF, shield, Fossil/Shiny Charm/Cover Band exceptions (section J1); the strategy does not use takenDamage, so none of those exceptions change anything else in this ability.",
+    "evidence": [
+     "sw-table",
+     "sw-dmg",
+     "hsd",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-crit",
+     "hsd-call",
+     "hsd-lens"
+    ]
+   },
+   {
+    "kind": "board effect",
+    "target": "each on-board cell in front of the caster",
+    "declaredRaw": {
+     "effect": "STICKY_WEB",
+     "cells": "up to 3 (range 1, three orientations)"
+    },
+    "scaling": "no amount; the effect is a flag in Board.boardEffects. Entities currently on the cell get the flag in entity.effects unless they hold Heavy Duty Boots; the cell keeps the flag (added once; the client animation is broadcast only the first time).",
+    "resolution": "cell flagged -> entity on or entering the cell gains EffectEnum.STICKY_WEB (entering needs no IMMUNITY_BOARD_EFFECTS; the immediate placement on an occupied cell only checks Heavy Duty Boots) -> status.ts applies paralysis (see statusEffects)",
+    "evidence": [
+     "sw-cells",
+     "sw-effect",
+     "sw-bcast",
+     "abe",
+     "abe-boots",
+     "abe-set",
+     "sec-leave",
+     "sec-enter",
+     "eff-enum",
+     "eff-board"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "paralysis",
+    "source": "EffectEnum.STICKY_WEB on a unit (any team)",
+    "duration": "2000 ms requested (triggerParalysis(2000, pokemon, null), origin null so no AP boost), re-triggered each update while the unit has the effect and is not already paralysed",
+    "guards": "Heavy Duty Boots (checked at placement and again in updateAllStatus), status.runeProtect, IMMUNITY_PARALYSIS; the duration is x1.3 in STORM weather (less with Electric Quartz on the unit's player) and then passes applyStatusDurationReductions; a longer cooldown wins; a Cheri Berry holder eats it",
+    "evidence": [
+     "st-web",
+     "st-trig",
+     "tp",
+     "tp-guard",
+     "tp-storm",
+     "tp-red",
+     "tp-cd",
+     "tp-upd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "ARAQUANID": 2,
+    "DEWPIDER": 1
+   },
+   "declaredRawDamage": {
+    "ARAQUANID": 35,
+    "DEWPIDER": 20
+   },
+   "note": "indexed by the casting entity's stars; the 3- and 4-star values are not reachable at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined. The web and paralysis do not depend on stars.",
+   "evidence": [
+    "sw-table",
+    "unit-dewpider",
+    "unit-araquanid"
+   ]
+  },
+  "positionalConditions": "The web cells depend on the caster's position and on the direction to the target at the moment of the cast; cells outside the board are dropped. Whether a unit is paralysed depends on whether it stands on a marked cell (not on its team or on being the target).",
+  "repeatedCastsAndModes": "Each cast sets the same flag on the same or other cells; a cell already holding the effect is not re-flagged or re-announced, so repeated casts only extend the marked area. No stored mode. The cell effect has no expiry in this file.",
+  "rawVsResolved": "Requested: SPECIAL 20/35 (1/2 stars). Downstream: x(1+AP/100), crit only with ABILITY_CRIT, then SPE_DEF reduction, ceil, floor 1 and shield absorption inside handleDamage; takenDamage is unused. Paralysis: requested 2000 ms, applied through storm weather and duration reductions and blocked by Heavy Duty Boots, Rune Protect (not Protect) or IMMUNITY_PARALYSIS. The slow or accuracy effect of paralysis was not traced.",
+  "sourceTables": [
+   {
+    "id": "stickyWebDamage",
+    "file": "app/core/abilities/sticky-web.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "What paralysis does to a unit (movement/attack speed, see core-mechanics section C) was not traced for this record",
+   "The full handleDamage chain (section A lists the defense step only); weather, fields, resurrect and death rules were not traced",
+   "Which other code clears or ignores a board effect (Ice Spinner and Waterfall call clearBoardEffect; Tidal Wave in the simulation clears all) was not enumerated",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "NAME_SHARED_WITH_EFFECT: the Ability and the EffectEnum share the name STICKY_WEB; only the consumer in status.ts updateAllStatus was found among the files read (Effect.ts lists it in BoardEffects), other consumers were not searched beyond a name search in app/core and app/models",
+   "Whether the cell effect persists past the end of a fight or is rebuilt with the simulation (Board lifecycle not read)",
+   "Whether Dewpider/Araquanid ever reach a different star count than the factory value",
+   "The WATER_BUBBLE passive of both units is a separate identifier and was not read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "STICKY_WEB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "ARAQUANID",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "STICKY_WEB",
+    "declaredPassive": "WATER_BUBBLE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DEWPIDER",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "STICKY_WEB",
+    "declaredPassive": "WATER_BUBBLE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "ARAQUANID": {
+    "evidence": [
+     "unit-araquanid"
+    ]
+   },
+   "DEWPIDER": {
+    "evidence": [
+     "unit-dewpider"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-dewpider",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14305,
+     14319
+    ],
+    "symbol": "class Dewpider",
+    "expect": "export class Dewpider",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-araquanid",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14326,
+     14345
+    ],
+    "symbol": "class Araquanid",
+    "expect": "export class Araquanid",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1203,
+     1203
+    ],
+    "symbol": "AbilityStrategies[Ability.STICKY_WEB]",
+    "expect": "[Ability.STICKY_WEB]: new StickyWebStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "sw-class",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "StickyWebStrategy",
+    "expect": "export class StickyWebStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget or canCritByDefault"
+   },
+   {
+    "id": "sw-super",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process called without preventDefaultAnim"
+   },
+   {
+    "id": "sw-table",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "const damage = [20, 35, 70, 140][pokemon.stars - 1] ?? 140",
+    "note": "star-indexed damage table with fallback 140"
+   },
+   {
+    "id": "sw-dmg",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage, default apBoost; return value is not used"
+   },
+   {
+    "id": "sw-cells",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "const cells = board.getCellsInFront(pokemon, target, 1)",
+    "note": ""
+   },
+   {
+    "id": "sw-effect",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "EffectEnum.STICKY_WEB,",
+    "note": "board effect added on every cell in front"
+   },
+   {
+    "id": "sw-bcast",
+    "file": "app/core/abilities/sticky-web.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "StickyWebStrategy.process",
+    "expect": "pokemon.broadcastAbility({ positionX: cell.x, positionY: cell.y })",
+    "note": "one extra animation broadcast per cell"
+   },
+   {
+    "id": "cif",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     188
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "cells in front: three orientations, ranges up to `range`"
+   },
+   {
+    "id": "cif-orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     195,
+     195
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "pokemon.orientation = this.orientation(",
+    "note": "side effect: sets the caster's orientation toward the target"
+   },
+   {
+    "id": "cif-dirs",
+    "file": "app/core/board.ts",
+    "lines": [
+     206,
+     207
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "OrientationArray[(OrientationArray.indexOf(pokemon.orientation) + 1) % 8]",
+    "note": "facing orientation and its two neighbours"
+   },
+   {
+    "id": "cif-loop",
+    "file": "app/core/board.ts",
+    "lines": [
+     213,
+     213
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "for (let r = 1; r <= range; r++) {",
+    "note": "with range 1 only the three adjacent cells"
+   },
+   {
+    "id": "cif-filter",
+    "file": "app/core/board.ts",
+    "lines": [
+     229,
+     229
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells are dropped; occupied and empty cells are both returned"
+   },
+   {
+    "id": "abe",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     632
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "addBoardEffect(",
+    "note": ""
+   },
+   {
+    "id": "abe-boots",
+    "file": "app/core/board.ts",
+    "lines": [
+     640,
+     642
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "if (entityOnCell && entityOnCell.items.has(Item.HEAVY_DUTY_BOOTS) === false) {",
+    "note": "an entity already on the cell gets the effect unless it holds Heavy Duty Boots (no team check)"
+   },
+   {
+    "id": "abe-set",
+    "file": "app/core/board.ts",
+    "lines": [
+     644,
+     645
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "this.boardEffects[y * this.columns + x].add(effect)",
+    "note": ""
+   },
+   {
+    "id": "sec-leave",
+    "file": "app/core/board.ts",
+    "lines": [
+     49,
+     49
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.delete(effectOnPreviousCell)",
+    "note": "an entity that moves off a cell loses that cell's board effects"
+   },
+   {
+    "id": "sec-enter",
+    "file": "app/core/board.ts",
+    "lines": [
+     57,
+     62
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "if (!entity.effects.has(EffectEnum.IMMUNITY_BOARD_EFFECTS)) {",
+    "note": "an entity that moves onto a cell gains its effects unless it has IMMUNITY_BOARD_EFFECTS"
+   },
+   {
+    "id": "eff-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     140,
+     140
+    ],
+    "symbol": "EffectEnum",
+    "expect": "  STICKY_WEB = \"STICKY_WEB\",",
+    "note": "EffectEnum.STICKY_WEB: the same name as the ability"
+   },
+   {
+    "id": "eff-board",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     187,
+     187
+    ],
+    "symbol": "BoardEffects",
+    "expect": "  EffectEnum.STICKY_WEB,",
+    "note": "listed in BoardEffects"
+   },
+   {
+    "id": "ab-enum",
+    "file": "app/types/enum/Ability.ts",
+    "lines": [
+     475,
+     475
+    ],
+    "symbol": "Ability",
+    "expect": "  STICKY_WEB = \"STICKY_WEB\",",
+    "note": "Ability.STICKY_WEB"
+   },
+   {
+    "id": "st-web",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     210,
+     215
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "pokemon.effects.has(EffectEnum.STICKY_WEB) &&",
+    "note": "the only consumer of the effect: paralysis for 2000 ms if not paralysed and no Heavy Duty Boots"
+   },
+   {
+    "id": "st-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     215,
+     215
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "this.triggerParalysis(2000, pokemon, null)",
+    "note": ""
+   },
+   {
+    "id": "tp",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     908,
+     908
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": ""
+   },
+   {
+    "id": "tp-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "Rune Protect and IMMUNITY_PARALYSIS block the status"
+   },
+   {
+    "id": "tp-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     926
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "storm weather lengthens the duration"
+   },
+   {
+    "id": "tp-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "tp-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     933
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": ""
+   },
+   {
+    "id": "tp-upd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     941,
+     947
+    ],
+    "symbol": "Status.updateParalysis",
+    "expect": "updateParalysis(dt: number, pkm: PokemonEntity) {",
+    "note": ""
+   },
+   {
+    "id": "hsd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": ""
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magic bounce return takenDamage 0"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling of the requested amount"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier (reduced by Rocky Helmet / Black Augurite)"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hsd-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     445,
+     450
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.items.has(Item.POWER_LENS) &&",
+    "note": "Power Lens retaliation against SPECIAL damage"
+   }
+  ]
+ }
+}
