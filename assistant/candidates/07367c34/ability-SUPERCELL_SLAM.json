@@ -1,0 +1,563 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/SUPERCELL_SLAM",
+  "kind": "ability",
+  "identifier": "SUPERCELL_SLAM",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261106T184111Z"
+  },
+  "record": {
+    "ability": "SUPERCELL_SLAM",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "TADBULB (1 star) and BELLIBOLT (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "BELLIBOLT",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "SUPERCELL_SLAM",
+        "declaredPassive": "TADBULB",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "TADBULB",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "SUPERCELL_SLAM",
+        "declaredPassive": "TADBULB",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.SUPERCELL_SLAM] = new SupercellSlamStrategy()",
+      "strategy": "SupercellSlamStrategy extends AbilityStrategy",
+      "requiresTarget": false,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-ss",
+        "base",
+        "cast",
+        "ss-req",
+        "ss-base"
+      ]
+    },
+    "summary": "Self-shield, relocate, slam: the caster first gives itself a shield (requested 10 at 1 star, 20 at 2, 40 at 3, 80 at 4+; the doc's shield goes through Big Eater Belt x1.25 rounded down, then AP and crit scaling, then rounding). It then asks PokemonState.getMostSurroundedCoordinateAvailablePlace for the EMPTY board cell with the most adjacent entities of the opponent team (ties: first in row-major scan; a cell with 0 neighbours is accepted). If a cell exists the caster swaps onto it (moveTo, not forced) and deals SPECIAL damage (requested 10 / 20 / 40 / 80 by caster stars) to every entity of a different team in the 8 cells around its NEW position. If no empty cell exists the caster stays where it is, nothing is damaged, but the shield was already granted. requiresTarget is false, so it can be cast without an enemy in range.",
+    "targeting": {
+      "who": "damage: every entity whose team differs from the caster's, standing in the 8 cells adjacent to the caster's position after the move; shield: the caster itself; destination: not a unit but an empty cell",
+      "needsTarget": false,
+      "evidence": [
+        "ss-req",
+        "ss-dest",
+        "ss-hit",
+        "ss-team",
+        "state-surr"
+      ]
+    },
+    "geometry": {
+      "shape": "destination = empty cell maximising the number of adjacent opponent-team entities (8-neighbourhood, getAdjacentCells excludes the centre and off-board cells); damage area = the 8 cells around the destination",
+      "origin": "the destination cell (not the caster's starting cell); the move is not a line, there is no path check, the caster swaps in directly",
+      "tieBreak": "Array.sort is stable and the candidate list is built row by row (y outer, x inner), so among equal counts the lowest y, then lowest x wins; there is no randomness and no distance preference",
+      "evidence": [
+        "state-surr",
+        "state-surr-sort",
+        "board-foreach",
+        "board-adj",
+        "moveto",
+        "swap",
+        "ss-hit"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "damageType": "SPECIAL",
+        "declaredRaw": {
+          "formula": "[10, 20, 40, 80][stars - 1] ?? 80",
+          "amountByStars": {
+            "1": 10,
+            "2": 20,
+            "3": 40,
+            "4": 80,
+            "fallback": 80
+          },
+          "note": "requested amount, raw, before AP, crit, speDef and later handleDamage modifiers; BELLIBOLT (2 stars) 20, TADBULB (1 star) 10"
+        },
+        "scaling": "requested x (1 + AP/100) (apBoost default true in handleSpecialDamage) x crit multiplier only if the cast crit (canCritByDefault is false, so it needs the ABILITY_CRIT effect); one crit flag for all enemies hit; no stat of the caster other than AP/critPower is read",
+        "resolution": "applied amount per entity: SPE_DEF division damage / (1 + 0.05 x speDef), minimum 1, then later handleDamage modifiers; protect / skydiving / magicBounce on that entity block the hit (spellBlockedCount, damage 0); returned takenDamage (includes shield damage) is not used by this ability. Damage happens only if the move found a destination; it is dealt AFTER the move to the neighbours of the new cell",
+        "perUnitAmount": {
+          "BELLIBOLT": 20,
+          "TADBULB": 10
+        },
+        "evidence": [
+          "ss-dmg",
+          "ss-hit",
+          "ss-team",
+          "special",
+          "special-blocked",
+          "special-ap",
+          "special-crit",
+          "dmg-reduction",
+          "armor-factor"
+        ]
+      },
+      {
+        "kind": "movement",
+        "target": "the caster",
+        "description": "swap into the empty destination cell via moveTo(x, y, board, false): forcedDisplacement is false, so canBeMoved is not checked; sets cooldown = 100; skipped (no move, no damage) when no empty cell exists",
+        "evidence": [
+          "ss-dest",
+          "ss-move",
+          "moveto",
+          "swap",
+          "state-surr"
+        ]
+      }
+    ],
+    "statusEffects": [],
+    "buffs": [],
+    "shields": [
+      {
+        "target": "the caster (addShield(shield, pokemon, 1, crit))",
+        "declaredRaw": {
+          "formula": "[10, 20, 40, 80][stars - 1] ?? 80",
+          "amountByStars": {
+            "1": 10,
+            "2": 20,
+            "3": 40,
+            "4": 80,
+            "fallback": 80
+          },
+          "note": "requested amount"
+        },
+        "perUnitAmount": {
+          "BELLIBOLT": 20,
+          "TADBULB": 10
+        },
+        "scaling": "requested -> (caster holds Big Eater Belt: x1.25 rounded down to an integer; the caster is its own caster so the buff branch applies) -> x (1 + AP/100) (apBoost 1) -> x critPower if the cast crit -> x0.5 if the caster is enraged -> Math.round; the helper does nothing if the caster's hp is 0",
+        "resolution": "applied change = that final rounded figure added to caster.shield (clamped at min 0); it is the stored change, not a heal, so wound / Blood Moon / status.protect do not apply (core-mechanics section J: addShield is the indirect path, status.protect blocks positive PP and ordinary healing, not addShield). The shield is granted BEFORE the destination search/move and even when no destination exists. No duration, it persists until consumed (flinch halves how damage is applied to a shield per section J)",
+        "evidence": [
+          "ss-shield",
+          "ss-addshield",
+          "add-shield-entity",
+          "beb",
+          "state-add-shield",
+          "shield-store"
+        ]
+      }
+    ],
+    "starBehavior": {
+      "unitStars": {
+        "TADBULB": 1,
+        "BELLIBOLT": 2
+      },
+      "damageByStars": {
+        "TADBULB": 10,
+        "BELLIBOLT": 20
+      },
+      "shieldByStars": {
+        "TADBULB": 10,
+        "BELLIBOLT": 20
+      },
+      "note": "both tables are indexed by the caster's stars (pokemon.stars - 1) with fallback 80; entries 40 and 80 are not reached by these units' star counts (1 and 2). maxPP is 100 and range 1 for both units.",
+      "evidence": [
+        "ss-dmg",
+        "ss-shield",
+        "unit-tadbulb",
+        "unit-bellibolt"
+      ]
+    },
+    "positionalConditions": "The destination search ignores the caster's position and range: it counts, for every EMPTY cell on the whole board, how many entities of the opponent team (the team constant passed in, not 'team !== caster') are in its 8 neighbours, and picks the maximum. The caster's own cell is occupied, so it is never a candidate. Damage afterwards uses a different test (team !== pokemon.team), so any entity of another team adjacent to the destination is hit. Entities on a cell with equal count are chosen by scan order only. If the board has no empty cell, undefined is returned and no move and no damage occur.",
+    "repeatedCastsAndModes": "No state is kept between casts: each cast recomputes shield, destination and damage. Shield accumulates additively with any existing shield. No modes.",
+    "rawVsResolved": "Requested damage 10 (TADBULB) / 20 (BELLIBOLT), raw; applied per entity = requested x (1 + AP/100) [x crit], then the SPE_DEF division, minimum 1 and later handleDamage modifiers; takenDamage (shield included) is not used. Requested shield 10 / 20; applied change = round(requested [x1.25 rounded down with Big Eater Belt] x (1 + AP/100) [x critPower] [x0.5 if enraged]) added to the caster's shield; the shield is granted even when no destination exists, damage is not.",
+    "sourceTables": [
+      {
+        "id": "supercellDamage",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.amountByStars",
+        "unitValuesPath": "effects.0.perUnitAmount"
+      },
+      {
+        "id": "supercellShield",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "pattern": "const shield = \\[([^\\]]+)\\]",
+        "recordPath": "shields.0.declaredRaw.amountByStars",
+        "unitValuesPath": "shields.0.perUnitAmount"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final damage after handleDamage's later modifiers (shields on the target, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+      "When the cast fires in a real fight (PP gain, canCast, movement, requiresTarget=false effect on casting conditions)",
+      "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)"
+    ],
+    "unresolved": [
+      "Consulted: AbilityStrategy.process, castAbility, PokemonState.getMostSurroundedCoordinateAvailablePlace, Board.forEach / getAdjacentCells / swapCells, PokemonEntity.moveTo / addShield / handleSpecialDamage, PokemonState.addShield, applyBigEaterBeltStatBuff and core-mechanics sections A and J. The queue record lists no routing uncertainties and no dependencies.",
+      "TADBULB passive (declaredPassive TADBULB) is a separate passive record and was not read here; it is not part of this ability's effects",
+      "Whether the two-step (shield then move) has side effects on entities hitting the caster mid-air, or what the move does to the caster's movement/target state beyond moveTo calling toMovingState and cooldown = 100, was not traced",
+      "The shield's enraged halving and Big Eater Belt effect are read from the helper source only; no probe was run for this ability",
+      "Whether entities with no team (neutral) can stand adjacent was not examined; the check is simply team !== caster team"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-ss",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1220,
+          1220
+        ],
+        "symbol": "AbilityStrategies[Ability.SUPERCELL_SLAM]",
+        "expect": "[Ability.SUPERCELL_SLAM]: new SupercellSlamStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          33
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process: spends maxPP, ult count, animation broadcast unless preventDefaultAnim, cast bookkeeping; requiresTarget defaults true, canCritByDefault false (lines 7-8)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          8,
+          31
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit is rolled only with ABILITY_CRIT effect or canCritByDefault"
+      },
+      {
+        "id": "ss-req",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          7,
+          7
+        ],
+        "symbol": "SupercellSlamStrategy",
+        "expect": "requiresTarget = false",
+        "note": "can be cast without a target in range; process receives target null"
+      },
+      {
+        "id": "ss-base",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          9,
+          9
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit, true)",
+        "note": "preventDefaultAnim = true: no default cast animation"
+      },
+      {
+        "id": "ss-dmg",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          10,
+          10
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+        "note": "requested damage by caster stars"
+      },
+      {
+        "id": "ss-shield",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          11,
+          11
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "const shield = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+        "note": "requested shield by caster stars"
+      },
+      {
+        "id": "ss-dest",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          12,
+          18
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "getMostSurroundedCoordinateAvailablePlace(",
+        "note": "destination = helper result for the opponent team"
+      },
+      {
+        "id": "ss-addshield",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          20,
+          20
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+        "note": "shield on the caster (caster = itself, apBoost 1) BEFORE the move, and also when no destination exists"
+      },
+      {
+        "id": "ss-move",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          22,
+          28
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "pokemon.moveTo(",
+        "note": "only if a destination exists: moveTo(x, y, board, false)"
+      },
+      {
+        "id": "ss-hit",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          30,
+          42
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "cell.value.handleSpecialDamage(",
+        "note": "enemies in the 8 cells adjacent to the NEW position take SPECIAL damage with the crit flag; apBoost default"
+      },
+      {
+        "id": "ss-team",
+        "file": "app/core/abilities/supercell-slam.ts",
+        "lines": [
+          33,
+          33
+        ],
+        "symbol": "SupercellSlamStrategy.process",
+        "expect": "cell.value && cell.value.team !== pokemon.team",
+        "note": "any entity of a different team (not only the opponent team constant)"
+      },
+      {
+        "id": "state-surr",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          1241,
+          1275
+        ],
+        "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+        "expect": "getMostSurroundedCoordinateAvailablePlace(",
+        "note": "scans all empty cells (board.forEach), counts adjacent entities of the given team, sorts by count descending, returns the first (or undefined if no empty cell)"
+      },
+      {
+        "id": "state-surr-sort",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          1262,
+          1262
+        ],
+        "symbol": "PokemonState.getMostSurroundedCoordinateAvailablePlace",
+        "expect": "return b.neighbour - a.neighbour",
+        "note": "descending; ties keep scan order (Array.sort is stable): row by row, y then x. A cell with 0 neighbours is a valid result"
+      },
+      {
+        "id": "board-foreach",
+        "file": "app/core/board.ts",
+        "lines": [
+          75,
+          82
+        ],
+        "symbol": "Board.forEach",
+        "expect": "for (let y = 0; y < this.rows; y++) {",
+        "note": "row-major scan order"
+      },
+      {
+        "id": "board-adj",
+        "file": "app/core/board.ts",
+        "lines": [
+          152,
+          162
+        ],
+        "symbol": "Board.getAdjacentCells",
+        "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+        "note": "8 neighbours (centre excluded by default), only cells on the board"
+      },
+      {
+        "id": "moveto",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          890,
+          898
+        ],
+        "symbol": "PokemonEntity.moveTo",
+        "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+        "note": "board.swapCells to the destination; canBeMoved checked only for forced displacement; sets cooldown 100"
+      },
+      {
+        "id": "swap",
+        "file": "app/core/board.ts",
+        "lines": [
+          68,
+          73
+        ],
+        "symbol": "Board.swapCells",
+        "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+        "note": "with an empty destination the caster simply relocates"
+      },
+      {
+        "id": "add-shield-entity",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          498,
+          507
+        ],
+        "symbol": "PokemonEntity.addShield",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": "entity wrapper: Big Eater Belt helper then state.addShield"
+      },
+      {
+        "id": "beb",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1839,
+          1852
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+        "note": "holder of Big Eater Belt: positive value (or own-team negative) x1.25 rounded down to 0 digits"
+      },
+      {
+        "id": "state-add-shield",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          382,
+          397
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+        "note": "only if hp > 0: AP scaling, crit multiplier, halved if enraged, rounded, added to pokemon.shield (min 0)"
+      },
+      {
+        "id": "shield-store",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          395,
+          395
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+        "note": "stored change; shieldDone counter updated for the caster (inside the same helper)"
+      },
+      {
+        "id": "special",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          346,
+          353
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "apBoost = true",
+        "note": "default apBoost = true (this ability passes 5 arguments)"
+      },
+      {
+        "id": "special-blocked",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          354,
+          358
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce block the hit for that enemy (damage 0)"
+      },
+      {
+        "id": "special-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          399,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": "AP scaling for ability damage"
+      },
+      {
+        "id": "special-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          412,
+          433
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": "crit multiplier, reducible by target items"
+      },
+      {
+        "id": "dmg-reduction",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          559,
+          566
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": "SPECIAL damage divided by 1 + 0.05 x speDef; later modifiers not traced here (see core-mechanics section A)"
+      },
+      {
+        "id": "armor-factor",
+        "file": "app/config/game/battle.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "ARMOR_FACTOR",
+        "expect": "export const ARMOR_FACTOR = 0.05",
+        "note": ""
+      },
+      {
+        "id": "unit-tadbulb",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          19619,
+          19619
+        ],
+        "symbol": "Tadbulb",
+        "expect": "skill = Ability.SUPERCELL_SLAM",
+        "note": "unit class block: stars 1"
+      },
+      {
+        "id": "unit-bellibolt",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          19639,
+          19639
+        ],
+        "symbol": "Bellibolt",
+        "expect": "skill = Ability.SUPERCELL_SLAM",
+        "note": "unit class block: stars 2"
+      }
+    ],
+    "unitEvidence": {
+      "TADBULB": {
+        "evidence": [
+          "unit-tadbulb"
+        ]
+      },
+      "BELLIBOLT": {
+        "evidence": [
+          "unit-bellibolt"
+        ]
+      }
+    }
+  }
+}
