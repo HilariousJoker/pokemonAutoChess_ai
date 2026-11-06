@@ -1,0 +1,628 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STUFF_CHEEKS",
+ "kind": "ability",
+ "identifier": "STUFF_CHEEKS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T123938Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare STUFF_CHEEKS: Skwovet (1 star) and Greedent (2 stars), both maxPP 100, range 1, no passive. Units are bound by the queue record only.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STUFF_CHEEKS] = new StuffCheeksStrategy()",
+   "strategy": "StuffCheeksStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sc",
+    "sc-class",
+    "sc-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "sc-comment"
+   ]
+  },
+  "summary": "Self-targeted berry ability with two branches. (1) If the caster holds at least one berry (any of the 24 in Berries, special ones included), one held berry is picked uniformly at random and eaten immediately through eatBerry(berry, undefined, healToShield = true, apScaling = 1, crit): every heal(val) in that berry's effect is turned into addShield(val, caster, apBoost 1, crit), so the requested heal amount becomes a requested SHIELD (Big Eater Belt x1.25 down on the request, then x(1 + AP/100), x critPower on a crit, x0.5 when enraged, rounded). The berry's other effects (stat gains, immunities, statuses, protect, gold and similar rewards) still happen unchanged; the berry is then removed (also from the permanent board unit). (2) If it holds no berry, it forages one random berry from the 20 non-special berries and equips it with addItem(berry, true) (nothing happens if it already holds 3 items); that berry is not eaten now and behaves like any held berry afterwards (eaten as a normal heal when the unit takes damage below 50 % HP). The strategy ignores its cast target; requiresTarget stays true.",
+  "targeting": {
+   "who": "the caster itself",
+   "needsTarget": true,
+   "note": "The target parameter is passed to super.process only (animation); requiresTarget keeps the base default true, so the unit must have a target to cast.",
+   "evidence": [
+    "sc-class",
+    "base-flags",
+    "sc-super",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "none",
+   "evidence": [
+    "sc-super"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "caster",
+    "branch": "holds a berry",
+    "declaredRaw": {
+     "requestedAmountByBerry": {
+      "default (heal(50))": 50,
+      "AGUAV_BERRY, GOLDEN_NANAB_BERRY, GOLDEN_RAZZ_BERRY, GOLDEN_PINAP_BERRY": "max(50, 0.5 x maxHP)",
+      "SITRUS_BERRY, PECHA_BERRY": 100,
+      "ORAN_BERRY": "50 through heal() plus a separate addShield(80, apBoost 0) that is not AP-scaled and not crit-scaled",
+      "NANAB_BERRY": 50
+     },
+     "apBoost": 1,
+     "crit": "cast crit flag",
+     "healToShield": true
+    },
+    "scaling": "requested = the berry's heal amount (table above, shared with eatBerry's normal path) passed to addShield(val, caster, 1, crit). entity addShield first applies Big Eater Belt (x1.25 rounded down, holder only); the state's addShield then needs hp > 0, multiplies by (1 + AP/100), by critPower if crit, by 0.5 when the unit is enraged and the value is positive, rounds, and sets shield = max(0, shield + value); shieldDone is credited to the caster. The cast crits only with ABILITY_CRIT (canCritByDefault is false). Because the amount goes through addShield and not handleHeal, wound, status.protect and the missing-HP cap do not apply and there is no overheal to max HP (core-mechanics section J4); no HP is healed by this path. Rune Protect has no effect on it. The separate Oran shield of 80 uses apBoost 0 and crit false, so only Big Eater Belt and the enraged halving change it.",
+    "resolution": "requested heal amount -> downstream request after Big Eater Belt -> final shield after AP, crit, enraged halving and rounding; takenDamage is not involved. The picked berry is random, so which row applies is not predictable.",
+    "evidence": [
+     "sc-pick",
+     "sc-eat",
+     "it-b",
+     "it-sb",
+     "schema-values",
+     "eat",
+     "eat-heal",
+     "eat-aguav",
+     "eat-oran",
+     "eat-pecha",
+     "eat-sitrus",
+     "eat-golden",
+     "pe-shield",
+     "belt-fn",
+     "ps-shield",
+     "ps-credit"
+    ]
+   },
+   {
+    "kind": "berry side effects",
+    "target": "caster (and its player for the special berries)",
+    "declaredRaw": {
+     "note": "the per-berry non-heal effects of eatBerry, unchanged by healToShield"
+    },
+    "scaling": "Stat gains (Attack, Defense, SpeDef, Speed, AP, crit chance, PP) are requested with apBoost 0 and crit false, so they do not scale with AP or the cast crit; statuses and immunities are set as in a normal berry (for example 3000 ms confusion for Aguav, Rune Protect 5000 ms and clearing negative status for Lum). Special berries also touch the player's gold, free rolls or items outside ghost battles. After the switch the berry is removed (stealedFrom is undefined), GLUTTON passive would add max HP (the listed units have no passive), BERRY_JUICE adds a 100 shield (apBoost 0) and OVERGROW adds 50 AP.",
+    "resolution": "requested -> applied by each stat helper (Big Eater Belt and Twist Band apply inside the adders); the exact per-berry stat table is eatBerry's and is not duplicated here beyond the cited cases",
+    "evidence": [
+     "eat-lum",
+     "eat-oran",
+     "eat-golden",
+     "eat-remove",
+     "eat-after"
+    ]
+   },
+   {
+    "kind": "item",
+    "target": "caster",
+    "branch": "holds no berry",
+    "declaredRaw": {
+     "pool": "NonSpecialBerries (20)",
+     "pick": "uniform",
+     "permanent": true
+    },
+    "scaling": "no amount. A random non-special berry is added with addItem(berry, true): nothing happens when the unit already has 3 or more items; otherwise the item is added, applyItemEffect runs, and (not for ghost opponents, and only with fewer than 3 items on the board unit) the berry is also added to the board unit permanently. The berry is not eaten now: the ordinary trigger eats a held berry when damage is taken at HP below 50 % of max HP (a heal, not a shield).",
+    "resolution": "no berry eaten; equip may silently fail at 3 items",
+    "evidence": [
+     "sc-forage",
+     "sc-add",
+     "rand",
+     "it-nsb",
+     "add-item",
+     "add-item-perm",
+     "add-effect",
+     "eat-trigger"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [
+   {
+    "target": "caster",
+    "raw": "the picked berry's heal amount, converted to a requested shield with apBoost 1 (see effects.0); Oran adds a further requested 80 with apBoost 0",
+    "evidence": [
+     "sc-eat",
+     "eat-heal",
+     "eat-oran",
+     "ps-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "GREEDENT": 2,
+    "SKWOVET": 1
+   },
+   "note": "nothing in the strategy depends on stars; the amounts come from the berry. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "sc-pick",
+    "sc-eat",
+    "unit-skwovet",
+    "unit-greedent"
+   ]
+  },
+  "positionalConditions": "None. The branch depends on the items currently held, not on position.",
+  "repeatedCastsAndModes": "Each cast consumes at most one berry. With no berry the next cast forages one more (if there is a free item slot), so the sequence is forage, then eat on the following cast unless the foraged berry was already eaten by the normal low-HP trigger. No stored mode.",
+  "rawVsResolved": "Requested: the berry's heal amount as a shield (50 by default, 100 for Sitrus and Pecha, max(50, 0.5 x maxHP) for Aguav and the golden berries, Oran 50 + a separate 80). Downstream: Big Eater Belt x1.25 down, then x(1 + AP/100), x critPower on a crit, x0.5 if enraged, rounded; final shield = max(0, shield + value) with no cap and no wound or Protect check. The berry's stat gains use apBoost 0. In the forage branch nothing is requested; the item may not be added when the unit holds 3 items.",
+  "sourceTables": [],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "What applyItemEffect does for each berry on gain (ItemStats / ItemEffects entries for berries were not read)",
+   "The remaining per-berry effect cases of eatBerry (only the cases cited above were read in detail; the whole switch is in the cited file)",
+   "How the shield is consumed in damage resolution (section A and J1 cover the shield part)",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether other mechanics (BERRY_EATER passive at pokemon-entity.ts:984, items, synergies) also react to a berry being eaten or gained here was not enumerated",
+   "Whether a berry gained by foraging is eaten later in the same fight depends on the damage trigger, which was read only at its call site",
+   "Which of the 24 held berries a unit has is a runtime choice; the pick uses Math.random, so no outcome is deterministic",
+   "Whether Skwovet/Greedent ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "STUFF_CHEEKS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GREEDENT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "STUFF_CHEEKS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKWOVET",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "STUFF_CHEEKS",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GREEDENT": {
+    "evidence": [
+     "unit-greedent"
+    ]
+   },
+   "SKWOVET": {
+    "evidence": [
+     "unit-skwovet"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-skwovet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20645,
+     20659
+    ],
+    "symbol": "class Skwovet",
+    "expect": "export class Skwovet",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-greedent",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20661,
+     20675
+    ],
+    "symbol": "class Greedent",
+    "expect": "export class Greedent",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sc",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1213,
+     1213
+    ],
+    "symbol": "AbilityStrategies[Ability.STUFF_CHEEKS]",
+    "expect": "[Ability.STUFF_CHEEKS]: new StuffCheeksStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "defaults requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "sc-class",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "StuffCheeksStrategy",
+    "expect": "export class StuffCheeksStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget or canCritByDefault"
+   },
+   {
+    "id": "sc-super",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process called without preventDefaultAnim"
+   },
+   {
+    "id": "sc-comment",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "//If the user is holding any berries",
+    "note": "source comment: eat one immediately and gain [100,SP]% of the HP healed as shield, otherwise forage a random berry"
+   },
+   {
+    "id": "sc-pick",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     18,
+     20
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "const heldBerry = pickRandomIn(",
+    "note": "one uniformly random held berry"
+   },
+   {
+    "id": "sc-eat",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "pokemon.eatBerry(heldBerry, undefined, true, 1, crit)",
+    "note": "healToShield = true, apScaling = 1, crit = cast crit flag"
+   },
+   {
+    "id": "sc-forage",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "const berry = pickRandomIn(NonSpecialBerries)",
+    "note": "random berry from the 20 non-special berries"
+   },
+   {
+    "id": "sc-add",
+    "file": "app/core/abilities/stuff-cheeks.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "StuffCheeksStrategy.process",
+    "expect": "pokemon.addItem(berry, true)",
+    "note": "equip it, permanent = true"
+   },
+   {
+    "id": "rand",
+    "file": "app/utils/random.ts",
+    "lines": [
+     43,
+     48
+    ],
+    "symbol": "pickRandomIn",
+    "expect": "export function pickRandomIn<T>(",
+    "note": "uniform pick, Math.random"
+   },
+   {
+    "id": "it-nsb",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     570,
+     591
+    ],
+    "symbol": "NonSpecialBerries",
+    "expect": "export const NonSpecialBerries: Item[] = [",
+    "note": ""
+   },
+   {
+    "id": "it-sb",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     593,
+     598
+    ],
+    "symbol": "SpecialBerries",
+    "expect": "export const SpecialBerries: Item[] = [",
+    "note": ""
+   },
+   {
+    "id": "it-b",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     600,
+     600
+    ],
+    "symbol": "Berries",
+    "expect": "export const Berries = [...NonSpecialBerries, ...SpecialBerries]",
+    "note": "the held-berry filter uses all 24, the foraging pick only the 20 non-special ones"
+   },
+   {
+    "id": "eat",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1572,
+     1578
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "eatBerry(",
+    "note": ""
+   },
+   {
+    "id": "eat-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1579,
+     1582
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "const heal = (val) =>",
+    "note": "with healToShield every heal(val) becomes addShield(val, this, apScaling, crit)"
+   },
+   {
+    "id": "eat-aguav",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1585,
+     1588
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.AGUAV_BERRY:",
+    "note": "heal(max(50, 0.5 maxHP)) and 3000 ms self-confusion"
+   },
+   {
+    "id": "eat-oran",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1637,
+     1640
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.ORAN_BERRY:",
+    "note": "heal(50) plus a separate addShield(80, this, 0, false)"
+   },
+   {
+    "id": "eat-pecha",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1641,
+     1647
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.PECHA_BERRY:",
+    "note": "heal(100) and poison immunity"
+   },
+   {
+    "id": "eat-sitrus",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1673,
+     1676
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.SITRUS_BERRY:",
+    "note": "heal(100) and BUFF_HEAL_RECEIVED"
+   },
+   {
+    "id": "eat-lum",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1632,
+     1636
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.LUM_BERRY:",
+    "note": "heal(50), clear negative status, Rune Protect 5000 ms"
+   },
+   {
+    "id": "eat-golden",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1691,
+     1709
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.GOLDEN_NANAB_BERRY:",
+    "note": "special berries: heal(max(50, 0.5 maxHP)) and player rewards (gold, free rolls, sweets) outside ghost battles"
+   },
+   {
+    "id": "eat-remove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1709,
+     1715
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "stealedFrom.removeItem(berry, true)",
+    "note": "the eaten berry is removed from the unit and, permanently, from its board unit"
+   },
+   {
+    "id": "eat-after",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1714,
+     1730
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "if (this.effects.has(EffectEnum.BERRY_JUICE)) {",
+    "note": "after-eating effects: GLUTTON passive, BERRY_JUICE shield 100, OVERGROW +50 AP"
+   },
+   {
+    "id": "eat-trigger",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1203,
+     1209
+    ],
+    "symbol": "PokemonEntity.handleDamage",
+    "expect": "if (berry && this.hp > 0 && this.hp < 0.5 * this.maxHP) {",
+    "note": "normal trigger of a held berry: damage taken at HP below 50 % (heals, not shield)"
+   },
+   {
+    "id": "pe-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     505
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "return this.state.addShield(this, value, caster, apBoost, crit)",
+    "note": "entity addShield: Big Eater Belt first, then the state's addShield"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "Big Eater Belt helper (plain function)"
+   },
+   {
+    "id": "ps-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     387,
+     398
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "hp > 0 guard; x(1 + AP x apBoost/100); x critPower on crit; x0.5 if enraged and positive; Math.round"
+   },
+   {
+    "id": "ps-credit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     407,
+     407
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "caster.shieldDone += shield",
+    "note": ""
+   },
+   {
+    "id": "add-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     782,
+     792
+    ],
+    "symbol": "PokemonEntity.addItem",
+    "expect": "addItem(item: Item, permanent = false) {",
+    "note": "returns silently with 3 or more held items"
+   },
+   {
+    "id": "add-item-perm",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     798,
+     804
+    ],
+    "symbol": "PokemonEntity.addItem",
+    "expect": "this.refToBoardPokemon.items.size < 3",
+    "note": "permanent copy to the board unit (not for ghost opponents) only with fewer than 3 items"
+   },
+   {
+    "id": "add-effect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     825,
+     829
+    ],
+    "symbol": "PokemonEntity.applyItemEffect",
+    "expect": "applyItemEffect(item: Item) {",
+    "note": "applying item stats / item effects on gain"
+   },
+   {
+    "id": "schema-values",
+    "file": "app/utils/schemas.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "schemaValues",
+    "expect": "export function schemaValues<T>(",
+    "note": ""
+   }
+  ]
+ }
+}
