@@ -1,0 +1,714 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/STONE_EDGE",
+ "kind": "ability",
+ "identifier": "STONE_EDGE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T123938Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare STONE_EDGE: Binacle (1 star) and Barbaracle (2 stars), both maxPP 65, range 1, no passive. Units are bound by the queue record only.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.STONE_EDGE] = new StoneEdgeStrategy()",
+   "strategy": "StoneEdgeStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "routingNote": "NAME_SHARED_WITH_EFFECT: STONE_EDGE is both the Ability and an EffectEnum flag. The strategy sets the flag on the caster; the flag is read in PokemonState.attack (basic attack bonus) and removed by the delayed command.",
+   "evidence": [
+    "reg",
+    "reg-se",
+    "se-class",
+    "se-req",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "move-gate",
+    "can-cast"
+   ]
+  },
+  "summary": "Self-buff of the caster for a fixed duration (5 s at 1 star, 8 s at 2 stars; 10 s at 3 or more): the caster silences itself for that duration, gains +20 crit chance (AP-scaled), +2 range, and every basic attack it makes while the effect is active adds physical damage equal to DEF x (multiplier + AP/100) with multiplier 1/1/2/4 by stars. A delayed command at the end of the duration removes 20 crit chance, 2 range (not below baseRange) and the effect flag. If the flag is already active the cast only spends its PP and does nothing else. There is no target: requiresTarget is false, so the cast can fire from the moving state.",
+  "targeting": {
+   "who": "the caster itself",
+   "needsTarget": false,
+   "note": "The target parameter is typed null; the strategy never reads it. requiresTarget = false lets the cast fire from the moving state with a null target.",
+   "evidence": [
+    "se-req",
+    "se-super",
+    "move-gate",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "none",
+   "evidence": [
+    "se-super"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "stat": "silence",
+    "target": "caster",
+    "declaredRaw": {
+     "bySecondsByStars": {
+      "1": 5,
+      "2": 8,
+      "3": 10,
+      "4": 10,
+      "fallback": 10
+     },
+     "unit": "seconds, multiplied by 1000"
+    },
+    "perUnitRaw": {
+     "BARBARACLE": 8,
+     "BINACLE": 5
+    },
+    "scaling": "requested duration = table seconds x 1000 ms. triggerSilence(duration, pokemon, pokemon): blocked entirely by Rune Protect or the tree status; x1.3 in MURKY weather; then applyStatusDurationReductions; the cooldown is raised only when the new duration is longer than the current silence. Silence makes canCast false, so the caster cannot cast again until it ends. The delayed revert below uses the unmodified requested duration, not the adjusted silence duration.",
+    "resolution": "requested 5000 / 8000 ms -> applied silence duration may differ (weather, reductions, existing longer silence, or no silence under Rune Protect); the buff window is always the requested duration",
+    "evidence": [
+     "se-dur",
+     "se-silence",
+     "ts",
+     "ts-guard",
+     "ts-murky",
+     "ts-red",
+     "ts-cd",
+     "can-cast"
+    ]
+   },
+   {
+    "kind": "timer",
+    "target": "caster",
+    "declaredRaw": {
+     "effectFlag": "STONE_EDGE",
+     "revertAfter": "the same requested duration (ms)"
+    },
+    "scaling": "The flag is added after the silence call and removed by a DelayedCommand with the requested duration; while the flag is present a further cast returns right after super.process.",
+    "resolution": "cast while active: PP spent, nothing else changes; the flag and the revert are not extended",
+    "evidence": [
+     "se-guard",
+     "se-flag",
+     "se-undo",
+     "se-undo-range",
+     "cmd-delayed"
+    ]
+   },
+   {
+    "kind": "buff",
+    "stat": "critChance",
+    "target": "caster",
+    "declaredRaw": {
+     "value": 20,
+     "apBoost": 1,
+     "crit": false
+    },
+    "scaling": "requested +20. applied by addCritChance: value x (1 + 1 x AP/100) (crit is false), then Big Eater Belt (x1.25 rounded down, holder only, because a buff or an own-team loss counts) and Twist Band (only flips negative values from another team, so not here), then critChance += value; above 100 the overflow is converted to crit power (+round(excess)) and critChance is set to 100. The revert calls addCritChance(-20, ..., apBoost 1) with the AP and items at the time of the revert, so the amount removed can differ from the amount added (different AP, Big Eater Belt gained or lost, and any value already clipped at 100, whose overflow crit power is not undone).",
+    "resolution": "requested +20 -> applied +20 x (1 + AP/100) (x1.25 down with Big Eater Belt) at cast; requested -20 -> applied by the same formula at revert; the net change is not guaranteed to be zero",
+    "evidence": [
+     "se-crit",
+     "se-undo",
+     "acc",
+     "acc-ap",
+     "acc-cap",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "buff",
+    "stat": "range",
+    "target": "caster",
+    "declaredRaw": {
+     "value": 2
+    },
+    "scaling": "requested +2, applied as a plain field increase (no helper, no AP, no Big Eater Belt). The revert subtracts 2 but never goes below baseRange; the flag guard prevents a second +2 while active.",
+    "resolution": "+2 range for the requested duration, then range = max(baseRange, range - 2)",
+    "evidence": [
+     "se-range",
+     "se-undo-range",
+     "se-guard"
+    ]
+   },
+   {
+    "kind": "damage",
+    "stat": "HP",
+    "damageType": "PHYSICAL",
+    "target": "the caster's basic-attack target while the flag is set",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 1,
+      "3": 2,
+      "4": 4,
+      "fallback": 4
+     },
+     "formula": "DEF x (multiplier + AP/100)",
+     "damageType": "PHYSICAL (added to the attack's physical part)"
+    },
+    "perUnitRaw": {
+     "BARBARACLE": 1,
+     "BINACLE": 1
+    },
+    "scaling": "requested bonus = the caster's current DEF x (stars multiplier + AP/100), added to physicalDamage before the single Math.round of the attack, with no crit multiplier of its own (the crit factor is applied to `damage` earlier). It then goes through target.handleDamage as PHYSICAL (target DEF reduction, ceil and floor of 1: core-mechanics section A), merged with the rest of the physical part. The line comes after the dodge and protect zeroing of `damage`, and it has no isAttackSuccessful guard in the lines read; Protect on the target is handled inside handleDamage. The returned takenDamage is summed into the attack's total.",
+    "resolution": "requested DEF x (1 + AP/100) for both listed units (multiplier 1) -> merged into the rounded physical part -> final HP loss after the target's DEF, shield and the section J1 exceptions",
+    "evidence": [
+     "ps-bonus",
+     "ps-mult",
+     "ps-add",
+     "ps-round",
+     "ps-dodge",
+     "ps-phys"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "silence",
+    "target": "caster itself",
+    "duration": "requested 5000 / 8000 ms by stars",
+    "guards": "Rune Protect or tree block it; MURKY weather x1.3; applyStatusDurationReductions; a longer existing silence is kept",
+    "evidence": [
+     "se-silence",
+     "ts",
+     "ts-guard",
+     "ts-murky",
+     "ts-red",
+     "ts-cd"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "critChance",
+    "target": "caster",
+    "raw": "+20 (AP-scaled), reverted after the duration",
+    "evidence": [
+     "se-crit",
+     "se-undo"
+    ]
+   },
+   {
+    "stat": "range",
+    "target": "caster",
+    "raw": "+2, reverted after the duration (floored at baseRange)",
+    "evidence": [
+     "se-range",
+     "se-undo-range"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BARBARACLE": 2,
+    "BINACLE": 1
+   },
+   "declaredRawDurationSeconds": {
+    "BARBARACLE": 8,
+    "BINACLE": 5
+   },
+   "declaredRawDefMultiplier": {
+    "BARBARACLE": 1,
+    "BINACLE": 1
+   },
+   "note": "both tables are indexed by the casting entity's stars; the 3- and 4-star values (10 s; multiplier 2 and 4) are not reachable at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined. The +20 crit chance and +2 range do not depend on stars.",
+   "evidence": [
+    "se-dur",
+    "ps-mult",
+    "unit-binacle",
+    "unit-barbaracle"
+   ]
+  },
+  "positionalConditions": "None in the strategy; range 1 + 2 = 3 for the duration changes where the unit can attack from, which the movement code decides.",
+  "repeatedCastsAndModes": "A cast while the flag is set only spends PP. After the revert the unit can cast again (silence must have ended first). No stored mode other than the flag.",
+  "rawVsResolved": "Requested: self-silence 5 s / 8 s, crit chance +20, range +2, and basic-attack bonus DEF x (1 + AP/100) for 1- and 2-star casters. Applied: crit chance +20 x (1 + AP/100) (Big Eater Belt x1.25 down), clipped at 100 with overflow turned into crit power; silence duration through weather and reductions or not at all under Rune Protect; the DEF bonus is rounded with the rest of the attack and reduced by the target's DEF. The revert is not a guaranteed exact inverse of the crit chance gain.",
+  "sourceTables": [
+   {
+    "id": "stoneEdgeSeconds",
+    "file": "app/core/abilities/stone-edge.ts",
+    "pattern": "const duration = \\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+    "recordPath": "effects.0.declaredRaw.bySecondsByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   },
+   {
+    "id": "stoneEdgeDefMult",
+    "file": "app/core/pokemon-state.ts",
+    "pattern": "const stoneEdgeMult = \\[([^\\]]+)\\]",
+    "recordPath": "effects.4.declaredRaw.byStars",
+    "unitValuesPath": "effects.4.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "The full handleDamage chain for the bonus (section A lists the defense step only)",
+   "Whether attack speed, movement or targeting logic reacts to the larger range",
+   "Which other code adds or removes EffectEnum.STONE_EDGE (a name search covered app/core and app/models only)",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located; the strategy does not use the crit flag"
+  ],
+  "unresolved": [
+   "NAME_SHARED_WITH_EFFECT: the Ability and the EffectEnum share the name STONE_EDGE; the only reader of the flag found is PokemonState.attack, the only writers the strategy and its delayed command",
+   "What the delayed command does if the caster dies or is removed before it fires was not read",
+   "Whether Binacle/Barbaracle ever reach a different star count than the factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "STONE_EDGE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BARBARACLE",
+    "stars": 2,
+    "maxPP": 65,
+    "range": 1,
+    "declaredSkill": "STONE_EDGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BINACLE",
+    "stars": 1,
+    "maxPP": 65,
+    "range": 1,
+    "declaredSkill": "STONE_EDGE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BARBARACLE": {
+    "evidence": [
+     "unit-barbaracle"
+    ]
+   },
+   "BINACLE": {
+    "evidence": [
+     "unit-binacle"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-binacle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16334,
+     16348
+    ],
+    "symbol": "class Binacle",
+    "expect": "export class Binacle",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-barbaracle",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16350,
+     16364
+    ],
+    "symbol": "class Barbaracle",
+    "expect": "export class Barbaracle",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-se",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1207,
+     1207
+    ],
+    "symbol": "AbilityStrategies[Ability.STONE_EDGE]",
+    "expect": "[Ability.STONE_EDGE]: new StoneEdgeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "defaults requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "canCast false => no cast; crit roll only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "move-gate",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     41,
+     44
+    ],
+    "symbol": "MovingState.update",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "requiresTarget false lets the cast happen from the moving state with target null"
+   },
+   {
+    "id": "can-cast",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     252
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "get canCast(): boolean {",
+    "note": "silence blocks casting"
+   },
+   {
+    "id": "se-class",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "StoneEdgeStrategy",
+    "expect": "export class StoneEdgeStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "se-req",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "StoneEdgeStrategy.requiresTarget",
+    "expect": "requiresTarget = false",
+    "note": "canCritByDefault not overridden"
+   },
+   {
+    "id": "se-super",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "se-dur",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "const duration = ([5, 8, 10, 10][pokemon.stars - 1] ?? 10) * 1000",
+    "note": "duration table in seconds, converted to ms"
+   },
+   {
+    "id": "se-guard",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "if (pokemon.effects.has(EffectEnum.STONE_EDGE)) return",
+    "note": "a cast while the effect is active does nothing more (PP was already spent in super.process)"
+   },
+   {
+    "id": "se-silence",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.status.triggerSilence(duration, pokemon, pokemon)",
+    "note": "self-silence for the same duration"
+   },
+   {
+    "id": "se-flag",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.effects.add(EffectEnum.STONE_EDGE)",
+    "note": ""
+   },
+   {
+    "id": "se-crit",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.addCritChance(20, pokemon, 1, false)",
+    "note": "requested +20 crit chance, apBoost 1, crit false"
+   },
+   {
+    "id": "se-range",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.range += 2",
+    "note": "raw +2 range, no helper"
+   },
+   {
+    "id": "se-undo",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.addCritChance(-20, pokemon, 1, false)",
+    "note": "delayed revert after `duration`"
+   },
+   {
+    "id": "se-undo-range",
+    "file": "app/core/abilities/stone-edge.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "StoneEdgeStrategy.process",
+    "expect": "pokemon.range = min(pokemon.baseRange)(pokemon.range - 2)",
+    "note": "range revert, floored at baseRange"
+   },
+   {
+    "id": "cmd-delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand extends SimulationCommand",
+    "note": ""
+   },
+   {
+    "id": "acc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     534,
+     556
+    ],
+    "symbol": "PokemonEntity.addCritChance",
+    "expect": "addCritChance(",
+    "note": ""
+   },
+   {
+    "id": "acc-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     543,
+     543
+    ],
+    "symbol": "PokemonEntity.addCritChance",
+    "expect": "(1 + (apBoost * caster.ap) / 100) *",
+    "note": "requested value x (1 + apBoost x AP/100) x (crit ? critPower : 1)"
+   },
+   {
+    "id": "acc-cap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     552,
+     556
+    ],
+    "symbol": "PokemonEntity.addCritChance",
+    "expect": "if (this.critChance > 100) {",
+    "note": "critChance above 100 is capped and the overflow becomes crit power"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "Big Eater Belt helper (plain function, not a method)"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band helper (plain function, not a method)"
+   },
+   {
+    "id": "ts",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     536
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "triggerSilence(duration: number",
+    "note": ""
+   },
+   {
+    "id": "ts-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     521,
+     521
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree) {",
+    "note": "Rune Protect and tree status block silence"
+   },
+   {
+    "id": "ts-murky",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     522,
+     524
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (pkm.simulation.weather === Weather.MURKY) {",
+    "note": "MURKY weather lengthens the silence"
+   },
+   {
+    "id": "ts-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": ""
+   },
+   {
+    "id": "ts-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     529,
+     531
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "this.silenceCooldown = duration",
+    "note": ""
+   },
+   {
+    "id": "ps-bonus",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     225,
+     228
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "if (pokemon.effects.has(EffectEnum.STONE_EDGE)) {",
+    "note": "basic-attack bonus while the effect flag is set"
+   },
+   {
+    "id": "ps-mult",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     226,
+     226
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "const stoneEdgeMult = [1, 1, 2, 4][pokemon.stars - 1] ?? 4",
+    "note": "star table for the DEF multiplier"
+   },
+   {
+    "id": "ps-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     227,
+     227
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "physicalDamage += pokemon.def * (stoneEdgeMult + pokemon.ap / 100)",
+    "note": "bonus = DEF x (multiplier + AP/100), added to the physical part"
+   },
+   {
+    "id": "ps-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     235,
+     235
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "physicalDamage = Math.round(physicalDamage)",
+    "note": ""
+   },
+   {
+    "id": "ps-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     111,
+     111
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "target.count.dodgeCount += 1",
+    "note": "dodge / protect zero only `damage`, set before the bonus line"
+   },
+   {
+    "id": "ps-phys",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     247,
+     247
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "damage: physicalDamage,",
+    "note": "physical part goes through handleDamage (target DEF)"
+   }
+  ]
+ }
+}
