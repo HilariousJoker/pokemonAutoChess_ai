@@ -1,0 +1,377 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPITE",
+ "kind": "ability",
+ "identifier": "SPITE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T063919Z"
+ },
+ "record": {
+  "ability": "SPITE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare SPITE (catalog passive NONE, maxPP 90, range 1, types GHOST/HUMAN). The strategy is shared; they differ in stars (1 and 2) and stats.",
+  "appliesTo": [
+   {
+    "key": "YAMASK",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "SPITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "COFAGRIGUS",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "SPITE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "YAMASK": {
+    "evidence": [
+     "unit-yamask"
+    ]
+   },
+   "COFAGRIGUS": {
+    "evidence": [
+     "unit-cofagrigus"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPITE] = new SpiteStrategy()",
+   "strategy": "SpiteStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "routingNote": "REFERENCES_OTHER_ABILITIES resolved: SpiteStrategy mentions Ability.PSYCHIC_FANGS only as the skill id of a broadcastAbility animation; it does not call another strategy.",
+   "evidence": [
+    "reg",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super",
+    "anim"
+   ]
+  },
+  "summary": "PP drain and redistribution, no damage. After the base process (PP spent, default animation suppressed) and a PSYCHIC_FANGS-id animation broadcast, the strategy requests addPP(-ppDrain, caster, apBoost 1, crit) on the cast target, with ppDrain = [20, 40, 60, 100] by caster stars (YAMASK 20, COFAGRIGUS 40). It then collects the caster's adjacent units of its own team (the up to 8 neighbouring cells, caster excluded) and, if there are n >= 1, requests addPP(ppDrain / n, caster, 1, crit) on each. The amount given is based on the requested ppDrain, not on how much PP the target actually lost, and AP / crit are applied again inside each addPP call. addPP computes round(base x (1 + AP/100) x critPower if the cast crit), halves positive amounts under fatigue, flips a negative amount for a Twist Band holder when the source is an enemy, blocks positive values on silenced / status.protect / NO_PP_GAIN units, blocks all values on a resurrecting unit and negative values on a tree unit, then clamps to 0..2 x maxPP - 1. With no adjacent ally, nothing is given. If the target is protected, silenced or otherwise unaffected the allies still receive PP; Rune Protect alone blocks neither the drain nor the gain.",
+  "targeting": {
+   "who": "the cast target (PP drain); the caster's same-team units in the 8 cells around the caster (PP gain)",
+   "needsTarget": true,
+   "note": "Allies are any occupied adjacent cell with a unit of the caster's team (units whose hp is 0 are not filtered in the code read). The caster itself is not in the set. The target need not be adjacent.",
+   "evidence": [
+    "cls",
+    "base-flags",
+    "drain",
+    "adjacent",
+    "adjacent-filter",
+    "adj-fn",
+    "give"
+   ]
+  },
+  "geometry": {
+   "shape": "single target for the drain; the 8-neighbour ring around the caster for the gain",
+   "evidence": [
+    "adjacent",
+    "adj-fn",
+    "adjacent-filter"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "PP drain (target)",
+    "damageType": "none",
+    "target": "the cast target",
+    "declaredRaw": {
+     "ppDrainByStars": {
+      "1": 20,
+      "2": 40,
+      "3": 60,
+      "4": 100,
+      "fallback": 100
+     }
+    },
+    "perUnitRaw": {
+     "YAMASK": 20,
+     "COFAGRIGUS": 40
+    },
+    "scaling": "requested = -ppDrain; addPP value = round(-ppDrain x (1 + AP/100) x (critPower if the cast crit flag is true)); AP is the caster's at cast time; the crit flag is rolled only with ABILITY_CRIT because canCritByDefault is false. Fatigue halves only positive requests, so it does not change the drain.",
+    "resolution": "applied: Twist Band on the target turns a drain from an enemy into a gain; the change is dropped while the target is resurrecting or has status.tree; otherwise pp = clamp(pp + value, 0, 2 x maxPP - 1), so the PP actually lost is at most the target's current PP and can be less than the requested amount (core-mechanics section J3, probe SHARED_HELPERS). Protect / silence do not block a negative value. Not damage: shields and HP are untouched.",
+    "evidence": [
+     "drain-table",
+     "drain",
+     "addpp",
+     "addpp-guards",
+     "twist"
+    ]
+   },
+   {
+    "kind": "PP gain (adjacent allies)",
+    "damageType": "none",
+    "target": "each adjacent same-team unit",
+    "declaredRaw": {
+     "ppGivenEach": "ppDrain / n (n = number of adjacent allies)",
+     "ppDrainByStars": {
+      "1": 20,
+      "2": 40,
+      "3": 60,
+      "4": 100,
+      "fallback": 100
+     }
+    },
+    "perUnitRaw": {
+     "YAMASK": 20,
+     "COFAGRIGUS": 40
+    },
+    "scaling": "requested per ally = ppDrain / n (not rounded); addPP value = round(ppDrain / n x (1 + AP/100) x (critPower on a cast crit) x (0.5 if the ally has fatigue)). It does not depend on the PP actually drained from the target.",
+    "resolution": "applied: dropped for a silenced ally, one with status.protect (not Rune Protect), the NO_PP_GAIN effect, or resurrecting; otherwise pp = clamp(pp + value, 0, 2 x maxPP - 1) so the stored change can be smaller near the cap; Twist Band does not flip (same team); Big Eater Belt is not applied by addPP (section J3). A unit already at PP cap gains nothing. The sum given can exceed the PP the target lost.",
+    "evidence": [
+     "drain-table",
+     "give",
+     "adjacent",
+     "adjacent-filter",
+     "adj-fn",
+     "addpp",
+     "addpp-guards"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "starBehavior": {
+   "unitStars": {
+    "YAMASK": 1,
+    "COFAGRIGUS": 2
+   },
+   "declaredRaw": {
+    "YAMASK": 20,
+    "COFAGRIGUS": 40
+   },
+   "note": "The PP table is indexed by the casting entity's stars; the 3-star (60) and 4-star (100) entries and the fallback 100 are not reachable by the listed units' bare star counts. Geometry does not vary by stars.",
+   "evidence": [
+    "drain-table",
+    "unit-yamask",
+    "unit-cofagrigus"
+   ]
+  },
+  "positionalConditions": "The gain goes only to same-team units standing directly around the caster (8 neighbours); with none adjacent only the drain happens. The drain needs the cast target (requiresTarget true) but not adjacency.",
+  "repeatedCastsAndModes": "No stored state or modes; each cast acts immediately (no delayed command).",
+  "rawVsResolved": "Requested: drain ppDrain (20 YAMASK / 40 COFAGRIGUS) x (1 + AP/100) x critPower on crit from the target; ppDrain / n x (1 + AP/100) x critPower on crit to each of n adjacent allies. Applied: the target loses at most its current PP (clamp at 0), nothing if resurrecting or tree, and gains PP instead under a Twist Band; each ally gains per addPP (fatigue halving, silence / protect / NO_PP_GAIN / resurrecting blocks, cap 2 x maxPP - 1, rounding per ally). Allies' total gain is computed from the requested amount, so it is not conserved with the target's actual loss.",
+  "sourceTables": [
+   {
+    "id": "spiteDrain",
+    "file": "app/core/abilities/spite.ts",
+    "pattern": "const ppDrain = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.ppDrainByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether a unit at hp 0 can still stand in an adjacent cell (dead units' removal from board.cells) was not traced",
+   "What sets status.tree, NO_PP_GAIN or status.resurrecting (sources) was not traced beyond their checks in addPP",
+   "How a unit with PP above maxPP behaves when casting (the clamp allows up to 2 x maxPP - 1) follows core-mechanics section B",
+   "How ABILITY_CRIT reaches the caster was not traced"
+  ],
+  "unresolved": [
+   "Routing uncertainty REFERENCES_OTHER_ABILITIES: PSYCHIC_FANGS is read as an animation id only (see dispatch.routingNote); the client-side animation was not read",
+   "Whether the broadcastAbility without a skill id inside the ally loop uses the caster's own skill as its animation was not read",
+   "Whether any item or synergy beyond the ones listed changes SPITE",
+   "Units sharing the identifier but not listed in appliesTo are not covered (no others in the catalog)"
+  ],
+  "evidence": [
+   {
+    "id": "unit-yamask",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19151,
+     19164
+    ],
+    "symbol": "class Yamask",
+    "expect": "skill = Ability.SPITE",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE, maxPP 90)"
+   },
+   {
+    "id": "unit-cofagrigus",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19168,
+     19179
+    ],
+    "symbol": "class Cofagrigus",
+    "expect": "skill = Ability.SPITE",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE, maxPP 90)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1195,
+     1195
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SPITE]: new SpiteStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SpiteStrategy",
+    "expect": "export class SpiteStrategy extends AbilityStrategy",
+    "note": "strategy class (no requiresTarget / canCritByDefault override)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and cast counted at the start of process"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true"
+   },
+   {
+    "id": "drain-table",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "const ppDrain = [20, 40, 60, 100][pokemon.stars - 1] ?? 100",
+    "note": "PP drain table by caster stars"
+   },
+   {
+    "id": "anim",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "skill: Ability.PSYCHIC_FANGS",
+    "note": "Ability.PSYCHIC_FANGS appears only as the skill id of a broadcastAbility animation; no PSYCHIC_FANGS strategy is called"
+   },
+   {
+    "id": "drain",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "target.addPP(-ppDrain, pokemon, 1, crit)",
+    "note": "negative PP request on the cast target, AP boost 1, cast crit flag"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     25,
+     29
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": ".getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the caster's adjacent cells (8 neighbours, centre excluded)"
+   },
+   {
+    "id": "adjacent-filter",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "cell.value && cell.value.team === pokemon.team",
+    "note": "occupied adjacent cells holding a unit of the caster's team"
+   },
+   {
+    "id": "give",
+    "file": "app/core/abilities/spite.ts",
+    "lines": [
+     32,
+     39
+    ],
+    "symbol": "SpiteStrategy.process",
+    "expect": "ally.addPP(ppDrain / adjacentAllies.length, pokemon, 1, crit)",
+    "note": "each adjacent ally receives ppDrain / count as a positive PP request, AP boost 1, same crit flag"
+   },
+   {
+    "id": "adj-fn",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false) {",
+    "note": "8-neighbour cells on the board; includesCenter defaults to false"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "addPP(",
+    "note": "addPP: round(base x (1 + apBoost x AP/100) x crit x fatigue half for positive), Twist Band flip, guards, clamp 0..2 x maxPP - 1"
+   },
+   {
+    "id": "addpp-guards",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     522,
+     531
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value < 0 && this.status.tree)",
+    "note": "guards: silence / protect / NO_PP_GAIN block positive values; resurrecting blocks all; tree blocks negative"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band flips negative values from enemies or the environment only"
+   }
+  ]
+ }
+}
