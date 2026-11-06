@@ -1,0 +1,382 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/TAILWIND",
+  "kind": "ability",
+  "identifier": "TAILWIND",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261106T184111Z"
+  },
+  "record": {
+    "ability": "TAILWIND",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "DRIFLOON (1 star) and DRIFBLIM (2 stars), the queued units. Ability.TAILWIND only: the identically named EffectEnum.TAILWIND (a Flying synergy effect) is a different mechanic and is not described here.",
+    "appliesTo": [
+      {
+        "key": "DRIFBLIM",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 2,
+        "declaredSkill": "TAILWIND",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "DRIFLOON",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 2,
+        "declaredSkill": "TAILWIND",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.TAILWIND] = new TailwindStrategy()",
+      "strategy": "TailwindStrategy extends AbilityStrategy",
+      "requiresTarget": false,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-tw",
+        "base",
+        "cast",
+        "tw-req",
+        "tw-base"
+      ]
+    },
+    "summary": "Team-wide speed buff: every entity on the board that is on the caster's team (the caster included, no range or distance test) receives addSpeed(buff, caster, 1, crit), with buff 5 at 1 star, 10 at 2, 15 at 3, 30 at 4+ (DRIFLOON 5, DRIFBLIM 10, raw). For each recipient the value is first adjusted by its own Big Eater Belt helper (x1.25 rounded down to an integer), then scaled by the caster's AP (x (1 + AP/100)) and by critPower if the cast crit, with no rounding, and added to its speed clamped to 0..300. A recipient with the MELMETAL passive receives half the (Belt-adjusted) value as ATTACK instead and its speed does not change. The buff is not timed; it lasts for the fight. Requires no target.",
+    "targeting": {
+      "who": "all entities on the board whose team equals the caster's, including the caster; untargettable or other states are not tested",
+      "needsTarget": false,
+      "evidence": [
+        "tw-req",
+        "tw-loop"
+      ]
+    },
+    "geometry": {
+      "shape": "whole board, own team",
+      "origin": "none (no range, no distance)",
+      "evidence": [
+        "tw-loop"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "stat",
+        "stat": "SPEED",
+        "target": "every ally on the board including the caster",
+        "declaredRaw": {
+          "formula": "[5, 10, 15, 30][stars - 1] ?? 30",
+          "amountByStars": {
+            "1": 5,
+            "2": 10,
+            "3": 15,
+            "4": 30,
+            "fallback": 30
+          },
+          "note": "requested speed amount per ally, raw; DRIFLOON 5, DRIFBLIM 10"
+        },
+        "perUnitAmount": {
+          "DRIFBLIM": 10,
+          "DRIFLOON": 5
+        },
+        "scaling": "per recipient, in this order inside addSpeed(value, caster, apBoost 1, crit): Big Eater Belt of the RECIPIENT (value x1.25 rounded down, e.g. 5 -> 6, 10 -> 12), Twist Band (no effect on a positive value), then x (1 + caster AP/100) and x caster critPower if the cast crit (needs ABILITY_CRIT; canCritByDefault is false); no Math.round, so fractional speed is possible; result added to speed and clamped to 0..MAX_SPEED (300)",
+        "resolution": "applied change per ally = the figure above, limited by the clamp at 300; allies with the MELMETAL passive get addAttack(value x 0.5, caster, 1, crit) instead (value already Belt-adjusted; addAttack was not read here). The AP and crit scaling use the CASTER's ap and critPower for every ally; the recipient's own AP does not matter",
+        "evidence": [
+          "tw-buff",
+          "tw-loop",
+          "add-speed",
+          "melmetal",
+          "beb",
+          "twist",
+          "max-speed"
+        ]
+      }
+    ],
+    "statusEffects": [],
+    "buffs": [
+      {
+        "stat": "SPEED",
+        "target": "all allies including the caster",
+        "declaredRaw": {
+          "amountByStars": {
+            "1": 5,
+            "2": 10,
+            "3": 15,
+            "4": 30,
+            "fallback": 30
+          }
+        },
+        "note": "see effects; permanent false, lasts for the fight; stacks additively on repeated casts up to 300",
+        "evidence": [
+          "tw-buff",
+          "tw-loop"
+        ]
+      }
+    ],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "DRIFLOON": 1,
+        "DRIFBLIM": 2
+      },
+      "speedByStars": {
+        "DRIFLOON": 5,
+        "DRIFBLIM": 10
+      },
+      "note": "amount indexed by the caster's stars (pokemon.stars - 1), fallback 30; 15 and 30 are not reached by these units. maxPP 100 and range 2 for both (range only affects when the unit can attack; the buff has no range).",
+      "evidence": [
+        "tw-buff",
+        "unit-drifloon",
+        "unit-drifblim"
+      ]
+    },
+    "positionalConditions": "None: the loop scans the whole board.",
+    "repeatedCastsAndModes": "No state in the ability. Each cast adds again to every ally's speed (additive, clamp 300). No modes. Name collision: EffectEnum.TAILWIND is the first Flying synergy effect, added to Flying-type entities by the simulation and read by FlyingProtectionEffect (flyingProtection = 1); that is separate from this ability, which is dispatched only through AbilityStrategies[Ability.TAILWIND].",
+    "nameCollisionEvidence": {
+      "evidence": [
+        "eff-synergy",
+        "eff-sim",
+        "eff-flyprot"
+      ]
+    },
+    "rawVsResolved": "Requested: +5 (DRIFLOON) / +10 (DRIFBLIM) speed per ally. Applied per ally = (requested [x1.25 rounded down if that ally holds Big Eater Belt]) x (1 + caster AP/100) [x critPower], unrounded, clamped so speed stays within 0..300; MELMETAL-passive allies convert half of the Belt-adjusted value into ATTACK and gain no speed. The caster's own ally list includes itself.",
+    "sourceTables": [
+      {
+        "id": "tailwindSpeed",
+        "file": "app/core/abilities/tailwind.ts",
+        "pattern": "const buff = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.amountByStars",
+        "unitValuesPath": "effects.0.perUnitAmount"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "What a higher speed does in a real fight (attack/movement timing); only the stat change was read",
+      "When the cast fires in a real fight (PP gain, canCast)",
+      "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+    ],
+    "unresolved": [
+      "NAME_SHARED_WITH_EFFECT: Ability.TAILWIND (this record) and EffectEnum.TAILWIND (Flying synergy effect) were separated by the registry key and the effect application sites cited above; what the flying protection value does in combat was not read and is not part of this record.",
+      "Consulted: TailwindStrategy, AbilityStrategy.process, castAbility, PokemonEntity.addSpeed, applyBigEaterBeltStatBuff / applyTwistBandBuff, MAX_SPEED and the sibling AGILITY record by name only (not compared). The queue record lists no dependencies.",
+      "PokemonEntity.addAttack (the MELMETAL branch) was not read, so the attack gain for such allies is described only as 'half of the value passed through addAttack'",
+      "Whether dead, untargettable or ghost-opponent entities still on the board are filtered anywhere: the loop does not filter them, and board cells normally hold only live entities (not verified)",
+      "Whether the speed of 'permanent' board copies is affected: permanent is false, so only the fight entity changes"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-tw",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1231,
+          1231
+        ],
+        "symbol": "AbilityStrategies[Ability.TAILWIND]",
+        "expect": "[Ability.TAILWIND]: new TailwindStrategy()",
+        "note": "registry key is Ability.TAILWIND (the ability enum), not EffectEnum.TAILWIND"
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          33
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process: spends maxPP, ult count, default animation, cast bookkeeping; canCritByDefault false (line 8)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          8,
+          31
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit is rolled only with the ABILITY_CRIT effect or canCritByDefault"
+      },
+      {
+        "id": "tw-req",
+        "file": "app/core/abilities/tailwind.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "TailwindStrategy",
+        "expect": "requiresTarget = false",
+        "note": "can be cast without a target; process receives null"
+      },
+      {
+        "id": "tw-base",
+        "file": "app/core/abilities/tailwind.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "TailwindStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation broadcast with target -1,-1"
+      },
+      {
+        "id": "tw-buff",
+        "file": "app/core/abilities/tailwind.ts",
+        "lines": [
+          9,
+          9
+        ],
+        "symbol": "TailwindStrategy.process",
+        "expect": "const buff = [5, 10, 15, 30][pokemon.stars - 1] ?? 30",
+        "note": "requested speed amount by caster stars"
+      },
+      {
+        "id": "tw-loop",
+        "file": "app/core/abilities/tailwind.ts",
+        "lines": [
+          10,
+          14
+        ],
+        "symbol": "TailwindStrategy.process",
+        "expect": "ally.addSpeed(buff, pokemon, 1, crit)",
+        "note": "every entity on the board with the caster's team, the caster included, gets addSpeed(buff, caster, apBoost 1, crit); no range or distance test"
+      },
+      {
+        "id": "add-speed",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          752,
+          780
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+        "note": "Big Eater Belt then Twist Band helpers on the raw value; Melmetal branch; otherwise x (1 + AP/100) x critPower, no rounding, clamp 0..MAX_SPEED; permanent false"
+      },
+      {
+        "id": "melmetal",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          762,
+          763
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "this.passive === Passive.MELMETAL",
+        "note": "a unit with the MELMETAL passive converts the (already Belt-adjusted) value to ATTACK: addAttack(value x 0.5, ...) and its speed is unchanged"
+      },
+      {
+        "id": "beb",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1839,
+          1852
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+        "note": "a Big Eater Belt holder's positive change is x1.25 rounded down to an integer"
+      },
+      {
+        "id": "twist",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1854,
+          1866
+        ],
+        "symbol": "applyTwistBandBuff",
+        "expect": "value *= -1 // twist band turn debuffs into buffs",
+        "note": "only negative values from enemies are flipped; no effect on this positive buff"
+      },
+      {
+        "id": "max-speed",
+        "file": "app/config/game/game.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "MAX_SPEED",
+        "expect": "export const MAX_SPEED = 300",
+        "note": ""
+      },
+      {
+        "id": "eff-synergy",
+        "file": "app/config/game/synergies.ts",
+        "lines": [
+          101,
+          106
+        ],
+        "symbol": "SynergyEffects[Synergy.FLYING]",
+        "expect": "EffectEnum.TAILWIND,",
+        "note": "EffectEnum.TAILWIND is the first FLYING synergy-level effect: a different identifier that shares the name (the NAME_SHARED_WITH_EFFECT routing note)"
+      },
+      {
+        "id": "eff-sim",
+        "file": "app/core/simulation.ts",
+        "lines": [
+          951,
+          956
+        ],
+        "symbol": "Simulation (effect application)",
+        "expect": "case EffectEnum.TAILWIND:",
+        "note": "the synergy effect is added to entities with the FLYING type; unrelated to the Ability.TAILWIND strategy"
+      },
+      {
+        "id": "eff-flyprot",
+        "file": "app/core/effects/synergies.ts",
+        "lines": [
+          279,
+          281
+        ],
+        "symbol": "FlyingProtectionEffect",
+        "expect": "effect === EffectEnum.FEATHER_DANCE || effect === EffectEnum.TAILWIND",
+        "note": "the synergy effect TAILWIND only sets a flyingProtection level; it does not call TailwindStrategy"
+      },
+      {
+        "id": "unit-drifloon",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          10009,
+          10009
+        ],
+        "symbol": "Drifloon",
+        "expect": "skill = Ability.TAILWIND",
+        "note": "unit class block: stars 1, range 2"
+      },
+      {
+        "id": "unit-drifblim",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          10028,
+          10028
+        ],
+        "symbol": "Drifblim",
+        "expect": "skill = Ability.TAILWIND",
+        "note": "unit class block: stars 2, range 2"
+      }
+    ],
+    "unitEvidence": {
+      "DRIFLOON": {
+        "evidence": [
+          "unit-drifloon"
+        ]
+      },
+      "DRIFBLIM": {
+        "evidence": [
+          "unit-drifblim"
+        ]
+      }
+    }
+  }
+}
