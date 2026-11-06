@@ -1,0 +1,648 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SOLAR_BEAM",
+ "kind": "ability",
+ "identifier": "SOLAR_BEAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T003936Z"
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "do not promise movement next to the farthest enemy: getFarthestTargetCoordinateAvailablePlace can retain a cell chosen for an earlier nearer enemy; the fallback runs only when selectedCell remains null",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "FLAME_CHARGE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ],
+ "record": {
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "ability": "SOLAR_BEAM",
+  "scope": "The units in appliesTo declare SOLAR_BEAM in this production reference. The strategy is shared; differences are star count (damage), max HP, maxPP and the entity's stats.",
+  "appliesTo": [
+   {
+    "key": "SUNFLORA",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "SOLAR_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SUNKERN",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SOLAR_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SUNFLORA": {
+    "evidence": [
+     "unit-sunflora"
+    ]
+   },
+   "SUNKERN": {
+    "evidence": [
+     "unit-sunkern"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SOLAR_BEAM] = new SolarBeamStrategy()",
+   "strategy": "SolarBeamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sb",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "sb-class",
+    "sb-super"
+   ]
+  },
+  "summary": "The caster fires a line from its own cell through the cast target to the board edge (supercover cells, endpoints and diagonal crossings included, line end point rounded). Every enemy-team unit on those cells is burned for 3000 ms and then takes SPECIAL damage (raw 25/50/100/200 by caster stars; SUNKERN 1 star -> 25, SUNFLORA 2 stars -> 50). If the simulation weather is ZENITH or the caster has the light status (status.light, set for units in the spotlight by the light effects), the raw damage is multiplied by 1.3 (25 -> 32.5, 50 -> 65, not rounded here) and the caster first requests +20 PP (addPP, apBoost 0, no crit). Requested vs applied: the +20 PP is requested; the applied change is after addPP's rules: fatigue halves positive gains, nothing is gained while the caster is silenced, status.protect (Rune Protect alone does not block it), NO_PP_GAIN or resurrecting, and PP is clamped to 0..2 x maxPP - 1; the PP spend of the cast (super.process) already happened. Damage is requested raw x 1.3 (conditional) x (1 + AP/100) [x crit factor], then the target's special-defense division (ceil, min 1) and shields in handleDamage (takenDamage includes shield damage). The burn is not AP-scaled; it replaces a running burn timer only if longer, is blocked by IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive on the victim, and then deals TRUE damage of 5 % of the victim's max HP per tick (reduced by weather, Assault Vest and water effects; none for WELL_BAKED or Magmarizer). triggerBurn has no protect check, so the burn can land even when protect blocks the damage.",
+  "targeting": {
+   "who": "every enemy-team unit on the line (burn and damage); the caster (PP in ZENITH / light)",
+   "needsTarget": true,
+   "note": "requiresTarget stays true (default); the target fixes the direction of the line and is hit only if it stands on it (it always does).",
+   "evidence": [
+    "base-flags",
+    "sb-line",
+    "sb-enemy"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster through the cast target to the board edge (end point 12 cells away along the angle, rounded)",
+   "evidence": [
+    "el-class",
+    "el-angle",
+    "el-final",
+    "el-cells",
+    "cells-between"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (SPECIAL, line)",
+    "target": "each enemy-team unit on the line",
+    "declaredRaw": {
+     "label": "raw special damage by caster stars",
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     },
+     "conditionalMultiplier": 1.3
+    },
+    "perUnitRaw": {
+     "SUNKERN": "25 (32.5 with ZENITH / light)",
+     "SUNFLORA": "50 (65 with ZENITH / light)"
+    },
+    "scaling": "requested = raw x 1.3 only if ZENITH weather or caster status.light; then x(1 + caster AP/100); x crit factor (1 + (critPower - 1) x the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false); then the target's special-defense division (reducedDamage = damage / (1 + 0.05 x speDef)), ceil, at least 1",
+    "resolution": "applied: handleSpecialDamage is blocked by protect / skydiving / magicBounce on the target; otherwise handleDamage applies shields and the special-defense division; takenDamage includes shield damage; the strategy ignores the returned values. Burn is triggered first for each unit; the occupant is the one read when the line cells were built.",
+    "evidence": [
+     "sb-dmg",
+     "sb-light",
+     "sb-enemy",
+     "sb-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast-crit"
+    ]
+   },
+   {
+    "kind": "PP gain (self, conditional)",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "requested PP, only with ZENITH weather or status.light",
+     "value": 20
+    },
+    "scaling": "apBoost 0 and crit false: no AP / crit scaling; fatigue halves a positive amount (rounded); Twist Band only flips negative values",
+    "resolution": "applied: not gained if silenced, status.protect (Rune Protect alone does not block it), NO_PP_GAIN or resurrecting; PP = clamp(PP + value, 0, 2 x maxPP - 1). Happens before the beam, after the cast's PP spend (see core-mechanics §J addPP).",
+    "evidence": [
+     "sb-light",
+     "sb-pp",
+     "addpp",
+     "status-light",
+     "light-set"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "BURN",
+    "target": "each enemy-team unit on the line",
+    "durationMs": 3000,
+    "probability": 1,
+    "apScaled": false,
+    "declaredRaw": {
+     "durationMs": 3000,
+     "label": "requested duration"
+    },
+    "scaling": "none from stars, AP or crit",
+    "resolution": "checked against the VICTIM (pkm = cell.value): blocked by IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive; applied duration = 3000 after the victim's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects on the victim: GUTS passive +5 attack once, WELL_BAKED +20 defense on first burn, MAGMARIZER +30 speed on first burn, Rawst Berry is eaten. While burning the victim takes TRUE damage of 5 % max HP per tick (weather, Assault Vest and water effects reduce it; zero with Well Baked or Magmarizer).",
+    "evidence": [
+     "sb-burn",
+     "burn-fn",
+     "burn-trig",
+     "burn-set",
+     "burn-red",
+     "burn-extras",
+     "burn-tick",
+     "burn-true"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SUNKERN": 1,
+    "SUNFLORA": 2
+   },
+   "declaredRawDamage": {
+    "SUNKERN": 25,
+    "SUNFLORA": 50
+   },
+   "note": "only the damage depends on stars; burn (3000 ms), the 1.3 multiplier and +20 PP are fixed. 3 stars (100) and 4+ (200) are not reachable by the listed units' bare factory stars. maxPP differs: SUNKERN 100, SUNFLORA 80; both range 2.",
+   "evidence": [
+    "sb-dmg",
+    "unit-sunkern",
+    "unit-sunflora"
+   ]
+  },
+  "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point). The ZENITH / light condition depends on weather and the caster's status, not on position.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP, re-evaluates ZENITH / light, re-applies burn (a longer remaining burn is kept) and recomputes the line.",
+  "rawVsResolved": "Damage: raw 25 (SUNKERN) / 50 (SUNFLORA), x1.3 under ZENITH or light, x(1 + AP/100) [x crit], then special-defense division (ceil, min 1) and shields; takenDamage counts shield damage. PP: requested +20 only under ZENITH / light; applied after silence, protect, NO_PP_GAIN, resurrecting, fatigue and the clamp. Burn: requested 3000 ms; applied after immunity, Rune Protect, WATER_BUBBLE and duration reductions.",
+  "sourceTables": [
+   {
+    "id": "solarBeamDamage",
+    "file": "app/core/abilities/solar-beam.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL SPE_DEF division, the minimum of 1 and the shield step were read",
+   "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
+   "Which spotlight effects set status.light and for whom (only the first cases in Simulation were read)",
+   "Crit chance value and critPower; only the roll gate was located"
+  ],
+  "unresolved": [
+   "Consulted: core-mechanics §A/§H/§J, the AURORA_BEAM candidate (effectInLine geometry), the BLAZE_KICK candidate (burn) and the FLAME_CHARGE candidate (damage resolution), plus pokemon-entity.addPP and Status.triggerBurn at the pinned commit",
+   "Whether other code sets status.light beyond the spotlight cases in Simulation was not enumerated",
+   "Whether the unrounded damage x1.3 is rounded before or only inside handleDamage was not traced beyond the ceil in the special-defense step",
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "el-class",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     920
+    ],
+    "symbol": "effectInLine",
+    "expect": "export function effectInLine(",
+    "note": ""
+   },
+   {
+    "id": "el-angle",
+    "file": "app/core/board.ts",
+    "lines": [
+     926,
+     930
+    ],
+    "symbol": "effectInLine",
+    "expect": "const angleToTarget = Math.atan2(",
+    "note": "angle from caster to target; line is extended 12 cells beyond the caster along that angle"
+   },
+   {
+    "id": "el-final",
+    "file": "app/core/board.ts",
+    "lines": [
+     931,
+     931
+    ],
+    "symbol": "effectInLine",
+    "expect": "const finalX = Math.round(",
+    "note": ""
+   },
+   {
+    "id": "el-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     938,
+     938
+    ],
+    "symbol": "effectInLine",
+    "expect": ".getCellsBetween(pokemon.positionX, pokemon.positionY, finalX, finalY)",
+    "note": "supercover line from the caster's cell to the far end, forEach(effect)"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     345
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line (caster's own cell first, off-board cells skipped); each cell carries the entity on it"
+   },
+   {
+    "id": "burn-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     404,
+     404
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "not applied with IMMUNITY_BURN, rune protect or the WATER_BUBBLE passive"
+   },
+   {
+    "id": "burn-set",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     412,
+     412
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "if (duration > this.burnCooldown) {",
+    "note": "a longer new duration replaces the timer and origin; a shorter one keeps the existing"
+   },
+   {
+    "id": "burn-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     410,
+     410
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "target-side duration reductions"
+   },
+   {
+    "id": "burn-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     442,
+     442
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "let burnDamage = pkm.maxHP * 0.05",
+    "note": "5% of the burning unit's max HP per second as TRUE damage (weather / items / passives modify it)"
+   },
+   {
+    "id": "burn-true",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     486,
+     486
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attackType: AttackType.TRUE,",
+    "note": ""
+   },
+   {
+    "id": "unit-sunkern",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7723,
+     7735
+    ],
+    "symbol": "class Sunkern",
+    "expect": "skill = Ability.SOLAR_BEAM",
+    "note": "unit class block: 1 star, hp 80, maxPP 100, range 2"
+   },
+   {
+    "id": "unit-sunflora",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7739,
+     7750
+    ],
+    "symbol": "class Sunflora",
+    "expect": "skill = Ability.SOLAR_BEAM",
+    "note": "unit class block: 2 stars, hp 160, maxPP 80, range 2"
+   },
+   {
+    "id": "reg-sb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1181,
+     1181
+    ],
+    "symbol": "AbilityStrategies[Ability.SOLAR_BEAM]",
+    "expect": "[Ability.SOLAR_BEAM]: new SolarBeamStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "sb-class",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "SolarBeamStrategy",
+    "expect": "export class SolarBeamStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target: PokemonEntity, crit); no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "sb-super",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP, default animation"
+   },
+   {
+    "id": "sb-dmg",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "damage table",
+    "expect": "let damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "raw SPECIAL damage by caster stars; fallback 200"
+   },
+   {
+    "id": "sb-light",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     18,
+     21
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "damage = damage * 1.3",
+    "note": "ZENITH weather or the caster's light status: damage x1.3 and +20 PP"
+   },
+   {
+    "id": "sb-pp",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "pokemon.addPP(20, pokemon, 0, false)",
+    "note": "+20 PP to the caster, apBoost 0, no crit; runs before the beam"
+   },
+   {
+    "id": "sb-line",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "effectInLine(board, pokemon, target, (cell) => {",
+    "note": "line from the caster through the cast target to the board edge"
+   },
+   {
+    "id": "sb-enemy",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "if (cell.value != null && cell.value.team !== pokemon.team) {",
+    "note": "enemy-team occupants only"
+   },
+   {
+    "id": "sb-burn",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "cell.value.status.triggerBurn(3000, cell.value, pokemon)",
+    "note": "burn 3000 ms on each hit enemy, applied before its damage; victim as pkm, caster as origin"
+   },
+   {
+    "id": "sb-hit",
+    "file": "app/core/abilities/solar-beam.ts",
+    "lines": [
+     25,
+     31
+    ],
+    "symbol": "SolarBeamStrategy.process",
+    "expect": "AttackType.SPECIAL",
+    "note": "SPECIAL damage, caster as attacker, the cast's crit flag; apBoost default true"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "rounded value, fatigue halves positive gains, Twist Band; blocked by silence, status.protect, NO_PP_GAIN, resurrecting; clamp 0..2 x maxPP - 1"
+   },
+   {
+    "id": "status-light",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     50,
+     50
+    ],
+    "symbol": "Status.light",
+    "expect": "@type(\"boolean\") light = false",
+    "note": "the light status flag"
+   },
+   {
+    "id": "light-set",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1161,
+     1161
+    ],
+    "symbol": "Simulation spotlight effects",
+    "expect": "pokemon.status.light = true",
+    "note": "set for units in the spotlight under SHINING_RAY (and the LIGHT_PULSE / ETERNAL_LIGHT / MAX_ILLUMINATION cases that follow); other setters not enumerated"
+   },
+   {
+    "id": "burn-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     405
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": ""
+   },
+   {
+    "id": "burn-extras",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     420,
+     436
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.addSpeed(30, pkm, 0, false)",
+    "note": "burn side effects on the victim: GUTS +5 attack, WELL_BAKED +20 defense, MAGMARIZER +30 speed, Rawst Berry eaten"
+   }
+  ]
+ }
+}
