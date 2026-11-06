@@ -1,0 +1,731 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SILVER_WIND",
+ "kind": "ability",
+ "identifier": "SILVER_WIND",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T003936Z"
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "do not promise movement next to the farthest enemy: getFarthestTargetCoordinateAvailablePlace can retain a cell chosen for an earlier nearer enemy; the fallback runs only when selectedCell remains null",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "FLAME_CHARGE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ],
+ "record": {
+  "ability": "SILVER_WIND",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The units in appliesTo declare SILVER_WIND in this production reference. The strategy is shared; differences are star count (damage), max HP, maxPP, range and the entity's stats.",
+  "appliesTo": [
+   {
+    "key": "BEAUTIFLY",
+    "stars": 3,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "SILVER_WIND",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MASQUERAIN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SILVER_WIND",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BEAUTIFLY": {
+    "evidence": [
+     "unit-beautifly"
+    ]
+   },
+   "MASQUERAIN": {
+    "evidence": [
+     "unit-masquerain"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SILVER_WIND] = new SilverWindStrategy()",
+   "strategy": "SilverWindStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sw",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "sw-class",
+    "sw-super"
+   ]
+  },
+  "summary": "The caster first buffs itself permanently-for-the-fight by +1 attack, +1 defense, +1 special defense, +10 speed and +10 ability power (all with apBoost 0 and no crit, so not AP-scaled), then dashes to the destination returned by Board.getFarthestTargetCoordinateAvailablePlace and deals SPECIAL damage (raw 20/40/80/160 by caster stars; the listed units: BEAUTIFLY 3 stars -> 80, MASQUERAIN 2 stars -> 40) once to every enemy on the line of cells between its starting cell and that destination. The destination is not guaranteed to be next to the farthest enemy (the helper can retain a cell chosen for an earlier, nearer enemy; see positionalConditions). If the line holds no enemy, or the helper returns null (the caster then does not move), only the cast target is hit. Order matters: the buffs are applied before the damage, so the +10 AP already counts in the damage multiplier x(1 + AP/100) read from the caster by handleSpecialDamage. Requested buff amounts are +1/+1/+1/+10/+10; applied amounts: Big Eater Belt on the caster multiplies each positive value by 1.25 rounded down (1 stays 1, 10 becomes 12; for AP the 10 is rounded first, then belt); Twist Band does nothing to positive self-buffs; NULLIFY_BANDANNA turns the AP gain into addAttack(round(0.2 x 10) = 2) (which the belt can scale); speed is clamped to 0..300; a MELMETAL-passive caster would turn the speed into half attack (not a listed unit). Damage is requested raw x (1 + AP/100) [x crit factor], then the target's special defense division (ceil, min 1) and shield handling inside handleDamage (the returned takenDamage includes shield damage).",
+  "targeting": {
+   "who": "self (buffs and dash); every enemy on the dashed line (damage); the cast target if the line holds no enemy or no destination exists",
+   "needsTarget": true,
+   "note": "requiresTarget stays true (default), so the cast needs a target; it is the guaranteed fallback victim.",
+   "evidence": [
+    "base-flags",
+    "sw-cells",
+    "sw-enemy",
+    "sw-fallback"
+   ]
+  },
+  "geometry": {
+   "shape": "line (supercover) from the caster's starting cell to the destination cell chosen by the helper (not necessarily next to the farthest enemy), both endpoints included; the destination is a free cell; the cells are read before the caster moves",
+   "evidence": [
+    "sw-cells",
+    "board-between",
+    "board-far",
+    "board-far-dist",
+    "dist-m",
+    "board-select",
+    "board-scan",
+    "board-reset",
+    "board-fallback"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "self stat buffs",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "requested amounts (raw, apBoost 0)",
+     "attack": 1,
+     "defense": 1,
+     "specialDefense": 1,
+     "speed": 10,
+     "abilityPower": 10
+    },
+    "scaling": "apBoost 0 and crit false for all five calls, so no AP / crit scaling; Math.round of the unscaled value; then Big Eater Belt (positive value x1.25, rounded down to 0 digits), Twist Band (positive: unchanged). addAbilityPower first checks NULLIFY_BANDANNA and, if held, adds Math.round(0.2 x 10) = 2 attack (addAttack, apBoost 0) instead of AP; addSpeed with the MELMETAL passive adds 0.5 x value attack instead of speed",
+    "resolution": "applied: atk = min(1)(atk + v), def / speDef = min(0)(... + v), speed = clamp(speed + v, 0, MAX_SPEED = 300), ap = min(-100)(ap + v); stat buffs for the current fight only (permanent false). Applied before the damage step, so the +10 AP (or its Bandanna / Belt variants) is already in effect when damage is computed.",
+    "evidence": [
+     "sw-atk",
+     "sw-def",
+     "sw-spedef",
+     "sw-speed",
+     "sw-ap",
+     "add-attack",
+     "add-def",
+     "add-spedef",
+     "add-speed",
+     "add-ap",
+     "helper-belt",
+     "helper-twist",
+     "melmetal"
+    ]
+   },
+   {
+    "kind": "damage (SPECIAL, line)",
+    "target": "each enemy on the cells between the caster and the destination",
+    "declaredRaw": {
+     "label": "raw special damage by caster stars",
+     "byStars": {
+      "1": 20,
+      "2": 40,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "BEAUTIFLY": "80 (3 stars)",
+     "MASQUERAIN": "40 (2 stars)"
+    },
+    "scaling": "requested = raw x (1 + caster AP/100) where the caster AP already includes the +10 added earlier in the same cast; x crit factor (1 + (critPower - 1) x the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false); then the target's special-defense division (reducedDamage = damage / (1 + 0.05 x speDef)), ceil, at least 1",
+    "resolution": "applied: handleSpecialDamage is blocked by protect / skydiving / magicBounce on the target; otherwise handleDamage applies shields and the special-defense division; takenDamage includes shield damage; each enemy is hit once (a Set); the strategy ignores the returned values.",
+    "evidence": [
+     "sw-dmg",
+     "sw-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast-crit"
+    ]
+   },
+   {
+    "kind": "movement (dash)",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "destination from the helper"
+    },
+    "scaling": "none",
+    "resolution": "moveTo(x, y, board, false) to the destination; if the helper returns null the caster stays where it is.",
+    "evidence": [
+     "sw-farthest",
+     "sw-move",
+     "moveto",
+     "board-far"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BEAUTIFLY": 3,
+    "MASQUERAIN": 2
+   },
+   "declaredRawDamage": {
+    "BEAUTIFLY": 80,
+    "MASQUERAIN": 40
+   },
+   "note": "only the damage depends on stars; the five buffs are fixed. 1-star (20) and 4+-star (160) values are not reachable by the listed units' bare factory stars. maxPP and range differ: BEAUTIFLY 60 / 1, MASQUERAIN 100 / 2.",
+   "evidence": [
+    "sw-dmg",
+    "unit-beautifly",
+    "unit-masquerain"
+   ]
+  },
+  "positionalConditions": "Selection in board.ts:568-630 (same helper as NUZZLE and AQUA_JET): board.forEach scans cells row by row (y outer, x inner); only targettable enemies whose Manhattan distance from the caster is STRICTLY greater than the running maximum are considered, so equal distances keep the first one scanned and enemies up to the running maximum are skipped afterwards. When such an enemy is found the running cell maximum is reset to 0 and its free adjacent cells (getAdjacentCells order) are compared by distance from the caster, the first strictly farther one winning; selectedCell is replaced only when that enemy has at least one free adjacent cell. If it has none, selectedCell is NOT cleared and keeps the cell chosen for an earlier, nearer enemy, whose enemy then counts as the target of the destination. The fallback (the free cell closest by Manhattan distance to the farthest enemy found, anywhere on the board, which may not be adjacent) runs only if selectedCell is still null at the end. Pinned-helper probe on a 6-row x 8-column board, caster (0,0): near enemy (2,0), far enemy (7,5) boxed in by three allies -> destination (3,1) next to the NEAR enemy; far enemy with a free neighbour -> destination (7,4) next to the far enemy; far enemy as the only enemy and boxed in -> fallback cell (7,3). If it returns null (no targettable enemy or no free cell) the caster does not move and only the cast target is hit.",
+  "repeatedCastsAndModes": "No modes. Each cast spends maxPP of PP and adds the five buffs again (they stack within the fight, subject to the speed and floor clamps), then dashes and hits again.",
+  "rawVsResolved": "Buffs: requested +1/+1/+1/+10 speed/+10 AP, applied after Big Eater Belt (x1.25 down), Bandanna conversion, clamps. Damage: raw 40 (MASQUERAIN) / 80 (BEAUTIFLY) x (1 + AP/100, AP including the +10 gained in this cast) [x crit], then special-defense division (ceil, min 1) and shields in handleDamage; takenDamage counts shield damage.",
+  "sourceTables": [
+   {
+    "id": "silverWindDamage",
+    "file": "app/core/abilities/silver-wind.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.1.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL SPE_DEF division, the minimum of 1 and the shield step were read",
+   "Which enemies are targetable (isTargettableBy) and how the cast target is chosen before the cast",
+   "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
+   "Movement side effects of swapCells and toMovingState (retargeting after the dash)"
+  ],
+  "unresolved": [
+   "Consulted: core-mechanics §H/§I/§J, the corrected FLAME_CHARGE candidate (same destination helper, line selection and damage resolution) and the adder definitions in pokemon-entity.ts at the pinned commit",
+   "isTargettableBy was not read, so which enemies can be the farthest target is not established",
+   "Whether any item or synergy effect changes SILVER_WIND",
+   "Whether the retained-selection case (a farther enemy with no free adjacent cell) is common on real boards was not examined; the same helper nuance applies to FLAME_CHARGE, NUZZLE and AQUA_JET",
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "board-far",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     568
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "getFarthestTargetCoordinateAvailablePlace(",
+    "note": "farthest targetable enemy by Manhattan distance; destination = its free adjacent cell farthest from the caster; fallback = closest free cell to that enemy; null if none"
+   },
+   {
+    "id": "board-far-dist",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     590
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "strictly greater: the first enemy found at the maximum distance wins (board iteration order)"
+   },
+   {
+    "id": "board-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     304
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line including both endpoints that are on the board"
+   },
+   {
+    "id": "dist-m",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     890
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "board.swapCells to the destination; canBeMoved is only checked for forced displacement"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "board-scan",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let y = 0; y < this.rows; y++) {",
+    "note": "scan order: y outer, x inner"
+   },
+   {
+    "id": "board-reset",
+    "file": "app/core/board.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "maxCellDistance = 0",
+    "note": "a strictly farther enemy resets only the cell maximum; selectedCell is not cleared"
+   },
+   {
+    "id": "board-select",
+    "file": "app/core/board.ts",
+    "lines": [
+     594,
+     613
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "selectedCell = {",
+    "note": "selectedCell is replaced only inside the loop over that enemy's free adjacent cells"
+   },
+   {
+    "id": "board-fallback",
+    "file": "app/core/board.ts",
+    "lines": [
+     618,
+     629
+    ],
+    "symbol": "getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (selectedCell === null && farthestTarget) {",
+    "note": "fallback to the closest free cell of the farthest enemy only when selectedCell is still null"
+   },
+   {
+    "id": "unit-beautifly",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12259,
+     12271
+    ],
+    "symbol": "class Beautifly",
+    "expect": "skill = Ability.SILVER_WIND",
+    "note": "unit class block: 3 stars, hp 250, maxPP 60, range 1"
+   },
+   {
+    "id": "unit-masquerain",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18612,
+     18624
+    ],
+    "symbol": "class Masquerain",
+    "expect": "skill = Ability.SILVER_WIND",
+    "note": "unit class block: 2 stars, hp 150, maxPP 100, range 2"
+   },
+   {
+    "id": "reg-sw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1163,
+     1163
+    ],
+    "symbol": "AbilityStrategies[Ability.SILVER_WIND]",
+    "expect": "[Ability.SILVER_WIND]: new SilverWindStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "sw-class",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SilverWindStrategy",
+    "expect": "export class SilverWindStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target: PokemonEntity, crit); no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "sw-super",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation (preventDefaultAnim not set); spends maxPP, counts the cast"
+   },
+   {
+    "id": "sw-dmg",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [20, 40, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "raw SPECIAL damage by caster stars; fallback 160"
+   },
+   {
+    "id": "sw-farthest",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "board.getFarthestTargetCoordinateAvailablePlace(pokemon)",
+    "note": "destination helper (same as FLAME_CHARGE)"
+   },
+   {
+    "id": "sw-atk",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "self buffs",
+    "expect": "pokemon.addAttack(1, pokemon, 0, false)",
+    "note": "+1 attack, apBoost 0, no crit"
+   },
+   {
+    "id": "sw-def",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "self buffs",
+    "expect": "pokemon.addDefense(1, pokemon, 0, false)",
+    "note": "+1 defense"
+   },
+   {
+    "id": "sw-spedef",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "self buffs",
+    "expect": "pokemon.addSpecialDefense(1, pokemon, 0, false)",
+    "note": "+1 special defense"
+   },
+   {
+    "id": "sw-speed",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "self buffs",
+    "expect": "pokemon.addSpeed(10, pokemon, 0, false)",
+    "note": "+10 speed"
+   },
+   {
+    "id": "sw-ap",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "self buffs",
+    "expect": "pokemon.addAbilityPower(10, pokemon, 0, false)",
+    "note": "+10 ability power, applied BEFORE the damage is dealt"
+   },
+   {
+    "id": "sw-cells",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     27,
+     32
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "const cells = board.getCellsBetween(",
+    "note": "cells between the caster and the destination, read before moveTo"
+   },
+   {
+    "id": "sw-enemy",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "if (cell.value && cell.value.team != pokemon.team) {",
+    "note": "every enemy on the line is collected"
+   },
+   {
+    "id": "sw-move",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     39,
+     39
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "pokemon.moveTo(farthestCoordinate.x, farthestCoordinate.y, board, false)",
+    "note": "the caster dashes to the destination"
+   },
+   {
+    "id": "sw-fallback",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "if (targetsHit.size === 0) targetsHit.add(target)",
+    "note": "if no enemy was on the line (or the helper returned null) only the cast target is hit"
+   },
+   {
+    "id": "sw-hit",
+    "file": "app/core/abilities/silver-wind.ts",
+    "lines": [
+     44,
+     50
+    ],
+    "symbol": "SilverWindStrategy.process",
+    "expect": "AttackType.SPECIAL",
+    "note": "SPECIAL damage, caster as attacker, the cast's crit flag; apBoost default true"
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "value rounded (apBoost 0 -> x1, crit false -> x1), Big Eater Belt, Twist Band, floor of 1 on atk"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "same pipeline; floor 0 on def"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "same pipeline; floor 0 on speDef"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "Belt, Twist Band, then clamp to 0..MAX_SPEED; MELMETAL passive converts to addAttack(0.5 x value)"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "NULLIFY_BANDANNA converts to addAttack(round(0.2 x value)); else rounded, Belt, Twist Band, floor -100"
+   },
+   {
+    "id": "helper-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt x1.25 rounded down (0 digits) for positive values"
+   },
+   {
+    "id": "helper-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "only flips negative values from enemies; no effect on these positive self-buffs"
+   },
+   {
+    "id": "melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     763
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "this.addAttack(value * 0.5, caster, apBoost, crit, permanent)",
+    "note": "a MELMETAL-passive entity gets half the speed as attack instead"
+   }
+  ]
+ }
+}
