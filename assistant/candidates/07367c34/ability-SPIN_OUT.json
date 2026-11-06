@@ -1,0 +1,543 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPIN_OUT",
+ "kind": "ability",
+ "identifier": "SPIN_OUT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T063919Z"
+ },
+ "record": {
+  "ability": "SPIN_OUT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare SPIN_OUT (passive ACCELERATION, maxPP 80, range 1, types STEEL/ARTIFICIAL/POISON). The strategy is shared; they differ in stars (1 and 2) and stats.",
+  "appliesTo": [
+   {
+    "key": "VAROOM",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SPIN_OUT",
+    "declaredPassive": "ACCELERATION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "REVAVROOM",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SPIN_OUT",
+    "declaredPassive": "ACCELERATION",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "VAROOM": {
+    "evidence": [
+     "unit-varoom"
+    ]
+   },
+   "REVAVROOM": {
+    "evidence": [
+     "unit-revavroom"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPIN_OUT] = new SpinOutStrategy()",
+   "strategy": "SpinOutStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super"
+   ]
+  },
+  "summary": "Speed-scaled hit, blind, retreat and stack reset. After the base process (PP spent), the strategy requests handleSpecialDamage on the cast target with damage = round(coefficient x the caster's current speed), coefficient [0.25, 0.5, 1, 2] by caster stars (VAROOM 0.25, REVAVROOM 0.5), SPECIAL type, the cast crit flag and the default AP boost; then triggers Blinded for a requested 1000 ms on the target (origin: the caster, not AP-boosted; skipped if already blinded or under Rune Protect; halved if the target is enraged; reduced by the target's status duration reductions). It then picks an own-side corner destination (board.getTeleportationCell: the empty cells on the supercover lines from the caster to the two own-side back corners, the one farthest by Chebyshev distance from the caster); if one exists, a 100 ms DelayedCommand moves the caster there with moveTo(..., false) (swapping with whatever stands on that cell at that moment). Finally it finds the caster's AccelerationEffect and, if present, requests addSpeed(-15 x stacks) (apBoost 0) and sets the stacks to 0. The damage is computed before the reset, so it uses the speed including the stacks. No heal, shield or PP effect.",
+  "targeting": {
+   "who": "the cast target (damage and Blinded); the caster itself (retreat and speed reset)",
+   "needsTarget": true,
+   "note": "The destination is chosen at cast time from empty cells only, but the move happens 100 ms later, when the chosen cell may be occupied; moveTo then swaps with the occupant. If no empty cell exists on the lines, no move is queued.",
+   "evidence": [
+    "cls",
+    "base-flags",
+    "hit",
+    "blind",
+    "corner",
+    "tele",
+    "between",
+    "move",
+    "moveto"
+   ]
+  },
+  "geometry": {
+   "shape": "single target for the hit; the retreat destination is the empty cell farthest from the caster (Chebyshev) on the supercover lines to the caster's two own-side back corners",
+   "evidence": [
+    "corner",
+    "tele",
+    "between",
+    "move"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "speedCoefficientByStars": {
+      "1": 0.25,
+      "2": 0.5,
+      "3": 1,
+      "4": 2
+     }
+    },
+    "perUnitRaw": {
+     "VAROOM": 0.25,
+     "REVAVROOM": 0.5
+    },
+    "scaling": "requested = round(coefficient x pokemon.speed) (speed read at cast time, including ACCELERATION stacks of +15 each and any other speed change), then x (1 + AP/100) (apBoost default true), then x (1 + (critPower - 1) x reduction) when the cast crit flag is true (rolled only with ABILITY_CRIT because canCritByDefault is false). The table has no fallback: a star count above 4 would give NaN (not reachable by the listed units).",
+    "resolution": "applied: returns takenDamage 0 for a target with protect, skydiving or magicBounce (magicBounce may reflect); otherwise PokemonState.handleDamage divides SPECIAL damage by (1 + 0.05 x SPE_DEF) with the floor of 1, shield first (core-mechanics sections A, H and J1: the returned takenDamage counts shield damage). The strategy ignores the result; the Blinded call after it is unconditional on the damage result.",
+    "evidence": [
+     "dmg",
+     "hit",
+     "sd-block",
+     "sd-ap",
+     "sd-crit",
+     "hd-special"
+    ]
+   },
+   {
+    "kind": "speed reset (self)",
+    "damageType": "none",
+    "target": "the caster",
+    "declaredRaw": {
+     "speedPerStackRemoved": 15
+    },
+    "scaling": "requested = -15 x accelerationStacks, not scaled by AP or crit (addSpeed called with apBoost 0 and the caster as its own source).",
+    "resolution": "applied: addSpeed first runs applyBigEaterBeltStatBuff (own-team negative value x1.25 rounded down for a Big Eater Belt holder, so -15 per stack becomes more than 15 lost) then applyTwistBandBuff (no flip: the caster is on its own team), a MELMETAL passive is redirected to attack (not relevant here), and the result is clamped to 0..MAX_SPEED. Stacks are then set to 0 regardless of the applied change, so with a belt more speed than was gained can be removed. If the caster has no AccelerationEffect no speed change is requested.",
+    "evidence": [
+     "accel-find",
+     "accel-reset",
+     "accel-class",
+     "accel-reg",
+     "on-move",
+     "speed",
+     "belt",
+     "twist"
+    ]
+   },
+   {
+    "kind": "reposition (self)",
+    "damageType": "none",
+    "target": "the caster",
+    "declaredRaw": {
+     "delayMs": 100
+    },
+    "scaling": "none",
+    "resolution": "applied: moveTo(x, y, board, false) after 100 ms: toMovingState on the caster (and the occupant, if any), swapCells with whatever is on the destination, caster cooldown set to 100. Not a forced displacement, so canBeMoved is not checked. The swap uses setEntityOnCell, which updates board effects on the caster. The move does not itself pass through the moving-state step, so it is not seen to add ACCELERATION stacks.",
+    "evidence": [
+     "corner",
+     "tele",
+     "between",
+     "move",
+     "moveto",
+     "swap"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "blinded",
+    "target": "the cast target",
+    "durationMs": "requested 1000 (raw); halved if the target is enraged, then status duration reductions, rounded; not applied if already blinded or under Rune Protect",
+    "effect": "a blinded attacker's attack target gets +0.5 dodge chance (the blinded unit misses more)",
+    "evidence": [
+     "blind",
+     "blind-fn",
+     "blind-use"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "VAROOM": 1,
+    "REVAVROOM": 2
+   },
+   "declaredRaw": {
+    "VAROOM": 0.25,
+    "REVAVROOM": 0.5
+   },
+   "note": "The speed coefficient is indexed by the casting entity's stars; the 3-star (1) and 4-star (2) entries are not reachable by the listed units' bare star counts. Blind duration, delay and geometry do not vary by stars.",
+   "evidence": [
+    "dmg",
+    "unit-varoom",
+    "unit-revavroom"
+   ]
+  },
+  "positionalConditions": "The retreat destination depends on the caster's position, the own team's side (blue corners y=0, red corners y=rows-1) and which cells are empty at cast time. Needs a target to cast (requiresTarget true).",
+  "repeatedCastsAndModes": "No stored state of its own; it consumes the ACCELERATION stacks (set to 0), so a following cast starts from fewer stacks (damage uses the then-current speed). Stacks regrow through the passive's OnMove effect.",
+  "rawVsResolved": "Requested: damage round(0.25 or 0.5 x speed), x (1 + AP/100), x critPower on a cast crit; Blinded 1000 ms; a retreat to a chosen empty own-side cell 100 ms later; addSpeed(-15 x stacks). Applied: SPE_DEF division and floor of 1 in handleDamage, zero if the target has protect/skydiving/magicBounce, shield absorbed first (takenDamage includes shield damage, section J1); blind skipped if already blinded or Rune Protect, shortened by rage and duration reductions; the speed reset is scaled by Big Eater Belt and clamped; the move swaps with any occupant that arrived in the 100 ms.",
+  "sourceTables": [
+   {
+    "id": "spinOutCoefficient",
+    "file": "app/core/abilities/spin-out.ts",
+    "pattern": "Math\\.round\\(\\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.speedCoefficientByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "The ACCELERATION passive's trigger conditions in moving-state (which steps call OnMoveEffect) were only located, not traced; the stack count at cast time is not derived here",
+   "MAX_SPEED and the rest of addSpeed after the clamp were not traced",
+   "handleDamage branches beyond the SPECIAL division (shield handling, Shiny Charm, Fossil, Cover Band) follow core-mechanics section J1",
+   "applyStatusDurationReductions (which items or effects reduce the blind duration) was not read"
+  ],
+  "unresolved": [
+   "The unit's speed value at cast time (including Acceleration stacks, items and statuses) is not computed here; only the formula is stated",
+   "Which team counts as blue or red on the board (the side whose back corners are used) was not traced beyond the Team check in getTeleportationCell",
+   "Whether the destination is still empty when the 100 ms command runs is not guaranteed; the swap behaviour is stated from moveTo",
+   "Whether any item or synergy beyond the ones listed changes SPIN_OUT",
+   "Units sharing the identifier but not listed in appliesTo are not covered (no others in the catalog)",
+   "No routing uncertainty was recorded for this record (the queue lists none); registry, class and file agree"
+  ],
+  "evidence": [
+   {
+    "id": "unit-varoom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18679,
+     18693
+    ],
+    "symbol": "class Varoom",
+    "expect": "skill = Ability.SPIN_OUT",
+    "note": "unit class block: skill / stars / stats / passive ACCELERATION"
+   },
+   {
+    "id": "unit-revavroom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18696,
+     18713
+    ],
+    "symbol": "class Revavroom",
+    "expect": "skill = Ability.SPIN_OUT",
+    "note": "unit class block: skill / stars / stats / passive ACCELERATION"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1192,
+     1192
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SPIN_OUT]: new SpinOutStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SpinOutStrategy",
+    "expect": "export class SpinOutStrategy extends AbilityStrategy",
+    "note": "strategy class (no requiresTarget / canCritByDefault override)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and cast counted at the start of process"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "const damage = Math.round([0.25, 0.5, 1, 2][pokemon.stars - 1] * pokemon.speed)",
+    "note": "damage = round(coefficient by stars x the caster's current speed); no fallback beyond 4 stars"
+   },
+   {
+    "id": "hit",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "SPECIAL damage on the cast target, AP boost default, cast crit flag"
+   },
+   {
+    "id": "blind",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "target.status.triggerBlinded(1000, target, pokemon)",
+    "note": "blinded 1000 ms on the cast target, origin = caster, apBoost default false"
+   },
+   {
+    "id": "corner",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     22,
+     26
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "const corner = board.getTeleportationCell(",
+    "note": "own-side corner destination chosen at cast time"
+   },
+   {
+    "id": "move",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     28,
+     33
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "pokemon.moveTo(corner.x, corner.y, board, false)",
+    "note": "after a 100 ms DelayedCommand the caster moves (not a forced displacement)"
+   },
+   {
+    "id": "accel-find",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     35,
+     37
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "effect instanceof AccelerationEffect",
+    "note": "finds the caster's AccelerationEffect instance"
+   },
+   {
+    "id": "accel-reset",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     38,
+     46
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "-accelerationEffect.accelerationStacks * 15,",
+    "note": "removes 15 speed per stack through addSpeed (apBoost 0), then zeroes the stacks"
+   },
+   {
+    "id": "accel-class",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     7,
+     11
+    ],
+    "symbol": "AccelerationEffect",
+    "expect": "this.accelerationStacks += 1",
+    "note": "ACCELERATION: each movement step adds 15 speed through addSpeed and one stack"
+   },
+   {
+    "id": "accel-reg",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1301,
+     1303
+    ],
+    "symbol": "passive effects",
+    "expect": "[Passive.ACCELERATION]: [",
+    "note": "passive registry: a new AccelerationEffect per Pokemon"
+   },
+   {
+    "id": "on-move",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     173,
+     175
+    ],
+    "symbol": "MovingState.update",
+    "expect": "pokemon.getEffects(OnMoveEffect).forEach((effect) => {",
+    "note": "OnMoveEffects run from the moving state when the unit steps"
+   },
+   {
+    "id": "tele",
+    "file": "app/core/board.ts",
+    "lines": [
+     348,
+     380
+    ],
+    "symbol": "Board.getTeleportationCell",
+    "expect": "getTeleportationCell(x: number, y: number, boardSide: Team) {",
+    "note": "own-side corners: blue (0,0),(cols-1,0); red (0,rows-1),(cols-1,rows-1)"
+   },
+   {
+    "id": "between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     306
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line between two cells"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "moveTo(x: number, y: number, board: Board, forcedDisplacement: boolean) {",
+    "note": "moveTo: swaps with whatever stands on the destination, sets cooldown 100; the canBeMoved checks apply only when forced"
+   },
+   {
+    "id": "swap",
+    "file": "app/core/board.ts",
+    "lines": [
+     68,
+     73
+    ],
+    "symbol": "Board.swapCells",
+    "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "swapCells goes through setEntityOnCell (board effects follow the entity)"
+   },
+   {
+    "id": "blind-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     188,
+     206
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "triggerBlinded(",
+    "note": "triggerBlinded: skipped if already blinded or runeProtect; halved if the target is enraged; status duration reductions; rounded"
+   },
+   {
+    "id": "blind-use",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     96,
+     97
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "dodgeChance += 0.5",
+    "note": "a blinded attacker gives its target +0.5 dodge chance"
+   },
+   {
+    "id": "speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     774
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "addSpeed(",
+    "note": "addSpeed: Big Eater Belt and Twist Band helpers, MELMETAL redirect to attack, AP only when apBoost > 0, clamp 0..MAX_SPEED"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "Big Eater Belt x1.25 (round down) on positive values and on own-team negative values"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band flips negative values from enemies or environment only"
+   },
+   {
+    "id": "sd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.skydiving ||",
+    "note": "handleSpecialDamage returns takenDamage 0 for protect / skydiving / magicBounce"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling (apBoost defaults true)"
+   },
+   {
+    "id": "sd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier and Rocky Helmet / Black Augurite reductions (non-TRUE)"
+   },
+   {
+    "id": "hd-special",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.SPECIAL) {",
+    "note": "SPECIAL damage is divided by 1 + 0.05 x SPE_DEF in handleDamage"
+   }
+  ]
+ }
+}
