@@ -1,0 +1,512 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SOLAR_BLADE",
+ "kind": "ability",
+ "identifier": "SOLAR_BLADE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T063919Z"
+ },
+ "record": {
+  "ability": "SOLAR_BLADE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare SOLAR_BLADE (catalog passive NONE, maxPP 100, range 1). The strategy is shared; they differ in stars (1 and 2) and stats.",
+  "appliesTo": [
+   {
+    "key": "FOMANTIS",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SOLAR_BLADE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LURANTIS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SOLAR_BLADE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FOMANTIS": {
+    "evidence": [
+     "unit-fomantis"
+    ]
+   },
+   "LURANTIS": {
+    "evidence": [
+     "unit-lurantis"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SOLAR_BLADE] = new SolarBladeStrategy()",
+   "strategy": "SolarBladeStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super",
+    "cd-reset",
+    "cd-cast"
+   ]
+  },
+  "summary": "A delayed cone slash that deals TRUE damage. When cast, the caster spends maxPP, and if it is not lit (status.light false) its attack cooldown is set to 2000 ms and a charge animation is broadcast; it then queues a DelayedCommand with delay 2000 ms (0 ms if status.light was true at cast time). When the command runs it re-derives the caster's orientation towards the stored target, takes the cells returned by board.getCellsInFront(caster, target, 1) (the cast direction and its two neighbouring orientations, range 1, so up to three cells), and for each occupied cell holding an enemy requests handleSpecialDamage with the raw table value [30, 60, 120, 240] by caster stars (FOMANTIS 30, LURANTIS 60), TRUE type, the cast's crit flag and the default AP boost. Requested amount: raw x (1 + AP/100), x critPower on a crit; no DEF/SPE_DEF division for TRUE (but see rawVsResolved). No status, heal or shield is applied by the strategy; it never reads takenDamage.",
+  "targeting": {
+   "who": "enemy units standing in the up to three cells in front of the caster at the moment the delayed command executes, towards the target captured at cast time",
+   "needsTarget": true,
+   "note": "The strategy needs a target to cast and the cells are computed from that captured target's position at execution time (if the target died, it is read from the entity object as it then stands - not traced). The target itself is hit only if it stands in one of the three cells. getCellsInFront also overwrites the caster's orientation as a side effect. Allies and empty cells are skipped.",
+   "evidence": [
+    "cls",
+    "base-flags",
+    "cells",
+    "enemy",
+    "front",
+    "front-board",
+    "push"
+   ]
+  },
+  "geometry": {
+   "shape": "front cell plus the two neighbouring orientations at range 1 (a 3-cell fan, called a cone in the English description); cells outside the board are dropped",
+   "evidence": [
+    "cells",
+    "front",
+    "front-board",
+    "enemy"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "TRUE",
+    "target": "each enemy occupying one of the front cells when the delayed command runs",
+    "declaredRaw": {
+     "damageByStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     }
+    },
+    "perUnitRaw": {
+     "FOMANTIS": 30,
+     "LURANTIS": 60
+    },
+    "scaling": "requested = raw x (1 + AP/100) (apBoost defaults true; AP read from the caster when the command runs), then x (1 + (critPower - 1) x reduction) if the cast crit flag is true; the crit flag is rolled only with ABILITY_CRIT because canCritByDefault is false. For TRUE damage the Rocky Helmet and Black Augurite crit reductions are skipped (they apply only to non-TRUE), so the reduction factor stays 1.",
+    "resolution": "applied: handleSpecialDamage returns takenDamage 0 without damage if the target has protect, skydiving or magicBounce; otherwise PokemonState.handleDamage applies no DEF/SPE_DEF division for TRUE and, per core-mechanics section A/H, the shared floor of 1 and shield-first accounting (section J1: the returned takenDamage counts shield damage, so it can exceed the HP lost). Attacker/target multipliers inside handleDamage (enraged, fields, etc., shared section H.2) and non-TRUE flat reductions are not applied to TRUE as listed there. Requested (raw x AP x crit) differs from applied and from takenDamage; the strategy does not use the result.",
+    "evidence": [
+     "dmg",
+     "delay",
+     "cmd-update",
+     "cmd-run",
+     "cmd-call",
+     "true",
+     "enemy",
+     "sd-block",
+     "sd-ap",
+     "sd-crit",
+     "sd-state",
+     "hd-true",
+     "hd-prot"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "none applied by the strategy",
+    "target": "-",
+    "note": "The caster's status.light is only read; it is set elsewhere (simulation synergy effects) when the unit stands in the spotlight. The strategy sets the caster's attack cooldown to 2000 ms when not lit (a cast-time timing effect, not a status).",
+    "evidence": [
+     "charge",
+     "cd-tick",
+     "light-set",
+     "spot"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "FOMANTIS": 1,
+    "LURANTIS": 2
+   },
+   "declaredRaw": {
+    "FOMANTIS": 30,
+    "LURANTIS": 60
+   },
+   "note": "Table indexed by the casting entity's stars; the 3-star (120) and 4-star (240) entries and the fallback 240 are not reachable by the listed units' bare star counts. Delay and geometry do not vary by stars.",
+   "evidence": [
+    "dmg",
+    "unit-fomantis",
+    "unit-lurantis"
+   ]
+  },
+  "positionalConditions": "Damage hits only enemies in the three cells in front of the caster toward the cast target; other positions are unaffected. The charge delay depends on status.light at cast time: the LIGHT synergy effects (SHINING_RAY, LIGHT_PULSE, ETERNAL_LIGHT, MAX_ILLUMINATION) set status.light only if pokemon.inSpotlight (the player's light cell, a Shiny Stone, or CONVERSION with a Light type and no Light Ball), so a lit caster fires with delay 0.",
+  "repeatedCastsAndModes": "Two modes by status.light read at cast time: unlit = cooldown 2000 plus a 2000 ms delay; lit = no cooldown change and delay 0 (the command runs on the next command update because the delay 0 - dt falls below 0 for dt > 0). No stored state; each cast queues its own command, so a second cast before the first command runs would queue another (not traced whether PP can refill within 2000 ms).",
+  "rawVsResolved": "Requested: raw 30 (FOMANTIS) or 60 (LURANTIS), x (1 + AP/100), x critPower on a cast crit. Applied: unchanged by DEF/SPE_DEF (TRUE), zero if the target has protect / skydiving / magicBounce, otherwise at least 1 after handleDamage; shields absorb first, and the returned takenDamage includes shield damage (core-mechanics section J1, probe SHARED_HELPERS), so HP loss can be smaller than takenDamage. The strategy ignores the return value. The delay is 0 or 2000 ms.",
+  "sourceTables": [
+   {
+    "id": "solarBladeDamage",
+    "file": "app/core/abilities/solar-blade.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.damageByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Orientation function (how the cast direction is derived from caster and target positions) was not read",
+   "Whether a command queued on the caster still runs after the caster dies or is removed from the teams (updateCommands is called from the state update; the dead-entity path was not traced)",
+   "handleDamage modifiers for TRUE damage beyond the branch read (shield handling, Shiny Charm, Fossil, Cover Band) follow core-mechanics section J1 and were not re-traced here",
+   "How status.light is cleared, if ever, after the simulation start was not traced"
+  ],
+  "unresolved": [
+   "Whether the target always stands in one of the three cells: getCellsInFront uses orientation only, so a target farther than range 1 (not expected at range 1 casters) is not necessarily hit",
+   "If the target moved or died during the 2000 ms charge, the cells use the target position read when the command runs (captured entity object); the exact behaviour for a dead target was not traced",
+   "Whether any item or synergy beyond the ones listed changes SOLAR_BLADE",
+   "Units sharing the identifier but not listed in appliesTo are not covered (no others in the catalog)",
+   "No routing uncertainty was recorded for this record (the queue lists none); registry, class and file agree"
+  ],
+  "evidence": [
+   {
+    "id": "unit-fomantis",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17889,
+     17905
+    ],
+    "symbol": "class Fomantis",
+    "expect": "skill = Ability.SOLAR_BLADE",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE)"
+   },
+   {
+    "id": "unit-lurantis",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17909,
+     17924
+    ],
+    "symbol": "class Lurantis",
+    "expect": "skill = Ability.SOLAR_BLADE",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1182,
+     1182
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SOLAR_BLADE]: new SolarBladeStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SolarBladeStrategy",
+    "expect": "export class SolarBladeStrategy extends AbilityStrategy",
+    "note": "strategy class (no requiresTarget / canCritByDefault override)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and cast counted at the start of process"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true (no default animation)"
+   },
+   {
+    "id": "charge",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     17,
+     24
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "if (!pokemon.status.light) {",
+    "note": "when not lit: caster cooldown set to 2000 and a charge animation is broadcast"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "raw damage table by caster stars, inside the delayed callback"
+   },
+   {
+    "id": "delay",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     49,
+     49
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "pokemon.status.light ? 0 : 2000",
+    "note": "delay of the DelayedCommand: 0 if lit at cast time, else 2000 ms"
+   },
+   {
+    "id": "push",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     26,
+     26
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "the damage is a DelayedCommand on the caster's own command list"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     36,
+     36
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "const cells = board.getCellsInFront(pokemon, target, 1)",
+    "note": "cells are computed when the delayed callback runs, from the captured target"
+   },
+   {
+    "id": "enemy",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "cell.value && cell.value.team !== pokemon.team",
+    "note": "only occupied cells holding a unit of another team"
+   },
+   {
+    "id": "true",
+    "file": "app/core/abilities/solar-blade.ts",
+    "lines": [
+     38,
+     45
+    ],
+    "symbol": "SolarBladeStrategy.process",
+    "expect": "AttackType.TRUE",
+    "note": "damage type TRUE, AP boost default, cast crit flag passed"
+   },
+   {
+    "id": "front",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     210
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "getCellsInFront: sets caster orientation, builds front + two neighbouring orientations"
+   },
+   {
+    "id": "front-board",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "cells outside the board are dropped"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     14,
+     18
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "a command executes on the first update after its delay has gone below 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     874
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "updateCommands(pokemon: PokemonEntity, dt: number) {",
+    "note": "per-entity command list is advanced and pruned here"
+   },
+   {
+    "id": "cmd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "called from the state update"
+   },
+   {
+    "id": "light-set",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1159,
+     1165
+    ],
+    "symbol": "Simulation effects",
+    "expect": "case EffectEnum.SHINING_RAY:",
+    "note": "LIGHT synergy effects set status.light only when the unit is in the spotlight (SHINING_RAY, LIGHT_PULSE, ETERNAL_LIGHT, MAX_ILLUMINATION)"
+   },
+   {
+    "id": "spot",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     302,
+     313
+    ],
+    "symbol": "PokemonEntity.inSpotlight",
+    "expect": "get inSpotlight(): boolean",
+    "note": "spotlight: player light cell, or Shiny Stone, or CONVERSION Light type without Light Ball"
+   },
+   {
+    "id": "cd-reset",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.resetCooldown(1000, speed)",
+    "note": "attack slot cooldown is reset before the cast, so the strategy's cooldown = 2000 overwrites it"
+   },
+   {
+    "id": "cd-cast",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     93,
+     94
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+    "note": "cast happens when pp >= maxPP && canCast"
+   },
+   {
+    "id": "cd-tick",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     110,
+     110
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.cooldown = Math.max(0, pokemon.cooldown - dt)",
+    "note": "cooldown counts down in the attacking state (idle and moving states do the same)"
+   },
+   {
+    "id": "sd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.skydiving ||",
+    "note": "handleSpecialDamage returns takenDamage 0 for protect / skydiving / magicBounce"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling (apBoost defaults true)"
+   },
+   {
+    "id": "sd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier; Rocky Helmet / Black Augurite reductions apply only to non-TRUE"
+   },
+   {
+    "id": "sd-state",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands the damage to PokemonState.handleDamage"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     562,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.TRUE) {",
+    "note": "TRUE: no DEF / SPE_DEF division"
+   },
+   {
+    "id": "hd-prot",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     461
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   }
+  ]
+ }
+}
