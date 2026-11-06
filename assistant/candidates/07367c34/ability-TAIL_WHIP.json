@@ -1,0 +1,289 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/TAIL_WHIP",
+  "kind": "ability",
+  "identifier": "TAIL_WHIP",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261106T184111Z"
+  },
+  "record": {
+    "ability": "TAIL_WHIP",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "ALOLAN_RATTATA (1 star) and ALOLAN_RATICATE (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "ALOLAN_RATICATE",
+        "stars": 2,
+        "maxPP": 90,
+        "range": 1,
+        "declaredSkill": "TAIL_WHIP",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "ALOLAN_RATTATA",
+        "stars": 1,
+        "maxPP": 90,
+        "range": 1,
+        "declaredSkill": "TAIL_WHIP",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.TAIL_WHIP] = new TailWhipStrategy()",
+      "strategy": "TailWhipStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-tw",
+        "base",
+        "cast",
+        "tw-base"
+      ]
+    },
+    "summary": "Single-target DEF reduction. The requested loss is a percentage of the target's CURRENT DEF at cast time: 20% at 1 star, 30% at 2, 40% at 3, 50% at 4+ (ALOLAN_RATTATA 20%, ALOLAN_RATICATE 30%), passed as a negative number to target.addDefense(defLoss, caster, 1, crit). addDefense then scales the (negative) amount by (1 + AP/100) and by critPower if the cast crit, rounds it, and applies the Big Eater Belt / Twist Band helpers of the TARGET: an enemy's reduction is not boosted by Big Eater Belt, but a Twist Band holder turns it into a gain of the same size. DEF cannot go below 0. No damage, no duration (the change stays for the fight).",
+    "targeting": {
+      "who": "the cast target only",
+      "needsTarget": true,
+      "evidence": [
+        "tw-loss",
+        "tw-apply",
+        "base",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "single target",
+      "origin": "the target",
+      "evidence": [
+        "tw-apply"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "stat",
+        "stat": "DEF",
+        "target": "the cast target",
+        "direction": "reduction (negative request)",
+        "declaredRaw": {
+          "formula": "-(percent / 100) x target.def",
+          "percentByStars": {
+            "1": 20,
+            "2": 30,
+            "3": 40,
+            "4": 50,
+            "fallback": 50
+          },
+          "note": "requested change as a share of the target's current DEF; with target DEF 10 the request is -2 (ALOLAN_RATTATA) / -3 (ALOLAN_RATICATE) before AP and rounding; the current def includes earlier buffs and debuffs"
+        },
+        "perUnitPercent": {
+          "ALOLAN_RATICATE": 30,
+          "ALOLAN_RATTATA": 20
+        },
+        "scaling": "addDefense: Math.round(value x (1 + AP/100) x (crit ? critPower : 1)) - AP (apBoost 1) and crit make the reduction larger; Math.round rounds halves toward +infinity, so a negative half such as -2.5 becomes -2; crit only with ABILITY_CRIT (canCritByDefault is false)",
+        "resolution": "applied change to the target's combat DEF (permanent false): Big Eater Belt on the target does nothing here (the caster is an enemy and the value is negative); Twist Band on the target flips the sign (value x -1), turning the reduction into a gain; then def = max(0, def + value). Because the request is a share of the current DEF it shrinks as DEF falls, so repeated casts reduce DEF by decreasing amounts",
+        "evidence": [
+          "tw-loss",
+          "tw-apply",
+          "add-def",
+          "beb",
+          "twist"
+        ]
+      }
+    ],
+    "statusEffects": [],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "ALOLAN_RATTATA": 1,
+        "ALOLAN_RATICATE": 2
+      },
+      "percentByStars": {
+        "ALOLAN_RATTATA": 20,
+        "ALOLAN_RATICATE": 30
+      },
+      "note": "percentage indexed by the caster's stars (pokemon.stars - 1), fallback 50; 40 and 50 are not reached by these units. maxPP 90 and range 1 for both.",
+      "evidence": [
+        "tw-loss",
+        "unit-rattata",
+        "unit-raticate"
+      ]
+    },
+    "positionalConditions": "None.",
+    "repeatedCastsAndModes": "No state is kept. Each cast recomputes from the target's current DEF, so reductions compound multiplicatively on what remains (before rounding). No modes.",
+    "rawVsResolved": "Requested: -20% (ALOLAN_RATTATA) / -30% (ALOLAN_RATICATE) of the target's current DEF. After addDefense: round(request x (1 + AP/100) [x critPower]) is the amount handed to the helpers; applied change = that amount (negative), unchanged by Big Eater Belt, sign-flipped by Twist Band, floored at DEF 0. The caster's own stats are not touched.",
+    "sourceTables": [
+      {
+        "id": "tailWhipPercent",
+        "file": "app/core/abilities/tail-whip.ts",
+        "pattern": "-\\(\\[([^\\]]+)\\]\\[pokemon\\.stars - 1\\]",
+        "recordPath": "effects.0.declaredRaw.percentByStars",
+        "unitValuesPath": "effects.0.perUnitPercent"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "What the lowered DEF does to later damage in a real fight (only ARMOR_FACTOR 0.05 division was documented elsewhere; not re-read here)",
+      "When the cast fires in a real fight (PP gain, canCast, targeting)",
+      "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+    ],
+    "unresolved": [
+      "Consulted: TailWhipStrategy, AbilityStrategy.process, castAbility, PokemonEntity.addDefense, applyBigEaterBeltStatBuff, applyTwistBandBuff. The queue record lists no routing uncertainties and no dependencies.",
+      "Whether a protect, runeProtect or other status of the target blocks a stat change: addDefense reads none of them, so none is claimed",
+      "Whether the ability can target something with 0 DEF or an ally was not examined; a 0 DEF target changes nothing",
+      "Other items or effects that read or modify DEF reductions were not enumerated beyond the two named helpers"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-tw",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1230,
+          1230
+        ],
+        "symbol": "AbilityStrategies[Ability.TAIL_WHIP]",
+        "expect": "[Ability.TAIL_WHIP]: new TailWhipStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          33
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process: spends maxPP, ult count, default animation, cast bookkeeping; requiresTarget defaults true, canCritByDefault false (lines 7-8)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          8,
+          31
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit is rolled only with the ABILITY_CRIT effect or canCritByDefault"
+      },
+      {
+        "id": "tw-base",
+        "file": "app/core/abilities/tail-whip.ts",
+        "lines": [
+          12,
+          12
+        ],
+        "symbol": "TailWhipStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation broadcast"
+      },
+      {
+        "id": "tw-loss",
+        "file": "app/core/abilities/tail-whip.ts",
+        "lines": [
+          13,
+          13
+        ],
+        "symbol": "TailWhipStrategy.process",
+        "expect": "const defLoss = -([20, 30, 40, 50][pokemon.stars - 1] ?? 50) / 100 * target.def",
+        "note": "negative amount = percent by caster stars of the target's CURRENT def"
+      },
+      {
+        "id": "tw-apply",
+        "file": "app/core/abilities/tail-whip.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "TailWhipStrategy.process",
+        "expect": "target.addDefense(defLoss, pokemon, 1, crit)",
+        "note": "applied through addDefense with apBoost 1 and the cast's crit flag; the caster is the enemy"
+      },
+      {
+        "id": "add-def",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          674,
+          698
+        ],
+        "symbol": "PokemonEntity.addDefense",
+        "expect": "value = Math.round(",
+        "note": "for a non-environment caster: round(value x (1 + apBoost x AP/100) x (crit ? critPower : 1)); then Big Eater Belt and Twist Band helpers; def = min(0)(def + value); permanent false"
+      },
+      {
+        "id": "beb",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1839,
+          1852
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "isBuffOrBuffLost =",
+        "note": "applies x1.25 to a positive value, or to a negative one when the caster is on the target's team; not to an enemy's reduction"
+      },
+      {
+        "id": "twist",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1854,
+          1866
+        ],
+        "symbol": "applyTwistBandBuff",
+        "expect": "value *= -1 // twist band turn debuffs into buffs",
+        "note": "a Twist Band holder turns a negative value from an enemy (or the environment) into a gain of the same size"
+      },
+      {
+        "id": "unit-rattata",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          5336,
+          5336
+        ],
+        "symbol": "Alolan Rattata",
+        "expect": "skill = Ability.TAIL_WHIP",
+        "note": "unit class block"
+      },
+      {
+        "id": "unit-raticate",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          5355,
+          5355
+        ],
+        "symbol": "Alolan Raticate",
+        "expect": "skill = Ability.TAIL_WHIP",
+        "note": "unit class block"
+      }
+    ],
+    "unitEvidence": {
+      "ALOLAN_RATTATA": {
+        "evidence": [
+          "unit-rattata"
+        ]
+      },
+      "ALOLAN_RATICATE": {
+        "evidence": [
+          "unit-raticate"
+        ]
+      }
+    }
+  }
+}
