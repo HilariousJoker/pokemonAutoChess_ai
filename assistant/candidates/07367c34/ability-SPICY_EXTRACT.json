@@ -1,0 +1,456 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPICY_EXTRACT",
+ "kind": "ability",
+ "identifier": "SPICY_EXTRACT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T063919Z"
+ },
+ "record": {
+  "ability": "SPICY_EXTRACT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare SPICY_EXTRACT (catalog passive NONE, maxPP 100, range 2). The strategy is shared; they differ in stars (1 and 2) and stats.",
+  "appliesTo": [
+   {
+    "key": "CAPSAKID",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SPICY_EXTRACT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SCOVILLAIN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SPICY_EXTRACT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CAPSAKID": {
+    "evidence": [
+     "unit-capsakid"
+    ]
+   },
+   "SCOVILLAIN": {
+    "evidence": [
+     "unit-scovillain"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPICY_EXTRACT] = new SpicyExtractStrategy()",
+   "strategy": "SpicyExtractStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "cls",
+    "flag",
+    "base-flags",
+    "base-pp",
+    "super"
+   ]
+  },
+  "summary": "Puts the closest allies into RAGE. After the base process (PP spent), the strategy picks board units that are not the caster, are on the caster's team and have hp > 0, sorts them by Euclidean distance to the caster, keeps the first [1, 2, 3, 6] by caster stars (CAPSAKID 1, SCOVILLAIN 2) and calls status.triggerRage on each with the requested duration 2000 ms x (1 + AP/100) x critPower on a cast crit (not rounded). No damage, no heal, no target needed (requiresTarget false). Rage effect for an ally that is not yet enraged: enraged flag set, protect cleared, +80 speed requested through addSpeed (Big Eater Belt makes it +100 by x1.25 round down; a MELMETAL passive unit gets the value x0.5 as attack instead; clamped to the speed cap), remaining sleep and freeze durations halved, rage timer set to the duration; an already enraged ally only has its timer extended if the new duration is longer (no second speed buff). While enraged the unit's attacks and ability damage are doubled, and its heals and shields are halved (shared handlers). At expiry the speed buff is reversed with addSpeed(-80); for a Big Eater Belt holder the own-team negative value is scaled too (-100), so the belt gain and loss match (net 0 unless a clamp interfered).",
+  "targeting": {
+   "who": "the nbAllies closest living allies of the caster (excluding the caster) on the board, by Euclidean distance from the caster's cell; ties keep board-array (row-major) order because Array.sort is stable",
+   "needsTarget": false,
+   "note": "No range limit: allies anywhere on the board qualify. The caster is never included. With fewer allies than nbAllies, all of them are affected.",
+   "evidence": [
+    "flag",
+    "filter",
+    "sort",
+    "slice",
+    "dist",
+    "cells",
+    "nb"
+   ]
+  },
+  "geometry": {
+   "shape": "none (selection by nearest distance, not by area)",
+   "evidence": [
+    "filter",
+    "sort",
+    "dist"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status application (RAGE) on allies",
+    "damageType": "none",
+    "target": "up to nbAllies closest living allies",
+    "declaredRaw": {
+     "alliesByStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 6,
+      "fallback": 6
+     },
+     "rageDurationMsRaw": 2000
+    },
+    "perUnitRaw": {
+     "CAPSAKID": 1,
+     "SCOVILLAIN": 2
+    },
+    "scaling": "requested duration = 2000 x (1 + AP/100) x (critPower if the cast crit flag is true); AP is the caster's at cast time; the crit flag is rolled only with ABILITY_CRIT because canCritByDefault is false. The ally count is not scaled by AP or crit. The +80 speed is not AP-scaled (addSpeed is called with apBoost 0 and the ally as caster).",
+    "resolution": "applied: a not-yet-enraged ally gets enraged at once with enrageCooldown = requested duration; an already enraged ally keeps its flag and only gets a longer timer. Speed request +80 passes applyBigEaterBeltStatBuff (x1.25 round down: +100) and applyTwistBandBuff (no effect on a positive value), is redirected to attack x0.5 for MELMETAL, and is clamped to 0..MAX_SPEED, so the applied speed change can be smaller than requested at the cap. Expiry reverses -80 (Big Eater Belt makes it -100 because the caster is the ally itself, same team; Twist Band does not flip it for own-team). The strategy ignores return values.",
+    "evidence": [
+     "nb",
+     "dur",
+     "apply",
+     "rage-trigger",
+     "rage-update",
+     "speed",
+     "belt",
+     "twist"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "RAGE (status.enraged)",
+    "target": "each chosen ally",
+    "durationMs": "requested 2000 x (1 + AP/100) x critPower on crit (raw 2000)",
+    "effect": "+80 speed (requested), protect cleared, sleep and freeze remaining halved at trigger; while enraged: damage dealt by the unit doubled (handleDamage), heals received halved, shields received halved",
+    "note": "The rage timer is enrageCooldown; the separate enrageDelay (35000 ms) is a global enrage-at-time timer that ends the timed expiry: once enrageDelay - dt <= 0 the unit stays enraged and the timed end is skipped.",
+    "evidence": [
+     "rage-trigger",
+     "rage-update",
+     "rage-delay",
+     "dmg-x2",
+     "heal-half",
+     "shield-half",
+     "dur"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "CAPSAKID": 1,
+    "SCOVILLAIN": 2
+   },
+   "declaredRaw": {
+    "CAPSAKID": 1,
+    "SCOVILLAIN": 2
+   },
+   "note": "Allies count indexed by the casting entity's stars; the 3-star (3) and 4-star (6) entries and the fallback 6 are not reachable by the listed units' bare star counts. The duration does not vary by stars.",
+   "evidence": [
+    "nb",
+    "unit-capsakid",
+    "unit-scovillain"
+   ]
+  },
+  "positionalConditions": "None for targeting range; only relative distance from the caster matters (the board position of the caster and allies decides who is closest). The unit does not need an enemy in range to cast (requiresTarget false), though the cast still occurs through the normal attack slot when PP is full.",
+  "repeatedCastsAndModes": "No stored state or modes. A second cast on an already enraged ally only extends the timer if the new duration is longer; the +80 speed is not stacked.",
+  "rawVsResolved": "Requested: 1 (CAPSAKID) or 2 (SCOVILLAIN) allies; rage duration 2000 ms x (1 + AP/100) x critPower on crit; speed +80 per newly enraged ally. Applied: only living on-board allies other than the caster count (fewer if not enough); a newly enraged ally's speed gain is +80, +100 with Big Eater Belt, half as attack for MELMETAL, and clamped at the speed cap; an already enraged ally gets only a longer timer; sleep/freeze halving affects only the cooldown value present at that moment. At expiry the reversal is -80, or -100 with Big Eater Belt (own-team negative values are scaled; Twist Band does not flip it), so the belt's +100 and -100 cancel; any clamp at the speed cap could break the symmetry (not traced).",
+  "sourceTables": [
+   {
+    "id": "spicyAllies",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "pattern": "const nbAllies = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.alliesByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether enrageDelay (35000) and enrage-at-time behave as read for units that are enraged by the cast late in a round was only read in updateRage, not simulated",
+   "MAX_SPEED value and the rest of addSpeed (lines after the clamp, the update of the reference board entity) were not traced",
+   "handleDamage / handleHeal / addShield modifiers other than the enraged ones cited were not traced",
+   "How ABILITY_CRIT reaches the caster was not traced; only the crit factor in the duration was read"
+  ],
+  "unresolved": [
+   "The description claim 'closest allies' is read as Euclidean cell distance; cells are not checked for being benched (board.cells holds board units only)",
+   "Summary comment in the source says 'RAGE for [2,SP] seconds'; the code multiplies 2000 ms by (1 + AP/100), which matches",
+   "Whether any item or synergy beyond the ones listed changes SPICY_EXTRACT",
+   "Units sharing the identifier but not listed in appliesTo are not covered (no others in the catalog)",
+   "No routing uncertainty was recorded for this record (the queue lists none); registry, class and file agree"
+  ],
+  "evidence": [
+   {
+    "id": "unit-capsakid",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17438,
+     17450
+    ],
+    "symbol": "class Capsakid",
+    "expect": "skill = Ability.SPICY_EXTRACT",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE)"
+   },
+   {
+    "id": "unit-scovillain",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17454,
+     17465
+    ],
+    "symbol": "class Scovillain",
+    "expect": "skill = Ability.SPICY_EXTRACT",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1189,
+     1189
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SPICY_EXTRACT]: new SpicyExtractStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SpicyExtractStrategy",
+    "expect": "export class SpicyExtractStrategy extends AbilityStrategy",
+    "note": "strategy class"
+   },
+   {
+    "id": "flag",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "SpicyExtractStrategy",
+    "expect": "requiresTarget = false",
+    "note": "overrides requiresTarget: can be cast without a target; canCritByDefault stays false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and cast counted at the start of process"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation"
+   },
+   {
+    "id": "nb",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": "const nbAllies = [1, 2, 3, 6][pokemon.stars - 1] ?? 6",
+    "note": "number of allies by caster stars"
+   },
+   {
+    "id": "dur",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     12,
+     13
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": "2000 * (1 + pokemon.ap / 100) * (crit ? 1 + (pokemon.critPower - 1) : 1)",
+    "note": "requested rage duration: 2000 ms x (1 + AP/100) x critPower on a crit, not rounded"
+   },
+   {
+    "id": "filter",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": "cell.team === pokemon.team &&",
+    "note": "candidates: occupied board cells that are not the caster, same team, hp > 0"
+   },
+   {
+    "id": "sort",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     22,
+     36
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": ".sort(",
+    "note": "sorted by Euclidean distance to the caster (ascending)"
+   },
+   {
+    "id": "slice",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": ".slice(0, nbAllies)",
+    "note": "closest nbAllies allies only"
+   },
+   {
+    "id": "apply",
+    "file": "app/core/abilities/spicy-extract.ts",
+    "lines": [
+     38,
+     40
+    ],
+    "symbol": "SpicyExtractStrategy.process",
+    "expect": "ally.status.triggerRage(rageDuration, ally)",
+    "note": "triggerRage called on each chosen ally with the ally as the entity"
+   },
+   {
+    "id": "dist",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     11,
+     14
+    ],
+    "symbol": "distanceE",
+    "expect": "export function distanceE(",
+    "note": "Euclidean distance helper"
+   },
+   {
+    "id": "cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "Board",
+    "expect": "cells: Array<PokemonEntity | undefined>",
+    "note": "board.cells is a flat row-major array of entities (index columns*y+x)"
+   },
+   {
+    "id": "rage-trigger",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     362,
+     373
+    ],
+    "symbol": "Status.triggerRage",
+    "expect": "triggerRage(duration: number, pokemon: PokemonEntity) {",
+    "note": "triggerRage: first trigger enrages, clears protect, +80 speed through addSpeed, sets the timer, halves sleep and freeze remaining; a later trigger only extends a longer duration"
+   },
+   {
+    "id": "rage-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     375,
+     390
+    ],
+    "symbol": "Status.updateRage",
+    "expect": "updateRage(dt: number, pokemon: PokemonEntity) {",
+    "note": "expiry: enraged ends (-80 speed) when enrageCooldown runs out and enrageDelay is still positive; enrageDelay starts at 35000"
+   },
+   {
+    "id": "rage-delay",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     91,
+     91
+    ],
+    "symbol": "Status",
+    "expect": "enrageDelay = 35000",
+    "note": "global enrage timer default 35000 ms"
+   },
+   {
+    "id": "speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     774
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "addSpeed(",
+    "note": "addSpeed: Big Eater Belt and Twist Band helpers, MELMETAL redirect to attack, AP only when apBoost > 0, clamp 0..MAX_SPEED"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "function applyBigEaterBeltStatBuff(",
+    "note": "Big Eater Belt x1.25 (round down) on positive values and on own-team negative values"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff(",
+    "note": "Twist Band flips negative values from enemies or environment only"
+   },
+   {
+    "id": "dmg-x2",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     457
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.enraged) {",
+    "note": "an enraged attacker's damage is doubled in handleDamage"
+   },
+   {
+    "id": "heal-half",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     344
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "heal *= 0.5",
+    "note": "an enraged unit's heals are halved"
+   },
+   {
+    "id": "shield-half",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "an enraged unit's shields are halved"
+   }
+  ]
+ }
+}
