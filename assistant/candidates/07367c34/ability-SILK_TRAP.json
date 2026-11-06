@@ -1,0 +1,729 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SILK_TRAP",
+ "kind": "ability",
+ "identifier": "SILK_TRAP",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T003936Z"
+ },
+ "record": {
+  "ability": "SILK_TRAP",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The units in appliesTo declare SILK_TRAP in this production reference. The strategy is shared; differences are star count (speed amount), max HP, and range.",
+  "appliesTo": [
+   {
+    "key": "SPIDOPS",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SILK_TRAP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TAROUNTULA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "SILK_TRAP",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SPIDOPS": {
+    "evidence": [
+     "unit-spidops"
+    ]
+   },
+   "TAROUNTULA": {
+    "evidence": [
+     "unit-tarountula"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SILK_TRAP] = new SilkTrapStrategy()",
+   "strategy": "SilkTrapStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-silk",
+    "base",
+    "base-flags",
+    "base-req",
+    "cast",
+    "pp-gate",
+    "silk-class",
+    "silk-super"
+   ]
+  },
+  "summary": "The caster gains status.protect for 1500 ms and registers an OnAttackReceivedEffect on itself for 1500 ms. While it is registered, every basic attack that an enemy performs on the caster (PokemonState.attack -> onAttack, which runs even when the attack was blocked, so the protect itself does not stop the effect) triggers the effect if the attacker is exactly 1 cell away (Chebyshev distance, any attacker range): the attacker gets addSpeed(-speedNerf, caster, apBoost 1, cast crit flag) and triggerParalysis(1500 ms) with the attacker as target and the caster as origin. speedNerf is 5 / 10 / 15 / 30 for 1 / 2 / 3 / 4+ stars (the listed units are 1 and 2 stars). Requested speed change = -speedNerf; applied change = after Big Eater Belt / Twist Band on the attacker (an enemy's debuff is not belt-scaled; Twist Band flips it to a buff of +speedNerf), then x(1 + caster AP/100) x caster critPower if the cast crit (the cast needs ABILITY_CRIT because canCritByDefault is false), then clamped to speed 0..300; a Melmetal attacker converts it to addAttack(value x 0.5) instead. The paralysis is a fixed 1500 ms (the source comment mentions SP, the code passes no apBoost), blocked by Rune Protect or IMMUNITY_PARALYSIS on the attacker, x1.3 in STORM weather (-20 % per Electric Quartz), reduced by SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER / Odd Keystone, never shortens a longer paralysis; paralysis halves the speed used for attack cooldown and movement. No direct damage and no healing. Unlike a self-targeted ability, requiresTarget stays true: the cast needs a target in range 2. Protect does not stack and is not applied while the caster is enraged (the trap effect is still registered then).",
+  "targeting": {
+   "who": "caster (protect, trap); later each enemy that basic-attacks the caster from distance exactly 1 (speed and paralysis)",
+   "needsTarget": true,
+   "note": "requiresTarget is true (default, not overridden), so the caster must have a target in range to cast; the cast target is otherwise unused (process passes it only to the base animation).",
+   "evidence": [
+    "base-req",
+    "silk-class",
+    "silk-dist",
+    "silk-speed",
+    "silk-para",
+    "entity-recv"
+   ]
+  },
+  "geometry": {
+   "shape": "self-centred reactive condition: Chebyshev distance attacker-caster must be exactly 1 (the 8 surrounding cells); ranged attackers at distance 2+ do not trigger it",
+   "evidence": [
+    "silk-dist",
+    "hit-onattack"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "protect (self, 1500 ms)",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "protect duration in ms",
+     "value": 1500
+    },
+    "scaling": "fixed, no AP scaling",
+    "resolution": "applied only if the caster is not already protected and not enraged (triggerProtect does not stack). Protect makes basic attacks against the caster unsuccessful and handleDamage return takenDamage 0; it also blocks positive PP and ordinary healing (Rune Protect is a different status and blocks neither).",
+    "evidence": [
+     "silk-protect",
+     "prot-fn",
+     "hit-protect",
+     "cmd-run"
+    ]
+   },
+   {
+    "kind": "speed reduction (reactive, per qualifying attack)",
+    "target": "the attacker",
+    "declaredRaw": {
+     "label": "requested speed change = -speedNerf (raw, before helpers)",
+     "byStars": {
+      "1": 5,
+      "2": 10,
+      "3": 15,
+      "4": 30,
+      "fallback": 30
+     }
+    },
+    "perUnitRaw": {
+     "TAROUNTULA": "-5 speed",
+     "SPIDOPS": "-10 speed"
+    },
+    "scaling": "requested = -speedNerf; applied: Big Eater Belt scales only positive values or negative values from the holder's own team, so an enemy's debuff is unchanged; Twist Band on the attacker turns the negative value into +speedNerf; then x(1 + caster AP/100) (apBoost 1) x critPower if the cast rolled a crit; a MELMETAL-passive attacker instead receives addAttack(value x 0.5); then speed = clamp(speed + value, 0, 300)",
+    "resolution": "stacks: each triggering attack applies it again during the 1500 ms window (no cap other than speed >= 0); permanent is false so it lasts for the fight only. The amount is a stat change, not damage and not healing; takenDamage / shields are not involved.",
+    "evidence": [
+     "silk-table",
+     "silk-speed",
+     "addspeed",
+     "addspeed-helpers",
+     "addspeed-melmetal",
+     "addspeed-ap",
+     "addspeed-clamp",
+     "helper-belt",
+     "helper-twist"
+    ]
+   },
+   {
+    "kind": "paralysis (reactive, per qualifying attack)",
+    "target": "the attacker",
+    "declaredRaw": {
+     "label": "paralysis duration in ms",
+     "value": 1500
+    },
+    "scaling": "fixed 1500 ms; apBoost is not passed, so AP does not scale it (the source comment names SP)",
+    "resolution": "applied only if the attacker has neither Rune Protect nor IMMUNITY_PARALYSIS; STORM weather x1.3 then x(1 - 0.2 x Electric Quartz of the attacker's player); then the attacker's duration reductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10 % each); rounded; only replaces the remaining paralysis if longer. Paralysis halves the speed value used for the attack cooldown and movement.",
+    "evidence": [
+     "silk-para",
+     "silk-comment",
+     "para-fn",
+     "para-guard",
+     "para-ap",
+     "para-storm",
+     "para-reduce",
+     "para-max",
+     "para-speed",
+     "reduce-fn"
+    ]
+   },
+   {
+    "kind": "trap window (effect registration)",
+    "target": "the caster",
+    "declaredRaw": {
+     "label": "effect lifetime in ms",
+     "value": 1500
+    },
+    "scaling": "fixed",
+    "resolution": "the OnAttackReceivedEffect is added to effectsSet immediately and removed by a DelayedCommand once its delay goes below 0 (so slightly after 1500 ms of simulation time); it is triggered via PokemonEntity.onAttack for every basic attack on the caster whose attacker is at distance 1 (attacks made by the same enemy at higher range do not).",
+    "evidence": [
+     "silk-effect",
+     "silk-add",
+     "silk-remove",
+     "cmd-delayed",
+     "cmd-update",
+     "cmd-run",
+     "entity-recv",
+     "entity-geteffects",
+     "entity-onattack-doc",
+     "hit-onattack"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "protect",
+    "target": "the caster",
+    "durationMs": 1500,
+    "evidence": [
+     "silk-protect",
+     "prot-fn"
+    ]
+   },
+   {
+    "status": "paralysis",
+    "target": "each distance-1 attacker",
+    "durationMs": 1500,
+    "evidence": [
+     "silk-para",
+     "para-guard"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "SPIDOPS": 2,
+    "TAROUNTULA": 1
+   },
+   "declaredRawSpeedNerf": {
+    "SPIDOPS": 10,
+    "TAROUNTULA": 5
+   },
+   "note": "only the speed amount depends on stars (3 stars -> 15, 4+ -> 30; not reachable by the bare factory stars of the listed units); protect, trap window and paralysis durations are fixed at 1500 ms. maxPP 100, range 2 and max HP are in appliesTo / the unit blocks.",
+   "evidence": [
+    "silk-table",
+    "unit-spidops",
+    "unit-tarountula"
+   ]
+  },
+  "positionalConditions": "Reactive gate: Chebyshev distance between the attacker and the caster is exactly 1 at the time of the attack. Positions are not otherwise read.",
+  "repeatedCastsAndModes": "No modes. Each cast spends maxPP of PP, adds a new effect object (a second cast inside the 1500 ms window would stack a second speed/paralysis trigger per attack, while protect does not stack) and a new removal command. The effect is not cancelled if the caster dies before the command runs (not examined).",
+  "rawVsResolved": "Requested: speed -5 (1 star) / -10 (2 stars), paralysis 1500 ms, protect 1500 ms. Applied: speed after Twist Band / AP / crit / Melmetal conversion / clamp to 0..300 (Big Eater Belt does not scale an enemy debuff); paralysis after Rune Protect, IMMUNITY_PARALYSIS, STORM, duration reductions and the longer-wins rule; protect only if not already protected or enraged. takenDamage does not apply (no damage).",
+  "sourceTables": [
+   {
+    "id": "silkTrapSpeedNerf",
+    "file": "app/core/abilities/silk-trap.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.1.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Crit chance value and critPower; only the roll gate was located",
+   "Caster AP at cast time (stat changes, items, synergies were not traced)",
+   "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
+   "Which other effects add OnAttackReceivedEffect entries and their priority order relative to this one (getEffects sorts by priority; this effect has the default 0)"
+  ],
+  "unresolved": [
+   "Consulted: core-mechanics §J and the status methods (triggerProtect / triggerParalysis) at the pinned commit; not traced: addAttack internals for the Melmetal conversion, eatBerry for a Cheri Berry held by the attacker (triggerParalysis consumes it after applying paralysis)",
+   "Whether the effect is removed if the caster dies or is replaced before the 1500 ms command runs",
+   "Whether the units ever reach a different star count than the bare factory value",
+   "Which caster states other than silence block the cast itself (canCast) was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-tarountula",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20746,
+     20759
+    ],
+    "symbol": "class Tarountula",
+    "expect": "skill = Ability.SILK_TRAP",
+    "note": "unit class block: 1 star, hp 65, maxPP 100, range 2"
+   },
+   {
+    "id": "unit-spidops",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20780,
+     20792
+    ],
+    "symbol": "class Spidops",
+    "expect": "skill = Ability.SILK_TRAP",
+    "note": "unit class block: 2 stars, hp 135, maxPP 100, range 2"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "base-req",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "requiresTarget = true",
+    "note": "requiresTarget default true; SilkTrapStrategy does not override it"
+   },
+   {
+    "id": "reg-silk",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1162,
+     1162
+    ],
+    "symbol": "AbilityStrategies[Ability.SILK_TRAP]",
+    "expect": "[Ability.SILK_TRAP]: new SilkTrapStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "silk-class",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SilkTrapStrategy",
+    "expect": "export class SilkTrapStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target: PokemonEntity, crit); no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "silk-super",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SilkTrapStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process: spends maxPP, counts the cast, default animation"
+   },
+   {
+    "id": "silk-comment",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "source comment",
+    "expect": "PARALYSIS for [1.5,SP,ND=1] seconds",
+    "note": "design comment only (mentions SP for paralysis duration; the code passes a fixed 1500 and no apBoost)"
+   },
+   {
+    "id": "silk-table",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "speedNerf table",
+    "expect": "const speedNerf = [5, 10, 15, 30][pokemon.stars - 1] ?? 30",
+    "note": "speed amount by caster stars; fallback 30"
+   },
+   {
+    "id": "silk-effect",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "trapEffect",
+    "expect": "new OnAttackReceivedEffect(",
+    "note": "effect created per cast; ({attacker, pokemon}) = attacker and the trap user"
+   },
+   {
+    "id": "silk-dist",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     20,
+     25
+    ],
+    "symbol": "trapEffect distance gate",
+    "expect": "=== 1",
+    "note": "only when the Chebyshev distance attacker-to-trap-user is exactly 1"
+   },
+   {
+    "id": "silk-speed",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     27,
+     27
+    ],
+    "symbol": "trapEffect",
+    "expect": "attacker.addSpeed(-speedNerf, pokemon, 1, crit)",
+    "note": "negative speed on the attacker; caster = trap user, apBoost 1, the cast's crit flag"
+   },
+   {
+    "id": "silk-para",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     28,
+     28
+    ],
+    "symbol": "trapEffect",
+    "expect": "attacker.status.triggerParalysis(1500, attacker, pokemon)",
+    "note": "fixed 1500 ms paralysis; apBoost argument omitted (false)"
+   },
+   {
+    "id": "silk-protect",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "SilkTrapStrategy.process",
+    "expect": "pokemon.status.triggerProtect(1500)",
+    "note": "caster gains protect for 1500 ms"
+   },
+   {
+    "id": "silk-add",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     32,
+     32
+    ],
+    "symbol": "SilkTrapStrategy.process",
+    "expect": "pokemon.effectsSet.add(trapEffect)",
+    "note": "effect registered on the caster"
+   },
+   {
+    "id": "silk-remove",
+    "file": "app/core/abilities/silk-trap.ts",
+    "lines": [
+     35,
+     36
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "}, 1500)",
+    "note": "removed by a DelayedCommand after 1500 ms"
+   },
+   {
+    "id": "cmd-delayed",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "export class DelayedCommand",
+    "note": "runs delayedFunction in execute()"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     14,
+     17
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "executes once delay < 0"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     872,
+     872
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "pending commands tick each update"
+   },
+   {
+    "id": "hit-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     114,
+     114
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "if (target.status.protect || target.status.skydiving) {",
+    "note": "a protected target makes the basic attack unsuccessful (damage 0)"
+   },
+   {
+    "id": "hit-onattack",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     284,
+     284
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "pokemon.onAttack({",
+    "note": "onAttack is called after the success/protect/dodge resolution, unconditionally within the target.hp > 0 branch"
+   },
+   {
+    "id": "entity-onattack-doc",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     910,
+     910
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "called after every attack, no matter if it's successful or not",
+    "note": "source comment"
+   },
+   {
+    "id": "entity-recv",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     953,
+     955
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "effect.apply({",
+    "note": "the target's OnAttackReceived effects run with { pokemon: target, attacker: this }"
+   },
+   {
+    "id": "entity-geteffects",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1793,
+     1793
+    ],
+    "symbol": "PokemonEntity.getEffects",
+    "expect": "getEffects<T extends new",
+    "note": "filters effectsSet by class"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     752
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "addSpeed(",
+    "note": "signature (value, caster, apBoost, crit, permanent)"
+   },
+   {
+    "id": "addspeed-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     759,
+     759
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "belt then twist band applied to the raw value"
+   },
+   {
+    "id": "addspeed-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     763
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "this.addAttack(value * 0.5, caster, apBoost, crit, permanent)",
+    "note": "Melmetal attacker converts to addAttack(value * 0.5) instead of changing speed"
+   },
+   {
+    "id": "addspeed-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     768,
+     769
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "(crit ? caster.critPower : 1)",
+    "note": "AP and crit scaling by the CASTER (the trap user), skipped for 'environment'"
+   },
+   {
+    "id": "addspeed-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "applied change clamped to 0..MAX_SPEED (300)"
+   },
+   {
+    "id": "helper-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "caster.team === pokemon.team",
+    "note": "belt only scales positive values or negative values from the holder's own team; a trap debuff from an enemy is not scaled"
+   },
+   {
+    "id": "helper-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1868
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1 // twist band turn debuffs into buffs",
+    "note": "Twist Band holder turns an enemy's negative value into a positive one"
+   },
+   {
+    "id": "prot-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     744,
+     749
+    ],
+    "symbol": "Status.triggerProtect",
+    "expect": "if (!this.protect && !this.enraged) {",
+    "note": "protect does not stack and is not applied while enraged"
+   },
+   {
+    "id": "para-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     181,
+     183
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "triggerParalysis(",
+    "note": "(duration, pkm = the attacker receiving it, origin = trap user, apBoost = false)"
+   },
+   {
+    "id": "para-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)) {",
+    "note": "Rune Protect on the target, or IMMUNITY_PARALYSIS on the target, blocks the paralysis"
+   },
+   {
+    "id": "para-ap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     554,
+     554
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+    "note": "AP scaling only if apBoost; the trap passes none"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     926
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration *= 1.3",
+    "note": "STORM weather: x1.3, then -20 % per ELECTRIC_QUARTZ of the target's player"
+   },
+   {
+    "id": "para-reduce",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions of the target (SWIFT_SWIM, HYDRATION, WATER_VEIL / SURGE_SURFER, ODD_KEYSTONE)"
+   },
+   {
+    "id": "para-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "this.paralysisCooldown = Math.round(duration)",
+    "note": "longer remaining duration is kept, never shortened"
+   },
+   {
+    "id": "para-speed",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+    "note": "paralysis halves the speed used for the attack cooldown (move-speed.ts does the same for movement)"
+   },
+   {
+    "id": "reduce-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "const nbOddStones",
+    "note": ""
+   }
+  ]
+ }
+}
