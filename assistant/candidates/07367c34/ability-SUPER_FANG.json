@@ -1,0 +1,410 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SUPER_FANG",
+ "kind": "ability",
+ "identifier": "SUPER_FANG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T123938Z"
+ },
+ "record": {
+  "scope": "The two units in appliesTo declare SUPER_FANG: Bidoof (1 star, maxPP 90) and Bibarel (2 stars, maxPP 80), range 1, no passive. Units are bound by the queue record only.",
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SUPER_FANG] = new SuperFangStrategy()",
+   "strategy": "SuperFangStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-sf",
+    "sf-class",
+    "sf-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target TRUE damage proportional to the target's maximum HP. Requested amount = ceil(fraction x target.maxHP x (2 + AP/100)) with fraction 10 % / 15 % / 25 % / 35 % by the caster's stars (fallback 35 %); the AP is already inside this formula and handleSpecialDamage is called with apBoost = false, so it is not applied twice. The cast crit flag is passed on (crit only with ABILITY_CRIT). TRUE damage skips the defense division but still passes the ceil and floor-of-1 step in handleDamage; shields absorb first. The return value is not used.",
+  "targeting": {
+   "who": "the cast target",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true, so the caster walks to range before casting.",
+   "evidence": [
+    "sf-class",
+    "base-flags",
+    "sf-call",
+    "pp-gate"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "sf-call"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "stat": "HP",
+    "damageType": "TRUE",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 0.1,
+      "2": 0.15,
+      "3": 0.25,
+      "4": 0.35,
+      "fallback": 0.35
+     },
+     "formula": "ceil(fraction x target.maxHP x (2 + AP/100))",
+     "apBoost": false,
+     "crit": "cast crit flag"
+    },
+    "perUnitRaw": {
+     "BIBAREL": 0.15,
+     "BIDOOF": 0.1
+    },
+    "scaling": "requested = ceil(fraction x target maxHP x (2 + AP/100)); with AP 0 that is twice the fraction of max HP (20 % for 1 star, 30 % for 2 stars). downstream request into handleDamage: handleSpecialDamage adds no AP (apBoost false), doubles it if the caster has DOUBLE_DAMAGE (consumed), multiplies by 1.2 with the strange-steam board effect, and on a crit by 1 + (critPower - 1) x critReductionFactor (Rocky Helmet and Black Augurite do not reduce crits for TRUE damage; the crit counts for the target only when no negation applies). handleDamage then applies no defense division to TRUE damage, but the ceil and floor of 1 still apply (core-mechanics section A), and a shield absorbs first; the shield part counts in the returned takenDamage (section J1), which this ability discards. Protect, skydiving or magic bounce on the target return takenDamage 0; a magic bounce reflects only SPECIAL type damage, so nothing is reflected here, and a Power Lens only retaliates against SPECIAL type.",
+    "resolution": "requested ceil(fraction x maxHP x (2 + AP/100)) -> downstream request after DOUBLE_DAMAGE / crit factors -> final HP loss after shield absorption, Protect, and the section J1 exceptions (Shiny Charm, Fossil, Cover Band); the strategy uses none of the returned amounts",
+    "evidence": [
+     "sf-table",
+     "sf-flat",
+     "sf-ap",
+     "sf-call",
+     "hsd",
+     "hsd-block",
+     "hsd-ap",
+     "hsd-dd",
+     "hsd-crit",
+     "hsd-crit-mult",
+     "hsd-call",
+     "hsd-lens"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BIBAREL": 2,
+    "BIDOOF": 1
+   },
+   "declaredRawFraction": {
+    "BIBAREL": 0.15,
+    "BIDOOF": 0.1
+   },
+   "note": "indexed by the casting entity's stars; the 3- and 4-star values (25 %, 35 %) are not reachable at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "sf-table",
+    "unit-bidoof",
+    "unit-bibarel"
+   ]
+  },
+  "positionalConditions": "None.",
+  "repeatedCastsAndModes": "Stateless; each cast recomputes from the target's current maxHP. No stored mode.",
+  "rawVsResolved": "Requested: fraction x target maxHP x (2 + AP/100) rounded up (20 % / 30 % of max HP at AP 0 for Bidoof / Bibarel). Downstream: no second AP, crit factor only if the cast crits (ABILITY_CRIT), DOUBLE_DAMAGE x2. Final: no defense reduction, ceil and floor of 1, shield first, then HP; blocked by Protect or skydiving. The base is the target's maximum HP, not its current HP.",
+  "sourceTables": [
+   {
+    "id": "superFangFraction",
+    "file": "app/core/abilities/super-fang.ts",
+    "pattern": "const flatDamagePercent = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "The full handleDamage chain for TRUE damage (section A lists the defense step and the ceil/min-1 step; weather, fields, resurrect and death rules were not traced)",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located"
+  ],
+  "unresolved": [
+   "Whether other effects change the target's maxHP before the cast (the formula reads maxHP at the moment of the cast)",
+   "Whether Bidoof/Bibarel ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "ability": "SUPER_FANG",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BIBAREL",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SUPER_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BIDOOF",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "SUPER_FANG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BIBAREL": {
+    "evidence": [
+     "unit-bibarel"
+    ]
+   },
+   "BIDOOF": {
+    "evidence": [
+     "unit-bidoof"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-bidoof",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12774,
+     12788
+    ],
+    "symbol": "class Bidoof",
+    "expect": "export class Bidoof",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "unit-bibarel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12790,
+     12804
+    ],
+    "symbol": "class Bibarel",
+    "expect": "export class Bibarel",
+    "note": "unit class block: skill / stars / stats"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "reg-sf",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1218,
+     1218
+    ],
+    "symbol": "AbilityStrategies[Ability.SUPER_FANG]",
+    "expect": "[Ability.SUPER_FANG]: new SuperFangStrategy()",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": "defaults requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     19,
+     23
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "sf-class",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "SuperFangStrategy",
+    "expect": "export class SuperFangStrategy extends AbilityStrategy",
+    "note": "does not override requiresTarget or canCritByDefault"
+   },
+   {
+    "id": "sf-super",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "SuperFangStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process called without preventDefaultAnim"
+   },
+   {
+    "id": "sf-table",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SuperFangStrategy.process",
+    "expect": "const flatDamagePercent = [0.1, 0.15, 0.25, 0.35][pokemon.stars - 1] ?? 0.35",
+    "note": "star-indexed fraction of the target's max HP, fallback 0.35"
+   },
+   {
+    "id": "sf-flat",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SuperFangStrategy.process",
+    "expect": "const flatDamage = flatDamagePercent * target.maxHP",
+    "note": ""
+   },
+   {
+    "id": "sf-ap",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SuperFangStrategy.process",
+    "expect": "const damageWithAP = Math.ceil(flatDamage * (2 + pokemon.ap / 100))",
+    "note": "computed in the ability: ceil(fraction x maxHP x (2 + AP/100))"
+   },
+   {
+    "id": "sf-call",
+    "file": "app/core/abilities/super-fang.ts",
+    "lines": [
+     17,
+     24
+    ],
+    "symbol": "SuperFangStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "TRUE damage, crit flag passed, apBoost = false (AP already used above)"
+   },
+   {
+    "id": "hsd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     346
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "handleSpecialDamage(",
+    "note": ""
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magic bounce return takenDamage 0; magic bounce only reflects SPECIAL type"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "apBoost false => no second AP multiplication"
+   },
+   {
+    "id": "hsd-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "if (attacker && attacker.effects.has(EffectEnum.DOUBLE_DAMAGE)) {",
+    "note": "DOUBLE_DAMAGE doubles the amount and is consumed"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     414,
+     416
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const hasCritNegation =",
+    "note": "Rocky Helmet negates crit only when the type is not TRUE; Black Augurite likewise"
+   },
+   {
+    "id": "hsd-crit-mult",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "hsd-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     449,
+     449
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attackType === AttackType.SPECIAL",
+    "note": "Power Lens retaliation requires SPECIAL type"
+   }
+  ]
+ }
+}
