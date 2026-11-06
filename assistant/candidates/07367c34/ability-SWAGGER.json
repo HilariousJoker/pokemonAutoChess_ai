@@ -1,0 +1,508 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/SWAGGER",
+  "kind": "ability",
+  "identifier": "SWAGGER",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261106T184111Z"
+  },
+  "record": {
+    "ability": "SWAGGER",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "GLAMEOW (1 star) and PURUGLY (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "GLAMEOW",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "SWAGGER",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "PURUGLY",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "SWAGGER",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.SWAGGER] = new SwaggerStrategy()",
+      "strategy": "SwaggerStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-sw",
+        "base",
+        "cast",
+        "sw-base"
+      ]
+    },
+    "summary": "Confuse-and-enrage the cast target. Duration = round(baseDuration x (1 + caster AP/100) x critPower if the cast crit), baseDuration 1500 ms at 1 star, 2000 at 2, 3000 at 3, 5000 at 4+ (GLAMEOW 1500, PURUGLY 2000, raw before AP). The same duration is passed to triggerConfusion and then triggerRage. Confusion is skipped if the target is already confused, has runeProtect or the confusion-immunity effect; otherwise it is lengthened by Sandstorm (x1.3) and shortened by the duration-reduction helper (Swift Swim / Hydration / Water Veil / Surge Surfer, Odd Keystone). Rage has none of those guards or reductions: the target becomes enraged (protect cleared, +80 speed) or, if already enraged, only a longer duration replaces its timer. No damage is dealt.",
+    "targeting": {
+      "who": "the cast target only (an enemy chosen by the normal attack targeting; requiresTarget is true)",
+      "needsTarget": true,
+      "evidence": [
+        "sw-conf",
+        "sw-rage",
+        "base",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "single target",
+      "origin": "the target",
+      "evidence": [
+        "sw-conf",
+        "sw-rage"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "status",
+        "description": "no damage, shield, heal or movement: the ability only applies confusion then rage to the cast target, both with the same requested duration; details in statusEffects",
+        "declaredRaw": {
+          "formula": "round(baseDuration x (1 + AP/100) x (crit ? critPower : 1))",
+          "durationMsByStars": {
+            "1": 1500,
+            "2": 2000,
+            "3": 3000,
+            "4": 5000,
+            "fallback": 5000
+          }
+        },
+        "scaling": "see statusEffects",
+        "resolution": "see statusEffects: confusion is guarded and reduced, rage is not",
+        "evidence": [
+          "sw-dur",
+          "sw-conf",
+          "sw-rage"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "confusion",
+        "target": "the cast target",
+        "declaredRaw": {
+          "formula": "round(baseDuration x (1 + AP/100) x (crit ? critPower : 1))",
+          "durationMsByStars": {
+            "1": 1500,
+            "2": 2000,
+            "3": 3000,
+            "4": 5000,
+            "fallback": 5000
+          },
+          "note": "raw base before AP and crit; GLAMEOW 1500, PURUGLY 2000"
+        },
+        "perUnitDurationMs": {
+          "GLAMEOW": 1500,
+          "PURUGLY": 2000
+        },
+        "scaling": "AP once (inside the ability: x (1 + AP/100)); triggerConfusion is called with apBoost false so it does not apply AP again; crit multiplier only if the cast crit (needs ABILITY_CRIT); then in triggerConfusion Sandstorm x1.3, the shared duration reductions, Math.round",
+        "applicationOrder": "first, before rage",
+        "guards": "not applied if the target is already confused (the old timer is kept, not refreshed), has status.runeProtect, or has IMMUNITY_CONFUSION; Persim Berry is eaten and the Psyduck passive gains 100 AP only when the confusion is actually applied. Rage is applied regardless of whether confusion was",
+        "combatEffect": "a confused unit picks its target with getTargetWhenConfused (nearest within range+1; allies also eligible when a 50% luck-adjusted roll fails); when confusion ends the unit's target is cleared",
+        "rawVsApplied": "requested = the rounded duration above; applied = after Sandstorm and reductions, rounded again, stored in confusionCooldown",
+        "evidence": [
+          "sw-dur",
+          "sw-conf",
+          "trig-conf",
+          "duration-reductions",
+          "upd-conf",
+          "upd-conf-call",
+          "attack-confused",
+          "get-confused",
+          "targettable"
+        ]
+      },
+      {
+        "status": "enraged (rage)",
+        "target": "the cast target",
+        "declaredRaw": {
+          "formula": "same duration as confusion",
+          "durationMsByStars": {
+            "1": 1500,
+            "2": 2000,
+            "3": 3000,
+            "4": 5000,
+            "fallback": 5000
+          },
+          "note": "raw base; requested duration before AP/crit"
+        },
+        "perUnitDurationMs": {
+          "GLAMEOW": 1500,
+          "PURUGLY": 2000
+        },
+        "scaling": "the requested duration is stored as is: AP/crit were applied in the ability; no Sandstorm and no duration-reduction helper; no runeProtect guard",
+        "applicationOrder": "second, after confusion",
+        "guards": "if already enraged: only replaces the timer when the new duration is longer, no second +80 speed; the unit-wide enrage delay (35000 ms) can make the unit permanently enraged, in which case the Swagger timer does not end the rage",
+        "combatEffect": "on first application: protect is cleared, sleep and freeze cooldowns are halved (floor), speed +80 through addSpeed (apBoost 0, so only the target's Big Eater Belt / Twist Band helpers and the MAX_SPEED clamp can change it) and removed with addSpeed(-80) at expiry; while enraged the unit deals double damage, receives half healing and half shield and cannot gain protect",
+        "evidence": [
+          "sw-dur",
+          "sw-rage",
+          "trig-rage",
+          "upd-rage",
+          "enrage-delay",
+          "upd-call",
+          "add-speed",
+          "rage-heal",
+          "rage-shield",
+          "rage-dmg",
+          "rage-protect"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "GLAMEOW": 1,
+        "PURUGLY": 2
+      },
+      "durationMsByStars": {
+        "GLAMEOW": 1500,
+        "PURUGLY": 2000
+      },
+      "note": "duration table indexed by the caster's stars (pokemon.stars - 1) with fallback 5000; entries 3000 and 5000 are not reached by these units' star counts. maxPP 100 and range 1 for both.",
+      "evidence": [
+        "sw-dur",
+        "unit-glameow",
+        "unit-purugly"
+      ]
+    },
+    "positionalConditions": "None: no area, no distance condition beyond the normal attack range for casting.",
+    "repeatedCastsAndModes": "No state is kept by the ability. Recasting on a target that is still confused leaves the confusion timer unchanged; on a target that is still enraged it extends the rage timer only if the new duration is longer. No modes.",
+    "rawVsResolved": "Requested duration: 1500 (GLAMEOW) / 2000 (PURUGLY) ms raw base; after the ability's own AP and crit scaling it is round(base x (1 + AP/100) [x critPower]). Applied confusion duration = that value after Sandstorm x1.3 and the shared reductions, rounded; applied rage duration = that value unchanged (only stored if the target is not enraged or the value is longer). The +80 speed is requested through addSpeed and its applied change can differ with the target's Big Eater Belt / Twist Band and the speed clamp.",
+    "sourceTables": [
+      {
+        "id": "swaggerDuration",
+        "file": "app/core/abilities/swagger.ts",
+        "pattern": "const baseDuration = \\[([^\\]]+)\\]",
+        "recordPath": "statusEffects.0.declaredRaw.durationMsByStars",
+        "unitValuesPath": "statusEffects.0.perUnitDurationMs"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final effect of a changed speed, double damage and halved healing in a real fight (only the helper code was read)",
+      "When the cast fires in a real fight (PP gain, canCast, targeting)",
+      "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+    ],
+    "unresolved": [
+      "Consulted: SwaggerStrategy, Status.triggerConfusion / updateConfusion / triggerRage / updateRage / applyStatusDurationReductions, PokemonEntity.addSpeed and isTargettableBy, the enraged branches in handleHeal / addShield / handleDamage / triggerProtect, getTargetWhenConfused and the sibling CONFUSION record. The queue record lists no routing uncertainties and no dependencies.",
+      "Other uses of status.enraged inside status.ts (lines near 713, 773, 1150, 1263, which halve some status durations) were seen but not read, so they are not claimed here",
+      "The interaction between a Swagger rage that ends and the enrage-delay branch was read from updateRage only; no probe was run",
+      "Whether the target can be an ally or a neutral entity was not examined; the ability does not check the team of the target",
+      "Whether confusing and enraging the target changes what that unit does on its next attack beyond the target selection read here was not traced"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-sw",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1223,
+          1223
+        ],
+        "symbol": "AbilityStrategies[Ability.SWAGGER]",
+        "expect": "[Ability.SWAGGER]: new SwaggerStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          33
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process: spends maxPP, ult count, default animation broadcast, cast bookkeeping; requiresTarget defaults true, canCritByDefault false (lines 7-8)"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          8,
+          31
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit is rolled only with the ABILITY_CRIT effect or canCritByDefault"
+      },
+      {
+        "id": "sw-base",
+        "file": "app/core/abilities/swagger.ts",
+        "lines": [
+          12,
+          12
+        ],
+        "symbol": "SwaggerStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default animation is broadcast (preventDefaultAnim not passed)"
+      },
+      {
+        "id": "sw-dur",
+        "file": "app/core/abilities/swagger.ts",
+        "lines": [
+          14,
+          17
+        ],
+        "symbol": "SwaggerStrategy.process",
+        "expect": "const baseDuration = [1500, 2000, 3000, 5000][pokemon.stars - 1] ?? 5000",
+        "note": "base duration by caster stars, then x (1 + AP/100) x critPower if crit, rounded; one value for both statuses"
+      },
+      {
+        "id": "sw-conf",
+        "file": "app/core/abilities/swagger.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "SwaggerStrategy.process",
+        "expect": "target.status.triggerConfusion(duration, target, pokemon)",
+        "note": "apBoost parameter left at its default false, so AP is not applied a second time"
+      },
+      {
+        "id": "sw-rage",
+        "file": "app/core/abilities/swagger.ts",
+        "lines": [
+          19,
+          19
+        ],
+        "symbol": "SwaggerStrategy.process",
+        "expect": "target.status.triggerRage(duration, target)",
+        "note": "same duration; no caster argument"
+      },
+      {
+        "id": "trig-conf",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          806,
+          831
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_CONFUSION)",
+        "note": "only if not already confused, no runeProtect, no IMMUNITY_CONFUSION; Sandstorm x1.3; duration reductions; round; Persim Berry; Psyduck passive"
+      },
+      {
+        "id": "trig-rage",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          362,
+          373
+        ],
+        "symbol": "Status.triggerRage",
+        "expect": "pokemon.addSpeed(80, pokemon, 0, false)",
+        "note": "if not enraged: enraged = true, protect cleared, +80 speed through addSpeed, cooldown = duration, sleep and freeze cooldowns halved (floor); if already enraged only a longer duration replaces the cooldown. No runeProtect guard and no duration reductions"
+      },
+      {
+        "id": "upd-rage",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          375,
+          395
+        ],
+        "symbol": "Status.updateRage",
+        "expect": "this.enrageCooldown - dt <= 0 &&",
+        "note": "expiry removes enraged and calls addSpeed(-80) only while enrageDelay - dt > 0; once the enrage delay has run out the unit is enraged by the delay branch and the Swagger timer no longer ends it"
+      },
+      {
+        "id": "enrage-delay",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          91,
+          91
+        ],
+        "symbol": "Status.enrageDelay",
+        "expect": "enrageDelay = 35000",
+        "note": "fight-wide enrage timer (ms)"
+      },
+      {
+        "id": "upd-call",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          319,
+          319
+        ],
+        "symbol": "Status.update",
+        "expect": "this.updateRage(dt, pokemon)",
+        "note": "called every status update"
+      },
+      {
+        "id": "upd-conf",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          837,
+          844
+        ],
+        "symbol": "Status.updateConfusion",
+        "expect": "pkm.setTarget(null) // Clear target when confusion ends",
+        "note": "when the cooldown runs out confusion ends and the unit's target is cleared"
+      },
+      {
+        "id": "upd-conf-call",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          259,
+          261
+        ],
+        "symbol": "Status.update",
+        "expect": "if (this.confusion) {",
+        "note": "confusion timer updated each tick"
+      },
+      {
+        "id": "duration-reductions",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1282,
+          1304
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "pkm.effects.has(EffectEnum.SWIFT_SWIM)",
+        "note": "Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reduce the confusion duration (not used by triggerRage)"
+      },
+      {
+        "id": "attack-confused",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          45,
+          46
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "} else if (pokemon.status.confusion) {",
+        "note": "a confused unit retargets with getTargetWhenConfused"
+      },
+      {
+        "id": "get-confused",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          1302,
+          1318
+        ],
+        "symbol": "PokemonState.getTargetWhenConfused",
+        "expect": "const chanceToBypassConfusion = chance(0.5, pokemon)",
+        "note": "nearest candidates within range+1; allies are eligible when the 50% roll (luck adjusted) fails"
+      },
+      {
+        "id": "rage-heal",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          346,
+          348
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "if (pokemon.status.enraged) {",
+        "note": "healing received by an enraged unit is halved"
+      },
+      {
+        "id": "rage-shield",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          392,
+          392
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+        "note": "positive shields on an enraged unit are halved"
+      },
+      {
+        "id": "rage-dmg",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          455,
+          457
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "if (attacker && attacker.status.enraged) {",
+        "note": "damage dealt by an enraged attacker is doubled before protect and the other steps"
+      },
+      {
+        "id": "rage-protect",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          745,
+          745
+        ],
+        "symbol": "Status.triggerProtect",
+        "expect": "if (!this.protect && !this.enraged) {",
+        "note": "an enraged unit cannot gain protect"
+      },
+      {
+        "id": "add-speed",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          752,
+          775
+        ],
+        "symbol": "PokemonEntity.addSpeed",
+        "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+        "note": "speed change goes through Big Eater Belt / Twist Band helpers, AP and crit scaling (apBoost 0 here), clamp 0..MAX_SPEED"
+      },
+      {
+        "id": "targettable",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          274,
+          287
+        ],
+        "symbol": "PokemonEntity.isTargettableBy",
+        "expect": "!this.status.untargettable",
+        "note": "used by the confused-target search"
+      },
+      {
+        "id": "unit-glameow",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          18441,
+          18441
+        ],
+        "symbol": "Glameow",
+        "expect": "skill = Ability.SWAGGER",
+        "note": "unit class block: stars 1"
+      },
+      {
+        "id": "unit-purugly",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          18456,
+          18456
+        ],
+        "symbol": "Purugly",
+        "expect": "skill = Ability.SWAGGER",
+        "note": "unit class block: stars 2"
+      }
+    ],
+    "unitEvidence": {
+      "GLAMEOW": {
+        "evidence": [
+          "unit-glameow"
+        ]
+      },
+      "PURUGLY": {
+        "evidence": [
+          "unit-purugly"
+        ]
+      }
+    }
+  }
+}
