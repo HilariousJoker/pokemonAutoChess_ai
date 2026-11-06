@@ -1,0 +1,489 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SPIKES",
+ "kind": "ability",
+ "identifier": "SPIKES",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T063919Z"
+ },
+ "record": {
+  "ability": "SPIKES",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare the SPIKES ability (catalog passive NONE, maxPP 100, range 1, types GRASS/STEEL). The strategy is shared; they differ in stars (1 and 2) and stats. The name SPIKES is also a board effect (EffectEnum.SPIKES) that this strategy places; the SKARMORY passive reuses that effect but is not part of this record.",
+  "appliesTo": [
+   {
+    "key": "FERROSEED",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SPIKES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FERROTHORN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SPIKES",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FERROSEED": {
+    "evidence": [
+     "unit-ferroseed"
+    ]
+   },
+   "FERROTHORN": {
+    "evidence": [
+     "unit-ferrothorn"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SPIKES] = new SpikesStrategy()",
+   "strategy": "SpikesStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "routingNote": "NAME_SHARED_WITH_EFFECT resolved: the registry key is the ability enum Ability.SPIKES; the strategy places EffectEnum.SPIKES, a separate board-effect enum with the same string. The board effect's behaviour lives in PokemonState.updateEachSecond and Board.addBoardEffect / setEntityOnCell, not in an ability class.",
+   "evidence": [
+    "reg",
+    "cls",
+    "base-flags",
+    "base-pp",
+    "super",
+    "effect",
+    "passive-skarmory"
+   ]
+  },
+  "summary": "Scatters spikes in front of the caster. After the base process (PP spent, default animation suppressed), the strategy computes nbSpikes = round(6 x (1 + AP/100)) (not scaled by crit), takes board.getCellsInFront(caster, target, 3) (the front and its two neighbouring orientations accumulated over ranges 1 to 3; also sets the caster's orientation), and picks nbSpikes of those cells at random (all of them if fewer). On every picked cell it adds the board effect SPIKES (also giving the effect to a unit standing there unless that unit holds Heavy Duty Boots) and, if the cell holds an enemy, requests handleSpecialDamage with the raw [25, 50, 100, 200] by caster stars (FERROSEED 25, FERROTHORN 50), SPECIAL type, the cast crit flag and the default AP boost. The board effect then lasts on the cell (the strategy never clears it; clearing happens elsewhere) and each second hurts any unit that has the effect - ally or enemy, since it is keyed on the effect, not the team - unless it is FLYING or STEEL type or holds Heavy Duty Boots: handleDamage TRUE 10 (no attacker) and armor reduction 1000 ms (skipped under Rune Protect). Because FERROSEED and FERROTHORN are STEEL, their own spikes do not hurt them. No heal, shield or PP effect.",
+  "targeting": {
+   "who": "direct damage: enemies standing on the randomly chosen cells; board effect: every picked cell (empty or not)",
+   "needsTarget": true,
+   "note": "The cells come from the cast target's direction (getCellsInFront needs the target), not from the target's cell; the target is not necessarily hit. Which cells are picked is random (pickNRandomIn, uncontrolled). Allies on a picked cell receive the board effect (and its periodic damage) but not the direct damage.",
+   "evidence": [
+    "cls",
+    "base-flags",
+    "pick",
+    "random",
+    "front",
+    "front-board",
+    "enemy",
+    "effect",
+    "add-effect"
+   ]
+  },
+  "geometry": {
+   "shape": "cells within range 3 of the caster along the cast direction and its two neighbouring orientations (a widening fan; the set accumulates ranges 1, 2 and 3); cells outside the board are dropped; a random subset of nbSpikes of them is used",
+   "evidence": [
+    "pick",
+    "front",
+    "front-board",
+    "random",
+    "nb"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each enemy standing on a picked cell",
+    "declaredRaw": {
+     "damageByStars": {
+      "1": 25,
+      "2": 50,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "FERROSEED": 25,
+     "FERROTHORN": 50
+    },
+    "scaling": "requested = raw x (1 + AP/100) (apBoost defaults true), then x (1 + (critPower - 1) x reduction) when the cast crit flag is true (rolled only with ABILITY_CRIT because canCritByDefault is false; Rocky Helmet and Black Augurite can reduce it for SPECIAL). The number of spikes (6 x (1 + AP/100), rounded) scales with AP only.",
+    "resolution": "applied: returns takenDamage 0 for a target with protect, skydiving or magicBounce (magicBounce may reflect); otherwise PokemonState.handleDamage divides SPECIAL damage by (1 + 0.05 x SPE_DEF) with the floor of 1, shield first (core-mechanics sections A, H.1-H.2, J1: the returned takenDamage counts shield damage). The strategy ignores the result. A given enemy is hit once per cell it occupies (one unit occupies one cell).",
+    "evidence": [
+     "dmg",
+     "special",
+     "enemy",
+     "sd-block",
+     "sd-ap",
+     "sd-crit",
+     "hd-special"
+    ]
+   },
+   {
+    "kind": "board effect placement (EffectEnum.SPIKES)",
+    "damageType": "TRUE (periodic, by handleDamage with no attacker)",
+    "target": "each picked cell and any unit standing on it or later entering it",
+    "declaredRaw": {
+     "spikeCountRaw": 6,
+     "tickDamageTrue": 10,
+     "armorReductionMs": 1000,
+     "tickPeriodMs": 1000
+    },
+    "scaling": "spike count round(6 x (1 + AP/100)); the periodic damage 10 and 1000 ms are fixed constants (not AP or crit scaled); the strategy's crit flag does not touch them.",
+    "resolution": "applied: addBoardEffect marks the cell and gives the effect to the unit on it unless Heavy Duty Boots; units that step in gain it unless IMMUNITY_BOARD_EFFECTS and lose it when they leave; once per second a unit with the effect that is not FLYING or STEEL and has no Heavy Duty Boots takes TRUE 10 via handleDamage (attacker null, so no AP; floor of 1 and shield rules as in section J1) and triggerArmorReduction(1000), which is skipped under Rune Protect. Requested 10 versus applied/takenDamage follows handleDamage; allies are affected equally.",
+    "evidence": [
+     "nb",
+     "effect",
+     "add-effect",
+     "enter-cell",
+     "spikes-tick",
+     "each-second",
+     "armor"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "armor reduction (from the board effect tick, not from the strategy)",
+    "target": "a unit with the SPIKES effect that is not FLYING / STEEL, without Heavy Duty Boots",
+    "durationMs": "requested 1000 per second tick; applyStatusDurationReductions then applies; skipped when status.runeProtect is true",
+    "note": "The status is set by PokemonState.updateEachSecond, not by SpikesStrategy. Rune Protect blocks this status application only; it does not block the TRUE tick damage.",
+    "evidence": [
+     "spikes-tick",
+     "armor",
+     "each-second"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "FERROSEED": 1,
+    "FERROTHORN": 2
+   },
+   "declaredRaw": {
+    "FERROSEED": 25,
+    "FERROTHORN": 50
+   },
+   "note": "The damage table is indexed by the casting entity's stars; the 3-star (100) and 4-star (200) entries and the fallback 200 are not reachable by the listed units' bare star counts. The spike count and the board effect do not vary by stars.",
+   "evidence": [
+    "dmg",
+    "unit-ferroseed",
+    "unit-ferrothorn"
+   ]
+  },
+  "positionalConditions": "Cells are chosen from the cast direction (caster to target) within 3 cells; a unit on a picked cell is hit by the direct damage only if it is an enemy. Later, any unit that moves onto an affected cell can gain the board effect. Needs a target to cast (requiresTarget true).",
+  "repeatedCastsAndModes": "No stored state or modes. addBoardEffect adds the effect to a cell only once (a Set), so picking the same cell again in a later cast re-damages an enemy there but does not stack the effect; the effect has no duration in this strategy. Casts by the SKARMORY passive place the same effect separately.",
+  "rawVsResolved": "Requested: nbSpikes = round(6 x (1 + AP/100)) cells (capped by the number of available cells); raw direct damage 25 (FERROSEED) or 50 (FERROTHORN), x (1 + AP/100), x critPower on a cast crit. Applied: SPE_DEF division and floor of 1 in handleDamage, zero if the target has protect/skydiving/magicBounce, shield absorbed first (takenDamage includes shield damage, section J1). Board effect: TRUE 10 per second to any non-FLYING, non-STEEL unit on an affected cell without Heavy Duty Boots, plus 1000 ms armor reduction unless Rune Protect; strategy return values are unused.",
+  "sourceTables": [
+   {
+    "id": "spikesDamage",
+    "file": "app/core/abilities/spikes.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.damageByStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Orientation function (how the cast direction is derived from caster and target positions) was not read",
+   "Where board effects are cleared at the end of a round and whether other abilities clear SPIKES before then was not traced beyond the existence of clearBoardEffect callers (ice-spinner, waterfall, simulation end)",
+   "handleDamage branches for TRUE damage beyond the SPECIAL/TRUE division read (shield handling, Shiny Charm, Fossil, Cover Band) follow core-mechanics section J1",
+   "How HEAVY_DUTY_BOOTS and IMMUNITY_BOARD_EFFECTS are granted (items.ts) was not traced beyond their checks"
+  ],
+  "unresolved": [
+   "The exact number of candidate cells in getCellsInFront(..., 3) depends on position and board edges and was not enumerated, so how often nbSpikes exceeds the available cells is not stated",
+   "Random selection (pickNRandomIn / shuffleArray) is uncontrolled, so which cells are hit is not predictable from the source alone",
+   "Whether an entity already standing on a picked cell keeps the effect when swapped or knocked back relies on setEntityOnCell; other movement helpers were not traced",
+   "Whether any item or synergy beyond the ones listed changes SPIKES",
+   "Units sharing the identifier but not listed in appliesTo are not covered; the SKARMORY passive uses the same board effect but is a separate record",
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: resolved to ability class SpikesStrategy (Ability.SPIKES) plus the shared board effect EffectEnum.SPIKES, as described in dispatch.routingNote; the deployment was not verified"
+  ],
+  "evidence": [
+   {
+    "id": "unit-ferroseed",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15505,
+     15517
+    ],
+    "symbol": "class Ferroseed",
+    "expect": "skill = Ability.SPIKES",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE, types GRASS and STEEL)"
+   },
+   {
+    "id": "unit-ferrothorn",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15521,
+     15532
+    ],
+    "symbol": "class Ferrothorn",
+    "expect": "skill = Ability.SPIKES",
+    "note": "unit class block: skill / stars / stats (catalog passive NONE, types GRASS and STEEL)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1190,
+     1190
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "[Ability.SPIKES]: new SpikesStrategy()",
+    "note": "registry entry (Ability.SPIKES)"
+   },
+   {
+    "id": "cls",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "SpikesStrategy",
+    "expect": "export class SpikesStrategy extends AbilityStrategy",
+    "note": "strategy class (no requiresTarget / canCritByDefault override)"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "canCritByDefault = false",
+    "note": "defaults: requiresTarget true, canCritByDefault false"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "PP spent and cast counted at the start of process"
+   },
+   {
+    "id": "super",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "base process with preventDefaultAnim = true"
+   },
+   {
+    "id": "nb",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "const nbSpikes = Math.round(6 * (1 + pokemon.ap / 100))",
+    "note": "number of spikes: round(6 x (1 + AP/100)), no crit scaling"
+   },
+   {
+    "id": "pick",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     16,
+     20
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "board.getCellsInFront(pokemon, target, 3),",
+    "note": "spike cells: pickNRandomIn over the cells in front, range 3"
+   },
+   {
+    "id": "random",
+    "file": "app/utils/random.ts",
+    "lines": [
+     50,
+     61
+    ],
+    "symbol": "pickNRandomIn",
+    "expect": "export function pickNRandomIn<T>(",
+    "note": "pickNRandomIn shuffles a copy and takes up to N (fewer if fewer cells)"
+   },
+   {
+    "id": "dmg",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "const damage = [25, 50, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "direct damage table by caster stars"
+   },
+   {
+    "id": "effect",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     25,
+     29
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "EffectEnum.SPIKES,",
+    "note": "board effect EffectEnum.SPIKES added on every picked cell (the ability and the board effect share the name SPIKES)"
+   },
+   {
+    "id": "enemy",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     32,
+     41
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "direct damage only to an occupied cell holding an enemy"
+   },
+   {
+    "id": "special",
+    "file": "app/core/abilities/spikes.ts",
+    "lines": [
+     33,
+     38
+    ],
+    "symbol": "SpikesStrategy.process",
+    "expect": "AttackType.SPECIAL,",
+    "note": "damage type SPECIAL, AP boost default, cast crit flag passed"
+   },
+   {
+    "id": "front",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     210
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "getCellsInFront: sets caster orientation, accumulates front + two neighbouring orientations over ranges 1..range"
+   },
+   {
+    "id": "front-board",
+    "file": "app/core/board.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "cells outside the board are dropped"
+   },
+   {
+    "id": "add-effect",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     654
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "addBoardEffect(",
+    "note": "addBoardEffect: adds the effect to the entity on the cell unless it holds Heavy Duty Boots; records it on the cell"
+   },
+   {
+    "id": "enter-cell",
+    "file": "app/core/board.ts",
+    "lines": [
+     57,
+     62
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "if (!entity.effects.has(EffectEnum.IMMUNITY_BOARD_EFFECTS)) {",
+    "note": "an entity moving onto a cell gains that cell's effects unless it has IMMUNITY_BOARD_EFFECTS; leaving removes them"
+   },
+   {
+    "id": "spikes-tick",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1048,
+     1061
+    ],
+    "symbol": "PokemonState.updateEachSecond",
+    "expect": "pokemon.effects.has(EffectEnum.SPIKES) &&",
+    "note": "each second a unit with the SPIKES effect that is not FLYING or STEEL and has no Heavy Duty Boots takes TRUE 10 and armor reduction 1000 ms"
+   },
+   {
+    "id": "each-second",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     953,
+     953
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateEachSecond(pokemon, board)",
+    "note": "updateEachSecond runs when oneSecondCooldown reaches 0 and is reset to 1000"
+   },
+   {
+    "id": "armor",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     342,
+     351
+    ],
+    "symbol": "Status.triggerArmorReduction",
+    "expect": "triggerArmorReduction(duration: number, pkm: PokemonEntity) {",
+    "note": "armor reduction is skipped when runeProtect is active; duration reductions apply"
+   },
+   {
+    "id": "sd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     359
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.skydiving ||",
+    "note": "handleSpecialDamage returns takenDamage 0 for protect / skydiving / magicBounce"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling (apBoost defaults true)"
+   },
+   {
+    "id": "sd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier and Rocky Helmet / Black Augurite reductions (non-TRUE)"
+   },
+   {
+    "id": "hd-special",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     561,
+     564
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "} else if (attackType == AttackType.SPECIAL) {",
+    "note": "SPECIAL damage is divided by 1 + 0.05 x SPE_DEF in handleDamage"
+   },
+   {
+    "id": "passive-skarmory",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1045,
+     1051
+    ],
+    "symbol": "passives SKARMORY",
+    "expect": "board.addBoardEffect(x, y, EffectEnum.SPIKES, simulation)",
+    "note": "the SKARMORY passive reuses the same board effect (and broadcasts Ability.SPIKES); not part of this strategy"
+   }
+  ]
+ }
+}
