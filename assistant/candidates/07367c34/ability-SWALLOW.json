@@ -1,0 +1,681 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/SWALLOW",
+  "kind": "ability",
+  "identifier": "SWALLOW",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261106T184111Z"
+  },
+  "record": {
+    "ability": "SWALLOW",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "GULPIN (1 star) and SWALOT (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "GULPIN",
+        "stars": 1,
+        "maxPP": 60,
+        "range": 1,
+        "declaredSkill": "SWALLOW",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "SWALOT",
+        "stars": 2,
+        "maxPP": 60,
+        "range": 1,
+        "declaredSkill": "SWALLOW",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.SWALLOW] = new SwallowStrategy()",
+      "strategy": "SwallowStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-sw",
+        "base",
+        "base-ult",
+        "cast",
+        "sw-base"
+      ]
+    },
+    "summary": "Three-way ability driven by the caster's cast counter count.ult, which the base process has ALREADY incremented for this cast (first cast sees 1). (1) If HP < 25% of maxHP and count.ult > 0: 'swallow' - heal table[count.ult]% of maxHP (20 / 40 / 60 for counter 1 / 2 / 3, requested), through handleHeal with apBoost 1 and the cast's crit flag, then count.ult = 0 (reset even if the heal was blocked). (2) Else if count.ult >= 3: 'spit up' - SPECIAL damage 40 (GULPIN, 1 star) / 80 (SWALOT, 2 stars) to each entity of a different team in the three cells in front of the caster (facing the cast target), then count.ult = 0. (3) Otherwise 'stockpile' - the caster gains +3 DEF and +3 SPE_DEF (code value; the source comment says 1). Without low HP the cycle is therefore: cast 1 stockpile, cast 2 stockpile, cast 3 spit up, counter back to 0. The RECOVER and SWALLOW references in the file are animation broadcasts only; no other ability strategy is executed.",
+    "targeting": {
+      "who": "heal and stockpile: the caster; spit: entities of a different team in the three front cells; the cast target is only used to orient the caster and for the base process (requiresTarget true, so the unit must have a target to cast)",
+      "needsTarget": true,
+      "evidence": [
+        "sw-cells",
+        "sw-hit",
+        "sw-heal",
+        "sw-stack",
+        "in-front",
+        "orientation"
+      ]
+    },
+    "geometry": {
+      "shape": "spit branch only: the three cells directly in front (the target-facing orientation and its two neighbouring orientations, one step each), cells off the board dropped",
+      "origin": "the caster's cell",
+      "orientationNote": "getCellsInFront overwrites pokemon.orientation from the caster-to-target offset; same position gives a random orientation when confused, otherwise an error log and DOWNRIGHT",
+      "evidence": [
+        "in-front",
+        "orientation",
+        "sw-cells"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "heal",
+        "target": "the caster (branch 1, HP < 25% maxHP and count.ult > 0)",
+        "declaredRaw": {
+          "formula": "([0, 20, 40, 60][count.ult] ?? 60) x maxHP / 100",
+          "percentByCounter": [
+            0,
+            20,
+            40,
+            60
+          ],
+          "note": "requested heal as a share of the caster's maxHP; count.ult at the branch is the already incremented value (1..3 in practice, since it resets at 3), so 20 / 40 / 60 percent; index 0 (0%) is unreachable because count.ult > 0 is required"
+        },
+        "scaling": "handleHeal(heal, pokemon, 1, crit): x (1 + AP/100) (apBoost 1), x critPower if the cast crit (needs ABILITY_CRIT), BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, Zenith weather x1.2, then Math.round",
+        "resolution": "shared handleHeal rules (core-mechanics section J): wound -> nothing healed (Blood Moon with Blood Stones requests round(0.3 x stones x heal) through addShield instead); status.protect -> nothing healed (status.runeProtect does not block); otherwise hp += min(missing HP, rounded heal) - the requested amount is the figure above, the applied change is the capped figure, overheal = rounded heal - missing HP and, with the Grass synergy effect, addMaxHP(0.4 x overheal) (not 40% of max HP); the 'swallow' only happens below 25% HP so the cap rarely binds. count.ult is reset to 0 afterwards regardless of the heal outcome",
+        "evidence": [
+          "sw-swallow",
+          "sw-heal",
+          "sw-reset-heal",
+          "sw-anim-recover",
+          "entity-heal",
+          "state-heal",
+          "heal-wound",
+          "heal-guard",
+          "heal-mods",
+          "heal-cap",
+          "heal-grass"
+        ]
+      },
+      {
+        "kind": "damage",
+        "damageType": "SPECIAL",
+        "target": "each entity of a different team in the three front cells (branch 2, count.ult >= 3 and branch 1 false)",
+        "declaredRaw": {
+          "formula": "[40, 80, 150, 300][stars - 1] ?? 300",
+          "amountByStars": {
+            "1": 40,
+            "2": 80,
+            "3": 150,
+            "4": 300,
+            "fallback": 300
+          },
+          "note": "requested amount, raw; GULPIN (1 star) 40, SWALOT (2 stars) 80"
+        },
+        "perUnitAmount": {
+          "GULPIN": 40,
+          "SWALOT": 80
+        },
+        "scaling": "requested x (1 + AP/100) (apBoost default true) x crit multiplier only if the cast crit; one crit flag for every entity hit",
+        "resolution": "applied per entity: SPE_DEF division damage / (1 + 0.05 x speDef), minimum 1, then later handleDamage modifiers; protect / skydiving / magicBounce block the hit; takenDamage (shield included) is not used. Reached only when branch 1 did not trigger, so a spit never happens while HP < 25% and count.ult > 0",
+        "evidence": [
+          "sw-spit",
+          "sw-cells",
+          "sw-hit",
+          "sw-anim-swallow",
+          "special",
+          "special-blocked",
+          "special-ap",
+          "special-crit",
+          "dmg-reduction",
+          "armor-factor",
+          "in-front",
+          "orientation"
+        ]
+      },
+      {
+        "kind": "stat",
+        "target": "the caster (branch 3, neither of the above)",
+        "stat": "DEF and SPE_DEF",
+        "declaredRaw": {
+          "def": 3,
+          "speDef": 3,
+          "note": "requested +3 each, flat; the source comment says 1"
+        },
+        "scaling": "addDefense / addSpecialDefense with apBoost 0 and crit false: no AP or crit scaling; the value 3 is rounded, Big Eater Belt would give 3 x 1.25 = 3.75 rounded down to 3 (no change for this value), Twist Band does nothing to a positive value, floor 0; permanent is false so only the fight entity changes",
+        "resolution": "applied change = +3 DEF and +3 SPE_DEF on the caster's combat stats; the counter simply stays incremented (no reset), so the stacks are the count.ult value",
+        "evidence": [
+          "sw-stack",
+          "sw-comment",
+          "add-def",
+          "add-spedef",
+          "beb",
+          "twist",
+          "round-n"
+        ]
+      }
+    ],
+    "statusEffects": [],
+    "buffs": [
+      {
+        "stat": "DEF and SPE_DEF",
+        "target": "the caster",
+        "declaredRaw": {
+          "def": 3,
+          "speDef": 3
+        },
+        "note": "branch 3 only; see effects",
+        "evidence": [
+          "sw-stack"
+        ]
+      }
+    ],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "GULPIN": 1,
+        "SWALOT": 2
+      },
+      "damageByStars": {
+        "GULPIN": 40,
+        "SWALOT": 80
+      },
+      "healPercentByCounter": [
+        0,
+        20,
+        40,
+        60
+      ],
+      "note": "only the spit damage depends on the caster's stars (indexed pokemon.stars - 1, fallback 300; 150 and 300 are not reached by these units); the heal percentage depends on count.ult, the stockpile values and the thresholds do not depend on stars. maxPP 60 and range 1 for both.",
+      "evidence": [
+        "sw-spit",
+        "sw-heal",
+        "unit-gulpin",
+        "unit-swalot"
+      ]
+    },
+    "positionalConditions": "Branch choice is by the caster's HP and cast counter, not position. Only the spit uses the board: the target-facing orientation selects the front cells.",
+    "repeatedCastsAndModes": "State is count.ult (the caster's own cast counter): +1 at the start of every cast of this unit, reset to 0 by branch 1 and branch 2 only. Cycle without low HP: cast 1 -> counter 1 -> stockpile; cast 2 -> 2 -> stockpile; cast 3 -> 3 -> spit up, counter 0. Branch 1 can interrupt at any point when HP < 25% (the heal is 20% / 40% / 60% for counter 1 / 2 / 3); a spit due at counter 3 is replaced by the 60% heal if HP is low. Counter and branch 3's stat gains are not reset by each other: the +3 DEF/SPE_DEF stay until the fight ends. Another source of casts or a reset (the only other reset found is for VOLT_SURGE) was not found for these units.",
+    "rawVsResolved": "Requested heal 20 / 40 / 60 percent of maxHP by counter; applied = round(requested x modifiers above) capped at missing HP, blocked entirely by wound or status.protect (Blood Moon / Blood Stone may request a shield instead), Grass overheal adds 0.4 x overheal max HP. Requested spit 40 (GULPIN) / 80 (SWALOT); applied per entity after AP, crit, SPE_DEF division (min 1) and later handleDamage steps; takenDamage not used. Requested stockpile +3 DEF and +3 SPE_DEF; applied +3 each (Big Eater Belt rounds 3.75 down to 3). The source comment (+1, 'over 3 stacks') disagrees with the code (+3, counter >= 3 including the current cast); the code was followed.",
+    "sourceTables": [
+      {
+        "id": "swallowHealPercent",
+        "file": "app/core/abilities/swallow.ts",
+        "pattern": "\\(\\[([^\\]]+)\\]\\[pokemon\\.count\\.ult\\]",
+        "recordPath": "effects.0.declaredRaw.percentByCounter"
+      },
+      {
+        "id": "swallowSpitDamage",
+        "file": "app/core/abilities/swallow.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]",
+        "recordPath": "effects.1.declaredRaw.amountByStars",
+        "unitValuesPath": "effects.1.perUnitAmount"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+      "When the cast fires in a real fight (PP gain, canCast, targeting, range)",
+      "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)"
+    ],
+    "unresolved": [
+      "REFERENCES_OTHER_ABILITIES: Ability.RECOVER and Ability.SWALLOW appear only as broadcastAbility({ skill }) arguments (animation requests); no other ability strategy is called. What the client does with the broadcast was not read.",
+      "Consulted: SwallowStrategy, AbilityStrategy.process, castAbility, Board.getCellsInFront / orientation, PokemonState.handleHeal and addShield, PokemonEntity.addDefense / addSpecialDefense / handleSpecialDamage, applyBigEaterBeltStatBuff / applyTwistBandBuff, roundToNDigits and core-mechanics section J. Queue record: no dependencies.",
+      "OrientationVector / OrientationArray values were not read, so which exact three cells are 'in front' for each direction is not listed here",
+      "Whether anything other than the base process (and the VOLT_SURGE reset) changes count.ult for these units was searched by name across app/core and only the entries cited here were found; item or synergy effects that read it were not enumerated beyond that search",
+      "Real HP situations (how often HP < 25% happens) and the cast timing were not examined"
+    ],
+    "evidence": [
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry: Ability -> AbilityStrategy instance"
+      },
+      {
+        "id": "reg-sw",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1225,
+          1225
+        ],
+        "symbol": "AbilityStrategies[Ability.SWALLOW]",
+        "expect": "[Ability.SWALLOW]: new SwallowStrategy()",
+        "note": ""
+      },
+      {
+        "id": "base",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          33
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": "base process: spends maxPP, ult count, cast bookkeeping; requiresTarget defaults true, canCritByDefault false (lines 7-8)"
+      },
+      {
+        "id": "base-ult",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.count.ult += 1",
+        "note": "the cast counter is incremented BEFORE SwallowStrategy reads it, so the first cast already sees count.ult = 1"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          8,
+          31
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit is rolled only with the ABILITY_CRIT effect or canCritByDefault"
+      },
+      {
+        "id": "sw-base",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit, true)",
+        "note": "preventDefaultAnim = true: default animation suppressed; the branches broadcast their own"
+      },
+      {
+        "id": "sw-comment",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          15,
+          17
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "If over 3 stacks, spit up",
+        "note": "source comment only: says +1 DEF/SPE_DEF and 'over 3 stacks'; the code below does +3 and spits at count.ult >= 3 (counting the current cast)"
+      },
+      {
+        "id": "sw-swallow",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          18,
+          23
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "if (pokemon.hp < pokemon.maxHP * 0.25 && pokemon.count.ult > 0) {",
+        "note": "branch 1: hp strictly below 25% of maxHP and count.ult > 0; heals, resets count.ult"
+      },
+      {
+        "id": "sw-heal",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          19,
+          21
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "(([0, 20, 40, 60][pokemon.count.ult] ?? 60) * pokemon.maxHP) / 100",
+        "note": "requested heal = table[count.ult]% of maxHP, then handleHeal(heal, pokemon, 1, crit)"
+      },
+      {
+        "id": "sw-reset-heal",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "pokemon.count.ult = 0",
+        "note": "reset after the heal call, whether or not the heal was blocked"
+      },
+      {
+        "id": "sw-anim-recover",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          23,
+          23
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "pokemon.broadcastAbility({ skill: Ability.RECOVER })",
+        "note": "animation request only: RECOVER is not executed (no RECOVER strategy is called); this is the REFERENCES_OTHER_ABILITIES routing note"
+      },
+      {
+        "id": "sw-spit",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          24,
+          25
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "} else if (pokemon.count.ult >= 3) {",
+        "note": "branch 2: count.ult >= 3 (and branch 1 false); damage table by caster stars"
+      },
+      {
+        "id": "sw-cells",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "const cells = board.getCellsInFront(pokemon, target, 1)",
+        "note": "three cells in front of the caster, facing the cast target"
+      },
+      {
+        "id": "sw-hit",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          27,
+          37
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "cell.value.handleSpecialDamage(",
+        "note": "each entity of a different team in those cells takes SPECIAL damage; crit passed, apBoost default"
+      },
+      {
+        "id": "sw-anim-swallow",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          38,
+          39
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "pokemon.broadcastAbility({ skill: Ability.SWALLOW })",
+        "note": "animation request, then count.ult = 0"
+      },
+      {
+        "id": "sw-stack",
+        "file": "app/core/abilities/swallow.ts",
+        "lines": [
+          40,
+          43
+        ],
+        "symbol": "SwallowStrategy.process",
+        "expect": "pokemon.addSpecialDefense(3, pokemon, 0, false)",
+        "note": "branch 3: +3 DEF and +3 SPE_DEF to the caster (apBoost 0, no crit); the source comment says 1"
+      },
+      {
+        "id": "in-front",
+        "file": "app/core/board.ts",
+        "lines": [
+          188,
+          235
+        ],
+        "symbol": "Board.getCellsInFront",
+        "expect": "getCellsInFront(",
+        "note": "sets pokemon.orientation toward the target, uses that orientation plus the two neighbours in OrientationArray (indices +1 and +7 mod 8), one step, keeps cells on the board"
+      },
+      {
+        "id": "orientation",
+        "file": "app/core/board.ts",
+        "lines": [
+          99,
+          148
+        ],
+        "symbol": "Board.orientation",
+        "expect": "orientation(",
+        "note": "dx/dy sign of target minus caster; equal positions give a random orientation if the caster is confused, otherwise an error log and DOWNRIGHT"
+      },
+      {
+        "id": "add-def",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          674,
+          698
+        ],
+        "symbol": "PokemonEntity.addDefense",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": "AP/crit scaling and rounding, Big Eater Belt, Twist Band, floor at 0; permanent false"
+      },
+      {
+        "id": "add-spedef",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          700,
+          724
+        ],
+        "symbol": "PokemonEntity.addSpecialDefense",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": "same pipeline as addDefense"
+      },
+      {
+        "id": "beb",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1839,
+          1852
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+        "note": "own positive value x1.25 rounded down to an integer"
+      },
+      {
+        "id": "twist",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1854,
+          1866
+        ],
+        "symbol": "applyTwistBandBuff",
+        "expect": "value *= -1 // twist band turn debuffs into buffs",
+        "note": "only for negative values from the enemy; no effect on +3"
+      },
+      {
+        "id": "round-n",
+        "file": "app/utils/number.ts",
+        "lines": [
+          16,
+          28
+        ],
+        "symbol": "roundToNDigits",
+        "expect": "Math.floor(scaled)",
+        "note": "mode down = floor"
+      },
+      {
+        "id": "entity-heal",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          469,
+          476
+        ],
+        "symbol": "PokemonEntity.handleHeal",
+        "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+        "note": "wrapper"
+      },
+      {
+        "id": "state-heal",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          308,
+          380
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "handleHeal(",
+        "note": "branch order: wound -> (Blood Moon + Blood Stone: addShield request) -> hp > 0 && !protect guard -> modifiers -> round -> cap -> Grass overheal"
+      },
+      {
+        "id": "heal-wound",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          315,
+          331
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "if (pokemon.status.wound) {",
+        "note": "wounded: no healing; with Blood Moon and Blood Stones an addShield of round(0.3 x stones x heal) is requested"
+      },
+      {
+        "id": "heal-guard",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          333,
+          333
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+        "note": "status.protect (not runeProtect) blocks the heal"
+      },
+      {
+        "id": "heal-mods",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          334,
+          351
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+        "note": "modifier order: AP (apBoost 1 here), crit, BUFF_HEAL_RECEIVED x1.3, burn x0.5, enraged x0.5, Zenith x1.2"
+      },
+      {
+        "id": "heal-cap",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          353,
+          357
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "const healReceived = max(missingHP)(heal)",
+        "note": "round, then capped at missing HP; overheal = heal - missingHP"
+      },
+      {
+        "id": "heal-grass",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          373,
+          375
+        ],
+        "symbol": "PokemonState.handleHeal",
+        "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+        "note": "Grass synergy: overheal converts to max HP at 0.4 x overheal"
+      },
+      {
+        "id": "special",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          346,
+          353
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "apBoost = true",
+        "note": "default apBoost = true"
+      },
+      {
+        "id": "special-blocked",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          354,
+          358
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce block the hit"
+      },
+      {
+        "id": "special-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          399,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": "AP scaling for ability damage"
+      },
+      {
+        "id": "special-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          412,
+          433
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": "crit multiplier, reducible by target items"
+      },
+      {
+        "id": "dmg-reduction",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          559,
+          566
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": "SPECIAL damage divided by 1 + 0.05 x speDef; later modifiers not traced here"
+      },
+      {
+        "id": "armor-factor",
+        "file": "app/config/game/battle.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "ARMOR_FACTOR",
+        "expect": "export const ARMOR_FACTOR = 0.05",
+        "note": ""
+      },
+      {
+        "id": "ult-volt",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1552,
+          1554
+        ],
+        "symbol": "PokemonEntity (reset helper)",
+        "expect": "if (this.skill === Ability.VOLT_SURGE) {",
+        "note": "the only other reset of count.ult found by search is for VOLT_SURGE; not relevant to these units"
+      },
+      {
+        "id": "unit-gulpin",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          17516,
+          17516
+        ],
+        "symbol": "Gulpin",
+        "expect": "skill = Ability.SWALLOW",
+        "note": "unit class block: stars 1, maxPP 60"
+      },
+      {
+        "id": "unit-swalot",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          17535,
+          17535
+        ],
+        "symbol": "Swalot",
+        "expect": "skill = Ability.SWALLOW",
+        "note": "unit class block: stars 2, maxPP 60"
+      }
+    ],
+    "counterEvidence": {
+      "evidence": [
+        "base-ult",
+        "ult-volt"
+      ]
+    },
+    "unitEvidence": {
+      "GULPIN": {
+        "evidence": [
+          "unit-gulpin"
+        ]
+      },
+      "SWALOT": {
+        "evidence": [
+          "unit-swalot"
+        ]
+      }
+    }
+  }
+}
