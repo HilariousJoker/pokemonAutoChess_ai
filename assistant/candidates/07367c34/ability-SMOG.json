@@ -1,0 +1,656 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/SMOG",
+ "kind": "ability",
+ "identifier": "SMOG",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261106T003936Z"
+ },
+ "repairs": [
+  {
+   "runId": "run-20261023T200053Z",
+   "reason": "do not promise movement next to the farthest enemy: getFarthestTargetCoordinateAvailablePlace can retain a cell chosen for an earlier nearer enemy; the fallback runs only when selectedCell remains null",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "FLAME_CHARGE",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ],
+ "record": {
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "ability": "SMOG",
+  "scope": "The units in appliesTo declare Ability.SMOG in this production reference. GALARIAN_WEEZING also declares SMOG at the pinned commit but is not covered here (the queue record lists only KOFFING and WEEZING).",
+  "appliesTo": [
+   {
+    "key": "KOFFING",
+    "stars": 1,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "SMOG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WEEZING",
+    "stars": 2,
+    "maxPP": 60,
+    "range": 1,
+    "declaredSkill": "SMOG",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KOFFING": {
+    "evidence": [
+     "unit-koffing"
+    ]
+   },
+   "WEEZING": {
+    "evidence": [
+     "unit-weezing"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.SMOG] = new SmogStrategy()",
+   "strategy": "SmogStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "routing": "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved: Ability.SMOG (the identifier of this record) routes to SmogStrategy via the registry. EffectEnum.SMOG is a separate identifier (SMOG weather: +15 % dodge, -5 % per Smelly Clay) that SmogStrategy does not use; the strategy places EffectEnum.SMOKE instead.",
+   "evidence": [
+    "reg",
+    "reg-smog",
+    "base-flags",
+    "base-pp",
+    "cast-crit",
+    "pp-gate",
+    "smog-class",
+    "smog-super",
+    "ability-enum",
+    "effect-enum-smog",
+    "weather-map",
+    "sim-smog"
+   ]
+  },
+  "summary": "The caster turns toward its target and takes the cone of up to 3 adjacent cells in front of it (facing direction plus its two neighbouring directions, range 1, off-board cells dropped). Each cone cell, occupied or empty, gets the SMOKE board effect; each enemy-team unit standing on a cone cell at cast time takes SPECIAL damage (raw 10/20/40/80 by caster stars; KOFFING 1 star -> 10, WEEZING 2 stars -> 20). The SMOKE effect is also added to whoever stands on the cell (allies included, unless that unit holds Heavy Duty Boots) and to any unit that later walks onto the cell (unless it has IMMUNITY_BOARD_EFFECTS); while a unit has it (and no Heavy Duty Boots) updateAllStatus re-applies Blinded for 1000 ms whenever it is not blinded (not applied under Rune Protect; halved when enraged; reduced by status-duration reductions). A blinded attacker gives its target +0.5 dodge chance on that attack. The board effect has no expiry in addBoardEffect; the callers found that clear it are Tidal Wave, ICE_SPINNER and WATERFALL. Damage is requested raw x (1 + AP/100) [x crit factor], then the target's special-defense division (ceil, min 1) and shield handling inside handleDamage (the returned takenDamage includes shield damage). Name note: the SMOG weather effect (EffectEnum.SMOG) is a different mechanic and is not triggered by this ability.",
+  "targeting": {
+   "who": "enemy-team units on the cone cells (damage); every cone cell and its occupant or later visitor (SMOKE effect)",
+   "needsTarget": true,
+   "note": "requiresTarget stays true (default): the cast needs a target; the target only fixes the facing direction (it is hit only if it stands on a cone cell).",
+   "evidence": [
+    "base-flags",
+    "smog-cells",
+    "smog-enemy",
+    "smog-effect",
+    "orient"
+   ]
+  },
+  "geometry": {
+   "shape": "cone of up to 3 adjacent cells (facing direction and its two neighbouring directions), range 1; getCellsInFront is called with its default range of 1; off-board cells are dropped",
+   "evidence": [
+    "smog-cells",
+    "gcif",
+    "gcif-ok",
+    "orient"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage (SPECIAL, cone)",
+    "target": "each enemy-team unit on a cone cell at cast time",
+    "declaredRaw": {
+     "label": "raw special damage by caster stars",
+     "byStars": {
+      "1": 10,
+      "2": 20,
+      "3": 40,
+      "4": 80,
+      "fallback": 80
+     }
+    },
+    "perUnitRaw": {
+     "KOFFING": "10 (1 star)",
+     "WEEZING": "20 (2 stars)"
+    },
+    "scaling": "requested = raw x (1 + caster AP/100); x crit factor (1 + (critPower - 1) x the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false); then the target's special-defense division (reducedDamage = damage / (1 + 0.05 x speDef)), ceil, at least 1",
+    "resolution": "applied: handleSpecialDamage is blocked by protect / skydiving / magicBounce on the target; otherwise handleDamage applies shields and the special-defense division; takenDamage includes shield damage; the strategy ignores the returned values. The cell list carries the occupant read when getCellsInFront was called.",
+    "evidence": [
+     "smog-dmg",
+     "smog-enemy",
+     "smog-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "def-step",
+     "def-min",
+     "armor-factor",
+     "cast-crit"
+    ]
+   },
+   {
+    "kind": "board effect SMOKE (blind field)",
+    "target": "each cone cell; its occupant; later visitors",
+    "declaredRaw": {
+     "label": "blind duration re-applied by the effect, ms",
+     "value": 1000
+    },
+    "scaling": "fixed; the blinded duration is not AP-scaled (apBoost false, origin null)",
+    "resolution": "addBoardEffect adds the effect to the occupant unless it holds Heavy Duty Boots, records it on the cell once (the client broadcast happens only the first time); setEntityOnCell moves effects with units (gain on entering unless IMMUNITY_BOARD_EFFECTS, loss on leaving). updateAllStatus blinds a unit with the effect for 1000 ms when it is not blinded and has no Heavy Duty Boots; triggerBlinded does nothing if already blinded or Rune Protect; enraged halves the duration; duration reductions apply. Blinded: the blinded unit's target gets +0.5 dodge chance on its basic attacks. No expiry found: cleared by Tidal Wave, ICE_SPINNER, WATERFALL (other clearing not searched).",
+    "evidence": [
+     "smog-effect",
+     "effect-enum-smoke",
+     "board-add",
+     "board-move",
+     "board-leave",
+     "status-smoke",
+     "status-update",
+     "blind-fn",
+     "blind-dodge",
+     "clear-ice",
+     "clear-water",
+     "clear-tidal"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "blinded (indirect, via SMOKE board effect)",
+    "target": "units standing on or entering a smoked cell (allies and enemies)",
+    "durationMs": 1000,
+    "evidence": [
+     "status-smoke",
+     "blind-fn"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KOFFING": 1,
+    "WEEZING": 2
+   },
+   "declaredRawDamage": {
+    "KOFFING": 10,
+    "WEEZING": 20
+   },
+   "note": "only the damage depends on stars; the SMOKE effect and cone are star-independent. 3 stars (40) and 4+ (80) are not reachable by the listed units' bare factory stars. maxPP 60 and range 1 for both.",
+   "evidence": [
+    "smog-dmg",
+    "unit-koffing",
+    "unit-weezing"
+   ]
+  },
+  "positionalConditions": "Everything depends on the caster's position and on the direction toward the cast target: the affected cells are the up-to-three neighbours in that direction and the two adjacent directions, minus off-board cells. Damage needs an enemy-team unit on the cell at cast time; the SMOKE effect is placed regardless of occupancy.",
+  "repeatedCastsAndModes": "No modes. Each cast spends maxPP of PP, hits the cone again and re-adds SMOKE (a cell already holding it is not re-broadcast; occupants gain it again idempotently).",
+  "rawVsResolved": "Damage: raw 10 (KOFFING) / 20 (WEEZING) x (1 + AP/100) [x crit], then special-defense division (ceil, min 1) and shields in handleDamage; takenDamage counts shield damage. Blind: a recurring 1000 ms Blinded per update while on a smoked cell, subject to Heavy Duty Boots, Rune Protect, enrage halving and duration reductions.",
+  "sourceTables": [
+   {
+    "id": "smogDamage",
+    "file": "app/core/abilities/smog.ts",
+    "pattern": "\\[([^\\]]+)\\]\\[pokemon\\.stars",
+    "recordPath": "effects.0.declaredRaw.byStars"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL SPE_DEF division, the minimum of 1 and the shield step were read",
+   "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
+   "Whether anything besides Tidal Wave, ICE_SPINNER and WATERFALL clears board effects, and whether boardEffects persist beyond one simulation",
+   "Crit chance value and critPower; only the roll gate was located"
+  ],
+  "unresolved": [
+   "Consulted: core-mechanics §A/§H/§J, the LAVA_PLUME candidate (same getCellsInFront cone) and the FLAME_CHARGE candidate (damage resolution), plus Status/Board code at the pinned commit",
+   "GALARIAN_WEEZING declares SMOG too but is not listed in this record and is not covered",
+   "Routing: NAME_SHARED_WITH_EFFECT resolved from source (Ability.SMOG vs EffectEnum.SMOG are separate; the ability places EffectEnum.SMOKE) but no gameplay evidence confirms the weather and ability do not interact",
+   "Whether SMOKE on allied units (blinding them) is intended was not examined; it follows from addBoardEffect and updateAllStatus as read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     353
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect || this.status.skydiving || this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block ability damage (takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "def-step",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": ""
+   },
+   {
+    "id": "def-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "export const ARMOR_FACTOR = 0.05",
+    "note": ""
+   },
+   {
+    "id": "cast-crit",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault"
+   },
+   {
+    "id": "gcif",
+    "file": "app/core/board.ts",
+    "lines": [
+     188,
+     235
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "getCellsInFront(",
+    "note": "sets pokemon.orientation toward the target, then walks 3 orientations (facing, +1, -1 in OrientationArray) for `range` steps"
+   },
+   {
+    "id": "gcif-ok",
+    "file": "app/core/board.ts",
+    "lines": [
+     229,
+     229
+    ],
+    "symbol": "Board.getCellsInFront",
+    "expect": "if (this.isOnBoard(x, y)) {",
+    "note": "off-board cells are dropped"
+   },
+   {
+    "id": "orient",
+    "file": "app/core/board.ts",
+    "lines": [
+     99,
+     150
+    ],
+    "symbol": "Board.orientation",
+    "expect": "orientation(",
+    "note": "dx>0 RIGHT/UPRIGHT/DOWNRIGHT, dx<0 LEFT/..., dx==0 UP/DOWN; sign-based, so any non-axis offset becomes a diagonal"
+   },
+   {
+    "id": "unit-koffing",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12528,
+     12553
+    ],
+    "symbol": "class Koffing",
+    "expect": "skill = Ability.SMOG",
+    "note": "unit class block: 1 star, hp 65, maxPP 60, range 1"
+   },
+   {
+    "id": "unit-weezing",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12557,
+     12572
+    ],
+    "symbol": "class Weezing",
+    "expect": "skill = Ability.SMOG",
+    "note": "unit class block: 2 stars, hp 155, maxPP 60, range 1"
+   },
+   {
+    "id": "reg-smog",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1175,
+     1175
+    ],
+    "symbol": "AbilityStrategies[Ability.SMOG]",
+    "expect": "[Ability.SMOG]: new SmogStrategy()",
+    "note": "registry entry (Ability.SMOG)"
+   },
+   {
+    "id": "smog-class",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "SmogStrategy",
+    "expect": "export class SmogStrategy extends AbilityStrategy",
+    "note": "process(pokemon, board, target: PokemonEntity, crit); no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "smog-super",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "SmogStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "base process with the default animation; spends maxPP"
+   },
+   {
+    "id": "smog-cells",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "SmogStrategy.process",
+    "expect": "const cells = board.getCellsInFront(pokemon, target)",
+    "note": "cone cells, default range 1; also turns the caster toward the target"
+   },
+   {
+    "id": "smog-dmg",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "damage table",
+    "expect": "const damage = [10, 20, 40, 80][pokemon.stars - 1] ?? 80",
+    "note": "raw SPECIAL damage by caster stars; fallback 80"
+   },
+   {
+    "id": "smog-effect",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "SmogStrategy.process",
+    "expect": "board.addBoardEffect(cell.x, cell.y, EffectEnum.SMOKE, pokemon.simulation)",
+    "note": "every cone cell, occupied or not, gets the SMOKE board effect (EffectEnum.SMOKE, not EffectEnum.SMOG)"
+   },
+   {
+    "id": "smog-enemy",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "SmogStrategy.process",
+    "expect": "if (cell.value && cell.value.team !== pokemon.team) {",
+    "note": "damage only to an enemy-team unit standing on the cell"
+   },
+   {
+    "id": "smog-hit",
+    "file": "app/core/abilities/smog.ts",
+    "lines": [
+     21,
+     27
+    ],
+    "symbol": "SmogStrategy.process",
+    "expect": "AttackType.SPECIAL",
+    "note": "SPECIAL damage, caster as attacker, the cast's crit flag; apBoost default true"
+   },
+   {
+    "id": "ability-enum",
+    "file": "app/types/enum/Ability.ts",
+    "lines": [
+     447,
+     447
+    ],
+    "symbol": "Ability.SMOG",
+    "expect": "SMOG = \"SMOG\"",
+    "note": "the ability identifier"
+   },
+   {
+    "id": "effect-enum-smog",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     114,
+     114
+    ],
+    "symbol": "EffectEnum.SMOG",
+    "expect": "SMOG = \"SMOG\"",
+    "note": "separate EffectEnum member with the same name; used by the SMOG weather, not by the ability"
+   },
+   {
+    "id": "weather-map",
+    "file": "app/types/enum/Weather.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "WeatherEffects",
+    "expect": "[Weather.SMOG, EffectEnum.SMOG]",
+    "note": "Weather.SMOG maps to EffectEnum.SMOG"
+   },
+   {
+    "id": "sim-smog",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1291,
+     1303
+    ],
+    "symbol": "Simulation weather effect",
+    "expect": "0.15 - 0.05 * nbSmellyClays",
+    "note": "EffectEnum.SMOG: dodge +0.15 (-0.05 per SMELLY_CLAY of the opponent player); a different mechanic from the ability"
+   },
+   {
+    "id": "effect-enum-smoke",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     115,
+     115
+    ],
+    "symbol": "EffectEnum.SMOKE",
+    "expect": "SMOKE = \"SMOKE\"",
+    "note": "the board effect the ability places"
+   },
+   {
+    "id": "board-add",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     652
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "adds the effect to the occupant (unless HEAVY_DUTY_BOOTS) and records it on the cell; no expiry is set here"
+   },
+   {
+    "id": "board-move",
+    "file": "app/core/board.ts",
+    "lines": [
+     55,
+     62
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.add(effectOnNewCell)",
+    "note": "a unit moving onto a cell gains the cell's effects (unless IMMUNITY_BOARD_EFFECTS) and loses those of the cell it left"
+   },
+   {
+    "id": "board-leave",
+    "file": "app/core/board.ts",
+    "lines": [
+     49,
+     49
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.delete(effectOnPreviousCell)",
+    "note": "effects of the previous cell are removed from the mover"
+   },
+   {
+    "id": "status-smoke",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     203,
+     207
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "this.triggerBlinded(1000, pokemon, null)",
+    "note": "a unit with the SMOKE effect, not blinded and without HEAVY_DUTY_BOOTS, is blinded for 1000 ms"
+   },
+   {
+    "id": "status-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     893,
+     893
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "pokemon.status.updateAllStatus(dt, pokemon, board)",
+    "note": "runs on every state update"
+   },
+   {
+    "id": "blind-fn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1254,
+     1270
+    ],
+    "symbol": "Status.triggerBlinded",
+    "expect": "this.blindCooldown = Math.round(duration)",
+    "note": "not applied if already blinded or Rune Protect; enraged halves; duration reductions; no AP (apBoost false)"
+   },
+   {
+    "id": "blind-dodge",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     96,
+     98
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "dodgeChance += 0.5",
+    "note": "a blinded attacker's target gets +0.5 dodge chance for the attack"
+   },
+   {
+    "id": "clear-ice",
+    "file": "app/core/abilities/ice-spinner.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "IceSpinnerStrategy",
+    "expect": "board.clearBoardEffect(",
+    "note": "one caller that clears board effects"
+   },
+   {
+    "id": "clear-water",
+    "file": "app/core/abilities/waterfall.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "WaterfallStrategy",
+    "expect": "board.clearBoardEffect(",
+    "note": "another caller that clears board effects"
+   },
+   {
+    "id": "clear-tidal",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1784,
+     1784
+    ],
+    "symbol": "Simulation.triggerTidalWave",
+    "expect": "this.board.clearBoardEffect(x, y, this) // clear all effects",
+    "note": "Tidal Wave clears all effects on every cell"
+   }
+  ]
+ }
+}
