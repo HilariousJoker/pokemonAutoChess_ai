@@ -1,0 +1,512 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TOXIC",
+ "kind": "ability",
+ "identifier": "TOXIC",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T003952Z"
+ },
+ "record": {
+  "ability": "TOXIC",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare the ability TOXIC: Tentacool (1 star) and Tentacruel (2 stars); both maxPP 85, range 1, no declared passive. The strategy is shared; the unit difference is the star count. Routing: see the NAME_SHARED_WITH_EFFECT note.",
+  "appliesTo": [
+   {
+    "key": "TENTACOOL",
+    "stars": 1,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "TOXIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TENTACRUEL",
+    "stars": 2,
+    "maxPP": 85,
+    "range": 1,
+    "declaredSkill": "TOXIC",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TENTACOOL": {
+    "evidence": [
+     "unit-tentacool"
+    ]
+   },
+   "TENTACRUEL": {
+    "evidence": [
+     "unit-tentacruel"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TOXIC] = new ToxicStrategy()",
+   "strategy": "ToxicStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "No overrides: base defaults (target required, crit only with ABILITY_CRIT). Routing uncertainty NAME_SHARED_WITH_EFFECT: the string TOXIC also names EffectEnum.TOXIC, a different enum member used by the Poison synergy (top tier). The unit's skill is Ability.TOXIC and the registry maps that key to ToxicStrategy; the effect enum is never consulted for dispatch. The effect only matters inside triggerPoison, where an origin (the caster) that has EffectEnum.TOXIC raises the poison stack cap to 5.",
+   "evidence": [
+    "reg-tx",
+    "enum-ability",
+    "enum-effect",
+    "effect-sim",
+    "tx-class",
+    "tx-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "After spending PP, the strategy takes the living enemies (the target's team) sorted by Chebyshev distance from the CASTER, keeps the first 1/2/3/4 by caster stars (1 for Tentacool, 2 for Tentacruel) and calls triggerPoison(duration, enemy, caster) ONCE on each - one poison stack per selected enemy per cast. The requested duration is round(flat x (2 + AP/100) x critFactor) with flat 1500/3000/4500/9000 ms by stars (so 3000 / 6000 ms at AP 0 for these units) and critFactor 1 + (critPower - 1) x 0.5 only on an ability crit (crit needs the ABILITY_CRIT effect). Inside triggerPoison: the call does nothing if the enemy has IMMUNITY_POISON or Rune Protect; otherwise poisonOrigin = caster, stacks + 1 up to 3 (4 if the caster has VENOMOUS, 5 if the caster has the synergy effect EffectEnum.TOXIC), the duration passes through the enemy's reductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil / Surge Surfer x0.3; then Odd Keystone x(1 - 0.1 n) of the enemy's player), the poison timer is raised only if the new duration is longer than the remaining one (durations do not add), and Guts, Toxic Boost and Pecha Berry reactions can fire. The poison itself deals TRUE damage of round(5% max HP x stacks) every 1000 ms (details in the poison tick, shared with other poison abilities).",
+  "targeting": {
+   "who": "the closest living enemies to the caster, up to 1/2/3/4 by stars (Chebyshev distance from the caster, ties in row-major cell order)",
+   "needsTarget": true,
+   "note": "The cast target supplies only target.team and need not be among the enemies poisoned. If fewer enemies exist than the count, those are all poisoned.",
+   "evidence": [
+    "tx-closest",
+    "board-closest2",
+    "tx-count",
+    "tx-loop"
+   ]
+  },
+  "geometry": {
+   "shape": "no area: nearest-N selection by Chebyshev distance from the caster, no range limit",
+   "evidence": [
+    "tx-closest",
+    "board-closest2"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "status",
+    "status": "poison",
+    "target": "each selected enemy",
+    "declaredRaw": {
+     "durationMsByStars": {
+      "1": 1500,
+      "2": 3000,
+      "3": 4500,
+      "4": 9000,
+      "fallback": 9000
+     },
+     "apTerm": "2 + AP/100",
+     "countByStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "fallback": 4
+     },
+     "stacksPerCast": 1
+    },
+    "perUnitRaw": {
+     "TENTACOOL": {
+      "stars": 1,
+      "durationMsRaw": 1500,
+      "enemiesHit": 1
+     },
+     "TENTACRUEL": {
+      "stars": 2,
+      "durationMsRaw": 3000,
+      "enemiesHit": 2
+     }
+    },
+    "scaling": "requested duration = round(flat x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)); applied duration is that value after the enemy's status-duration reductions (Swift Swim / Hydration / Water Veil / Surge Surfer, Odd Keystone); the stack count is not scaled by AP or crit.",
+    "resolution": "requested duration -> applied duration inside triggerPoison -> poisonCooldown = max(current, applied). Stacks: +1 per call, capped at 3 / 4 (VENOMOUS caster) / 5 (caster with EffectEnum.TOXIC); no call does anything on IMMUNITY_POISON or Rune Protect. Poison damage per tick is a TRUE-damage handleDamage request of min(1)(round(5% max HP x stacks, with the listed reductions)); GLISCOR uses stacks - 2 and may heal instead. takenDamage includes shield damage.",
+    "evidence": [
+     "tx-flat",
+     "tx-ap",
+     "tx-crit",
+     "tx-count",
+     "tx-closest",
+     "tx-loop",
+     "poison-trig2",
+     "poison-guard2",
+     "poison-origin2",
+     "poison-add2",
+     "poison-dur2",
+     "reductions2",
+     "poison-react",
+     "tick2"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "poison",
+    "target": "each selected enemy",
+    "durationMsRaw": {
+     "TENTACOOL": 1500,
+     "TENTACRUEL": 3000
+    },
+    "note": "AP term 2 + AP/100 doubles the flat duration at 0 AP",
+    "evidence": [
+     "tx-ap",
+     "tx-loop",
+     "poison-dur2"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "TENTACOOL": 1,
+    "TENTACRUEL": 2
+   },
+   "enemiesHit": {
+    "TENTACOOL": 1,
+    "TENTACRUEL": 2
+   },
+   "flatDurationMs": {
+    "TENTACOOL": 1500,
+    "TENTACRUEL": 3000
+   },
+   "note": "Stars select both the flat duration and the number of enemies; 3 and 4 stars (4500/9000 ms, 3/4 enemies) are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "tx-flat",
+    "tx-count",
+    "unit-tentacool",
+    "unit-tentacruel"
+   ]
+  },
+  "positionalConditions": "Selection depends on the distance from the caster's cell at cast time; there is no range limit and no cell geometry.",
+  "repeatedCastsAndModes": "No stored state in the ability. Repeated casts add one stack per hit enemy per cast (up to the cap) and refresh the timer only when longer; a caster with the synergy effect EffectEnum.TOXIC can reach 5 stacks.",
+  "rawVsResolved": "Declared raw duration 1500/3000 ms (1/2 stars) is multiplied by (2 + AP/100) and the crit factor (requested), reduced per enemy by status-duration reductions (applied), and only extends the timer if longer than the current one. Stacks: always a request of +1 per selected enemy, bounded by the cap and nullified by immunity or Rune Protect.",
+  "sourceTables": [
+   {
+    "id": "flatDuration",
+    "file": "app/core/abilities/toxic.ts",
+    "pattern": "const flatDuration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.durationMsByStars",
+    "unitValuesPath": "statusEffects.0.durationMsRaw"
+   },
+   {
+    "id": "count",
+    "file": "app/core/abilities/toxic.ts",
+    "pattern": "const count = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.countByStars"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "The poison tick is read in status.ts (updatePoison) but its interaction with other effects was not traced beyond the listed modifiers"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: dispatch uses Ability.TOXIC -> ToxicStrategy; EffectEnum.TOXIC is a separate synergy effect that only changes the stack cap and the poison chance on basic attacks. Which Poison-synergy tier the caster actually has in a fight was not examined",
+   "Whether the attacker's cast target is always an enemy-team unit and how it is chosen (target selection state not re-read)",
+   "Positions at cast time depend on movement; no board example was worked",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-tentacool",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10062,
+     10080
+    ],
+    "symbol": "unit-tentacool",
+    "expect": "skill = Ability.TOXIC",
+    "note": "class Tentacool: stars 1, maxPP 85, range 1"
+   },
+   {
+    "id": "unit-tentacruel",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     10082,
+     10099
+    ],
+    "symbol": "unit-tentacruel",
+    "expect": "skill = Ability.TOXIC",
+    "note": "class Tentacruel: stars 2, maxPP 85, range 1"
+   },
+   {
+    "id": "reg-tx",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1252,
+     1252
+    ],
+    "symbol": "reg-tx",
+    "expect": "[Ability.TOXIC]: new ToxicStrategy()",
+    "note": "registry entry for the ABILITY identifier Ability.TOXIC"
+   },
+   {
+    "id": "enum-ability",
+    "file": "app/types/enum/Ability.ts",
+    "lines": [
+     524,
+     524
+    ],
+    "symbol": "enum-ability",
+    "expect": "TOXIC = \"TOXIC\"",
+    "note": "Ability.TOXIC"
+   },
+   {
+    "id": "enum-effect",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "enum-effect",
+    "expect": "TOXIC = \"TOXIC\"",
+    "note": "EffectEnum.TOXIC: a different enum with the same name (Poison synergy tier effect)"
+   },
+   {
+    "id": "effect-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1066,
+     1072
+    ],
+    "symbol": "effect-sim",
+    "expect": "case EffectEnum.TOXIC:",
+    "note": "EffectEnum.TOXIC is added to Poison-type units as a synergy effect"
+   },
+   {
+    "id": "tx-class",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "tx-class",
+    "expect": "export class ToxicStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "tx-super",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "tx-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "tx-flat",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "tx-flat",
+    "expect": "const flatDuration = [1500, 3000, 4500, 9000][pokemon.stars - 1] ?? 9000",
+    "note": ""
+   },
+   {
+    "id": "tx-ap",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "tx-ap",
+    "expect": "const durationWithAP = flatDuration * (2 + pokemon.ap / 100)",
+    "note": "AP term is 2 + AP/100, not 1 + AP/100"
+   },
+   {
+    "id": "tx-crit",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     15,
+     19
+    ],
+    "symbol": "tx-crit",
+    "expect": "(crit ? 1 + (pokemon.critPower - 1) * critScalingFactor : 1)",
+    "note": "crit scaling 0.5 of (critPower - 1); duration rounded"
+   },
+   {
+    "id": "tx-count",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "tx-count",
+    "expect": "const count = [1, 2, 3, 4][pokemon.stars - 1] ?? 4",
+    "note": ""
+   },
+   {
+    "id": "tx-closest",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     22,
+     26
+    ],
+    "symbol": "tx-closest",
+    "expect": "board.getClosestEnemies(",
+    "note": "closest living enemies of target.team by Chebyshev distance from the caster"
+   },
+   {
+    "id": "tx-loop",
+    "file": "app/core/abilities/toxic.ts",
+    "lines": [
+     28,
+     33
+    ],
+    "symbol": "tx-loop",
+    "expect": "enemy.status.triggerPoison(duration, enemy, pokemon)",
+    "note": "one triggerPoison call per selected enemy; caster is the origin"
+   },
+   {
+    "id": "board-closest2",
+    "file": "app/core/board.ts",
+    "lines": [
+     792,
+     807
+    ],
+    "symbol": "board-closest2",
+    "expect": "entity.team === enemyTeam && entity.hp > 0",
+    "note": "sorted by distanceC; stable sort keeps row-major order on ties"
+   },
+   {
+    "id": "poison-trig2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "poison-trig2",
+    "expect": "triggerPoison(",
+    "note": ""
+   },
+   {
+    "id": "poison-guard2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "poison-guard2",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "immunity or Rune Protect: the call does nothing"
+   },
+   {
+    "id": "poison-origin2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     579,
+     587
+    ],
+    "symbol": "poison-origin2",
+    "expect": "this.poisonOrigin = origin",
+    "note": "origin set; maxStacks 3, 4 with VENOMOUS, 5 with EffectEnum.TOXIC on the origin"
+   },
+   {
+    "id": "poison-add2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "poison-add2",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": ""
+   },
+   {
+    "id": "poison-dur2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     594
+    ],
+    "symbol": "poison-dur2",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "reductions then only if longer than the current poisonCooldown"
+   },
+   {
+    "id": "reductions2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1305
+    ],
+    "symbol": "reductions2",
+    "expect": "private applyStatusDurationReductions(",
+    "note": "Swift Swim x0.7 / Hydration x0.5 / Water Veil or Surge Surfer x0.3, then Odd Keystone x(1 - 0.1 n)"
+   },
+   {
+    "id": "poison-react",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     595,
+     613
+    ],
+    "symbol": "poison-react",
+    "expect": "pkm.eatBerry(Item.PECHA_BERRY)",
+    "note": "Guts / Toxic Boost passives and Pecha Berry reactions"
+   },
+   {
+    "id": "tick2",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     688
+    ],
+    "symbol": "tick2",
+    "expect": "updatePoison(dt: number, pkm: PokemonEntity, board: Board)",
+    "note": "tick: 5% max HP x stacks per 1000 ms, TRUE damage, expiry resets stacks"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
