@@ -1,0 +1,655 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TRANSE",
+ "kind": "ability",
+ "identifier": "TRANSE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T064033Z"
+ },
+ "record": {
+  "ability": "TRANSE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "DARMANITAN_ZEN and GALARIAN_DARMANITAN_ZEN declare TRANSE. The Zen-entering transform (passive effects) and the Headbutt ability that the units cast afterwards are not covered here. Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "DARMANITAN_ZEN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 5,
+    "declaredSkill": "TRANSE",
+    "declaredPassive": "DARMANITAN_ZEN",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GALARIAN_DARMANITAN_ZEN",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TRANSE",
+    "declaredPassive": "GALARIAN_DARMANITAN_ZEN",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "DARMANITAN_ZEN": {
+    "evidence": [
+     "unit-zen",
+     "unit-darm"
+    ]
+   },
+   "GALARIAN_DARMANITAN_ZEN": {
+    "evidence": [
+     "unit-gzen",
+     "unit-gdarm"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TRANSE] = new TranseStrategy()",
+   "strategy": "TranseStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-transe",
+    "tr-class",
+    "base-flags",
+    "base-pp",
+    "tr-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Self transformation from the Zen form back to the standard form, with no damage and no status on enemies. The branch is chosen by the entity's current name: GALARIAN_DARMANITAN_ZEN becomes GALARIAN_DARMANITAN (requested atk -6, speed +60, tree and untargettable cleared); any other caster (DARMANITAN_ZEN) becomes DARMANITAN (requested atk +10, speed +20, def -6, speDef -6, range minus 4 floored at 1, SPECIAL_ATTACKS effect removed). In both, index, name and passive are replaced, the skill becomes HEADBUTT, the unit then requests a heal of round(0.3 x maxHP) on itself (apBoost 0, no crit) and is put in the moving state with cooldown 0. All stat changes go through addAttack / addSpeed / addDefense / addSpecialDefense with apBoost 0 and no crit, on the combat entity only (permanent false). Requested values are not applied values: a held Big Eater Belt scales positive requests by 1.25 (rounded down) and also the negative requests (self is on the same team), so atk -6 becomes -8 and def / speDef -6 become -8; Twist Band never applies (the caster is the unit itself); atk is floored at 1, def and speDef at 0, speed clamped to 0..300; the heal is requested, then passes the wound branch, the status.protect guard (Rune Protect alone does not block it), the modifiers (Burn and enraged x0.5, BUFF_HEAL_RECEIVED x1.3, ZENITH x1.2) and the missing-HP cap, so the final HP gain can be 0. In the Darmanitan branch toMovingState still returns early while status.tree is set (that branch does not clear it).",
+  "targeting": {
+   "who": "the caster only",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true, so the cast follows the normal rule that a target in range is needed; the target argument is only passed to super.process (animation). How a Zen form gains PP while idle or in the tree state was not traced.",
+   "evidence": [
+    "tr-class",
+    "base-flags",
+    "pp-gate",
+    "tr-super"
+   ]
+  },
+  "geometry": {
+   "shape": "self",
+   "evidence": [
+    "tr-branch"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "transformation (name, index, passive, skill)",
+    "declaredRaw": {
+     "DARMANITAN_ZEN": "-> DARMANITAN, passive DARMANITAN, skill HEADBUTT",
+     "GALARIAN_DARMANITAN_ZEN": "-> GALARIAN_DARMANITAN, passive GALARIAN_DARMANITAN, skill HEADBUTT"
+    },
+    "scaling": "none; no AP or crit input",
+    "resolution": "changePassive removes the effect instances of the old passive and adds those of the new one only when the passive differs; the Zen passives' effects (on-hit lifesteal for DARMANITAN_ZEN, periodic burn and tree effect for GALARIAN_DARMANITAN_ZEN) stop, and the standard passives' damage-received transform effects become active. The skill is replaced by HEADBUTT in the same call.",
+    "evidence": [
+     "tr-g-form",
+     "tr-d-form",
+     "tr-skill",
+     "changepassive",
+     "zen-reg",
+     "tr-branch"
+    ]
+   },
+   {
+    "kind": "stat changes (self, combat entity only)",
+    "declaredRaw": {
+     "DARMANITAN_ZEN": {
+      "atk": 10,
+      "speed": 20,
+      "def": -6,
+      "speDef": -6,
+      "range": "-4 (min 1)"
+     },
+     "GALARIAN_DARMANITAN_ZEN": {
+      "atk": -6,
+      "speed": 60
+     }
+    },
+    "scaling": "requested value, apBoost 0 so no AP scaling, crit false so no critPower; each helper rounds (addAttack / addDefense / addSpecialDefense round to an integer, addSpeed does not) and then applies Big Eater Belt (x1.25, rounded down with Math.floor, so -6 gives -8 and +10 gives +12, +20 gives +25, +60 gives +75) and Twist Band (not triggered: negative values flip only when the caster is the environment or an enemy).",
+    "resolution": "Requested versus applied: atk is floored at 1 (atk + value), def and speDef at 0, speed clamped 0..300, so the applied change can be smaller than requested for an already low stat or a near-cap speed; range is set directly to max(1, range - 4) (not through a stat helper, so no belt or band). Because the helpers ignore the MELMETAL branch for these passives (the new passive is already set), speed stays speed. The Galarian branch does not remove SPECIAL_ATTACKS or touch range, def or speDef; it relies on tree and untargettable being cleared.",
+    "evidence": [
+     "tr-g-atk",
+     "tr-g-spd",
+     "tr-d-atk",
+     "tr-d-def",
+     "tr-d-range",
+     "addatk",
+     "adddef",
+     "addspedef",
+     "addspeed",
+     "addspeed-melmetal",
+     "belt",
+     "twist",
+     "round-down",
+     "max-speed",
+     "zen-d-transform",
+     "zen-g-transform"
+    ]
+   },
+   {
+    "kind": "effect removal (SPECIAL_ATTACKS)",
+    "declaredRaw": "Darmanitan branch only",
+    "scaling": "none",
+    "resolution": "effects.delete(EffectEnum.SPECIAL_ATTACKS) removes the effect that transformToDarmanitanZen added. The Galarian branch has no corresponding delete.",
+    "evidence": [
+     "tr-d-fx",
+     "zen-d-transform"
+    ]
+   },
+   {
+    "kind": "self heal (requested 30 % of max HP)",
+    "declaredRaw": "round(0.3 x maxHP), requested",
+    "scaling": "apBoost 0 and crit false, so the AP and critPower steps in handleHeal are skipped; the request is then modified in handleHeal's order: x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH weather, then Math.round.",
+    "resolution": "Requested = round(0.3 x maxHP). Branch order (core-mechanics section J2; probe SHARED_HELPERS): a wounded unit gets no HP (a Blood Moon plus Blood Stone owner gets an addShield request of round(0.3 x stones x heal) from the raw request instead); otherwise the hp > 0 and no status.protect guard (status.runeProtect alone is not tested, so Rune Protect does not block it); then the modifiers, the missing-HP cap (healReceived = min(maxHP - hp, heal)) and Grass overheal as addMaxHP(0.4 x overheal). The final HP gain is therefore at most the missing HP and can be 0. The heal call is made after the stat changes and does not depend on them; its return value is ignored here.",
+    "evidence": [
+     "tr-heal",
+     "heal-wrap",
+     "heal-state"
+    ]
+   },
+   {
+    "kind": "movement state reset",
+    "declaredRaw": "toMovingState(); cooldown = 0",
+    "scaling": "none",
+    "resolution": "toMovingState does nothing while status.tree is set or the passive is INANIMATE. The Galarian branch clears status.tree first, so the state changes; the Darmanitan branch does not touch tree, so a tree flag set by other means would keep the old state (cooldown is still set to 0 in both).",
+    "evidence": [
+     "tr-move",
+     "tomoving",
+     "tr-g-tree"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "tree / untargettable",
+    "target": "caster (Galarian branch only)",
+    "action": "set to false",
+    "note": "Darmanitan branch does not change either flag",
+    "evidence": [
+     "tr-g-tree",
+     "zen-g-transform"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "DARMANITAN_ZEN": 2,
+    "GALARIAN_DARMANITAN_ZEN": 2
+   },
+   "note": "No star-indexed table: values are fixed in the code and do not depend on the casting entity's stars. Both listed units are 2-star, maxPP 100; range 5 and 1.",
+   "evidence": [
+    "unit-zen",
+    "unit-gzen"
+   ]
+  },
+  "positionalConditions": "None in this strategy (the Zen transform that precedes it may teleport a Darmanitan, but that is in the passive, not here).",
+  "repeatedCastsAndModes": "After the cast the name, passive and skill are the standard form's (skill HEADBUTT), so TRANSE is not cast again unless the unit transforms back into a Zen form through the passive effects; this was not traced further. The name test is the only mode switch: any caster not named GALARIAN_DARMANITAN_ZEN takes the Darmanitan branch.",
+  "rawVsResolved": "Requested: atk +10 / speed +20 / def -6 / speDef -6 (Darmanitan) or atk -6 / speed +60 (Galarian); heal round(0.3 x maxHP). Applied: after Big Eater Belt (x1.25 rounded down, also on the negative requests), the atk floor of 1, def and speDef floors of 0 and the speed clamp 0..300; Twist Band does not apply. Final heal: after the wound branch, the status.protect guard, the modifier order and the missing-HP cap (Grass overheal as addMaxHP(0.4 x overheal)). Nothing returns damage, so takenDamage does not apply.",
+  "sourceTables": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How a Zen form gains PP and when the cast fires in a real fight (only the pp >= maxPP && canCast gate was read)",
+   "Whether other systems change name, passive or skill afterwards",
+   "What the speed stat does in combat (attack-speed formula) was not read for this record"
+  ],
+  "unresolved": [
+   "Routing uncertainty REFERENCES_OTHER_ABILITIES: the strategy only assigns Ability.HEADBUTT as the new skill; HEADBUTT's behaviour is a separate record and is not described here",
+   "Routing uncertainty RUNTIME_SKILL_CHANGE: the skill is changed at run time to HEADBUTT; nothing else in the strategy reassigns it",
+   "The passive text says the Darmanitan Zen form transforms back when fully healed; no HP condition exists in this strategy and the trigger that makes a Zen form reach maxPP and cast was not traced",
+   "Consulted: addAttack, addDefense, addSpecialDefense, addSpeed, applyBigEaterBeltStatBuff, applyTwistBandBuff, roundToNDigits, changePassive, toMovingState, PokemonState.handleHeal, core-mechanics sections I and J, the transformTo*Zen functions in passives.ts",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-zen",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16766,
+     16779
+    ],
+    "symbol": "class DarmanitanZen",
+    "expect": "skill = Ability.TRANSE",
+    "note": "stars 2, atk 14, speed 41, def 10, speDef 10, maxPP 100, range 5, passive DARMANITAN_ZEN"
+   },
+   {
+    "id": "unit-gzen",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16821,
+     16837
+    ],
+    "symbol": "class GalarianDarmanitanZen",
+    "expect": "skill = Ability.TRANSE",
+    "note": "stars 2, atk 30, speed 1, def 4, speDef 4, maxPP 100, range 1, passive GALARIAN_DARMANITAN_ZEN"
+   },
+   {
+    "id": "unit-darm",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16751,
+     16764
+    ],
+    "symbol": "class Darmanitan",
+    "expect": "skill = Ability.HEADBUTT",
+    "note": "normal form: atk 24, speed 61, def 4, speDef 4, range 1, passive DARMANITAN"
+   },
+   {
+    "id": "unit-gdarm",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16801,
+     16819
+    ],
+    "symbol": "class GalarianDarmanitan",
+    "expect": "passive = Passive.GALARIAN_DARMANITAN",
+    "note": "normal form (read for the destination form only)"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry"
+   },
+   {
+    "id": "reg-transe",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1253,
+     1253
+    ],
+    "symbol": "AbilityStrategies[Ability.TRANSE]",
+    "expect": "[Ability.TRANSE]: new TranseStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tr-class",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "TranseStrategy",
+    "expect": "export class TranseStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault are not overridden, so the base defaults (true / false) apply"
+   },
+   {
+    "id": "tr-super",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "TranseStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "PP spent, cast counted, default animation suppressed"
+   },
+   {
+    "id": "tr-branch",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "TranseStrategy.process",
+    "expect": "if (pokemon.name === Pkm.GALARIAN_DARMANITAN_ZEN)",
+    "note": "branch on the entity's current name; every other caster takes the else branch"
+   },
+   {
+    "id": "tr-g-form",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     19,
+     21
+    ],
+    "symbol": "TranseStrategy.process (Galarian)",
+    "expect": "pokemon.changePassive(Passive.GALARIAN_DARMANITAN)",
+    "note": "index, name, passive"
+   },
+   {
+    "id": "tr-g-tree",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     22,
+     23
+    ],
+    "symbol": "TranseStrategy.process (Galarian)",
+    "expect": "pokemon.status.untargettable = false",
+    "note": "tree and untargettable cleared"
+   },
+   {
+    "id": "tr-g-atk",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     24,
+     24
+    ],
+    "symbol": "TranseStrategy.process (Galarian)",
+    "expect": "pokemon.addAttack(-6, pokemon, 0, false)",
+    "note": "requested -6, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "tr-g-spd",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "TranseStrategy.process (Galarian)",
+    "expect": "pokemon.addSpeed(60, pokemon, 0, false)",
+    "note": "requested +60"
+   },
+   {
+    "id": "tr-d-form",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     27,
+     29
+    ],
+    "symbol": "TranseStrategy.process (Darmanitan)",
+    "expect": "pokemon.changePassive(Passive.DARMANITAN)",
+    "note": "index, name, passive"
+   },
+   {
+    "id": "tr-d-atk",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     30,
+     31
+    ],
+    "symbol": "TranseStrategy.process (Darmanitan)",
+    "expect": "pokemon.addSpeed(20, pokemon, 0, false)",
+    "note": "atk +10, speed +20"
+   },
+   {
+    "id": "tr-d-def",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     32,
+     33
+    ],
+    "symbol": "TranseStrategy.process (Darmanitan)",
+    "expect": "pokemon.addSpecialDefense(-6, pokemon, 0, false)",
+    "note": "def -6, speDef -6"
+   },
+   {
+    "id": "tr-d-range",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     34,
+     34
+    ],
+    "symbol": "TranseStrategy.process (Darmanitan)",
+    "expect": "pokemon.range = min(1)(pokemon.range - 4)",
+    "note": "range minus 4, floored at 1"
+   },
+   {
+    "id": "tr-d-fx",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     35,
+     35
+    ],
+    "symbol": "TranseStrategy.process (Darmanitan)",
+    "expect": "pokemon.effects.delete(EffectEnum.SPECIAL_ATTACKS)",
+    "note": "removes the effect the Zen transform added"
+   },
+   {
+    "id": "tr-skill",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "TranseStrategy.process",
+    "expect": "pokemon.skill = Ability.HEADBUTT",
+    "note": "skill replaced for the rest of the fight"
+   },
+   {
+    "id": "tr-heal",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     38,
+     38
+    ],
+    "symbol": "TranseStrategy.process",
+    "expect": "pokemon.handleHeal(Math.round(0.3 * pokemon.maxHP), pokemon, 0, false)",
+    "note": "requested heal 30 % of maxHP, rounded; apBoost 0, no crit"
+   },
+   {
+    "id": "tr-move",
+    "file": "app/core/abilities/transe.ts",
+    "lines": [
+     39,
+     40
+    ],
+    "symbol": "TranseStrategy.process",
+    "expect": "pokemon.cooldown = 0",
+    "note": "moving state and cooldown reset"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "addatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     746
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "round(value x (1+apBoost*AP/100) x crit) then Big Eater Belt, Twist Band; atk floored at 1; permanent false"
+   },
+   {
+    "id": "adddef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     694
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "def floored at 0"
+   },
+   {
+    "id": "addspedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     720
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "speDef floored at 0"
+   },
+   {
+    "id": "addspeed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     779
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "Big Eater Belt, Twist Band, MELMETAL branch, apBoost, clamp 0..300"
+   },
+   {
+    "id": "addspeed-melmetal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     762,
+     764
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "this.passive === Passive.MELMETAL",
+    "note": "not the case for either form: the passive at that point is DARMANITAN / GALARIAN_DARMANITAN (set earlier in the same process call)"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "applies to positive values and to negative values whose caster is on the same team (self here)"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "value *= -1",
+    "note": "only for negative values from the environment or an enemy; never from the unit itself"
+   },
+   {
+    "id": "round-down",
+    "file": "app/utils/number.ts",
+    "lines": [
+     16,
+     30
+    ],
+    "symbol": "roundToNDigits",
+    "expect": "Math.floor(scaled)",
+    "note": "mode down is Math.floor, so -7.5 becomes -8"
+   },
+   {
+    "id": "changepassive",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1767,
+     1795
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "this.effectsSet.delete(effect)",
+    "note": "removes the old passive's effect instances and adds the new passive's"
+   },
+   {
+    "id": "tomoving",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     487
+    ],
+    "symbol": "PokemonEntity.toMovingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": "no state change while tree or INANIMATE"
+   },
+   {
+    "id": "heal-wrap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": ""
+   },
+   {
+    "id": "heal-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     380
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect)",
+    "note": "wound branch, protect guard, modifiers, round, missing-HP cap, Grass overheal"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": ""
+   },
+   {
+    "id": "zen-d-transform",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     365,
+     382
+    ],
+    "symbol": "transformToDarmanitanZen",
+    "expect": "pokemon.addAttack(-10, pokemon, 0, false)",
+    "note": "the opposite changes (atk -10, speed -20, def +6, speDef +6, range +4, SPECIAL_ATTACKS added, pp 0, idle) that TRANSE undoes"
+   },
+   {
+    "id": "zen-g-transform",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     407,
+     428
+    ],
+    "symbol": "transformToGalarianDarmanitanZen",
+    "expect": "pokemon.status.tree = true",
+    "note": "tree and untargettable (cleared after 1500 ms by a DelayedCommand), atk +6, speed -60"
+   },
+   {
+    "id": "zen-reg",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1305,
+     1308
+    ],
+    "symbol": "PassiveEffects",
+    "expect": "[Passive.GALARIAN_DARMANITAN_ZEN]: [GalarianDarmanitanBurnEffect, treeEffect]",
+    "note": "passive registrations for the four passives involved"
+   }
+  ]
+ }
+}
