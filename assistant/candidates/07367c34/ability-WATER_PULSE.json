@@ -1,0 +1,624 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/WATER_PULSE",
+  "kind": "ability",
+  "identifier": "WATER_PULSE",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261107T123940Z"
+  },
+  "record": {
+    "ability": "WATER_PULSE",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "CLAUNCHER (1 star) and CLAWITZER (2 stars), the queued units (both carry passive MEGA_LAUNCHER).",
+    "appliesTo": [
+      {
+        "key": "CLAUNCHER",
+        "stars": 1,
+        "maxPP": 180,
+        "range": 4,
+        "declaredSkill": "WATER_PULSE",
+        "declaredPassive": "MEGA_LAUNCHER",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "CLAWITZER",
+        "stars": 2,
+        "maxPP": 180,
+        "range": 4,
+        "declaredSkill": "WATER_PULSE",
+        "declaredPassive": "MEGA_LAUNCHER",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "CLAUNCHER": {
+        "evidence": [
+          "unit-claunch"
+        ]
+      },
+      "CLAWITZER": {
+        "evidence": [
+          "unit-clawitzer"
+        ]
+      }
+    },
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.WATER_PULSE] = new WaterPulseStrategy()",
+      "strategy": "WaterPulseStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-wp",
+        "wp-class",
+        "base-flags",
+        "base-pp",
+        "wp-super",
+        "cast",
+        "pp-gate"
+      ]
+    },
+    "summary": "Area special damage centred on the cast target, with a per-unit chance of confusion. The area is the target's 8 neighbouring cells plus the target's own cell (getAdjacentCells with includesCenter true), filtered to units on the TARGET's team (the caster's enemies; the caster's own side is never hit). For each such unit, in getAdjacentCells order (row by row), the strategy rolls chance(0.3, caster): the caster's luck turns 0.3 into 0.3^(1 - luck/100), capped at 1; on success it requests status.triggerConfusion(2000, unit, caster) with apBoost default false (no AP scaling). It then requests handleSpecialDamage(damage, SPECIAL, caster, crit) on that unit regardless of the roll, with damage 70 (CLAUNCHER, 1 star) or 140 (CLAWITZER, 2 stars) as the REQUESTED amount. Confusion is refused when the unit is already confused, has Rune Protect or IMMUNITY_CONFUSION; otherwise SANDSTORM x1.3, status duration reductions and rounding give the applied duration, and a Persim Berry holder eats the berry (clearing the confusion again, adding IMMUNITY_CONFUSION, healing 50 and +10 SPE_DEF) while a PSYDUCK unit gains 100 AP. The damage is intermediate: AP and crit multiply it, handleDamage divides by the special-defense factor (minimum 1), shields and later modifiers follow; takenDamage (shield damage included) is not used. No caster heal, PP gain, shield or stat change is requested.",
+    "targeting": {
+      "who": "every unit on the target's team standing on the target's cell or its 8 neighbouring on-board cells",
+      "needsTarget": true,
+      "evidence": [
+        "wp-cells",
+        "wp-filter",
+        "wp-chance",
+        "wp-conf",
+        "wp-hit",
+        "adjacent",
+        "base-flags",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "3x3 block centred on the target (Board.getAdjacentCells with includesCenter true), clipped by the board edges",
+      "origin": "the target, not the caster",
+      "evidence": [
+        "wp-cells",
+        "adjacent"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "damageType": "SPECIAL",
+        "target": "each unit on the target's team in the 3x3 block (the target included)",
+        "declaredRaw": {
+          "byStars": {
+            "1": 70,
+            "2": 140,
+            "3": 280,
+            "4": 500,
+            "fallback": 500
+          }
+        },
+        "perUnitRaw": {
+          "CLAUNCHER": 70,
+          "CLAWITZER": 140
+        },
+        "scaling": "requested amount, same for every affected unit: handleSpecialDamage applies AP (x (1 + AP/100), apBoost default true) and the cast's crit flag (needs ABILITY_CRIT; canCritByDefault is false)",
+        "resolution": "intermediate, not guaranteed final HP loss: per unit handleDamage divides by that unit's special-defense factor (ceil, minimum 1), then shields, items and later modifiers follow; blocked per unit by protect / skydiving / magicBounce. The damage call follows the unit's own confusion roll and is made whether or not the confusion took effect. The requested amount (70 / 140), the AP-and-crit amount handed to handleDamage and the takenDamage (shield damage included) are three different numbers; the return value is unused (no heal, no kill effect). No stat helper is involved.",
+        "evidence": [
+          "wp-dmg",
+          "wp-hit",
+          "special",
+          "special-block",
+          "special-ap",
+          "special-crit",
+          "def-step",
+          "def-min",
+          "armor-factor",
+          "cast"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "confusion",
+        "target": "each unit in the area, independently",
+        "declaredRaw": {
+          "duration": 2000,
+          "chance": 0.3,
+          "unit": "ms (requested); chance is the base probability before luck"
+        },
+        "scaling": "none from AP or crit (apBoost false). Chance: chance(0.3, caster) = Math.random() < min(1, 0.3^(1 - caster.luck/100)); with luck 0 (both queued units) it is 0.3",
+        "applicationOrder": "units in getAdjacentCells order (top row to bottom row, left to right, centre included), each unit: roll, optional confusion, then damage; one random roll per unit",
+        "guards": "refused (no timer, no berry, no PSYDUCK bonus) when the unit is already confused (the existing timer is kept, there is no longer-timer rule), has runeProtect or IMMUNITY_CONFUSION; SANDSTORM weather x1.3; then applyStatusDurationReductions on that unit (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per ODD_KEYSTONE); Math.round. A PERSIM_BERRY holder eats the berry after a successful application (confusion cleared, IMMUNITY_CONFUSION added, heal 50, +10 SPE_DEF), so the status may last zero time; PSYDUCK gains +100 AP on success. Protect does not appear in the confusion guard.",
+        "combatEffect": "a confused unit chooses its attack target via getTargetWhenConfused: 50% (chance(0.5, unit)) it only considers valid enemies, otherwise allies are allowed too; candidates are the nearest ones within range + 1, and the orientation falls back to a random one when the target is on its own cell. On expiry updateConfusion clears the flag and resets the target. Other uses of status.confusion (confusion.ts ability, SPOT_PANDA bonus, passives.ts) were seen but not read.",
+        "evidence": [
+          "wp-chance",
+          "chance",
+          "wp-conf",
+          "conf-trig",
+          "conf-guard",
+          "conf-ap",
+          "conf-sand",
+          "conf-red",
+          "conf-set",
+          "conf-persim",
+          "conf-psyduck",
+          "persim",
+          "conf-update",
+          "conf-target",
+          "conf-target-def",
+          "reductions"
+        ],
+        "perUnitRaw": {
+          "CLAUNCHER": 2000,
+          "CLAWITZER": 2000
+        }
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "CLAUNCHER": 1,
+        "CLAWITZER": 2
+      },
+      "damageByStars": {
+        "CLAUNCHER": 70,
+        "CLAWITZER": 140
+      },
+      "note": "damage indexed by the caster's stars (pokemon.stars - 1), fallback 500; 280 and 500 are not reached by these units. Confusion chance (0.3) and duration (2000 ms) do not depend on stars. maxPP 180 and range 4 for both.",
+      "evidence": [
+        "wp-dmg",
+        "wp-chance",
+        "unit-claunch",
+        "unit-clawitzer"
+      ]
+    },
+    "positionalConditions": "The area is centred on the target; board edges clip the 3x3 block; only the target's team is affected. The caster's range (4) only governs the normal cast target.",
+    "repeatedCastsAndModes": "No state is kept. Each cast re-rolls every unit; a unit that is still confused keeps its remaining timer and cannot be re-confused. No modes.",
+    "rawVsResolved": "Requested: damage 70 / 140 to every enemy-team unit in the 3x3 block; confusion of 2000 ms with probability 0.3 (luck-adjusted) per unit. Applied: damage after AP, crit, per-unit special-defense division (min 1) and shields; confusion only on a successful roll and passing the guards, duration 2000 after SANDSTORM, reductions and rounding. No Big Eater Belt / Twist Band helper is involved because no stat is requested by the strategy (the Persim Berry and PSYDUCK side effects use their own calls).",
+    "sourceTables": [
+      {
+        "id": "waterPulseDamage",
+        "file": "app/core/abilities/water-pulse.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.byStars",
+        "unitValuesPath": "effects.0.perUnitRaw"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+      "When the cast fires in a real fight (PP gain, silence, targeting before the cast)",
+      "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+      "The sources of IMMUNITY_CONFUSION, SANDSTORM and the duration-reduction effects were not traced",
+      "Other uses of status.confusion (confusion.ts, SPOT_PANDA in pokemon-state.ts, passives.ts) were not read"
+    ],
+    "unresolved": [
+      "Consulted: WaterPulseStrategy, AbilityStrategy.process, castAbility, Board.getAdjacentCells, chance, Status.triggerConfusion / updateConfusion / applyStatusDurationReductions, eatBerry (Persim Berry), getTargetWhenConfused, handleSpecialDamage. The queue record lists no routing uncertainties.",
+      "Both units carry passive MEGA_LAUNCHER; its only reference found in app/core and app/models is a x3 scale in the Sound-synergy echo effect (synergies.ts), not read as part of this ability, so it is not known to change WATER_PULSE.",
+      "The luck of the caster is the only luck read; the damaged units' luck is not involved in the roll.",
+      "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg-wp",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1275,
+          1275
+        ],
+        "symbol": "AbilityStrategies[Ability.WATER_PULSE]",
+        "expect": "[Ability.WATER_PULSE]: new WaterPulseStrategy()",
+        "note": ""
+      },
+      {
+        "id": "wp-class",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          7,
+          7
+        ],
+        "symbol": "WaterPulseStrategy",
+        "expect": "export class WaterPulseStrategy extends AbilityStrategy",
+        "note": "requiresTarget / canCritByDefault not overridden"
+      },
+      {
+        "id": "wp-super",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default cast animation"
+      },
+      {
+        "id": "wp-dmg",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          15,
+          15
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": "const damage = [70, 140, 280, 500][pokemon.stars - 1] ?? 500",
+        "note": ""
+      },
+      {
+        "id": "wp-cells",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": ".getAdjacentCells(target.positionX, target.positionY, true)",
+        "note": "target's 8 neighbours plus the centre (includesCenter true)"
+      },
+      {
+        "id": "wp-filter",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          19,
+          19
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": ".filter((value): value is PokemonEntity => value?.team === target.team)",
+        "note": "only units on the target's team; empty cells drop out"
+      },
+      {
+        "id": "wp-chance",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          21,
+          21
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": "if (chance(0.3, pokemon)) {",
+        "note": "30% base, rolled per unit, with the CASTER as the luck source"
+      },
+      {
+        "id": "wp-conf",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": "v.status.triggerConfusion(2000, v, pokemon)",
+        "note": "pkm = the unit hit, origin = caster, apBoost default false"
+      },
+      {
+        "id": "wp-hit",
+        "file": "app/core/abilities/water-pulse.ts",
+        "lines": [
+          24,
+          24
+        ],
+        "symbol": "WaterPulseStrategy.process",
+        "expect": "v.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+        "note": "every matching unit, confused or not"
+      },
+      {
+        "id": "chance",
+        "file": "app/utils/random.ts",
+        "lines": [
+          3,
+          13
+        ],
+        "symbol": "chance",
+        "expect": "export function chance(",
+        "note": "probability ^ (1 - luck/100), capped at 1; probability 0 is always false"
+      },
+      {
+        "id": "conf-trig",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          178,
+          811
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "triggerConfusion(",
+        "note": ""
+      },
+      {
+        "id": "conf-guard",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          813,
+          813
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "!this.confusion &&",
+        "note": "refused when already confused, runeProtect, or IMMUNITY_CONFUSION"
+      },
+      {
+        "id": "conf-ap",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          554,
+          554
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+        "note": "apBoost false here: no AP scaling"
+      },
+      {
+        "id": "conf-sand",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          818,
+          820
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "if (pkm.simulation.weather === Weather.SANDSTORM) {",
+        "note": "SANDSTORM x1.3"
+      },
+      {
+        "id": "conf-red",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          346,
+          346
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+        "note": ""
+      },
+      {
+        "id": "conf-set",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          825,
+          825
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "this.confusionCooldown = Math.round(duration)",
+        "note": "no longer-timer rule: !this.confusion guard means a confused unit keeps its remaining timer"
+      },
+      {
+        "id": "conf-persim",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          827,
+          829
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "if (pkm.items.has(Item.PERSIM_BERRY)) {",
+        "note": "a Persim Berry holder eats it after a successful application"
+      },
+      {
+        "id": "conf-psyduck",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          831,
+          833
+        ],
+        "symbol": "Status.triggerConfusion",
+        "expect": "if (pkm.passive === Passive.PSYDUCK) {",
+        "note": "PSYDUCK passive: +100 AP (addAbilityPower, apBoost 0) on a successful application"
+      },
+      {
+        "id": "conf-update",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          837,
+          844
+        ],
+        "symbol": "Status.updateConfusion",
+        "expect": "updateConfusion(dt: number, pkm: PokemonEntity) {",
+        "note": "on expiry confusion clears and the target is reset"
+      },
+      {
+        "id": "persim",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1648,
+          1654
+        ],
+        "symbol": "PokemonEntity.eatBerry",
+        "expect": "case Item.PERSIM_BERRY:",
+        "note": "clears confusion and cooldown, adds IMMUNITY_CONFUSION, heal(50), +10 SPE_DEF"
+      },
+      {
+        "id": "conf-target",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          46,
+          46
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "target = this.getTargetWhenConfused(pokemon, board)",
+        "note": "a confused attacker picks its target via getTargetWhenConfused"
+      },
+      {
+        "id": "conf-target-def",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          1302,
+          1328
+        ],
+        "symbol": "PokemonState.getTargetWhenConfused",
+        "expect": "getTargetWhenConfused(",
+        "note": "50% chance (caster luck) to bypass; otherwise nearest unit within range+1 may include allies"
+      },
+      {
+        "id": "reductions",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1282,
+          1305
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "private applyStatusDurationReductions(",
+        "note": ""
+      },
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the flag is passed to every damage call"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          7
+        ],
+        "symbol": "AbilityStrategy",
+        "expect": "requiresTarget = true",
+        "note": "default flags: requiresTarget true, canCritByDefault false"
+      },
+      {
+        "id": "base-pp",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": ""
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": "cast with the current target when PP is full"
+      },
+      {
+        "id": "adjacent",
+        "file": "app/core/board.ts",
+        "lines": [
+          152,
+          163
+        ],
+        "symbol": "Board.getAdjacentCells",
+        "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+        "note": "Board.getAdjacentCells (the candidate cited 143-152, which ends at the function's first line)"
+      },
+      {
+        "id": "special",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          346,
+          353
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "apBoost = true",
+        "note": "handleSpecialDamage signature with apBoost = true"
+      },
+      {
+        "id": "special-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          354,
+          358
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce block"
+      },
+      {
+        "id": "special-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": ""
+      },
+      {
+        "id": "special-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": ""
+      },
+      {
+        "id": "def-step",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": ""
+      },
+      {
+        "id": "def-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": ""
+      },
+      {
+        "id": "armor-factor",
+        "file": "app/config/game/battle.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "ARMOR_FACTOR",
+        "expect": "export const ARMOR_FACTOR = 0.05",
+        "note": ""
+      },
+      {
+        "id": "unit-claunch",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          12600,
+          12615
+        ],
+        "symbol": "Clauncher",
+        "expect": "export class Clauncher extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      },
+      {
+        "id": "unit-clawitzer",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          12617,
+          12631
+        ],
+        "symbol": "Clawitzer",
+        "expect": "export class Clawitzer extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      }
+    ]
+  }
+}
