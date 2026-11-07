@@ -1,0 +1,463 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TWIN_BEAM",
+ "kind": "ability",
+ "identifier": "TWIN_BEAM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T064033Z"
+ },
+ "record": {
+  "ability": "TWIN_BEAM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "GIRAFARIG (1 star) and FARIGIRAF (2 stars) declare TWIN_BEAM (no passive in the catalog). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "GIRAFARIG",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWIN_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "FARIGIRAF",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWIN_BEAM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GIRAFARIG": {
+    "evidence": [
+     "unit-girafarig"
+    ]
+   },
+   "FARIGIRAF": {
+    "evidence": [
+     "unit-farigiraf"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TWIN_BEAM] = new TwinBeamStrategy()",
+   "strategy": "TwinBeamStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-tb",
+    "tb-class",
+    "base-flags",
+    "base-pp",
+    "tb-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Two special-damage beams, each a straight line from the caster's cell. The cast's own target argument is not used. Beam 1 goes through the targetable enemy that is farthest from the caster (strictly greater Manhattan distance wins, so the first scanned of equal distance is kept; untargettable units are skipped). Beam 2 goes through the targetable enemy (targetable by the caster) that is farthest from beam 1's target; that is chosen after beam 1 has already damaged, so a unit killed by beam 1 may or may not still be on the board (removal timing not traced). Each beam covers the supercover cells from the caster toward the target extended 12 cells (to the board edge), and every entity of the other team on those cells takes handleSpecialDamage(damage, SPECIAL, attacker = caster, crit = the cast's crit flag); the caster's own cell and allies are skipped. Requested damage per beam = 30 (1 star) / 60 (2 stars) from the table [30, 60, 100, 200] by the caster's stars. An enemy standing on both lines is hit twice. With no targetable enemy at distance > 0 nothing happens (PP is still spent); with only one such enemy only beam 1 fires. handleSpecialDamage adds AP (damage + damage x AP/100), then DOUBLE_DAMAGE (x2, consumed), STRANGE_STEAM_BOARD_EFFECT (x1.2) and on an ability crit 1 + (critPower - 1) x the target's crit reduction (Rocky Helmet 0, 0.1 less per Black Augurite); crit exists only with ABILITY_CRIT (canCritByDefault false). handleDamage then divides special damage by (1 + 0.05 x SPE_DEF), rounds up with a minimum of 1 (core-mechanics section A) and lets shields absorb first. Protect, skydiving or magic bounce on a hit unit block that hit.",
+  "targeting": {
+   "who": "all enemy-team entities on two lines from the caster, aimed at the farthest targetable enemy and at the enemy farthest from it",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true, so the cast follows the normal rule that a target in range is needed; the passed target is not used to aim. Line cells are not filtered by targettability, so an untargettable enemy on a line is still hit.",
+   "evidence": [
+    "tb-class",
+    "base-flags",
+    "tb-first",
+    "tb-second",
+    "farthest",
+    "targettable"
+   ]
+  },
+  "geometry": {
+   "shape": "two lines (supercover) from the caster's cell toward two chosen enemies, extended 12 cells, clipped to the board",
+   "rule": "angle = atan2 from the caster to the target; the end point is rounded to the nearest cell; the line includes cells the straight path crosses at corners (getCellsBetween); beams may overlap",
+   "evidence": [
+    "tb-first",
+    "tb-second-line",
+    "effectinline",
+    "cellsbetween"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special damage (two beams, every enemy on each line)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 100,
+      "4": 200,
+      "fallback": 200
+     }
+    },
+    "perUnitRaw": {
+     "GIRAFARIG": 30,
+     "FARIGIRAF": 60
+    },
+    "scaling": "requested damage x (1 + AP/100) (apBoost true by default), x2 DOUBLE_DAMAGE (consumed by the first hit), x1.2 STRANGE_STEAM_BOARD_EFFECT on either side, x (1 + (critPower - 1) x reduction) on an ability crit; the 100 and 200 entries are not reachable by the two listed units.",
+    "resolution": "Requested = table value; downstream request = scaled special damage; applied = PokemonState.handleDamage: divided by (1 + 0.05 x SPE_DEF), rounded up with a minimum of 1, shields absorb before HP; takenDamage (shield damage included) is not used by this strategy. A target with status.protect, skydiving or magic bounce takes 0 from that hit and spellBlockedCount increments; a dead or resurrecting target takes 0. Nothing is healed or applied besides damage; no status.",
+    "evidence": [
+     "tb-damage",
+     "tb-first-hit",
+     "tb-second-line",
+     "special-guard",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "handle-dead",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "target selection (farthest and farthest-from-it)",
+    "declaredRaw": "getFarthestTarget(caster) then getFarthestTarget(firstTarget, targettableBy caster)",
+    "scaling": "none",
+    "resolution": "distance is distanceM (Manhattan) from the first argument; candidates must satisfy isTargettableBy(caster) (enemy, not untargettable, or a MERCILESS-eligible unit with hp <= 10); a candidate at distance 0 is never chosen. The strategy broadcasts one animation per beam.",
+    "evidence": [
+     "farthest",
+     "targettable",
+     "manhattan",
+     "tb-second",
+     "tb-broadcast"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "GIRAFARIG": 1,
+    "FARIGIRAF": 2
+   },
+   "declaredRawDamage": {
+    "GIRAFARIG": 30,
+    "FARIGIRAF": 60
+   },
+   "note": "damage table indexed by the casting entity's stars; the number of beams (2) does not depend on stars.",
+   "evidence": [
+    "tb-damage",
+    "unit-girafarig",
+    "unit-farigiraf"
+   ]
+  },
+  "positionalConditions": "Both beams start at the caster's own cell and follow the line toward their targets; which enemies are hit depends on the positions at the moment of the cast (beam 2 is aimed after beam 1's damage has been dealt).",
+  "repeatedCastsAndModes": "No stored state. Each cast re-selects both targets.",
+  "rawVsResolved": "Requested: 30 (GIRAFARIG) or 60 (FARIGIRAF) special damage per beam to each enemy on the line. Downstream: scaled by AP, Double Damage, Strange Steam and crit. Applied: reduced by the target's SPE_DEF (ceil, minimum 1), shields first, or 0 when blocked by protect / skydiving / magic bounce / death; an enemy on both lines is hit twice. No heal, PP change or shield for the caster, so the heal, PP and Grass overheal rules (section J) do not apply and takenDamage is not used.",
+  "sourceTables": [
+   {
+    "id": "twinBeamDamage",
+    "file": "app/core/abilities/twin-beam.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "When a unit killed by beam 1 is removed from the board relative to beam 2's target selection",
+   "Order in which Board.forEach visits cells (ties for equal distance)",
+   "What handleDamage does for status effects, items and synergies not traced one by one (section A caveats)",
+   "How a cast is triggered when the passed target is not used for aiming (generic cast gate only)"
+  ],
+  "unresolved": [
+   "Consulted: getFarthestTarget, isTargettableBy, effectInLine, getCellsBetween, handleSpecialDamage, handleDamage (early returns only), the corrected sibling records for the shared farthest-target helper (FLAME_CHARGE, VOLT_SWITCH) and the line helper (SOLAR_BEAM), core-mechanics sections A, H and J",
+   "The Power Lens retaliation and magic-bounce reflect inside handleSpecialDamage were read but not worked through",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-girafarig",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18359,
+     18377
+    ],
+    "symbol": "class Girafarig",
+    "expect": "skill = Ability.TWIN_BEAM",
+    "note": "1 star, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "unit-farigiraf",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18379,
+     18396
+    ],
+    "symbol": "class Farigiraf",
+    "expect": "skill = Ability.TWIN_BEAM",
+    "note": "2 stars, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-tb",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1261,
+     1261
+    ],
+    "symbol": "AbilityStrategies[Ability.TWIN_BEAM]",
+    "expect": "[Ability.TWIN_BEAM]: new TwinBeamStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tb-class",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "TwinBeamStrategy",
+    "expect": "export class TwinBeamStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault are not overridden (base true / false)"
+   },
+   {
+    "id": "tb-super",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "PP spent, cast counted, default animation suppressed (the strategy broadcasts its own)"
+   },
+   {
+    "id": "tb-damage",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "const damage = [30, 60, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "requested damage per beam by the caster's stars"
+   },
+   {
+    "id": "tb-first",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     19,
+     31
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "pokemon.state.getFarthestTarget(pokemon, board)",
+    "note": "first beam: line from the caster through the farthest targetable enemy; each enemy-team entity on the line takes the damage"
+   },
+   {
+    "id": "tb-first-hit",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     22,
+     29
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker the caster, the cast's crit flag"
+   },
+   {
+    "id": "tb-second",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     38,
+     42
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "pokemon.state.getFarthestTarget(",
+    "note": "second target: the targetable enemy farthest from the FIRST target, targetable by the caster"
+   },
+   {
+    "id": "tb-second-line",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     43,
+     54
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "effectInLine(board, pokemon, oppositeFarthestTarget",
+    "note": "second beam: also a line from the caster, same damage"
+   },
+   {
+    "id": "tb-broadcast",
+    "file": "app/core/abilities/twin-beam.ts",
+    "lines": [
+     32,
+     36
+    ],
+    "symbol": "TwinBeamStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation per beam"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "farthest",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1199,
+     1217
+    ],
+    "symbol": "PokemonState.getFarthestTarget",
+    "expect": "if (enemy && enemy.isTargettableBy(targettableBy)) {",
+    "note": "scans board.forEach; keeps the strictly farthest by distanceM from the first argument; returns undefined if none has distance > 0"
+   },
+   {
+    "id": "targettable",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     274,
+     287
+    ],
+    "symbol": "PokemonEntity.isTargettableBy",
+    "expect": "!this.status.untargettable &&",
+    "note": "default enemies only; untargettable excluded; MERCILESS exception for units with hp <= 10"
+   },
+   {
+    "id": "effectinline",
+    "file": "app/core/board.ts",
+    "lines": [
+     920,
+     940
+    ],
+    "symbol": "effectInLine",
+    "expect": "const distance = 12",
+    "note": "line from the caster's cell toward the target, extended 12 cells (rounded end point), via getCellsBetween"
+   },
+   {
+    "id": "cellsbetween",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     346
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "getCellsBetween(x0: number, y0: number, x1: number, y1: number) {",
+    "note": "supercover line: caster's own cell first, off-board cells skipped, each cell carries the entity on it"
+   },
+   {
+    "id": "special-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving, magic bounce block the hit"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     401
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     410,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor with Rocky Helmet / Black Augurite reduction"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     434,
+     441
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "handle-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "ARMOR_FACTOR",
+    "note": ""
+   },
+   {
+    "id": "manhattan",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": ""
+   }
+  ]
+ }
+}
