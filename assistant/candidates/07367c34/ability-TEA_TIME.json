@@ -1,0 +1,644 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TEA_TIME",
+ "kind": "ability",
+ "identifier": "TEA_TIME",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T003952Z"
+ },
+ "record": {
+  "ability": "TEA_TIME",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare TEA_TIME: Sinistea (1 star) and Polteageist (2 stars); both maxPP 100, range 2, no declared passive. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "SINISTEA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "TEA_TIME",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "POLTEAGEIST",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "TEA_TIME",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SINISTEA": {
+    "evidence": [
+     "unit-sinistea"
+    ]
+   },
+   "POLTEAGEIST": {
+    "evidence": [
+     "unit-polteageist"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TEA_TIME] = new TeaTimeStrategy()",
+   "strategy": "TeaTimeStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "note": "requiresTarget is overridden to false, so the moving state casts it whenever pp >= maxPP and canCast, with target null, without walking to an enemy. canCritByDefault stays false: crit is rolled only with the ABILITY_CRIT effect.",
+   "evidence": [
+    "reg-tt",
+    "tt-class",
+    "tt-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "moving-cast"
+   ]
+  },
+  "summary": "After spending PP (a visual ability broadcast is sent at each ally cell), every unit of the caster's team on the board (the caster included) is visited in row-major order (rows y outer, columns x inner). For each one: (1) handleHeal(raw 15/30/60/120 by caster stars, caster, apBoost 1, crit) - the requested amount scales with the caster's AP, with critPower only if the cast crit (ability crit only), and then goes through handleHeal's branches: a wounded ally takes the wound branch (no HP; with BLOODMOON weather and a Blood Stone owned by its player it requests addShield(round(0.3 x stones x the raw requested heal), ally, apBoost 1, crit)); otherwise an ally with status.protect gets nothing (Rune Protect alone does not block); otherwise the modifiers (x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH), rounding and the missing-HP cap apply, and a GRASS-synergy ally's overheal requests addMaxHP(0.4 x overheal). (2) Then, in the same iteration, the FIRST berry found among that ally's held items (in item order; Berries = 20 ordinary + Nanab, Golden Razz, Golden Nanab, Golden Pinap; Berry Juice is not in the list) is eaten with eatBerry(berry): its own heal (usually 50, 100 for Pecha and Sitrus, 50% of max HP at least 50 for Aguav and the golden berries) uses apBoost 0 and no crit, so it is NOT AP-scaled, still goes through handleHeal's wound/protect/modifier/cap branches (the berry is consumed even if the heal gives nothing), and the berry's extra effect and the post-berry effects (Glutton, Berry Juice shield, Overgrow) apply. At most one berry per ally per cast.",
+  "targeting": {
+   "who": "all allies on the board (same team), including the caster; no range or adjacency",
+   "needsTarget": false,
+   "note": "Cells are tested with tg && pokemon.team == tg.team. Enemies and empty cells are skipped. The cast does not use a target (null may be passed).",
+   "evidence": [
+    "tt-scan",
+    "tt-anim",
+    "board-foreach",
+    "moving-cast"
+   ]
+  },
+  "geometry": {
+   "shape": "whole board, no geometry; scan order is row-major (y outer loop, x inner loop), which fixes the order in which allies are healed and eat berries",
+   "evidence": [
+    "board-foreach",
+    "tt-scan"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "heal",
+    "target": "every allied unit on the board, caster included",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "SINISTEA": 15,
+     "POLTEAGEIST": 30
+    },
+    "scaling": "requested = table value (raw, per ally). applied by PokemonState.handleHeal with apBoost 1: x(1 + AP/100) of the caster; x critPower if the cast crit; x1.3 with BUFF_HEAL_RECEIVED (e.g. from an earlier Sitrus); x0.5 when burning; x0.5 when enraged; x1.2 under ZENITH weather; rounded; capped to the ally's missing HP (healReceived); the rest is overheal, which on a GRASS-synergy ally requests addMaxHP(0.4 x overheal) (a request: addMaxHP's own helpers decide the final change).",
+    "resolution": "requested (raw) -> applied (after modifiers and rounding) -> healReceived (after the missing-HP cap; only healReceived raises hp and counts into the caster's healDone). Wound branch comes first: a wounded ally gets 0 HP and returns before the Protect test; with BLOODMOON weather and a Blood Stone held by that ally's player the branch requests addShield(round(0.3 x stones x raw requested heal), ally, apBoost 1, crit) (the ally is the shield's caster, so its own AP and critPower scale the request; Big Eater Belt x1.25 rounded down is applied by the entity addShield helper). status.protect on an unwounded ally gives 0; status.runeProtect is not read. A dead ally (hp <= 0) gets 0. Per-star: 1 star = 15, 2 stars = 30 raw.",
+    "evidence": [
+     "tt-table",
+     "tt-scan",
+     "tt-heal",
+     "ent-heal",
+     "hh-fn",
+     "hh-wound",
+     "hh-prot",
+     "hh-scale",
+     "hh-crit",
+     "hh-mods",
+     "hh-round",
+     "hh-cap",
+     "sh-bs",
+     "sh-bs-shield",
+     "sh-grass",
+     "sh-addmaxhp",
+     "sh-addshield-ent",
+     "sh-addshield-state",
+     "sh-bigeater"
+    ]
+   },
+   {
+    "kind": "berry-eating",
+    "target": "each allied unit that holds at least one berry (first berry in item order only)",
+    "declaredRaw": {
+     "note": "eatBerry(berry) with default arguments: no stealedFrom, healToShield false, apScaling 0, crit false"
+    },
+    "scaling": "The berry heal is handleHeal(val, ally, 0, false): not AP-scaled and never crit-scaled, but it is subject to the same wound/protect/modifier/rounding/cap/Grass-overheal steps as the tea heal. Typical values: 50 for most berries, 100 for Pecha and Sitrus, min(50)(0.5 x maxHP) i.e. at least 50 for Aguav and the golden berries (Golden Razz/Nanab/Pinap).",
+    "resolution": "Per berry (eat-switch): Aguav confusion 3000 ms; Apicot +20 SPE_DEF; Aspear unfreeze + freeze immunity + 15 speed; Cheri heals paralysis + immunity + 10 attack; Chesto clears sleep + immunity + 50 AP; Ganlon +20 DEF; Jaboca spike armor 10000 ms; Lansat +50 crit chance; Leppa +50 PP; Liechi +15 attack; Lum clears negative status and Rune Protect 5000 ms; Oran heal 50 then addShield(80, apBoost 0); Pecha heal 100 + poison reset + immunity; Persim heals confusion + immunity + 10 SPE_DEF; Petaya +80 AP; Rawst heals burn + immunity + 10 DEF; Rowap magic bounce 10000 ms; Salac +50 speed; Sitrus adds BUFF_HEAL_RECEIVED THEN heals 100 (so its own heal is x1.3); Babiri heal 50 + protect 2000 ms; Nanab heal 50 + 1 gold (player, not ghost battle); Golden Nanab +5 gold; Golden Razz +6 free rolls; Golden Pinap +3 random sweets. Each stat/PP/shield amount is a REQUEST to the stat helpers (applyBigEaterBeltStatBuff x1.25 rounded down for positive changes of a Big Eater Belt holder; Twist Band only reverses negatives from enemies/environment); the applied change can differ. After the switch the berry is removed (removeItem(berry, true)); Glutton passive adds +10 HP stat; BERRY_JUICE effect adds a 100 shield; OVERGROW effect adds +50 AP.",
+    "evidence": [
+     "tt-berry",
+     "berries-list",
+     "eat-fn",
+     "eat-switch",
+     "eat-sitrus",
+     "eat-oran",
+     "eat-remove",
+     "eat-after"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "effect": "only through berries: confusion (Aguav), freeze/paralysis/sleep/burn/poison/confusion cures (Aspear, Cheri, Chesto, Rawst, Pecha, Persim), Lum clears negative status and sets Rune Protect; Babiri sets protect 2000 ms; Jaboca spike armor; Rowap magic bounce",
+    "evidence": [
+     "eat-switch"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [
+   {
+    "effect": "Oran berry shield 80 (request, apBoost 0); Berry Juice effect shield 100; Blood Moon + Blood Stone wound-branch request",
+    "evidence": [
+     "eat-oran",
+     "eat-after",
+     "sh-bs-shield"
+    ]
+   }
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "SINISTEA": 1,
+    "POLTEAGEIST": 2
+   },
+   "declaredRawHeal": {
+    "SINISTEA": 15,
+    "POLTEAGEIST": 30
+   },
+   "note": "Indexed by the casting entity's stars; 60 and 120 are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "tt-table",
+    "unit-sinistea",
+    "unit-polteageist"
+   ]
+  },
+  "positionalConditions": "None: every allied unit on the board is affected regardless of distance. The caster is included in both the heal and the berry step. A lone caster still heals and eats its own berry.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast re-reads current items: berries eaten earlier are gone (removeItem), so a later cast finds the next berry. Because the heal precedes the berry in each iteration, a Sitrus eaten this cast does not boost this cast's tea heal for that ally, but does boost later heals.",
+  "rawVsResolved": "Declared raw heal 15/30 (1/2 stars) is the requested amount per ally; applied = raw x (1 + AP/100) x crit factor x status/weather modifiers, rounded; healReceived is capped by missing HP, so full-HP allies receive 0 HP from it (the whole amount is overheal). A wounded ally receives 0 HP from BOTH the tea heal and its berry heal (wound branch), but still eats and loses the berry and receives the berry's non-heal effects. Berry heals are a separate, non-AP-scaled amount.",
+  "sourceTables": [
+   {
+    "id": "heal",
+    "file": "app/core/abilities/tea-time.ts",
+    "pattern": "const heal = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate in the moving state and the base process were read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "The exact bodies of removeItem and the stat helpers other than via the shared references (core-mechanics.md section J)"
+  ],
+  "unresolved": [
+   "Whether the attacking state also casts TEA_TIME for these range-2 units (the moving-state requiresTarget === false branch was read; the attacking-state cast gate is the same pp >= maxPP && canCast test shown in pp-gate)",
+   "Whether the two units ever reach a different star count than the factory value",
+   "Per-berry stat helper outcomes (Big Eater Belt x1.25 on positive changes, item-dependent) were not worked out berry by berry; only the requested amounts are listed",
+   "Whether a held berry that is also consumed by other triggers can be absent when eatBerry runs (items read at the moment of the scan)",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only. Shared helper behaviour: knowledge/07367c34/core-mechanics.md section J; probe SHARED_HELPERS in probes/pinned-helper-probe.mjs (wound -> 0 HP; Protect -> 0; Rune Protect alone -> healed; Grass overheal -> addMaxHP request 0.4 x overheal)."
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "SHARED_HELPERS",
+   "note": "shows what the pinned helpers request or return for stated inputs, not a fight"
+  },
+  "evidence": [
+   {
+    "id": "unit-sinistea",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15466,
+     15484
+    ],
+    "symbol": "unit-sinistea",
+    "expect": "skill = Ability.TEA_TIME",
+    "note": "class Sinistea: stars 1, maxPP 100, range 2"
+   },
+   {
+    "id": "unit-polteageist",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15486,
+     15503
+    ],
+    "symbol": "unit-polteageist",
+    "expect": "skill = Ability.TEA_TIME",
+    "note": "class Polteageist: stars 2, maxPP 100, range 2"
+   },
+   {
+    "id": "reg-tt",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1234,
+     1234
+    ],
+    "symbol": "reg-tt",
+    "expect": "[Ability.TEA_TIME]: new TeaTimeStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tt-class",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "tt-class",
+    "expect": "requiresTarget = false",
+    "note": "class TeaTimeStrategy; requiresTarget overridden to false"
+   },
+   {
+    "id": "tt-super",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "tt-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "tt-table",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "tt-table",
+    "expect": "const heal = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": ""
+   },
+   {
+    "id": "tt-scan",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     12,
+     13
+    ],
+    "symbol": "tt-scan",
+    "expect": "if (tg && pokemon.team == tg.team)",
+    "note": "board scan, same-team test (caster included)"
+   },
+   {
+    "id": "tt-anim",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "tt-anim",
+    "expect": "pokemon.broadcastAbility({ positionX: x, positionY: y })",
+    "note": ""
+   },
+   {
+    "id": "tt-heal",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "tt-heal",
+    "expect": "tg.handleHeal(heal, pokemon, 1, crit)",
+    "note": ""
+   },
+   {
+    "id": "tt-berry",
+    "file": "app/core/abilities/tea-time.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "tt-berry",
+    "expect": "Berries.includes(item)",
+    "note": "first berry among the ally's items, then eatBerry(berry)"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "board-foreach",
+    "expect": "for (let y = 0; y < this.rows; y++)",
+    "note": "row-major scan: y outer, x inner"
+   },
+   {
+    "id": "moving-cast",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     40,
+     45
+    ],
+    "symbol": "moving-cast",
+    "expect": "AbilityStrategies[pokemon.skill]?.requiresTarget === false",
+    "note": "requiresTarget false: cast from the moving state with target null when pp >= maxPP and canCast"
+   },
+   {
+    "id": "berries-list",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     570,
+     600
+    ],
+    "symbol": "berries-list",
+    "expect": "export const Berries = [...NonSpecialBerries, ...SpecialBerries]",
+    "note": "20 non-special + 4 special berries; BERRY_JUICE is not in the list"
+   },
+   {
+    "id": "eat-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1572,
+     1582
+    ],
+    "symbol": "eat-fn",
+    "expect": "eatBerry(",
+    "note": "signature: eatBerry(berry, stealedFrom?, healToShield = false, apScaling = 0, crit = false); heal(val) = handleHeal(val, this, apScaling, crit)"
+   },
+   {
+    "id": "eat-switch",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1584,
+     1708
+    ],
+    "symbol": "eat-switch",
+    "expect": "switch (berry)",
+    "note": "per-berry heal and extra effect"
+   },
+   {
+    "id": "eat-sitrus",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1672,
+     1675
+    ],
+    "symbol": "eat-sitrus",
+    "expect": "case Item.SITRUS_BERRY:",
+    "note": "BUFF_HEAL_RECEIVED added before heal(100)"
+   },
+   {
+    "id": "eat-oran",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1637,
+     1639
+    ],
+    "symbol": "eat-oran",
+    "expect": "case Item.ORAN_BERRY:",
+    "note": "heal(50) then addShield(80, this, 0, false)"
+   },
+   {
+    "id": "eat-remove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1710,
+     1714
+    ],
+    "symbol": "eat-remove",
+    "expect": "this.removeItem(berry, true)",
+    "note": "berry removed after the switch"
+   },
+   {
+    "id": "eat-after",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1716,
+     1729
+    ],
+    "symbol": "eat-after",
+    "expect": "this.effects.has(EffectEnum.BERRY_JUICE)",
+    "note": "GLUTTON +10 HP stat, BERRY_JUICE shield 100, OVERGROW +50 AP"
+   },
+   {
+    "id": "hh-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     302,
+     308
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "handleHeal(",
+    "note": ""
+   },
+   {
+    "id": "hh-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     315
+    ],
+    "symbol": "handleHeal wound",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "a wounded target receives no heal (returns 0)"
+   },
+   {
+    "id": "hh-prot",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     333,
+     333
+    ],
+    "symbol": "handleHeal guard",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "no heal on a dead or protected target"
+   },
+   {
+    "id": "hh-scale",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     335,
+     335
+    ],
+    "symbol": "handleHeal AP",
+    "expect": "heal *= 1 + (apBoost * caster.ap) / 100",
+    "note": "AP boost"
+   },
+   {
+    "id": "hh-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     338,
+     338
+    ],
+    "symbol": "handleHeal crit",
+    "expect": "heal *= caster.critPower",
+    "note": "crit multiplier"
+   },
+   {
+    "id": "hh-mods",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     328,
+     341
+    ],
+    "symbol": "handleHeal modifiers",
+    "expect": "heal *= 1.3",
+    "note": "BUFF_HEAL_RECEIVED x1.3; burn x0.5; enraged x0.5; ZENITH weather x1.2"
+   },
+   {
+    "id": "hh-round",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     353,
+     353
+    ],
+    "symbol": "handleHeal rounding",
+    "expect": "heal = Math.round(heal)",
+    "note": ""
+   },
+   {
+    "id": "hh-cap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     354,
+     355
+    ],
+    "symbol": "handleHeal cap",
+    "expect": "const healReceived = max(missingHP)(heal)",
+    "note": "healReceived is capped to missing HP; the rest is overheal"
+   },
+   {
+    "id": "ent-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     475,
+     475
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "delegates to state.handleHeal"
+   },
+   {
+    "id": "sh-bs",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     320
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (Blood Moon / Blood Stone condition)",
+    "expect": "pokemon.player.items.includes(Item.BLOOD_STONE)",
+    "note": "a wounded recipient: with BLOODMOON weather and a player holding a Blood Stone the wound branch continues to the shield request below"
+   },
+   {
+    "id": "sh-bs-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     321,
+     330
+    ],
+    "symbol": "PokemonState.handleHeal wound branch (shield request)",
+    "expect": "pokemon.addShield(",
+    "note": "requests addShield(round(0.3 x stones x heal), recipient, apBoost, crit) with the RECIPIENT as caster and the raw requested heal, then returns healReceived 0 / overheal 0 (next line)"
+   },
+   {
+    "id": "sh-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal Grass overheal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "overheal > 0 on a GRASS-synergy recipient requests addMaxHP(0.4 x overheal) with the recipient as caster, apBoost 0, no crit"
+   },
+   {
+    "id": "sh-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     586,
+     596
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.hp = clamp(this.hp + value, 1, this.maxHP)",
+    "note": "addMaxHP rounds, applies Big Eater Belt / Twist Band, raises maxHP and, for a living unit and a positive value, also raises current HP by the same value; nothing counts as healDone"
+   },
+   {
+    "id": "sh-addshield-ent",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield applies Big Eater Belt before delegating to the state's addShield"
+   },
+   {
+    "id": "sh-addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     389,
+     396
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "needs hp > 0; apBoost / crit use the CASTER argument; enraged halves a positive value; rounded; no wound or protect test"
+   },
+   {
+    "id": "sh-bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "a positive value is x1.25 rounded down for a holder of Big Eater Belt (6 -> 7, 16 -> 20 in the probe)"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
