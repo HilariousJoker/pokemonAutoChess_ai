@@ -1,0 +1,598 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/YAWN",
+ "kind": "ability",
+ "identifier": "YAWN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T183911Z"
+ },
+ "record": {
+  "ability": "YAWN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare YAWN: Slowpoke (1 star, passive SLOWPOKE) and Slowbro (2 stars, no passive); both maxPP 100, range 1. The strategy is shared; unit differences are the star count (shield table index) and speed (cooldown reset). Slowking is not listed and does not declare YAWN in the pinned unit blocks.",
+  "appliesTo": [
+   {
+    "key": "SLOWBRO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "YAWN",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SLOWPOKE",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "YAWN",
+    "declaredPassive": "SLOWPOKE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "SLOWBRO": {
+    "evidence": [
+     "unit-slowbro"
+    ]
+   },
+   "SLOWPOKE": {
+    "evidence": [
+     "unit-slowpoke",
+     "unit-slowpoke-pas"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.YAWN] = new YawnStrategy()",
+   "strategy": "YawnStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "cast",
+    "pp-gate",
+    "yw-class",
+    "yw-super"
+   ]
+  },
+  "summary": "Without needing a target: every enemy that currently has the caster as its target gets a 3000 ms fatigue request (halves its positive PP gains) and an AP change of -20 (request; Twist Band flips it, Nullify Bandanna turns it into -4 ATK, AP is clamped at -100). Then the caster gains a shield (raw 15/30/60/120 by stars: 15 Slowpoke, 30 Slowbro) and its attack cooldown is reset to round(1000 / (0.4 + speed x 0.007)) ms. The AP and fatigue parts are not damage and have no AP/crit scaling.",
+  "targeting": {
+   "who": "debuffs: every enemy-team unit on the board whose targetEntityId equals the caster's id at cast time (no range, hp or adjacency test); shield and cooldown: the caster",
+   "needsTarget": false,
+   "note": "requiresTarget is false, so the cast can fire without a target in range. Units that are not targeting the caster are unaffected. The set is read once at cast time. Who targets whom is decided by the generic targeting code, which was not read.",
+   "evidence": [
+    "yw-class",
+    "yw-filter",
+    "set-target"
+   ]
+  },
+  "geometry": {
+   "shape": "none: selection is by 'currently targeting the caster', not by position",
+   "evidence": [
+    "yw-filter"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "shield",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     },
+     "label": "requested shield (raw)"
+    },
+    "perUnitRaw": {
+     "SLOWBRO": 30,
+     "SLOWPOKE": 15
+    },
+    "scaling": "PokemonEntity.addShield: Big Eater Belt on the positive value (x1.25 rounded down); PokemonState.addShield with apBoost 1: x (1 + AP/100); x critPower only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x0.5 if the caster is enraged; Math.round",
+    "resolution": "applied = the rounded result added to the caster's shield, only if the caster's hp > 0. This is a direct shield request, not a heal: it does not go through handleHeal. It runs after the debuff loop and is not conditioned on there being any enemy targeting the caster.",
+    "evidence": [
+     "yw-table",
+     "yw-shield",
+     "addshield-entity",
+     "belt",
+     "addshield-state",
+     "addshield-crit",
+     "addshield-enraged",
+     "addshield-add"
+    ]
+   },
+   {
+    "kind": "cooldownReset",
+    "target": "the caster",
+    "declaredRaw": {
+     "baseMs": 1000,
+     "label": "requested base (raw literal)"
+    },
+    "scaling": "cooldown = Math.round(1000 / (0.4 + speed x 0.007)) using the caster's speed at that moment (e.g. speed 35 gives round(1000 / 0.645) = 1550 ms; the speed values 35 are base stats from the unit blocks, current speed may differ)",
+    "resolution": "applied = the new value of the caster's attack cooldown, set unconditionally after the shield; whatever cooldown was running is overwritten (it can lengthen or shorten it).",
+    "evidence": [
+     "yw-cd",
+     "reset-cd"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "FATIGUE",
+    "target": "each enemy currently targeting the caster",
+    "durationMsRequested": 3000,
+    "scaling": "apBoost defaults to false in triggerFatigue, so AP does not lengthen it; applyStatusDurationReductions may shorten it; the result is Math.round-ed and only replaces the remaining fatigueCooldown if longer (an existing longer fatigue is kept). The flag is set whenever the request passes the Rune Protect check.",
+    "guards": "Rune Protect (status.runeProtect) cancels the whole request; there is no other immunity check in the function. Effect found by searching status.fatigue in app/core: addPP halves a positive PP gain of a fatigued unit (Math.round of baseValue x AP factor x 0.5, then the guards for silence, protect, NO_PP_GAIN and resurrecting still apply; a negative PP change is not halved). Fatigue does not stop the unit from casting, attacking or moving as far as this search shows.",
+    "evidence": [
+     "yw-fatigue",
+     "fat-rune",
+     "fat-red",
+     "fat-cd",
+     "fat-pp",
+     "fat-pp-guards"
+    ]
+   }
+  ],
+  "buffs": [
+   {
+    "stat": "AP",
+    "target": "each enemy currently targeting the caster",
+    "kind": "debuff",
+    "requested": -20,
+    "scaling": "addAbilityPower(-20, caster, apBoost 0, crit false). Requested -20; Math.round leaves it -20 (no AP/crit factor). Big Eater Belt does not scale it (negative value from an enemy of the holder). A Twist Band holder has it flipped to +20 (negative value from another team). A Nullify Bandanna holder receives round(0.2 x -20) = -4 via addAttack instead and no AP change (further helpers inside addAttack, such as Twist Band flipping that -4, were not traced). The final ap is clamped to at least -100.",
+    "resolution": "applied = change in the victim's ap after those helpers and the -100 clamp; not permanent (the board pokemon is not updated; permanent defaults false). The AP change is not reverted by the strategy: no expiry command exists, so it lasts for the rest of the fight as far as this strategy goes.",
+    "evidence": [
+     "yw-ap",
+     "ap-null",
+     "ap-round",
+     "ap-belt",
+     "ap-twist",
+     "ap-clamp",
+     "twist-fn"
+    ]
+   }
+  ],
+  "shields": [
+   "self shield 15/30/60/120 (requested, raw; Slowpoke 15, Slowbro 30)"
+  ],
+  "starBehavior": {
+   "unitStars": {
+    "SLOWBRO": 2,
+    "SLOWPOKE": 1
+   },
+   "declaredRawShield": {
+    "SLOWBRO": 30,
+    "SLOWPOKE": 15
+   },
+   "note": "Only the shield depends on stars; the 3-star (60) and 4-star (120, also the ?? fallback) columns are not reachable by the bare factory star counts of the listed units. Fatigue duration (3000 ms) and the AP change (-20) are fixed.",
+   "evidence": [
+    "yw-table",
+    "unit-slowbro",
+    "unit-slowpoke"
+   ]
+  },
+  "positionalConditions": "None. The affected set is determined by targeting, not by cells; the caster's position does not matter.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP PP (floor 0), applies another -20 AP to every unit currently targeting the caster (the debuffs stack additively down to -100, not refreshed), extends fatigue only if the new duration is longer, adds another shield on top of the existing one, and overwrites the cooldown.",
+  "rawVsResolved": "Requested: fatigue 3000 ms and AP -20 on each enemy targeting the caster; shield 15 (Slowpoke) / 30 (Slowbro); cooldown base 1000 ms. Applied: fatigue only if no Rune Protect, after duration reductions, replacing only a shorter remaining time; AP change after Twist Band / Nullify Bandanna and the -100 clamp (Big Eater Belt does not apply to this enemy debuff); shield after Big Eater Belt, AP, crit, enraged halving and rounding; cooldown = round(1000 / (0.4 + speed x 0.007)) with the caster's current speed. Final values additionally depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "shield",
+    "file": "app/core/abilities/yawn.ts",
+    "pattern": "const shield = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "How units choose and keep their target (targetEntityId is only read here; setTarget was read, the targeting logic was not), so which enemies count as 'targeting me' in a real fight is unverified",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Contents of applyStatusDurationReductions were not read for this record",
+   "Item effects on the caster's current speed (the cooldown input) were not traced"
+  ],
+  "unresolved": [
+   "Routing: no routing uncertainties were listed for YAWN in the queue; the ability name does not collide with a passive or effect according to the queue record",
+   "Passive.SLOWPOKE (declared by Slowpoke) is not referenced by that name in app/core (searched app/core and effects/passives.ts); what, if anything, it does is outside this record",
+   "The filter does not test hp > 0 or targettability; whether a dead or untargettable unit can still sit in board.cells with the caster as its target was not traced",
+   "The Nullify Bandanna branch routes -4 into addAttack; the helpers inside addAttack (Twist Band, Big Eater Belt) were not traced for that case",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-slowpoke",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4233,
+     4257
+    ],
+    "symbol": "class Slowpoke",
+    "expect": "skill = Ability.YAWN",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-slowpoke-pas",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4256,
+     4256
+    ],
+    "symbol": "class Slowpoke",
+    "expect": "passive = Passive.SLOWPOKE",
+    "note": "Slowpoke declares Passive.SLOWPOKE; no reference to it was found in app/core by name"
+   },
+   {
+    "id": "unit-slowbro",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4259,
+     4272
+    ],
+    "symbol": "class Slowbro",
+    "expect": "skill = Ability.YAWN",
+    "note": "unit class block: skill / stars / stats (no passive)"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1290,
+     1290
+    ],
+    "symbol": "AbilityStrategies[Ability.YAWN]",
+    "expect": "[Ability.YAWN]: new YawnStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "addshield-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     504,
+     504
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt applied to the requested value before the state call"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1849,
+     1849
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 rounded down on positive values when the holder has Big Eater Belt"
+   },
+   {
+    "id": "addshield-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     390,
+     390
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "AP scaling (apBoost factor), crit, enraged, rounding"
+   },
+   {
+    "id": "addshield-crit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     391,
+     391
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (crit) shield *= caster.critPower",
+    "note": ""
+   },
+   {
+    "id": "addshield-enraged",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     392,
+     392
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": ""
+   },
+   {
+    "id": "addshield-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     395,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "pokemon.shield = min(0)(pokemon.shield + shield)",
+    "note": "applied only if hp > 0; Math.round before adding"
+   },
+   {
+    "id": "yw-class",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     5,
+     6
+    ],
+    "symbol": "YawnStrategy",
+    "expect": "requiresTarget = false",
+    "note": "requiresTarget false: the cast needs no target in range"
+   },
+   {
+    "id": "yw-super",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation (target is null)"
+   },
+   {
+    "id": "yw-filter",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     9,
+     14
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "entity.targetEntityId === pokemon.id",
+    "note": "every non-null board entity of the other team whose targetEntityId is the caster's id"
+   },
+   {
+    "id": "yw-fatigue",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "opponent.status.triggerFatigue(3000, opponent, pokemon)",
+    "note": "fatigue request of 3000 ms, apBoost default false"
+   },
+   {
+    "id": "yw-ap",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "opponent.addAbilityPower(-20, pokemon, 0, false)",
+    "note": "AP -20 request, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "yw-table",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "const shield = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "self shield table by stars (fallback 120)"
+   },
+   {
+    "id": "yw-shield",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+    "note": "self shield, apBoost 1, crit flag passed"
+   },
+   {
+    "id": "yw-cd",
+    "file": "app/core/abilities/yawn.ts",
+    "lines": [
+     23,
+     23
+    ],
+    "symbol": "YawnStrategy.process",
+    "expect": "pokemon.resetCooldown(1000)",
+    "note": "sets the caster's attack cooldown from 1000 ms and its speed"
+   },
+   {
+    "id": "set-target",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     323,
+     326
+    ],
+    "symbol": "PokemonEntity.setTarget",
+    "expect": "this.targetEntityId = target.id",
+    "note": "targetEntityId holds the id of the unit an entity currently targets (cleared to '' without a target)"
+   },
+   {
+    "id": "reset-cd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     319,
+     321
+    ],
+    "symbol": "PokemonEntity.resetCooldown",
+    "expect": "this.cooldown = Math.round(baseDuration / (0.4 + speed * 0.007))",
+    "note": "cooldown = round(base / (0.4 + speed x 0.007)) with the entity's current speed"
+   },
+   {
+    "id": "fat-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     553,
+     553
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "if (!this.runeProtect) {",
+    "note": "Rune Protect cancels the whole fatigue request; no other immunity check"
+   },
+   {
+    "id": "fat-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     555,
+     555
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions (helper not traced here)"
+   },
+   {
+    "id": "fat-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     557,
+     559
+    ],
+    "symbol": "Status.triggerFatigue",
+    "expect": "if (duration > this.fatigueCooldown) {",
+    "note": "fatigue flag set; the cooldown is only replaced by a longer duration (Math.round)"
+   },
+   {
+    "id": "fat-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     518,
+     518
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "(this.status.fatigue && baseValue > 0 ? 0.5 : 1)",
+    "note": "consumer found by searching status.fatigue in app/core: positive PP gains of a fatigued unit are halved before rounding (Math.round of the product)"
+   },
+   {
+    "id": "fat-pp-guards",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     523,
+     528
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.protect) &&",
+    "note": "addPP guards: positive PP is refused under silence, protect, NO_PP_GAIN, resurrecting"
+   },
+   {
+    "id": "ap-null",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     628,
+     631
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "if (this.items.has(Item.NULLIFY_BANDANNA)) {",
+    "note": "a Nullify Bandanna holder gets round(0.2 x value) added to ATTACK instead of AP (-4 for -20) and returns"
+   },
+   {
+    "id": "ap-round",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     633,
+     635
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "with apBoost 0 and crit false the value stays -20"
+   },
+   {
+    "id": "ap-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     636,
+     636
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt: positive values, or negative ones from the holder's own team; an enemy's -20 is not scaled"
+   },
+   {
+    "id": "ap-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     637,
+     637
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "value = applyTwistBandBuff(this, value, caster)",
+    "note": "Twist Band holder: a negative value from another team becomes +20"
+   },
+   {
+    "id": "ap-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     640,
+     640
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "AP cannot drop below -100"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff",
+    "note": "plain function: negative value from environment or another team is multiplied by -1 for a Twist Band holder"
+   }
+  ]
+ }
+}
