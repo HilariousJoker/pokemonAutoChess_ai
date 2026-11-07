@@ -1,0 +1,394 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/ACCELERATION",
+ "kind": "passive",
+ "identifier": "ACCELERATION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T183911Z"
+ },
+ "record": {
+  "passive": "ACCELERATION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "REVAVROOM",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SPIN_OUT",
+    "declaredPassive": "ACCELERATION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VAROOM",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "SPIN_OUT",
+    "declaredPassive": "ACCELERATION",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "acc-class",
+     "acc-origin",
+     "chg-pas",
+     "ctor-pas"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "onmove-class",
+     "effect-base",
+     "move-path",
+     "move-dark",
+     "move-loop",
+     "moveto"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "REVAVROOM": {
+    "evidence": [
+     "unit-revavroom"
+    ]
+   },
+   "VAROOM": {
+    "evidence": [
+     "unit-varoom"
+    ]
+   }
+  },
+  "kind": "OnMoveEffect (per-entity instance with a stack counter) read and reset by the SPIN_OUT ability",
+  "summary": "PassiveEffects[Passive.ACCELERATION] is a factory that gives each Varoom / Revavroom its own AccelerationEffect (an OnMoveEffect). Every time the unit completes a pathfinding step (MovingState.move -> onMove) it requests +15 speed on itself (apBoost 0, no crit, not permanent) and increments an internal counter by one. The counter is incremented whether or not the speed actually rose (the speed clamps at 300). The SPIN_OUT ability (the units' skill, a separate record) finds this effect, requests -15 x counter speed on the caster and resets the counter to 0, which is the reason the identifier is also referenced elsewhere. Displacement through moveTo (abilities, knock-backs) does not call onMove and gives no stack.",
+  "triggers": [
+   "Each step taken in MovingState.move's pathfinding branch calls onMove, which applies every OnMoveEffect of the unit",
+   "SPIN_OUT cast: reads and resets accelerationStacks (outside the passive file)"
+  ],
+  "effects": [
+   {
+    "kind": "onMoveSpeedGain",
+    "declaredRaw": "+15 speed per step, requested; counter +1 per step",
+    "scaling": "apBoost 0 and crit false with the caster being the unit itself, so no AP or crit factor. addSpeed first applies Big Eater Belt (+25% on the positive value, rounded down: 15 x 1.25 = 18.75 -> 18) and Twist Band (no effect on a positive value), then clamps speed to 0..300. A MELMETAL-passive receiver would convert it to attack, which does not apply to these units. permanent is false: the board pokemon is not changed.",
+    "resolution": "requested +15; applied = +15, or +18 with Big Eater Belt, limited by the cap of 300 (base speed 40, so 18 steps to reach the cap at +15 per step, fewer with Big Eater Belt). The stack counter is raised by 1 per step regardless of the applied amount.",
+    "evidence": [
+     "acc-speed",
+     "acc-inc",
+     "addspeed-belt",
+     "addspeed-clamp",
+     "belt-fn",
+     "twist-fn",
+     "max-speed"
+    ]
+   },
+   {
+    "kind": "stackCounter",
+    "declaredRaw": "accelerationStacks: +1 per onMove, reset to 0 by SPIN_OUT",
+    "scaling": "none; per-entity instance created by the factory",
+    "resolution": "SPIN_OUT requests -(stacks x 15) speed on the caster through the same addSpeed path (Big Eater Belt scales negative changes from the holder's own team; the caster is itself, so a Belt holder's reduction is multiplied by 1.25 with the 'down' rounding, whose direction for negatives was not traced; Twist Band does not flip it because the caster is on its own team), then sets the counter to 0. Because the counter counts steps rather than applied speed, the subtraction can exceed what was actually gained when the 300 cap clamped earlier gains, and it can differ again with Big Eater Belt (+18 per step gained against a -15 x stacks request, scaled by the same belt on the way down).",
+    "evidence": [
+     "acc-stacks",
+     "acc-inc",
+     "spin-find",
+     "spin-reset",
+     "spin-reg",
+     "addspeed-belt",
+     "addspeed-clamp",
+     "belt-fn",
+     "twist-fn"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only the pathfinding step of MovingState.move triggers it (the units are not DARK type, so the dark-jump branch does not apply to them)",
+   "moveTo / skydiveTo displacements, teleports and knock-backs do not trigger it (they do not call onMove)",
+   "One AccelerationEffect instance per unit, created by the factory when the passive is installed"
+  ],
+  "resetBehaviour": "The counter starts at 0 for each entity (a new instance per pokemon) and is reset to 0 only by SPIN_OUT. Speed gained is not removed by the passive itself. The effect lives in the entity's effectsSet for the fight; whether a new entity (new fight) starts clean follows from the constructor calling changePassive.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How often MovingState.move runs in a real fight and how speed converts into move/attack timing (movement speed consumers were not read)",
+   "The SPIN_OUT ability body beyond the lines that read and reset the counter (separate record)",
+   "roundToNDigits behaviour for negative values (direction of 'down') was not read"
+  ],
+  "unresolved": [
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE resolved by name search: besides the PassiveEffects entry and the effect class, SPIN_OUT reads and resets accelerationStacks (spin-out.ts 35-46) and imports AccelerationEffect; no other reference to the class or the counter was found in app (excluding public/)",
+   "Other entry points that install PassiveEffects (bot.ts, synergies.ts, evolution-manager.ts) were seen by name but not read; whether an evolution during a fight re-creates the effect instance and loses the counter was not traced",
+   "Whether the entity constructor always reaches the factory (changePassive returns early if this.passive already equals the new passive) was not traced",
+   "The same step-based trigger exists for the Running Shoes item (RunningShoesOnMoveEffect, items.ts) which was not read",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-varoom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18674,
+     18693
+    ],
+    "symbol": "class Varoom",
+    "expect": "passive = Passive.ACCELERATION",
+    "note": "unit class block: skill SPIN_OUT / passive / stars / stats (speed 40)"
+   },
+   {
+    "id": "unit-revavroom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     18695,
+     18713
+    ],
+    "symbol": "class Revavroom",
+    "expect": "passive = Passive.ACCELERATION",
+    "note": "unit class block: skill SPIN_OUT / passive / stars / stats (speed 40)"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1301,
+     1303
+    ],
+    "symbol": "PassiveEffects[Passive.ACCELERATION]",
+    "expect": "() => new AccelerationEffect()",
+    "note": "the entry is a FACTORY function (a new effect instance per pokemon because of the internal stack counter)"
+   },
+   {
+    "id": "acc-class",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     4,
+     4
+    ],
+    "symbol": "AccelerationEffect",
+    "expect": "export class AccelerationEffect extends OnMoveEffect",
+    "note": "an OnMoveEffect"
+   },
+   {
+    "id": "acc-stacks",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "AccelerationEffect",
+    "expect": "accelerationStacks = 0",
+    "note": "per-instance counter, starts at 0"
+   },
+   {
+    "id": "acc-speed",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "AccelerationEffect.constructor",
+    "expect": "pkm.addSpeed(15, pkm, 0, false)",
+    "note": "+15 speed request on the mover itself, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "acc-inc",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "AccelerationEffect.constructor",
+    "expect": "this.accelerationStacks += 1",
+    "note": "the counter goes up by one on every trigger, whether or not the speed was actually raised"
+   },
+   {
+    "id": "acc-origin",
+    "file": "app/core/effects/passives/acceleration.ts",
+    "lines": [
+     11,
+     11
+    ],
+    "symbol": "AccelerationEffect.constructor",
+    "expect": "Passive.ACCELERATION",
+    "note": "effect origin"
+   },
+   {
+    "id": "onmove-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     417,
+     425
+    ],
+    "symbol": "OnMoveEffect",
+    "expect": "export class OnMoveEffect extends Effect",
+    "note": "effect type invoked with (pokemon, board, oldX, oldY, newX, newY)"
+   },
+   {
+    "id": "effect-base",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     22,
+     25
+    ],
+    "symbol": "Effect.constructor",
+    "expect": "this.apply = effect",
+    "note": "the constructor callback becomes apply()"
+   },
+   {
+    "id": "move-path",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     144,
+     151
+    ],
+    "symbol": "MovingState.move",
+    "expect": "this.onMove(pokemon, board, oldX, oldY, x, y)",
+    "note": "pathfinding branch: one onMove call per step taken (swapCells then onMove)"
+   },
+   {
+    "id": "move-dark",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     83,
+     88
+    ],
+    "symbol": "MovingState.move",
+    "expect": "pokemon.types.has(Synergy.DARK) &&",
+    "note": "the other branch (dark jump) is reserved for DARK-type melee units; the listed units are STEEL / ARTIFICIAL / POISON and take the pathfinding branch"
+   },
+   {
+    "id": "move-loop",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     173,
+     175
+    ],
+    "symbol": "MovingState.onMove",
+    "expect": "pokemon.getEffects(OnMoveEffect).forEach((effect) => {",
+    "note": "every OnMoveEffect in the unit's effectsSet is applied"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "forced/ability displacement via moveTo swaps cells and does not call onMove (search of app/core for .onMove( found only the two moving-state calls)"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1786,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "if (isPlainFunction(effect)) this.effectsSet.add(effect())",
+    "note": "factory entries are called once per entity when the passive is set"
+   },
+   {
+    "id": "ctor-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     223,
+     223
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.changePassive(pokemon.passive)",
+    "note": "the entity constructor installs the passive effects"
+   },
+   {
+    "id": "addspeed-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     759,
+     760
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "Big Eater Belt then Twist Band helpers run on the requested value"
+   },
+   {
+    "id": "addspeed-clamp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     773,
+     773
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "speed clamped to 0..MAX_SPEED"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 (rounded 'down', nbDigits 0) for a positive value, or a negative one from a caster on the holder's own team"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff",
+    "note": "plain function: only a negative value from environment or another team is flipped for a Twist Band holder"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": "speed cap"
+   },
+   {
+    "id": "spin-reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1192,
+     1192
+    ],
+    "symbol": "AbilityStrategies[Ability.SPIN_OUT]",
+    "expect": "[Ability.SPIN_OUT]: new SpinOutStrategy()",
+    "note": "both listed units declare SPIN_OUT (separate ability record)"
+   },
+   {
+    "id": "spin-find",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     35,
+     37
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "effect instanceof AccelerationEffect",
+    "note": "the ability looks up the unit's AccelerationEffect instance"
+   },
+   {
+    "id": "spin-reset",
+    "file": "app/core/abilities/spin-out.ts",
+    "lines": [
+     38,
+     46
+    ],
+    "symbol": "SpinOutStrategy.process",
+    "expect": "accelerationEffect.accelerationStacks = 0",
+    "note": "SPIN_OUT subtracts stacks x 15 speed (addSpeed, apBoost 0, no crit) and resets the counter; this is why the passive is 'also referenced elsewhere'"
+   }
+  ]
+ }
+}
