@@ -1,0 +1,615 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WOOD_HAMMER",
+ "kind": "ability",
+ "identifier": "WOOD_HAMMER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T183911Z"
+ },
+ "record": {
+  "ability": "WOOD_HAMMER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare WOOD_HAMMER: Bonsley (1 star, base ATK 9) and Sudowoodo (2 stars, base ATK 22), both maxPP 100, range 1, passive SUDOWOODO. The strategy is shared; the multiplier table is indexed by stars and the damage is proportional to the caster's ATK at cast time.",
+  "appliesTo": [
+   {
+    "key": "BONSLEY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WOOD_HAMMER",
+    "declaredPassive": "SUDOWOODO",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SUDOWOODO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WOOD_HAMMER",
+    "declaredPassive": "SUDOWOODO",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BONSLEY": {
+    "evidence": [
+     "unit-bonsley",
+     "pas-unit-b"
+    ]
+   },
+   "SUDOWOODO": {
+    "evidence": [
+     "unit-sudowoodo",
+     "pas-sud"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WOOD_HAMMER] = new WoodHammerStrategy()",
+   "strategy": "WoodHammerStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wh-class",
+    "wh-super"
+   ]
+  },
+  "summary": "At cast time the caster's current ATK is read; 500 ms later the cast target takes SPECIAL damage of (multiplier x that ATK), where the multiplier is 4 for 1 and 2 stars (8 for 3, 16 for 4), and then, unless the caster holds Protective Pads, the caster takes PHYSICAL recoil equal to that same ATK (no AP, no crit). The damage step uses default AP scaling and the cast's crit flag; the recoil does not. Both amounts are requests resolved by handleSpecialDamage / handleDamage.",
+  "targeting": {
+   "who": "damage: the cast target (the unit the caster is attacking when the cast fires, captured at cast time); recoil: the caster itself",
+   "needsTarget": true,
+   "note": "requiresTarget is true (default). The target is captured in the closure at cast time, so if the cast target dies during the 500 ms the delayed hit goes to a unit with hp <= 0 and is ignored (handleDamage returns takenDamage 0), while the recoil still runs. Which unit is the cast target comes from generic targeting, not read.",
+   "evidence": [
+    "wh-cmd",
+    "wh-hit",
+    "wh-self",
+    "hd-dead",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no area",
+   "evidence": [
+    "wh-hit"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "the cast target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 4,
+      "2": 4,
+      "3": 8,
+      "4": 16,
+      "fallback": 16
+     },
+     "label": "requested ATK multiplier (raw); requested damage = multiplier x caster ATK at cast time"
+    },
+    "perUnitRaw": {
+     "BONSLEY": 4,
+     "SUDOWOODO": 4
+    },
+    "scaling": "requested = table[stars-1] x pokemon.atk (ATK read at cast time, including any bonuses present then; example at base ATK: Bonsley 4 x 9 = 36, Sudowoodo 4 x 22 = 88). handleSpecialDamage (default apBoost true): x (1 + AP/100); x2 once if the caster has DOUBLE_DAMAGE (removed on use); x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT). The ATK is NOT re-read at fire time.",
+    "resolution": "applied = the figure handed to PokemonState.handleDamage after 500 ms. handleDamage then divides SPECIAL damage by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage reported (not used by this strategy) = shield damage + HP damage capped at current hp; it is 0 if the target has protect / skydiving / magicBounce (blocked entirely; magicBounce may reflect) or if it has hp <= 0 or is resurrecting when the command fires.",
+    "evidence": [
+     "wh-mult",
+     "wh-damage",
+     "wh-hit",
+     "wh-delay",
+     "cmd-update",
+     "upd-cmd",
+     "upd-call",
+     "special",
+     "special-block",
+     "special-ap",
+     "sp-double",
+     "special-crit",
+     "special-handle",
+     "hd-dead",
+     "hd-protect",
+     "hd-spedef",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   },
+   {
+    "kind": "selfDamage",
+    "damageType": "PHYSICAL",
+    "target": "the caster (recoil)",
+    "declaredRaw": {
+     "formula": "caster ATK at cast time",
+     "label": "requested recoil (raw)"
+    },
+    "perUnitRaw": {
+     "BONSLEY": 9,
+     "SUDOWOODO": 22
+    },
+    "scaling": "requested = pokemon.atk at cast time (base ATK shown; raw is not multiplied by the table). Called with crit false and apBoost false, so no AP and no crit scaling; the DOUBLE_DAMAGE check can still double it if the target hit did not consume the flag (it normally does, because the hit runs first). Skipped entirely if the caster holds Protective Pads when the command fires.",
+    "resolution": "applied = handleSpecialDamage on the caster with attacker = the caster: blocked (0) if the caster itself has protect / skydiving / magicBounce; otherwise handleDamage divides PHYSICAL damage by (1 + ARMOR_FACTOR x def of the caster), rounds up with a minimum of 1, and the caster's own shield absorbs first. It can kill the caster. Requested vs applied: the recoil is a request equal to ATK, the HP actually lost is reduced by the caster's DEF, never below 1 unless blocked or capped by remaining hp.",
+    "evidence": [
+     "wh-recoil",
+     "wh-pads",
+     "wh-self",
+     "sp-bounce",
+     "sp-double",
+     "hd-dead",
+     "hd-protect",
+     "hd-phys",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BONSLEY": 1,
+    "SUDOWOODO": 2
+   },
+   "declaredRawMultiplier": {
+    "BONSLEY": 4,
+    "SUDOWOODO": 4
+   },
+   "note": "The table has four entries (4, 4, 8, 16); 1 and 2 stars both use 4, so the difference between the listed units comes from their ATK. The 3-star (8) and 4-star (16, also the ?? fallback) columns are not reachable by the bare factory star counts of the listed units. Recoil does not depend on stars.",
+   "evidence": [
+    "wh-mult",
+    "unit-bonsley",
+    "unit-sudowoodo"
+   ]
+  },
+  "positionalConditions": "None in the strategy itself; range 1 (melee) comes from the unit blocks.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP PP (floor 0) and queues one 500 ms command on the caster; the ATK is sampled once per cast. The SUDOWOODO passive (adds ATK each second while status.tree is on) changes the ATK later casts read, but that mechanic is not part of this record.",
+  "rawVsResolved": "Requested: damage = 4 x caster ATK (SPECIAL) on the target and recoil = caster ATK (PHYSICAL) on the caster, both sampled at cast time (base ATK: Bonsley 36 / 9, Sudowoodo 88 / 22). Applied damage = requested x (1 + AP/100) x optional DOUBLE_DAMAGE / steam / crit multipliers, reduced by the target's SPE_DEF with a minimum of 1, shield first, and 0 if blocked or if the target is already dead or resurrecting when the command fires. Applied recoil = ATK reduced by the caster's own DEF with a minimum of 1, shield first, skipped under Protective Pads, blocked by the caster's own protect / skydiving / magicBounce. takenDamage includes shield damage.",
+  "sourceTables": [
+   {
+    "id": "atkMult",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "pattern": "const atkMult = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether the caster's pending command runs after the caster dies in the 500 ms window (PokemonState.update calls updateCommands each tick, but how dead entities are updated was not read)",
+   "Item and ATK modifiers that make pokemon.atk differ from base ATK at cast time (the stat adders were not traced for this record)",
+   "Damage resolution after handleDamage's earlier branches (flat reductions, Shiny Charm, Fossil, Cover Band) was not traced for the hit or the recoil"
+  ],
+  "unresolved": [
+   "pokemon.atk at cast time can include item, synergy and passive bonuses (the SUDOWOODO passive adds +1 / +2 ATK per second while in tree status); the numeric examples are at base ATK only",
+   "If the caster dies from the recoil or earlier, effects keyed to the caster's death were not traced",
+   "Cover Band can redirect part of handleDamage to an ally; the hit's returned death flag is not used by this strategy",
+   "magicBounce on the cast target can reflect the SPECIAL hit back (500 ms later) to the caster (read in handleSpecialDamage, not simulated); Protective Pads on the caster prevents that bounce and the recoil",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-bonsley",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12097,
+     12112
+    ],
+    "symbol": "class Bonsley",
+    "expect": "skill = Ability.WOOD_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats (atk 9)"
+   },
+   {
+    "id": "unit-sudowoodo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12114,
+     12129
+    ],
+    "symbol": "class Sudowoodo",
+    "expect": "skill = Ability.WOOD_HAMMER",
+    "note": "unit class block: skill / passive / stars / stats (atk 22)"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1288,
+     1288
+    ],
+    "symbol": "AbilityStrategies[Ability.WOOD_HAMMER]",
+    "expect": "[Ability.WOOD_HAMMER]: new WoodHammerStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "wh-class",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "WoodHammerStrategy",
+    "expect": "export class WoodHammerStrategy extends AbilityStrategy",
+    "note": "no overrides of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "wh-super",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "wh-mult",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "const atkMult = [4, 4, 8, 16][pokemon.stars - 1] ?? 16",
+    "note": "ATK multiplier table by stars (fallback 16)"
+   },
+   {
+    "id": "wh-damage",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "const damage = atkMult * pokemon.atk",
+    "note": "requested damage = multiplier x the caster's ATK read at cast time (before the 500 ms delay)"
+   },
+   {
+    "id": "wh-recoil",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "const recoil = pokemon.atk",
+    "note": "requested recoil = the caster's ATK read at cast time"
+   },
+   {
+    "id": "wh-cmd",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     20,
+     21
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "the effect is a DelayedCommand on the CASTER's command list"
+   },
+   {
+    "id": "wh-hit",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     22,
+     29
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "SPECIAL damage on the cast target with default apBoost (true) and the cast's crit flag"
+   },
+   {
+    "id": "wh-pads",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     30,
+     30
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "if (pokemon.items.has(Item.PROTECTIVE_PADS) === false) {",
+    "note": "recoil only if the caster does NOT hold Protective Pads (checked after the hit, at fire time)"
+   },
+   {
+    "id": "wh-self",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     31,
+     38
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "pokemon.handleSpecialDamage(",
+    "note": "recoil: handleSpecialDamage on the caster itself, PHYSICAL, attacker = caster, crit false, apBoost false"
+   },
+   {
+    "id": "wh-delay",
+    "file": "app/core/abilities/wood-hammer.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "WoodHammerStrategy.process",
+    "expect": "}, 500)",
+    "note": "500 ms delay"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     12,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "fires on the first update where the remaining delay is strictly below 0"
+   },
+   {
+    "id": "upd-cmd",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "entity commands are advanced by dt in PokemonState.update, then executed ones are dropped"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     892,
+     892
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "first thing in the entity's update"
+   },
+   {
+    "id": "hd-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "damage to a unit with hp <= 0 or resurrecting returns { death false, takenDamage 0 }"
+   },
+   {
+    "id": "hd-phys",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     560,
+     562
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "PHYSICAL damage (the recoil) is divided by the caster's own def"
+   },
+   {
+    "id": "sp-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce on the damaged unit block handleSpecialDamage (this also applies to the recoil when the caster has one of them)"
+   },
+   {
+    "id": "sp-double",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     404
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "attacker.effects.has(EffectEnum.DOUBLE_DAMAGE)",
+    "note": "x2 once for an attacker with DOUBLE_DAMAGE, which is removed on use (applies to the recoil too when the hit did not consume it first)"
+   },
+   {
+    "id": "pas-unit-b",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12110,
+     12110
+    ],
+    "symbol": "class Bonsley",
+    "expect": "passive = Passive.SUDOWOODO",
+    "note": "both units declare Passive.SUDOWOODO"
+   },
+   {
+    "id": "pas-sud",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1138,
+     1145
+    ],
+    "symbol": "SudowoodoGainAttackEffect",
+    "expect": "pokemon.addAttack(pokemon.stars === 1 ? 1 : 2, pokemon, 0, false)",
+    "note": "the passive adds ATK each second while status.tree is on; it changes pokemon.atk, which this ability reads at cast time"
+   }
+  ]
+ }
+}
