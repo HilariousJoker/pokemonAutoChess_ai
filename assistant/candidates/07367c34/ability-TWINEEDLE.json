@@ -1,0 +1,542 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TWINEEDLE",
+ "kind": "ability",
+ "identifier": "TWINEEDLE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T064033Z"
+ },
+ "record": {
+  "ability": "TWINEEDLE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "KARRABLAST (1 star) and ESCAVALIER (2 stars) declare TWINEEDLE (no passive in the catalog). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "KARRABLAST",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWINEEDLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ESCAVALIER",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TWINEEDLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "KARRABLAST": {
+    "evidence": [
+     "unit-karrablast"
+    ]
+   },
+   "ESCAVALIER": {
+    "evidence": [
+     "unit-escavalier"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TWINEEDLE] = new TwineedleStrategy()",
+   "strategy": "TwineedleStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-tw",
+    "tw-class",
+    "base-flags",
+    "base-pp",
+    "tw-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Two special hits on the cast's target, the second one 500 ms later, with a chance of poison after the second. Requested damage per hit = 25 (1 star) / 50 (2 stars) from the code table [25, 50, 80, 160] by the caster's stars (the source comment lists [25,50,160,80]; the code table is what runs). Hit 1 is dealt immediately through handleSpecialDamage(damage, SPECIAL, attacker = caster) with its own crit roll chance(critChance / 100, caster) (the caster's critChance with luck; this does not need ABILITY_CRIT, which is why the comment says it can crit by default). Hit 2 is stored as a DelayedCommand on the caster and fires after 500 ms with the cast's own crit flag (which exists only with ABILITY_CRIT since canCritByDefault is false). After hit 2 a roll chance(0.5, caster) succeeds with probability 0.5^(1 - luck/100) (capped at 1; 50 % at 0 luck) and then applies target.status.triggerPoison(4000, target, caster): blocked by IMMUNITY_POISON or Rune Protect, +1 poison stack (cap 3; 4 with VENOMOUS and 5 with TOXIC on the origin), the 4000 ms requested duration passes the status duration reductions and only extends an existing timer if longer; the poison then deals TRUE damage each 1000 ms equal to 5 % of the target's max HP per stack (modifiers described in the LEECH_SEED and SLUDGE candidates). Each hit gets AP (damage + damage x AP/100), DOUBLE_DAMAGE (x2, consumed), STRANGE_STEAM_BOARD_EFFECT (x1.2) and its crit factor 1 + (critPower - 1) x the target's crit reduction (Rocky Helmet 0, 0.1 less per Black Augurite); handleDamage then divides special damage by (1 + 0.05 x SPE_DEF), rounds up with a minimum of 1 (core-mechanics section A), and shields absorb first. Protect, skydiving or magic bounce on the target block a hit. The returned takenDamage is not used and nothing is healed.",
+  "targeting": {
+   "who": "the cast's target (normally an enemy in range), both hits and the poison",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true; which unit is chosen as target is the generic targeting and was not traced. The second hit and the poison use the same target reference even if it has died or moved by then.",
+   "evidence": [
+    "tw-class",
+    "base-flags",
+    "tw-hit1",
+    "tw-hit2"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "tw-hit1"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special damage, hit 1 (immediate)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 25,
+      "2": 50,
+      "3": 80,
+      "4": 160,
+      "fallback": 160
+     }
+    },
+    "perUnitRaw": {
+     "KARRABLAST": 25,
+     "ESCAVALIER": 50
+    },
+    "scaling": "requested damage x (1 + AP/100) (apBoost true by default), x2 DOUBLE_DAMAGE (consumed), x1.2 STRANGE_STEAM_BOARD_EFFECT on either side, and on a crit x (1 + (critPower - 1) x reduction), where the crit is an independent roll chance(critChance/100, caster) and does not require ABILITY_CRIT; the 80 and 160 entries are not reachable by the two listed units.",
+    "resolution": "Requested = table value; downstream request = scaled special damage; applied = PokemonState.handleDamage: divided by (1 + 0.05 x SPE_DEF), rounded up with a minimum of 1, shields absorb before HP; takenDamage (shield damage included) is not used here. A target with status.protect, skydiving or magic bounce takes 0 and spellBlockedCount increments; a dead or resurrecting target takes 0.",
+    "evidence": [
+     "tw-damage",
+     "tw-comment",
+     "tw-hit1",
+     "chance",
+     "critchance",
+     "special-guard",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "handle-dead",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "special damage, hit 2 (delayed 500 ms)",
+    "declaredRaw": "same requested damage as hit 1",
+    "perUnitRaw": {
+     "KARRABLAST": 25,
+     "ESCAVALIER": 50
+    },
+    "scaling": "same scaling as hit 1, but the crit flag is the cast's crit flag (ABILITY_CRIT needed); AP is read when the command fires.",
+    "resolution": "The command is stored on the caster and counted down by dt, so it fires on the first update after 500 ms. The target may have moved, died, gained Protect or been healed by then; the hit is applied to the same entity reference. Applied value as in hit 1.",
+    "evidence": [
+     "tw-damage",
+     "tw-delay",
+     "tw-hit2",
+     "tw-500",
+     "special-guard",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "handle-dead"
+    ]
+   },
+   {
+    "kind": "poison chance after hit 2",
+    "declaredRaw": {
+     "chance": "0.5 base, luck-adjusted",
+     "durationMs": 4000
+    },
+    "scaling": "probability = 0.5^(1 - caster luck/100), capped at 1; no AP scaling",
+    "resolution": "Requested 4000 ms and +1 stack; applied only if the target is not IMMUNITY_POISON or Rune-protected; duration after the status reductions, extending the timer only if longer; stacks capped at 3 (4 VENOMOUS, 5 TOXIC); each tick is TRUE damage 5 % of max HP x stacks (siblings LEECH_SEED, SLUDGE). The roll and application happen even if hit 2 was blocked or the target already died.",
+    "evidence": [
+     "tw-poison",
+     "chance",
+     "poison-trig",
+     "poison-guard",
+     "poison-max",
+     "poison-add",
+     "poison-dur",
+     "poison-tick"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "POISON",
+    "target": "the cast's target",
+    "chance": "0.5 luck-adjusted, after hit 2",
+    "duration": "requested 4000 ms, then reductions",
+    "evidence": [
+     "tw-poison",
+     "poison-trig",
+     "poison-dur"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "KARRABLAST": 1,
+    "ESCAVALIER": 2
+   },
+   "declaredRawDamage": {
+    "KARRABLAST": 25,
+    "ESCAVALIER": 50
+   },
+   "note": "damage table indexed by the casting entity's stars; the poison chance and duration do not depend on stars.",
+   "evidence": [
+    "tw-damage",
+    "unit-karrablast",
+    "unit-escavalier"
+   ]
+  },
+  "positionalConditions": "None in this strategy.",
+  "repeatedCastsAndModes": "No stored state besides the pending command; casts that overlap within 500 ms would stack commands.",
+  "rawVsResolved": "Requested: two hits of 25 (KARRABLAST) or 50 (ESCAVALIER) special damage, 500 ms apart, then a luck-adjusted 50 % chance of 4000 ms poison. Downstream: scaled by AP, Double Damage, Strange Steam and crit (an independent roll for hit 1, the cast's flag for hit 2). Applied: reduced by SPE_DEF (ceil, minimum 1), shields first, or 0 when blocked or the target is dead; the poison is applied only past immunity and Rune Protect with duration reductions and a stack cap. No heal, PP change or shield for the caster, so the heal, PP and Grass overheal rules (section J) do not apply and takenDamage is not used.",
+  "sourceTables": [
+   {
+    "id": "twineedleDamage",
+    "file": "app/core/abilities/twineedle.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "What handleDamage does for status effects, items and synergies not traced one by one (section A caveats)",
+   "Whether pending caster commands are dropped when the caster dies",
+   "How crit is rolled for the cast flag (generic cast code, only the canCritByDefault gate was read)"
+  ],
+  "unresolved": [
+   "Consulted: handleSpecialDamage, handleDamage (early returns only), chance, Status.triggerPoison and updatePoison (via the corrected siblings LEECH_SEED and SLUDGE), DelayedCommand, core-mechanics sections A, H and J",
+   "Poison tick modifiers (weather, items, passives) and the Gliscor and Pecha Berry cases are in the sibling candidates, not re-traced",
+   "The Power Lens retaliation and magic-bounce reflect inside handleSpecialDamage were read but not worked through",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-karrablast",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20553,
+     20567
+    ],
+    "symbol": "class Karrablast",
+    "expect": "skill = Ability.TWINEEDLE",
+    "note": "1 star, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "unit-escavalier",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     20569,
+     20582
+    ],
+    "symbol": "class Escavalier",
+    "expect": "skill = Ability.TWINEEDLE",
+    "note": "2 stars, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-tw",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1262,
+     1262
+    ],
+    "symbol": "AbilityStrategies[Ability.TWINEEDLE]",
+    "expect": "[Ability.TWINEEDLE]: new TwineedleStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tw-class",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "TwineedleStrategy",
+    "expect": "export class TwineedleStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault are not overridden (base true / false)"
+   },
+   {
+    "id": "tw-super",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "PP spent, cast counted, default animation suppressed"
+   },
+   {
+    "id": "tw-comment",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "The first hit can crit by default",
+    "note": "source comment; its damage list [25,50,160,80] disagrees with the code table, the code is what runs"
+   },
+   {
+    "id": "tw-damage",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     17,
+     17
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "const damage = [25, 50, 80, 160][pokemon.stars - 1] ?? 160",
+    "note": "requested damage per hit by the caster's stars"
+   },
+   {
+    "id": "tw-hit1",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     18,
+     24
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "chance(pokemon.critChance / 100, pokemon)",
+    "note": "first hit now; its crit flag is an independent roll of the caster's critChance with luck, not the cast's crit flag"
+   },
+   {
+    "id": "tw-delay",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     25,
+     26
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "second hit stored as a DelayedCommand on the caster"
+   },
+   {
+    "id": "tw-hit2",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     27,
+     33
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "target.handleSpecialDamage(",
+    "note": "second hit uses the cast's crit flag"
+   },
+   {
+    "id": "tw-poison",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     34,
+     36
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "target.status.triggerPoison(4000, target, pokemon)",
+    "note": "50 % (luck-adjusted) chance, after the second hit"
+   },
+   {
+    "id": "tw-500",
+    "file": "app/core/abilities/twineedle.ts",
+    "lines": [
+     37,
+     37
+    ],
+    "symbol": "TwineedleStrategy.process",
+    "expect": "}, 500)",
+    "note": "500 ms delay"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "chance",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "probability ^ (1 - luck/100), capped at 1; 0 probability is always false"
+   },
+   {
+    "id": "critchance",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     103,
+     103
+    ],
+    "symbol": "PokemonEntity.critChance",
+    "expect": "critChance = DEFAULT_CRIT_CHANCE",
+    "note": ""
+   },
+   {
+    "id": "special-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving, magic bounce block the hit"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     401
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     410,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor with Rocky Helmet / Black Augurite reduction"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     434,
+     441
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "handle-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": ""
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "ARMOR_FACTOR",
+    "note": ""
+   },
+   {
+    "id": "poison-trig",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     576
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "triggerPoison(",
+    "note": ""
+   },
+   {
+    "id": "poison-guard",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     577,
+     577
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "no stack if immune or rune-protected"
+   },
+   {
+    "id": "poison-max",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     578,
+     584
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "let maxStacks = 3",
+    "note": "cap 3, VENOMOUS 4, TOXIC 5 by the origin"
+   },
+   {
+    "id": "poison-add",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     588,
+     588
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "one stack per successful call"
+   },
+   {
+    "id": "poison-dur",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     590,
+     592
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "requested 4000 ms passes the duration reductions; only extends the timer if longer"
+   },
+   {
+    "id": "poison-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     658
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "let poisonDamage = pkm.maxHP * 0.05 * this.poisonStacks",
+    "note": "every 1000 ms TRUE damage 5 % of max HP per stack (modifiers, Gliscor and negative branch in the sibling records LEECH_SEED / SLUDGE)"
+   }
+  ]
+ }
+}
