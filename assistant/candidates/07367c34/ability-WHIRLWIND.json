@@ -1,0 +1,722 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/WHIRLWIND",
+  "kind": "ability",
+  "identifier": "WHIRLWIND",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261107T123940Z"
+  },
+  "record": {
+    "ability": "WHIRLWIND",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "WINGULL (1 star) and PELIPPER (2 stars), the queued units (both carry passive DRIZZLE).",
+    "appliesTo": [
+      {
+        "key": "WINGULL",
+        "stars": 1,
+        "maxPP": 70,
+        "range": 2,
+        "declaredSkill": "WHIRLWIND",
+        "declaredPassive": "DRIZZLE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "PELIPPER",
+        "stars": 2,
+        "maxPP": 70,
+        "range": 2,
+        "declaredSkill": "WHIRLWIND",
+        "declaredPassive": "DRIZZLE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "WINGULL": {
+        "evidence": [
+          "unit-wingull"
+        ]
+      },
+      "PELIPPER": {
+        "evidence": [
+          "unit-pelipper"
+        ]
+      }
+    },
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.WHIRLWIND] = new WhirlwindStrategy()",
+      "strategy": "WhirlwindStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-ww",
+        "ww-class",
+        "base-flags",
+        "base-pp",
+        "ww-super",
+        "cast",
+        "pp-gate"
+      ]
+    },
+    "summary": "Blows the cast TARGET away and then damages it. The strategy records the target's position, then calls target.flyAway(board) with default arguments (the arguments are read from the target's own effects), broadcasts its own animation from the old to the new position, and finally requests handleSpecialDamage(damage, SPECIAL, caster, crit) on the target with damage 40 (WINGULL, 1 star) or 80 (PELIPPER, 2 stars) as the REQUESTED amount. flyAway uses Board.getFlyAwayCell with the TARGET as the flying entity: among free cells farther than the target's range from where it stands and within the target's range of at least one of its enemies (the caster's side) it keeps the cells reachable by the fewest enemies, then the farthest (Manhattan) from the current position, then picks one at random; if none exists it falls back to the free cell farthest from its current target position within its range, with a closest-enemy requirement; if nothing is found (or there are no living enemies) the target does not move. In the ordinary branch the move is moveTo(x, y, board, false): NOT a forced displacement, so locked units and Heavy Duty Boots holders (canBeMoved false) are still moved. Afterwards every living unit that targets the flyer, the caster included, loses its target. A target that has the SKYDIVE effect uses the skydive branch (protect, delayed attack on its destination target), one with FEATHER_DANCE or MAX_AIRSTREAM gains 2000 ms protect, and a GALE_WINGS target leaves EMBER board effects on the way; those conditional branches belong to the target's own effects and were not exercised by these casters. The damage is intermediate: AP and crit multiply it, handleDamage divides by the special-defense factor (minimum 1), shields and later modifiers follow; takenDamage (shield damage included) is unused. If the target has just gained protect or is skydiving, the damage request is blocked. No heal, PP gain, shield or stat helper is requested.",
+    "targeting": {
+      "who": "the cast target only (relocation and damage)",
+      "needsTarget": true,
+      "evidence": [
+        "ww-fly",
+        "ww-hit",
+        "flyaway-cell",
+        "base-flags",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "single target relocation, no area",
+      "origin": "the target's current cell; the destination is chosen by getFlyAwayCell relative to the target's own range and its enemies",
+      "evidence": [
+        "ww-pos",
+        "ww-fly",
+        "flyaway-cell",
+        "fly-free",
+        "fly-range",
+        "fly-target",
+        "fly-threat",
+        "fly-far"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "damageType": "SPECIAL",
+        "target": "the cast target only",
+        "declaredRaw": {
+          "byStars": {
+            "1": 40,
+            "2": 80,
+            "3": 120,
+            "4": 240,
+            "fallback": 240
+          }
+        },
+        "perUnitRaw": {
+          "WINGULL": 40,
+          "PELIPPER": 80
+        },
+        "scaling": "requested amount: handleSpecialDamage applies AP (x (1 + AP/100), apBoost default true) and the cast's crit flag (needs ABILITY_CRIT; canCritByDefault is false)",
+        "resolution": "intermediate, not guaranteed final HP loss: handleDamage divides by the special-defense factor (ceil, minimum 1), then shields, items and later modifiers follow. Blocked by protect / skydiving / magicBounce on the target: because flyAway runs first, a target with FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM has just gained protect (or is skydiving) and the damage request is blocked in those cases. The requested amount (40 / 80), the AP-and-crit amount handed to handleDamage and the takenDamage (shield damage included) are three different numbers; the return value is unused. No stat helper is involved.",
+        "evidence": [
+          "ww-dmg",
+          "ww-hit",
+          "special",
+          "special-block",
+          "special-ap",
+          "special-crit",
+          "def-step",
+          "def-min",
+          "armor-factor",
+          "cast",
+          "flyaway-prot",
+          "flyaway-skydive"
+        ]
+      },
+      {
+        "kind": "displacement",
+        "target": "the cast target",
+        "description": "the target flies to a free cell chosen by Board.getFlyAwayCell, using the target as the flying entity and the caster's team as its enemies; swap-style movement via moveTo(..., false) so it is not blocked by canBeMoved; no movement if no cell or no enemy exists",
+        "declaredRaw": {
+          "destination": "getFlyAwayCell(target)"
+        },
+        "scaling": "none (no AP or crit); the choice includes a random pick among equally good cells",
+        "resolution": "destination: free cells beyond the target's range from its position, within its range of at least one enemy that it can target; fewest enemies able to hit that cell; greatest Manhattan distance from the target's current cell; random tie-break. Fallback: getSafePlaceAwayFrom(target's current target position or own position, null, target.range) plus getClosestEnemy; otherwise no move. The target is retargeted afterwards (cooldown set to 100 by moveTo for faster retargeting) and every unit targeting it, the caster included, loses its target.",
+        "evidence": [
+          "ww-fly",
+          "flyaway-def",
+          "flyaway-cell",
+          "flyaway-move",
+          "flyaway-aggro",
+          "moveto",
+          "swap",
+          "fly-sig",
+          "fly-fallback",
+          "fly-enemies",
+          "fly-free",
+          "fly-range",
+          "fly-target",
+          "fly-threat",
+          "fly-none",
+          "fly-min",
+          "fly-far",
+          "fly-random",
+          "safe-away",
+          "closest-enemy",
+          "ww-bc",
+          "flyaway-gale",
+          "skydive-to"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "protect (conditional)",
+        "target": "the cast target",
+        "declaredRaw": {
+          "duration": 2000,
+          "unit": "ms (requested), only if the target has FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM"
+        },
+        "scaling": "none",
+        "applicationOrder": "inside flyAway, before the relocation and before the damage",
+        "guards": "triggerProtect is called without further checks in this record; its own guards (for example enrage) were not read",
+        "combatEffect": "a protected target blocks the damage request that follows; ordinary targets are unaffected",
+        "evidence": [
+          "flyaway-def",
+          "flyaway-prot",
+          "special-block"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "WINGULL": 1,
+        "PELIPPER": 2
+      },
+      "damageByStars": {
+        "WINGULL": 40,
+        "PELIPPER": 80
+      },
+      "note": "damage indexed by the caster's stars (pokemon.stars - 1), fallback 240; 120 and 240 are not reached by these units. The relocation does not depend on stars. maxPP 70 and range 2 for both.",
+      "evidence": [
+        "ww-dmg",
+        "unit-wingull",
+        "unit-pelipper"
+      ]
+    },
+    "positionalConditions": "Destination depends on the target's own range, the free cells and the positions of the target's enemies (the caster's team). The caster's own position matters only as one of those enemies. With no living enemy or no valid cell the target stays where it is and still takes the damage.",
+    "repeatedCastsAndModes": "No state is kept. Each cast recomputes the destination (with a random tie-break). No modes.",
+    "rawVsResolved": "Requested: relocate the target and deal 40 / 80 special damage. Applied: relocation only if getFlyAwayCell (or its fallback) finds a cell, ignoring canBeMoved; damage after AP, crit, special-defense division (min 1), shields and the protect / skydiving / magicBounce blocks. No Big Eater Belt / Twist Band helper is involved.",
+    "sourceTables": [
+      {
+        "id": "whirlwindDamage",
+        "file": "app/core/abilities/whirlwind.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.byStars",
+        "unitValuesPath": "effects.0.perUnitRaw"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+      "When the cast fires in a real fight (PP gain, silence, targeting before the cast)",
+      "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+      "Retargeting after the move (toMovingState, cooldown 100) and target selection were not traced"
+    ],
+    "unresolved": [
+      "Consulted: WhirlwindStrategy, AbilityStrategy.process, castAbility, PokemonEntity.flyAway / moveTo / skydiveTo / broadcastAbility, Board.getFlyAwayCell, getSafePlaceAwayFrom, getClosestEnemy, swapCells, handleSpecialDamage, and the sibling TELEPORT record (same getFlyAwayCell, with the caster as flyer). The queue record lists no routing uncertainties.",
+      "getFlyAwayCell treats the TARGET as 'entity': its range, team and targetX / targetY drive the choice, so the destination is chosen for the target's benefit, not the caster's; in the TELEPORT record the same function is read for the caster.",
+      "The SKYDIVE, FEATHER_DANCE, MAX_AIRSTREAM and GALE_WINGS branches depend on the target's effects or passive and were read but not exercised; triggerProtect's guards were not read.",
+      "Passive DRIZZLE (both units) was not read; it is not referenced by the strategy.",
+      "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg-ww",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1281,
+          1281
+        ],
+        "symbol": "AbilityStrategies[Ability.WHIRLWIND]",
+        "expect": "[Ability.WHIRLWIND]: new WhirlwindStrategy()",
+        "note": ""
+      },
+      {
+        "id": "ww-class",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "WhirlwindStrategy",
+        "expect": "export class WhirlwindStrategy extends AbilityStrategy",
+        "note": "requiresTarget and canCritByDefault not overridden"
+      },
+      {
+        "id": "ww-super",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          13,
+          13
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit, true)",
+        "note": "preventDefaultAnim true: the strategy broadcasts its own animation"
+      },
+      {
+        "id": "ww-pos",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "const x = target.positionX",
+        "note": "the target's position BEFORE it flies away (used as the animation origin)"
+      },
+      {
+        "id": "ww-dmg",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "const damage = [40, 80, 120, 240][pokemon.stars - 1] ?? 240",
+        "note": ""
+      },
+      {
+        "id": "ww-fly",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          17,
+          17
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "target.flyAway(board)",
+        "note": "the TARGET relocates itself with the default flyAway arguments, read from the target's own effects"
+      },
+      {
+        "id": "ww-bc",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          18,
+          23
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "pokemon.broadcastAbility({",
+        "note": "animation from the old to the new target position"
+      },
+      {
+        "id": "ww-hit",
+        "file": "app/core/abilities/whirlwind.ts",
+        "lines": [
+          24,
+          24
+        ],
+        "symbol": "WhirlwindStrategy.process",
+        "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+        "note": "after the relocation; damage does not depend on the new cell"
+      },
+      {
+        "id": "flyaway-def",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1323,
+          1329
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "flyAway(",
+        "note": "defaults: shouldSkydive = SKYDIVE effect, shouldProtect = FEATHER_DANCE / SKYDIVE / MAX_AIRSTREAM effect (all read from the flying unit)"
+      },
+      {
+        "id": "flyaway-cell",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1330,
+          1330
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "const flyAwayCell = board.getFlyAwayCell(this)",
+        "note": ""
+      },
+      {
+        "id": "flyaway-gale",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1332,
+          1348
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "if (flyAwayCell && this.passive === Passive.GALE_WINGS) {",
+        "note": "GALE_WINGS flyer leaves EMBER board effects on the cells between old and new cell"
+      },
+      {
+        "id": "flyaway-prot",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1350,
+          1350
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "if (shouldProtect) this.status.triggerProtect(2000)",
+        "note": "protect 2000 ms only with FEATHER_DANCE, SKYDIVE or MAX_AIRSTREAM on the flyer"
+      },
+      {
+        "id": "flyaway-skydive",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1351,
+          1383
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "if (shouldSkydive && flyAwayCell?.target) {",
+        "note": "skydive branch (flyer with the SKYDIVE effect): skydiveTo, delayed damage on its destination target"
+      },
+      {
+        "id": "flyaway-move",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1385,
+          1385
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "this.moveTo(flyAwayCell.x, flyAwayCell.y, board, false)",
+        "note": "ordinary branch: moveTo with forcedDisplacement false, so canBeMoved is NOT checked"
+      },
+      {
+        "id": "flyaway-aggro",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1388,
+          1394
+        ],
+        "symbol": "PokemonEntity.flyAway",
+        "expect": "// make enemies lose aggro after target flies away",
+        "note": "every living unit that targets the flyer (including the caster) has its target cleared"
+      },
+      {
+        "id": "skydive-to",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          901,
+          909
+        ],
+        "symbol": "PokemonEntity.skydiveTo",
+        "expect": "skydiveTo(x: number, y: number, board: Board) {",
+        "note": ""
+      },
+      {
+        "id": "swap",
+        "file": "app/core/board.ts",
+        "lines": [
+          68,
+          73
+        ],
+        "symbol": "Board.swapCells",
+        "expect": "swapCells(x0: number, y0: number, x1: number, y1: number) {",
+        "note": ""
+      },
+      {
+        "id": "safe-away",
+        "file": "app/core/board.ts",
+        "lines": [
+          388,
+          546
+        ],
+        "symbol": "Board.getSafePlaceAwayFrom",
+        "expect": "getSafePlaceAwayFrom(",
+        "note": "fallback: the free cell farthest (Manhattan) from the origin among cells within Chebyshev maxDistance"
+      },
+      {
+        "id": "closest-enemy",
+        "file": "app/core/board.ts",
+        "lines": [
+          395,
+          752
+        ],
+        "symbol": "Board.getClosestEnemy",
+        "expect": "getClosestEnemy(",
+        "note": ""
+      },
+      {
+        "id": "fly-sig",
+        "file": "app/core/board.ts",
+        "lines": [
+          383,
+          385
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "getFlyAwayCell(",
+        "note": ""
+      },
+      {
+        "id": "fly-fallback",
+        "file": "app/core/board.ts",
+        "lines": [
+          386,
+          402
+        ],
+        "symbol": "Board.getFlyAwayCell fallback",
+        "expect": "getSafePlaceAwayFrom(",
+        "note": "fallback: safe place away from current target (or own position), then closest enemy"
+      },
+      {
+        "id": "fly-enemies",
+        "file": "app/core/board.ts",
+        "lines": [
+          404,
+          409
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "e.team !== entity.team",
+        "note": "no living enemy -> null"
+      },
+      {
+        "id": "fly-free",
+        "file": "app/core/board.ts",
+        "lines": [
+          412,
+          418
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "if (value === undefined)",
+        "note": "step 1: unoccupied cells"
+      },
+      {
+        "id": "fly-range",
+        "file": "app/core/board.ts",
+        "lines": [
+          420,
+          425
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "entity.range",
+        "note": "step 2: only cells strictly beyond the caster's own range from its current cell"
+      },
+      {
+        "id": "fly-target",
+        "file": "app/core/board.ts",
+        "lines": [
+          427,
+          445
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "enemy.isTargettableBy(entity)",
+        "note": "step 3: cells where at least one targettable enemy is within the caster's range; lowest HP% such enemy becomes target"
+      },
+      {
+        "id": "fly-threat",
+        "file": "app/core/board.ts",
+        "lines": [
+          447,
+          452
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "enemyThreatCount",
+        "note": "threat = living enemies whose own range reaches the cell"
+      },
+      {
+        "id": "fly-none",
+        "file": "app/core/board.ts",
+        "lines": [
+          468,
+          469
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "return fallback()",
+        "note": "no qualifying cell -> fallback"
+      },
+      {
+        "id": "fly-min",
+        "file": "app/core/board.ts",
+        "lines": [
+          472,
+          479
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "minThreatCount",
+        "note": "step 4: lowest threat count"
+      },
+      {
+        "id": "fly-far",
+        "file": "app/core/board.ts",
+        "lines": [
+          481,
+          488
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "maxDistance",
+        "note": "step 5: highest distanceM from the caster's current position"
+      },
+      {
+        "id": "fly-random",
+        "file": "app/core/board.ts",
+        "lines": [
+          490,
+          497
+        ],
+        "symbol": "Board.getFlyAwayCell",
+        "expect": "pickRandomIn(farthestSafestCells)",
+        "note": "step 6: random pick among remaining cells"
+      },
+      {
+        "id": "moveto",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          890,
+          899
+        ],
+        "symbol": "PokemonEntity.moveTo",
+        "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+        "note": "swaps with the occupant if any (cells passed are free); forcedDisplacement false skips canBeMoved checks; sets cooldown 100"
+      },
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the flag is passed to every damage call"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          7
+        ],
+        "symbol": "AbilityStrategy",
+        "expect": "requiresTarget = true",
+        "note": "default flags: requiresTarget true, canCritByDefault false"
+      },
+      {
+        "id": "base-pp",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": ""
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": "cast with the current target when PP is full"
+      },
+      {
+        "id": "special",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          346,
+          353
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "apBoost = true",
+        "note": "handleSpecialDamage signature with apBoost = true"
+      },
+      {
+        "id": "special-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          354,
+          358
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce block"
+      },
+      {
+        "id": "special-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": ""
+      },
+      {
+        "id": "special-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": ""
+      },
+      {
+        "id": "def-step",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": ""
+      },
+      {
+        "id": "def-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": ""
+      },
+      {
+        "id": "armor-factor",
+        "file": "app/config/game/battle.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "ARMOR_FACTOR",
+        "expect": "export const ARMOR_FACTOR = 0.05",
+        "note": ""
+      },
+      {
+        "id": "unit-wingull",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          13365,
+          13380
+        ],
+        "symbol": "Wingull",
+        "expect": "export class Wingull extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      },
+      {
+        "id": "unit-pelipper",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          13382,
+          13396
+        ],
+        "symbol": "Pelipper",
+        "expect": "export class Pelipper extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      }
+    ]
+  }
+}
