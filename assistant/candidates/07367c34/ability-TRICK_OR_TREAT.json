@@ -1,0 +1,431 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TRICK_OR_TREAT",
+ "kind": "ability",
+ "identifier": "TRICK_OR_TREAT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T064033Z"
+ },
+ "record": {
+  "ability": "TRICK_OR_TREAT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "PUMPKABOO (1 star) and GOURGEIST (2 stars) declare TRICK_OR_TREAT (no passive in the catalog). Other units are not covered. SPLASH, the skill given to the transformed target, is a separate record and is not described here.",
+  "appliesTo": [
+   {
+    "key": "PUMPKABOO",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "TRICK_OR_TREAT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GOURGEIST",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "TRICK_OR_TREAT",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PUMPKABOO": {
+    "evidence": [
+     "unit-pumpkaboo"
+    ]
+   },
+   "GOURGEIST": {
+    "evidence": [
+     "unit-gourgeist"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TRICK_OR_TREAT] = new TrickOrTreatStrategy()",
+   "strategy": "TrickOrTreatStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-tot",
+    "tot-class",
+    "base-flags",
+    "base-pp",
+    "tot-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Single-target trick on the cast's target, no damage. If the target holds at least one item, the first item returned by iterating target.items is removed from the target (removeItem, permanent false, so only the combat entity loses it and its stat bonuses, synergy type and item effects) and the caster's addItem is called with it. addItem silently does nothing when the caster already holds 3 items, holds that item, or the item is refused (a synergy stone of a type the caster already has, EVIOLITE / RARE_CANDY when the caster's board Pokemon has no evolution, RARE_CANDY while holding EVIOLITE), so in those cases the item is simply lost for the rest of the fight. If the target holds no item, the target is turned into Magikarp for a duration: index set to Magikarp, skill set to SPLASH, and atk, def and speDef assigned directly to 1 (not through the stat helpers, so Big Eater Belt, Twist Band, floors and shields are not involved). Duration = round(base x (1 + AP/100) x critPower if the cast crit); base is 3000 ms for 1 star and 2 stars (table [3000, 3000, 10000, 30000] by the caster's stars), so 3000 ms for both listed units before AP; critPower applies only with ABILITY_CRIT (canCritByDefault is false). A DelayedCommand stored on the target then restores skill, atk, def, speDef and index to the values read at cast time.",
+  "targeting": {
+   "who": "the cast's target (normally an enemy in range); the caster receives a stolen item",
+   "needsTarget": true,
+   "note": "requiresTarget keeps the base default true; which unit is chosen as target is the generic targeting and was not traced.",
+   "evidence": [
+    "tot-class",
+    "base-flags",
+    "tot-branch",
+    "tot-steal"
+   ]
+  },
+  "geometry": {
+   "shape": "single target",
+   "evidence": [
+    "tot-branch"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "item steal (first item of the target to the caster)",
+    "declaredRaw": "first item in forEach order of target.items, one item",
+    "scaling": "none; no AP or crit input",
+    "resolution": "requested: move one item. Applied: the target always loses the item (removeItem is called before addItem), including its stat bonuses and item effects; the caster gains it only if addItem accepts it (fewer than 3 items, not a duplicate, not a refused stone / Eviolite / Rare Candy) with permanent false, so the caster's board Pokemon is unchanged. A gained item applies its stat bonuses and may add a synergy type to the combat entity and trigger applySynergyEffects.",
+    "evidence": [
+     "tot-branch",
+     "tot-steal",
+     "additem",
+     "removeitem",
+     "removeitemeffect",
+     "schemavalues"
+    ]
+   },
+   {
+    "kind": "transformation into Magikarp (target without items)",
+    "declaredRaw": {
+     "index": "Magikarp",
+     "skill": "SPLASH",
+     "atk": 1,
+     "def": 1,
+     "speDef": 1
+    },
+    "scaling": "values are assigned, not added: atk, def and speDef become exactly 1 regardless of Big Eater Belt, Twist Band, shields or the caster's AP.",
+    "resolution": "Stats are stored in the originals before the change and written back directly when the command fires; any buff or debuff applied to atk, def or speDef during the duration is overwritten by the restore, and so is any skill or index change. A second cast on a target that is already transformed stores the transformed values as its originals (skill SPLASH, atk / def / speDef 1, Magikarp index), so if its restore command fires after the first one's it leaves the target in the transformed values; this follows from the code and was not run.",
+    "evidence": [
+     "tot-orig",
+     "tot-morph",
+     "tot-restore",
+     "delayedcmd",
+     "simcmd",
+     "updatecmds"
+    ]
+   },
+   {
+    "kind": "duration of the transformation",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 10000,
+      "4": 30000,
+      "fallback": 30000
+     }
+    },
+    "perUnitRaw": {
+     "PUMPKABOO": 3000,
+     "GOURGEIST": 3000
+    },
+    "scaling": "round(base x (1 + AP/100) x (critPower if crit)); the AP factor is the caster's AP at cast time, requested duration in milliseconds",
+    "resolution": "The command delay is counted down by dt on each update of the target's state and fires once it is below 0, so the effective restore is on the first update after the duration has elapsed. If the target dies, the commands of a removed entity stop being updated (not traced).",
+    "evidence": [
+     "tot-duration",
+     "delayedcmd",
+     "simcmd",
+     "updatecmds"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "PUMPKABOO": 1,
+    "GOURGEIST": 2
+   },
+   "declaredRawDuration": {
+    "PUMPKABOO": 3000,
+    "GOURGEIST": 3000
+   },
+   "note": "duration table indexed by the caster's stars; the 10000 and 30000 entries are not reachable by the two listed units (1 and 2 stars). The item-steal branch does not depend on stars.",
+   "evidence": [
+    "tot-duration",
+    "unit-pumpkaboo",
+    "unit-gourgeist"
+   ]
+  },
+  "positionalConditions": "None in this strategy.",
+  "repeatedCastsAndModes": "Two modes selected by whether the target holds an item at cast time. Each cast steals again or starts a new transformation; no state is stored on the caster. Casting the Magikarp branch repeatedly on the same target stacks restore commands (see the effect resolution).",
+  "rawVsResolved": "Requested: one item moves to the caster, or the target becomes Magikarp (atk / def / speDef 1, skill SPLASH) for round(3000 x (1 + AP/100) x critPower if crit) ms. Applied: the target always loses the item but the caster keeps it only if addItem accepts it; the stat assignments are exact (no helper). No damage, heal, PP change or shield, so takenDamage, the wound / protect guards and Grass overheal do not apply.",
+  "sourceTables": [
+   {
+    "id": "transformDuration",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "pattern": "const baseDuration = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "How targeting picks the target and whether an untargetable target can be chosen",
+   "What SPLASH does when the transformed unit casts it",
+   "Whether Magikarp's index affects any combat rule (only the sprite / index field was assigned here)",
+   "Whether entity commands are still updated after the target dies"
+  ],
+  "unresolved": [
+   "Routing uncertainty REFERENCES_OTHER_ABILITIES: the strategy only assigns Ability.SPLASH to the target; SPLASH's behaviour is a separate record",
+   "Routing uncertainty RUNTIME_SKILL_CHANGE: the target's skill is replaced at run time and restored by the DelayedCommand",
+   "The insertion order of target.items (a SetSchema) decides which item is 'first'; it was not verified beyond schemaValues using forEach order",
+   "Consulted: PokemonEntity.addItem, removeItem, removeItemEffect, schemaValues, DelayedCommand / SimulationCommand, PokemonState.updateCommands, core-mechanics sections I and J (no heal, shield or PP involved)",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-pumpkaboo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8823,
+     8836
+    ],
+    "symbol": "class Pumpkaboo",
+    "expect": "skill = Ability.TRICK_OR_TREAT",
+    "note": "1 star, maxPP 80, range 1, no passive"
+   },
+   {
+    "id": "unit-gourgeist",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8838,
+     8850
+    ],
+    "symbol": "class Gourgeist",
+    "expect": "skill = Ability.TRICK_OR_TREAT",
+    "note": "2 stars, maxPP 80, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-tot",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1256,
+     1256
+    ],
+    "symbol": "AbilityStrategies[Ability.TRICK_OR_TREAT]",
+    "expect": "[Ability.TRICK_OR_TREAT]: new TrickOrTreatStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tot-class",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     9,
+     9
+    ],
+    "symbol": "TrickOrTreatStrategy",
+    "expect": "export class TrickOrTreatStrategy extends AbilityStrategy",
+    "note": "requiresTarget and canCritByDefault are not overridden (base true / false)"
+   },
+   {
+    "id": "tot-super",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "preventDefaultAnim not set: default ability broadcast happens"
+   },
+   {
+    "id": "tot-branch",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     18,
+     18
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "if (target.items.size > 0)",
+    "note": "branch on whether the target holds any item"
+   },
+   {
+    "id": "tot-steal",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     19,
+     21
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "pokemon.addItem(item)",
+    "note": "first value of target.items is removed from the target and offered to the caster"
+   },
+   {
+    "id": "tot-orig",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     23,
+     28
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "const originalIndex = target.index",
+    "note": "stores skill, atk, def, speDef, index at cast time"
+   },
+   {
+    "id": "tot-duration",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     29,
+     32
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "baseDuration * (1 + pokemon.ap / 100) * (crit ? pokemon.critPower : 1)",
+    "note": "[3000, 3000, 10000, 30000] by caster stars, ?? 30000"
+   },
+   {
+    "id": "tot-morph",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     33,
+     37
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "target.speDef = 1",
+    "note": "index Magikarp, skill SPLASH, atk, def and speDef assigned directly to 1"
+   },
+   {
+    "id": "tot-restore",
+    "file": "app/core/abilities/trick-or-treat.ts",
+    "lines": [
+     38,
+     46
+    ],
+    "symbol": "TrickOrTreatStrategy.process",
+    "expect": "target.index = originalIndex",
+    "note": "DelayedCommand on the target restores the stored values after the duration"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": ""
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "additem",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     782,
+     815
+    ],
+    "symbol": "PokemonEntity.addItem",
+    "expect": "this.items.size >= 3",
+    "note": "rejects (item already removed from the target) when the caster has 3 items, a synergy stone of its own type, EVIOLITE / RARE_CANDY without evolution, or RARE_CANDY with EVIOLITE; adds only if the caster lacks that item; permanent false; may add a synergy type"
+   },
+   {
+    "id": "removeitem",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     823
+    ],
+    "symbol": "PokemonEntity.removeItem",
+    "expect": "this.items.delete(item)",
+    "note": "permanent false: the target's board Pokemon keeps the item"
+   },
+   {
+    "id": "removeitemeffect",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     848,
+     888
+    ],
+    "symbol": "PokemonEntity.removeItemEffect",
+    "expect": "this.applyStat(stat as Stat, -value)",
+    "note": "target loses the item's stat bonuses, granted synergy type and effects"
+   },
+   {
+    "id": "schemavalues",
+    "file": "app/utils/schemas.ts",
+    "lines": [
+     15,
+     21
+    ],
+    "symbol": "schemaValues",
+    "expect": "schema.forEach((value: T) => values.push(value))",
+    "note": "[0] is the first value in forEach order"
+   },
+   {
+    "id": "delayedcmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "this.delayedFunction()",
+    "note": "runs once when delay has gone below 0"
+   },
+   {
+    "id": "simcmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": "delay in milliseconds counted down by dt"
+   },
+   {
+    "id": "updatecmds",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "the target's own commands are updated by its state"
+   }
+  ]
+ }
+}
