@@ -1,0 +1,551 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WONDER_GUARD",
+ "kind": "ability",
+ "identifier": "WONDER_GUARD",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T183911Z"
+ },
+ "record": {
+  "ability": "WONDER_GUARD",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare the ability WONDER_GUARD: Nincada (1 star, maxPP 110) and Shedinja (2 stars, maxPP 100). The strategy is shared; unit differences are the star count (table index), maxPP and passive. Ninjask is not listed. The identifier WONDER_GUARD is also the name of a PASSIVE (Shedinja only, blocks 20 damage per hit); that passive is a separate mechanic and is not described here beyond a pointer.",
+  "appliesTo": [
+   {
+    "key": "NINCADA",
+    "stars": 1,
+    "maxPP": 110,
+    "range": 1,
+    "declaredSkill": "WONDER_GUARD",
+    "declaredPassive": "NINCADA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SHEDINJA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WONDER_GUARD",
+    "declaredPassive": "WONDER_GUARD",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NINCADA": {
+    "evidence": [
+     "unit-nincada"
+    ]
+   },
+   "SHEDINJA": {
+    "evidence": [
+     "unit-shedinja",
+     "pas-unit"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WONDER_GUARD] = new WonderGuardStrategy()",
+   "strategy": "WonderGuardStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wg-class",
+    "wg-super"
+   ]
+  },
+  "summary": "For every enemy standing in one of the up to 8 cells around the caster: first a 3000 ms paralysis request, then SPECIAL damage (raw 30/60/120/240 by the caster's stars; 30 for Nincada, 60 for Shedinja). The cast target is not used for geometry or damage (it is only passed to the base process for the animation). Paralysis is a request that Rune Protect or IMMUNITY_PARALYSIS cancels entirely, and the damage can be blocked separately by protect / skydiving / magicBounce. The ability of the same name as Shedinja's passive (-20 damage per hit received) is a different mechanic.",
+  "targeting": {
+   "who": "every enemy-team unit in the 8 cells adjacent to the caster at cast time",
+   "needsTarget": true,
+   "note": "requiresTarget is true (the default), so the caster must have a target in range before the cast fires; the cast target itself is only used for the animation. Allies, empty cells and cells off the board are skipped.",
+   "evidence": [
+    "wg-cells",
+    "wg-filter",
+    "adj",
+    "onboard",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square around the caster minus the centre (up to 8 cells), clipped by the board bounds",
+   "evidence": [
+    "wg-cells",
+    "adj",
+    "onboard"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "damage",
+    "damageType": "SPECIAL",
+    "target": "each adjacent enemy (applied after that enemy's paralysis request, in cell scan order)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 30,
+      "2": 60,
+      "3": 120,
+      "4": 240,
+      "fallback": 240
+     },
+     "label": "requested damage (raw)"
+    },
+    "perUnitRaw": {
+     "NINCADA": 30,
+     "SHEDINJA": 60
+    },
+    "scaling": "requested = table[stars-1] (fallback 240). handleSpecialDamage: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); the same crit flag applies to every adjacent target of the cast.",
+    "resolution": "applied = the figure handed to PokemonState.handleDamage. handleDamage then divides SPECIAL damage by (1 + ARMOR_FACTOR x speDef), applies flat reductions for targets with GUTS/STURDY/DEFIANT/COACHING effects or a Shedinja target's Wonder Guard passive, rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage reported (not used by this strategy) = shield damage + HP damage capped at current hp; it is 0 if the target has protect / skydiving / magicBounce (blocked entirely, magicBounce may reflect after 500 ms).",
+    "evidence": [
+     "wg-table",
+     "wg-hit",
+     "special",
+     "special-block",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "hd-protect",
+     "hd-spedef",
+     "pas-wg",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [
+   {
+    "status": "PARALYSIS",
+    "target": "each adjacent enemy",
+    "durationMsRequested": 3000,
+    "scaling": "apBoost defaults to false in triggerParalysis, so AP does not lengthen it. STORM weather multiplies the duration by 1.3 (each Electric Quartz in the target player's items then multiplies by 1 - 0.2), applyStatusDurationReductions may shorten it, the result is Math.round-ed and only replaces the remaining paralysisCooldown if it is longer (an existing longer paralysis is not shortened or refreshed).",
+    "guards": "the entire request is ignored when the target has Rune Protect (status.runeProtect) or the IMMUNITY_PARALYSIS effect; a Cheri Berry holder eats it after a successful request. Protect / magicBounce on the target do not stop the paralysis request, only the damage (the request runs before the damage in the loop).",
+    "evidence": [
+     "wg-para",
+     "para-rune",
+     "para-storm",
+     "para-red",
+     "para-cd"
+    ]
+   }
+  ],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NINCADA": 1,
+    "SHEDINJA": 2
+   },
+   "declaredRawDamage": {
+    "NINCADA": 30,
+    "SHEDINJA": 60
+   },
+   "note": "The table has four entries; the 3-star (120) and 4-star (240, also the ?? fallback) columns are not reachable by the bare factory star counts of the two listed units. Paralysis duration does not depend on stars.",
+   "evidence": [
+    "wg-table",
+    "unit-nincada",
+    "unit-shedinja"
+   ]
+  },
+  "positionalConditions": "The caster's own cell and the board bounds decide which of the 8 neighbours exist; only occupied cells holding an enemy count. No facing or line logic.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0) and repeats the same sweep; paralysis from repeated casts only extends the remaining time when the new duration is longer.",
+  "rawVsResolved": "Requested: damage 30 (Nincada) / 60 (Shedinja) SPECIAL per adjacent enemy and 3000 ms paralysis. Applied damage = requested x (1 + AP/100) x optional crit, then reduced by the target's SPE_DEF and the flat reductions listed above, with a minimum of 1 per target; takenDamage includes shield damage. Applied paralysis = 3000 ms after weather and duration-reduction adjustments, ignored under Rune Protect / IMMUNITY_PARALYSIS, and only replacing a shorter remaining duration. Final values additionally depend on untraced item and field effects.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "How paralysis changes behaviour in combat (movement/attack speed): only the status flag and its duration were read, not the consumers of status.paralysis",
+   "Contents of applyStatusDurationReductions were not read for this record"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_PASSIVE: Ability.WONDER_GUARD (this strategy, Nincada and Shedinja) and Passive.WONDER_GUARD (Shedinja only, -20 per hit in PokemonState.handleDamage, evidence pas-wg) share a name. Shedinja has both; this record covers only the ability, and the passive reduction does apply to damage Shedinja receives, not to the damage it deals",
+   "Cell scan order (y outer, x inner) means paralysis and damage alternate per target; whether an on-death effect of an earlier target changes later targets was not traced",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "Cover Band, Shiny Charm and Fossil branches of handleDamage after the minimum-1 step were not traced for this ability",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-nincada",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8504,
+     8519
+    ],
+    "symbol": "class Nincada",
+    "expect": "skill = Ability.WONDER_GUARD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-shedinja",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8553,
+     8567
+    ],
+    "symbol": "class Shedinja",
+    "expect": "skill = Ability.WONDER_GUARD",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1286,
+     1286
+    ],
+    "symbol": "AbilityStrategies[Ability.WONDER_GUARD]",
+    "expect": "[Ability.WONDER_GUARD]: new WonderGuardStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     352,
+     352
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "apBoost = true",
+    "note": "default 6th argument apBoost = true"
+   },
+   {
+    "id": "special-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     355,
+     355
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect / skydiving / magicBounce block ability damage (spellBlockedCount++, takenDamage 0)"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     400,
+     400
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP multiplier"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     432,
+     432
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit multiplier, reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     435
+    ],
+    "symbol": "handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "hands specialDamage to PokemonState.handleDamage and returns its { death, takenDamage }"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "wg-class",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "WonderGuardStrategy",
+    "expect": "export class WonderGuardStrategy extends AbilityStrategy",
+    "note": ""
+   },
+   {
+    "id": "wg-super",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "wg-cells",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "const cells = board.getAdjacentCells(pokemon.positionX, pokemon.positionY)",
+    "note": "the 8 neighbours of the caster; no target-based geometry"
+   },
+   {
+    "id": "wg-table",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "const damage = [30, 60, 120, 240][pokemon.stars - 1] ?? 240",
+    "note": "damage table by stars (fallback 240)"
+   },
+   {
+    "id": "wg-filter",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     17,
+     18
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "if (cell.value && pokemon.team != cell.value.team)",
+    "note": "occupied cell and different team"
+   },
+   {
+    "id": "wg-para",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     19,
+     19
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "cell.value.status.triggerParalysis(3000, cell.value, pokemon)",
+    "note": "paralysis 3000 ms request, apBoost default false; runs before the damage"
+   },
+   {
+    "id": "wg-hit",
+    "file": "app/core/abilities/wonder-guard.ts",
+    "lines": [
+     20,
+     26
+    ],
+    "symbol": "WonderGuardStrategy.process",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "SPECIAL damage with default apBoost, crit flag passed"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "3x3 around the cell, centre excluded, only cells on the board"
+   },
+   {
+    "id": "onboard",
+    "file": "app/core/board.ts",
+    "lines": [
+     724,
+     726
+    ],
+    "symbol": "Board.isOnBoard",
+    "expect": "return x >= 0 && x < this.columns && y >= 0 && y < this.rows",
+    "note": "bounds test"
+   },
+   {
+    "id": "para-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     914,
+     914
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS))",
+    "note": "Rune Protect or IMMUNITY_PARALYSIS: the whole request is ignored"
+   },
+   {
+    "id": "para-storm",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     919,
+     920
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+    "note": "STORM weather lengthens the duration x1.3 (Electric Quartz reduces)"
+   },
+   {
+    "id": "para-red",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     929,
+     929
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+    "note": "duration reductions (helper not traced here)"
+   },
+   {
+    "id": "para-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     931,
+     932
+    ],
+    "symbol": "Status.triggerParalysis",
+    "expect": "if (duration > this.paralysisCooldown) {",
+    "note": "a new paralysis only ever extends the remaining time; Math.round"
+   },
+   {
+    "id": "pas-wg",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     591,
+     594
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.passive === Passive.WONDER_GUARD) {",
+    "note": "the PASSIVE of the same name (Shedinja only): blocks 20 damage per hit; a different mechanic, not part of this ability"
+   },
+   {
+    "id": "pas-unit",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     8565,
+     8565
+    ],
+    "symbol": "class Shedinja",
+    "expect": "passive = Passive.WONDER_GUARD",
+    "note": "Shedinja declares the passive; Nincada declares Passive.NINCADA"
+   }
+  ]
+ }
+}
