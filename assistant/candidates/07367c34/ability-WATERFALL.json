@@ -1,0 +1,459 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/WATERFALL",
+  "kind": "ability",
+  "identifier": "WATERFALL",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261107T123940Z"
+  },
+  "record": {
+    "ability": "WATERFALL",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "GOLDEEN (1 star) and SEAKING (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "GOLDEEN",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "WATERFALL",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "SEAKING",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "WATERFALL",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "GOLDEEN": {
+        "evidence": [
+          "unit-goldeen"
+        ]
+      },
+      "SEAKING": {
+        "evidence": [
+          "unit-seaking"
+        ]
+      }
+    },
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.WATERFALL] = new WaterfallStrategy()",
+      "strategy": "WaterfallStrategy extends AbilityStrategy",
+      "requiresTarget": false,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-wf",
+        "wf-class",
+        "wf-notarget",
+        "base-flags",
+        "base-pp",
+        "wf-super",
+        "cast",
+        "pp-gate"
+      ]
+    },
+    "summary": "Self-only effect, no damage and no target. In order the caster (1) requests a shield of 50 (GOLDEEN, 1 star) or 100 (SEAKING, 2 stars) through pokemon.addShield(shield, pokemon, 1, crit), (2) calls status.clearNegativeStatus(caster, caster) and (3) calls board.clearBoardEffect on its own current cell with no specific effect, clearing every board effect there. The shield amount is the REQUESTED value: the entity method first multiplies a positive value by 1.25 rounded down when the caster holds a Big Eater Belt, then the state method multiplies by (1 + AP/100) (apBoost 1), by critPower on a crit, by 0.5 when the caster is enraged, rounds, and adds it to the current shield (floor 0), only if the caster's hp > 0. addShield is not healing: Protect (status.protect), wound and Rune Protect do not appear in it (shared references: core-mechanics section J4 for the addShield path, J2 for what handleHeal guards). clearNegativeStatus zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blinded, clears curse (and adds 2000 ms to a running curse cooldown instead of zeroing it) and zeroes possessed unless the possession came from the caster's own team; the boolean flags themselves drop on each status's next update. The cast needs no target.",
+    "targeting": {
+      "who": "the caster only (shield, status clearing, own cell's board effects)",
+      "needsTarget": false,
+      "evidence": [
+        "wf-notarget",
+        "wf-shield",
+        "wf-clear",
+        "wf-board",
+        "base-flags",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "self; one board cell (the caster's current position)",
+      "origin": "the caster",
+      "evidence": [
+        "wf-board",
+        "clear-board"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "shield",
+        "target": "the caster",
+        "declaredRaw": {
+          "byStars": {
+            "1": 50,
+            "2": 100,
+            "3": 150,
+            "4": 300,
+            "fallback": 300
+          }
+        },
+        "perUnitRaw": {
+          "GOLDEEN": 50,
+          "SEAKING": 100
+        },
+        "scaling": "addShield with apBoost 1: requested value, then (entity) Big Eater Belt x1.25 rounded down for a positive value, then (state) x(1 + AP/100), x critPower on a crit (needs ABILITY_CRIT; canCritByDefault is false), x0.5 if the caster is enraged, Math.round",
+        "resolution": "applied change: shield = max(0, shield + round(value)), only when the caster's hp > 0 (otherwise nothing is added); shieldDone is credited to the caster. Requested (50 / 100) versus applied (after Belt, AP, crit, enraged halving, rounding) differ whenever one of those applies. Not subject to the heal guards: Protect, wound and Rune Protect do not block a shield. The shield later absorbs damage inside handleDamage and is counted in the returned takenDamage; no timer on the shield was found in this strategy.",
+        "evidence": [
+          "wf-table",
+          "wf-shield",
+          "addshield-entity",
+          "addshield-state",
+          "belt-helper",
+          "belt-round"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "clearNegativeStatus (burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, curse, possessed, locked, blinded)",
+        "target": "the caster",
+        "declaredRaw": {
+          "duration": null,
+          "unit": "instant request"
+        },
+        "scaling": "none (no AP, no crit)",
+        "applicationOrder": "after the shield, before the board-effect clear",
+        "guards": "no Rune Protect check and no immunity check: the method writes cooldowns directly. It sets cooldowns to 0 and the curse flag to false; a running curse cooldown gets +2000 ms instead of being zeroed ('do not clear curseCooldown on purpose'); possession is zeroed unless the unit is possessed by a same-team origin (here origin is the caster itself, so a possession that moved the caster to its current team is kept). It does not set the boolean flags (burn, paralysis, ...) or poisonStacks: each flag falls when its update function next sees cooldown - dt <= 0 (e.g. confusion and armor reduction on the next update; poison stacks reset at the end of updatePoison, after that call's poison damage block) so the cleansing is effective at the caster's next status update, not instantly inside the cast. Positive statuses are untouched.",
+        "combatEffect": "not traced beyond the removal of the listed statuses on the next update; the effect of each negative status is described in the ability records that apply it.",
+        "evidence": [
+          "wf-clear",
+          "clear-neg",
+          "upd-conf",
+          "upd-poison",
+          "upd-armor"
+        ]
+      }
+    ],
+    "buffs": [],
+    "shields": [
+      {
+        "target": "the caster",
+        "declaredRaw": {
+          "GOLDEEN": 50,
+          "SEAKING": 100
+        },
+        "note": "see effects[0]; requested, then applied after Big Eater Belt, AP, crit, enraged halving and rounding",
+        "evidence": [
+          "wf-shield",
+          "addshield-state"
+        ]
+      }
+    ],
+    "starBehavior": {
+      "unitStars": {
+        "GOLDEEN": 1,
+        "SEAKING": 2
+      },
+      "shieldByStars": {
+        "GOLDEEN": 50,
+        "SEAKING": 100
+      },
+      "note": "shield indexed by the caster's stars (pokemon.stars - 1), fallback 300; 150 and 300 are not reached by these units. The status clear and the board-effect clear do not depend on stars. maxPP 100 and range 1 for both.",
+      "evidence": [
+        "wf-table",
+        "unit-goldeen",
+        "unit-seaking"
+      ]
+    },
+    "positionalConditions": "The board-effect clear uses the caster's own x / y at cast time: any board effect on that cell is removed (and removed from whichever entity stands there, which is the caster). No range or target condition.",
+    "repeatedCastsAndModes": "No state is kept; each cast adds another shield on top of the existing one. No modes.",
+    "rawVsResolved": "Requested: shield 50 / 100 on the caster. Applied: round(floor(1.25 x value if Big Eater Belt) x (1 + AP/100) x critPower-if-crit x 0.5-if-enraged) added to the current shield, only when hp > 0. Negative statuses: cooldowns zeroed at cast, flags drop on the next status update. Board effects on the caster's cell: all cleared. No damage, heal, PP gain or stat change is requested; Twist Band does not appear in addShield.",
+    "sourceTables": [
+      {
+        "id": "waterfallShield",
+        "file": "app/core/abilities/waterfall.ts",
+        "pattern": "const shield = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.byStars",
+        "unitValuesPath": "effects.0.perUnitRaw"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "When the cast fires in a real fight (PP gain, silence, canCast); with requiresTarget false it can cast without a target, but the exact trigger rules in AttackingState were only read at the PP gate",
+      "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
+      "How shield absorption interacts with later damage modifiers (see core-mechanics section A / J1); not re-traced here",
+      "Which board effects exist on a cell and what the cleared effects do were not traced"
+    ],
+    "unresolved": [
+      "Consulted: WaterfallStrategy, AbilityStrategy.process, castAbility, PokemonEntity.addShield, PokemonState.addShield, applyBigEaterBeltStatBuff, Status.clearNegativeStatus and the update functions of confusion, poison and armor reduction, Board.clearBoardEffect, core-mechanics section J. The queue record lists no routing uncertainties.",
+      "The update functions of burn, silence, fatigue, freeze, sleep, wound, paralysis, charm, flinch and blinded were not individually read; they are assumed (not shown) to behave like the confusion update the record cites.",
+      "A shield on a dead (hp <= 0) caster is skipped; whether the cast can occur then was not traced.",
+      "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg-wf",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1277,
+          1277
+        ],
+        "symbol": "AbilityStrategies[Ability.WATERFALL]",
+        "expect": "[Ability.WATERFALL]: new WaterfallStrategy()",
+        "note": ""
+      },
+      {
+        "id": "wf-class",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "WaterfallStrategy",
+        "expect": "export class WaterfallStrategy extends AbilityStrategy",
+        "note": ""
+      },
+      {
+        "id": "wf-notarget",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "WaterfallStrategy",
+        "expect": "requiresTarget = false",
+        "note": "castable without a target; process receives target null"
+      },
+      {
+        "id": "wf-super",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          8,
+          8
+        ],
+        "symbol": "WaterfallStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default cast animation with no target coordinates (-1, -1)"
+      },
+      {
+        "id": "wf-table",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          9,
+          9
+        ],
+        "symbol": "WaterfallStrategy.process",
+        "expect": "const shield = [50, 100, 150, 300][pokemon.stars - 1] ?? 300",
+        "note": ""
+      },
+      {
+        "id": "wf-shield",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          10,
+          10
+        ],
+        "symbol": "WaterfallStrategy.process",
+        "expect": "pokemon.addShield(shield, pokemon, 1, crit)",
+        "note": "self shield, apBoost 1, crit flag passed"
+      },
+      {
+        "id": "wf-clear",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          11,
+          11
+        ],
+        "symbol": "WaterfallStrategy.process",
+        "expect": "pokemon.status.clearNegativeStatus(pokemon, pokemon)",
+        "note": "after the shield; origin = the caster itself"
+      },
+      {
+        "id": "wf-board",
+        "file": "app/core/abilities/waterfall.ts",
+        "lines": [
+          12,
+          16
+        ],
+        "symbol": "WaterfallStrategy.process",
+        "expect": "board.clearBoardEffect(",
+        "note": "clears every board effect on the caster's current cell"
+      },
+      {
+        "id": "clear-neg",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          122,
+          146
+        ],
+        "symbol": "Status.clearNegativeStatus",
+        "expect": "clearNegativeStatus(entity: IPokemonEntity, origin?: IPokemonEntity) {",
+        "note": "sets the listed cooldowns to 0 and clears curse; does not itself reset the boolean status flags"
+      },
+      {
+        "id": "upd-conf",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          837,
+          844
+        ],
+        "symbol": "Status.updateConfusion",
+        "expect": "updateConfusion(dt: number, pkm: PokemonEntity) {",
+        "note": "example: the flag drops on the next update when cooldown - dt <= 0"
+      },
+      {
+        "id": "upd-poison",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          673,
+          677
+        ],
+        "symbol": "Status.updatePoison",
+        "expect": "if (this.poisonCooldown - dt <= 0) {",
+        "note": "poison stacks are reset only here, after that tick's poison damage block ran"
+      },
+      {
+        "id": "upd-armor",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          354,
+          360
+        ],
+        "symbol": "Status.updateArmorReduction",
+        "expect": "updateArmorReduction(dt: number) {",
+        "note": ""
+      },
+      {
+        "id": "clear-board",
+        "file": "app/core/board.ts",
+        "lines": [
+          656,
+          694
+        ],
+        "symbol": "Board.clearBoardEffect",
+        "expect": "clearBoardEffect(",
+        "note": "no effectToClear: clears all effects of the cell, removes them from the occupant's effects, broadcasts CLEAR_BOARD_EVENT"
+      },
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry"
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the flag is passed to every damage call"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          7
+        ],
+        "symbol": "AbilityStrategy",
+        "expect": "requiresTarget = true",
+        "note": "default flags: requiresTarget true, canCritByDefault false"
+      },
+      {
+        "id": "base-pp",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": ""
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": "cast with the current target when PP is full"
+      },
+      {
+        "id": "addshield-entity",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          498,
+          506
+        ],
+        "symbol": "PokemonEntity.addShield",
+        "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+        "note": "Big Eater Belt multiplies a positive shield, then state.addShield"
+      },
+      {
+        "id": "addshield-state",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          382,
+          402
+        ],
+        "symbol": "PokemonState.addShield",
+        "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+        "note": "AP scaling, crit multiplier, enraged halving, round, add to shield, only if hp > 0"
+      },
+      {
+        "id": "belt-helper",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1839,
+          1852
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value > 0 || (value < 0 && caster !== \"environment\" && caster.team === pokemon.team)",
+        "note": "positive values, and negative values from a same-team caster (a buff being lost), are scaled for a Big Eater Belt holder"
+      },
+      {
+        "id": "belt-round",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1848,
+          1850
+        ],
+        "symbol": "applyBigEaterBeltStatBuff",
+        "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+        "note": "x1.25 with rounding mode down"
+      },
+      {
+        "id": "unit-goldeen",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          16000,
+          16014
+        ],
+        "symbol": "Goldeen",
+        "expect": "export class Goldeen extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      },
+      {
+        "id": "unit-seaking",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          16016,
+          16029
+        ],
+        "symbol": "Seaking",
+        "expect": "export class Seaking extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      }
+    ]
+  }
+}
