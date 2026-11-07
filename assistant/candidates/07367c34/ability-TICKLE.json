@@ -1,0 +1,404 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TICKLE",
+ "kind": "ability",
+ "identifier": "TICKLE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T003952Z"
+ },
+ "record": {
+  "ability": "TICKLE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare TICKLE: Aipom (1 star) and Ambipom (2 stars); both maxPP 80, range 1, no declared passive. The strategy is shared; the only unit difference is the star count (number of enemies hit).",
+  "appliesTo": [
+   {
+    "key": "AIPOM",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "TICKLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "AMBIPOM",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "TICKLE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "AIPOM": {
+    "evidence": [
+     "unit-aipom"
+    ]
+   },
+   "AMBIPOM": {
+    "evidence": [
+     "unit-ambipom"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TICKLE] = new TickleStrategy()",
+   "strategy": "TickleStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "No overrides: base defaults apply (target required, crit only with the ABILITY_CRIT effect). The target is used only for its team (target.team).",
+   "evidence": [
+    "reg-tk",
+    "tk-class",
+    "tk-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "After spending PP, the strategy takes the living units of the target's team sorted by Chebyshev distance from the CASTER's cell (stable sort: ties keep the board's cells-array order, which is row-major), keeps the first 1/2/3/5 by caster stars (1 for Aipom, 2 for Ambipom) and applies to each of them addAttack(-3, caster, apBoost 1, crit) and addDefense(-3, caster, apBoost 1, crit). The three is a RAW request: each helper multiplies it by (1 + caster AP/100) and, on a crit, by critPower, rounds it (Math.round), and then applies the holder's items. The chosen enemies are the closest ones to the caster, which is not necessarily the unit being attacked (the target is only used to name the enemy team). Nothing is restored afterwards: the changes last for the rest of the fight. Attack cannot fall below 1 and Defense cannot fall below 0 (the clamp, not the request, bounds the applied change).",
+  "targeting": {
+   "who": "the closest living enemies to the caster, up to 1/2/3/5 by stars (Chebyshev distance from the caster, ties in row-major cell order)",
+   "needsTarget": true,
+   "note": "The cast target only supplies target.team; it need not be among the units hit (for example when ties or movement place another enemy closer). Fewer enemies on the board than the maximum simply hits all of them.",
+   "evidence": [
+    "tk-closest",
+    "board-closest",
+    "dist-c",
+    "tk-table"
+   ]
+  },
+  "geometry": {
+   "shape": "no area: nearest-N selection by Chebyshev distance from the caster's cell; no range limit",
+   "evidence": [
+    "board-closest",
+    "dist-c",
+    "tk-closest"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "stat-change",
+    "stat": "ATK",
+    "target": "each selected enemy",
+    "declaredRaw": {
+     "value": -3,
+     "note": "attackLost = 3 (requested change)"
+    },
+    "scaling": "requested = -3. addAttack: value = round(-3 x (1 + AP/100) x critPower if crit); then applyBigEaterBeltStatBuff (a negative value from a caster on the OTHER team is not boosted) and applyTwistBandBuff (a Twist Band holder on the other team turns the negative into a POSITIVE: -3 becomes +3 scaled value); then target.atk = min(1)(atk + value).",
+    "resolution": "requested (-3) -> applied value after AP/crit rounding and Twist Band -> actual change after the clamp at 1 (an enemy at atk 1 loses nothing; an enemy at atk 2 loses at most 1). Math.round on a negative half rounds toward +infinity (e.g. -2.5 -> -2).",
+    "evidence": [
+     "tk-const",
+     "tk-apply",
+     "add-atk",
+     "bigeater",
+     "twist"
+    ]
+   },
+   {
+    "kind": "stat-change",
+    "stat": "DEF",
+    "target": "each selected enemy",
+    "declaredRaw": {
+     "value": -3,
+     "note": "defLost = 3 (requested change)"
+    },
+    "scaling": "requested = -3. addDefense: same pipeline as addAttack with the floor at 0: value = round(-3 x (1 + AP/100) x crit), Twist Band reverses it into a gain on a holder, Big Eater Belt does not boost a negative value from an enemy; def = min(0)(def + value).",
+    "resolution": "requested (-3) -> applied value after rounding and Twist Band -> actual change after the clamp at 0.",
+    "evidence": [
+     "tk-const",
+     "tk-apply",
+     "add-def",
+     "bigeater",
+     "twist"
+    ]
+   },
+   {
+    "kind": "selection",
+    "stat": "count",
+    "target": "enemies hit",
+    "declaredRaw": {
+     "byStars": {
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 5,
+      "fallback": 5
+     }
+    },
+    "perUnitRaw": {
+     "AIPOM": 1,
+     "AMBIPOM": 2
+    },
+    "scaling": "none; a count, not an amount (the table has only the four listed entries and fallback 5)",
+    "resolution": "closest enemies sorted by Chebyshev distance from the caster, slice(0, count); every selected enemy receives both stat changes (no per-enemy AP or crit roll: one crit decision for the whole cast).",
+    "evidence": [
+     "tk-table",
+     "tk-closest",
+     "board-closest"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "AIPOM": 1,
+    "AMBIPOM": 2
+   },
+   "enemiesHit": {
+    "AIPOM": 1,
+    "AMBIPOM": 2
+   },
+   "note": "The stars index only the number of enemies hit (1/2/3/5); the -3/-3 amounts do not depend on stars. 3 and 5 are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "tk-table",
+    "unit-aipom",
+    "unit-ambipom"
+   ]
+  },
+  "positionalConditions": "Selection depends on distance from the caster's cell at cast time; an enemy standing next to the caster is chosen before the (possibly farther) attack target.",
+  "repeatedCastsAndModes": "No stored state. Repeated casts stack the reductions (down to the clamps); there is no expiry.",
+  "rawVsResolved": "Declared raw: ATK -3 and DEF -3 per selected enemy (requested). Applied: rounded after AP/crit scaling, possibly sign-flipped by Twist Band on the holder; actual: after min(1) for attack and min(0) for defence. Big Eater Belt does not scale these enemy debuffs. Count of enemies: 1/2 for these units.",
+  "sourceTables": [
+   {
+    "id": "count",
+    "file": "app/core/abilities/tickle.ts",
+    "pattern": "const nbMaxEnemiesHit = \\[([^\\]]+)\\]",
+    "recordPath": "effects.2.declaredRaw.byStars",
+    "unitValuesPath": "effects.2.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "How the defence value feeds damage after the change (shared reference core-mechanics.md section A)"
+  ],
+  "unresolved": [
+   "Whether the attacker's cast target is always an enemy-team unit and how the target is chosen before the cast (target selection state not re-read)",
+   "Positions of units at the moment of the cast can differ from earlier ones because units move; no board example was worked",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-aipom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14485,
+     14498
+    ],
+    "symbol": "unit-aipom",
+    "expect": "skill = Ability.TICKLE",
+    "note": "class Aipom: stars 1, maxPP 80, range 1"
+   },
+   {
+    "id": "unit-ambipom",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     14500,
+     14512
+    ],
+    "symbol": "unit-ambipom",
+    "expect": "skill = Ability.TICKLE",
+    "note": "class Ambipom: stars 2, maxPP 80, range 1"
+   },
+   {
+    "id": "reg-tk",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1247,
+     1247
+    ],
+    "symbol": "reg-tk",
+    "expect": "[Ability.TICKLE]: new TickleStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tk-class",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "tk-class",
+    "expect": "export class TickleStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "tk-super",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "tk-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "tk-const",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     13,
+     14
+    ],
+    "symbol": "tk-const",
+    "expect": "const attackLost = 3",
+    "note": "attackLost = 3 and defLost = 3, raw"
+   },
+   {
+    "id": "tk-table",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "tk-table",
+    "expect": "const nbMaxEnemiesHit = [1, 2, 3, 5][pokemon.stars - 1] ?? 5",
+    "note": "number of enemies hit by stars"
+   },
+   {
+    "id": "tk-closest",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "tk-closest",
+    "expect": "board.getClosestEnemies(",
+    "note": "closest enemies of target.team measured from the caster, first nbMaxEnemiesHit"
+   },
+   {
+    "id": "tk-apply",
+    "file": "app/core/abilities/tickle.ts",
+    "lines": [
+     22,
+     25
+    ],
+    "symbol": "tk-apply",
+    "expect": "enemy.addAttack(-attackLost, pokemon, 1, crit)",
+    "note": "addAttack and addDefense with apBoost 1 and the cast crit"
+   },
+   {
+    "id": "board-closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     792,
+     807
+    ],
+    "symbol": "board-closest",
+    "expect": "entity.team === enemyTeam && entity.hp > 0",
+    "note": "living units of the team, sorted by Chebyshev distance to the position; the unit's own position is not excluded by team; stable sort so ties keep the cells-array (row-major) order"
+   },
+   {
+    "id": "dist-c",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     1,
+     4
+    ],
+    "symbol": "dist-c",
+    "expect": "return Math.max(Math.abs(y0 - y1), Math.abs(x0 - x1))",
+    "note": "Chebyshev distance"
+   },
+   {
+    "id": "add-atk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "add-atk",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "addAttack: value = round(value x (1 + apBoost AP/100) x crit), Big Eater Belt, Twist Band, floor at 1"
+   },
+   {
+    "id": "add-def",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "add-def",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "addDefense: same pipeline, floor at 0"
+   },
+   {
+    "id": "bigeater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "bigeater",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "negative value from an enemy is not a buff-or-buff-lost, so no x1.25"
+   },
+   {
+    "id": "twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "twist",
+    "expect": "value *= -1",
+    "note": "negative value from another team on a Twist Band holder becomes positive"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
