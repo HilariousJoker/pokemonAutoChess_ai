@@ -1,0 +1,502 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/THIEF",
+ "kind": "ability",
+ "identifier": "THIEF",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T003952Z"
+ },
+ "record": {
+  "ability": "THIEF",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare THIEF: Nickit (1 star) and Thievul (2 stars); both maxPP 100, range 2, no declared passive. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "NICKIT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "THIEF",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "THIEVUL",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "THIEF",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NICKIT": {
+    "evidence": [
+     "unit-nickit"
+    ]
+   },
+   "THIEVUL": {
+    "evidence": [
+     "unit-thievul"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.THIEF] = new ThiefStrategy()",
+   "strategy": "ThiefStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "No overrides: the base defaults apply (target required, crit only with the ABILITY_CRIT effect). The target is dereferenced without a null check (target.items), so the cast relies on the normal target gate.",
+   "evidence": [
+    "reg-th",
+    "th-class",
+    "th-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate"
+   ]
+  },
+  "summary": "After spending PP, the caster first takes every item the target holds and only then damages it. For each item in target.items the strategy calls caster.addItem(item) and then target.removeItem(item) unconditionally, so an item the caster cannot take (caster already holds 3 items, holds a Synergy Stone of a type it already has, Eviolite/Rare Candy without an evolution, Rare Candy while holding Eviolite, or already holds that item) is still REMOVED from the target and simply lost. Items are moved on the live entity only (permanent flag false: the player's board Pokemon items are not changed by this code). The theft happens even if the target is then protected / skydiving / Magic Bounced. Afterwards target.handleSpecialDamage(raw 15/30/60/120 by caster stars, board, SPECIAL, caster, crit) is applied: requested amount x (1 + caster AP/100) (apBoost default true), x critPower if the cast crit (reduced by the target's Rocky Helmet or Black Augurite - but the target's items were already stolen at that point, so a stolen Rocky Helmet no longer negates the crit), then PokemonState.handleDamage resolves the defences (special defence), shields and the minimum of 1.",
+  "targeting": {
+   "who": "the single enemy target the unit is attacking (range 2 for both units)",
+   "needsTarget": true,
+   "note": "The target comes from the normal attack target; no area, no secondary targets.",
+   "evidence": [
+    "th-steal",
+    "th-dmg",
+    "reg-th"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no geometry",
+   "evidence": [
+    "th-steal",
+    "th-dmg"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "item-steal",
+    "target": "the target",
+    "declaredRaw": {
+     "note": "all items the target holds (up to 3), in SetSchema iteration order"
+    },
+    "scaling": "none (not AP- or crit-scaled)",
+    "resolution": "For each item: addItem(item) on the caster, then removeItem(item) on the target regardless of whether addItem accepted it. addItem silently returns when the caster has 3 items, when item is a Synergy Stone whose type the caster already has, when it is Eviolite/Rare Candy and the caster's board Pokemon has no evolution, or Rare Candy while the caster holds Eviolite; if the caster already holds the same item nothing is added but the target's copy is still removed. A gained item applies its ItemStats and effects via applyItemEffect (and adds its synergy type, with simulation.applySynergyEffects); the removed item reverses its stats/effects/types on the target via removeItemEffect. The list is modified while it is iterated (SetSchema.forEach with delete); the iteration behaviour of that class was not read, see unresolved.",
+    "evidence": [
+     "th-steal",
+     "add-item",
+     "add-item-new",
+     "add-item-type",
+     "remove-item",
+     "remove-fx",
+     "apply-fx"
+    ]
+   },
+   {
+    "kind": "damage",
+    "target": "the target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "NICKIT": 15,
+     "THIEVUL": 30
+    },
+    "damageType": "SPECIAL",
+    "scaling": "requested = table value. handleSpecialDamage: x(1 + AP/100) of the caster (apBoost true); x2 if the caster has DOUBLE_DAMAGE (consumed); x1.2 with the Strange Steam board effect on either unit; if crit, x(1 + (critPower - 1) x critReductionFactor) with the factor 1 reduced to 0 by Rocky Helmet (checked after the steal, so only items the target still has) and by 0.1 per Black Augurite of the target's player (not for TRUE damage); then PokemonState.handleDamage.",
+    "resolution": "requested (raw table) -> applied special damage (after the AP/crit/steam factors) -> handleDamage: special defence reduction, shields, minimum of 1 (reducedDamage = min(1)(ceil(...))) -> takenDamage (includes shield damage). The ability does not use the returned value. If the target is protected, skydiving or has Magic Bounce, handleSpecialDamage returns takenDamage 0 and no damage is dealt (Magic Bounce may reflect after 500 ms unless the caster holds Protective Pads), but the items were already taken. Power Lens on the target (if it still holds it - it was stolen first) would reflect damage blocked by special defence; since all items are removed beforehand this branch cannot trigger from this cast's target unless the item was added back by an effect. See core-mechanics.md sections A and H.",
+    "evidence": [
+     "th-table",
+     "th-dmg",
+     "hsd-block",
+     "hsd-bounce",
+     "hsd-ap",
+     "hsd-dd",
+     "hsd-crit",
+     "hsd-call",
+     "hsd-lens",
+     "hd-fn",
+     "hd-min",
+     "hd-taken"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [
+   {
+    "effect": "the caster gains the stolen items' stats and effects (through addItem/applyItemEffect), limited by addItem's refusals",
+    "evidence": [
+     "th-steal",
+     "add-item",
+     "apply-fx"
+    ]
+   }
+  ],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "NICKIT": 1,
+    "THIEVUL": 2
+   },
+   "declaredRawDamage": {
+    "NICKIT": 15,
+    "THIEVUL": 30
+   },
+   "note": "Indexed by the casting entity's stars; 60 and 120 are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "th-table",
+    "unit-nickit",
+    "unit-thievul"
+   ]
+  },
+  "positionalConditions": "None beyond the cast gate: single target, no cell or distance condition inside the effect.",
+  "repeatedCastsAndModes": "No stored state. A repeat cast steals whatever the (possibly different) target holds at that time; a target without items just takes the damage.",
+  "rawVsResolved": "Declared raw damage 15/30 (1/2 stars) is the requested amount; applied = raw x (1 + AP/100) x double-damage / steam / crit factors; the resolved HP loss is after special defence, shield and the minimum of 1; takenDamage includes shield damage. Items: the amount stolen is the target's whole item set (requested), but the caster keeps only what addItem accepts; the rest is destroyed for this fight.",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/thief.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.1.declaredRaw.byStars",
+    "unitValuesPath": "effects.1.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Individual item effect bodies (ItemEffects) applied or reversed on steal were not traced item by item; shared references: knowledge/07367c34/item-effects.md"
+  ],
+  "unresolved": [
+   "Behaviour of SetSchema.forEach when items are deleted from the set during iteration (library class, not in the repository): whether every item is visited when the target holds 2 or 3 items was not settled",
+   "Whether the damage target can be null/dead when process runs (target gate not re-read for this record)",
+   "The mutual order of the item theft and Cover Band / ally redirection inside handleDamage was not traced; the ability uses neither returned value",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-nickit",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     675,
+     689
+    ],
+    "symbol": "unit-nickit",
+    "expect": "skill = Ability.THIEF",
+    "note": "class Nickit: stars 1, maxPP 100, range 2"
+   },
+   {
+    "id": "unit-thievul",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     691,
+     704
+    ],
+    "symbol": "unit-thievul",
+    "expect": "skill = Ability.THIEF",
+    "note": "class Thievul: stars 2, maxPP 100, range 2"
+   },
+   {
+    "id": "reg-th",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1238,
+     1238
+    ],
+    "symbol": "reg-th",
+    "expect": "[Ability.THIEF]: new ThiefStrategy()",
+    "note": ""
+   },
+   {
+    "id": "th-class",
+    "file": "app/core/abilities/thief.ts",
+    "lines": [
+     6,
+     6
+    ],
+    "symbol": "th-class",
+    "expect": "export class ThiefStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "th-super",
+    "file": "app/core/abilities/thief.ts",
+    "lines": [
+     13,
+     13
+    ],
+    "symbol": "th-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "th-table",
+    "file": "app/core/abilities/thief.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "th-table",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": ""
+   },
+   {
+    "id": "th-steal",
+    "file": "app/core/abilities/thief.ts",
+    "lines": [
+     16,
+     19
+    ],
+    "symbol": "th-steal",
+    "expect": "pokemon.addItem(item)",
+    "note": "for each target item: caster.addItem(item) then target.removeItem(item) (unconditionally)"
+   },
+   {
+    "id": "th-dmg",
+    "file": "app/core/abilities/thief.ts",
+    "lines": [
+     21,
+     21
+    ],
+    "symbol": "th-dmg",
+    "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+    "note": "damage after the steal"
+   },
+   {
+    "id": "add-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     782,
+     815
+    ],
+    "symbol": "add-item",
+    "expect": "this.items.size >= 3",
+    "note": "addItem refuses (silent return) when the holder has 3 items, a synergy stone of a type it already has, Eviolite/Rare Candy without an evolution, or Rare Candy with Eviolite"
+   },
+   {
+    "id": "add-item-new",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     794,
+     805
+    ],
+    "symbol": "add-item-new",
+    "expect": "if (this.items.has(item) == false)",
+    "note": "already-held item is not added again; permanent flag false here so refToBoardPokemon is untouched"
+   },
+   {
+    "id": "add-item-type",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     807,
+     814
+    ],
+    "symbol": "add-item-type",
+    "expect": "this.simulation.applySynergyEffects(this, type)",
+    "note": "synergy item adds its type to the caster"
+   },
+   {
+    "id": "remove-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     823
+    ],
+    "symbol": "remove-item",
+    "expect": "this.items.delete(item)",
+    "note": "removeItem(item) with permanent false: deleted from the live entity only, removeItemEffect run"
+   },
+   {
+    "id": "remove-fx",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     848,
+     870
+    ],
+    "symbol": "remove-fx",
+    "expect": "removeItemEffect(item: Item)",
+    "note": "reverses ItemStats and synergy types, runs OnItemRemovedEffect"
+   },
+   {
+    "id": "apply-fx",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     825,
+     846
+    ],
+    "symbol": "apply-fx",
+    "expect": "applyItemEffect(item: Item)",
+    "note": "applies ItemStats and ItemEffects on the gaining unit"
+   },
+   {
+    "id": "hsd-block",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "hsd-block",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce => spellBlockedCount++, returns takenDamage 0"
+   },
+   {
+    "id": "hsd-bounce",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     360,
+     396
+    ],
+    "symbol": "hsd-bounce",
+    "expect": "attackType === AttackType.SPECIAL",
+    "note": "Magic Bounce reflects ([0.5,1,2,4] by the bouncer's stars) x damage x (1+AP/100) after 500 ms unless the attacker holds Protective Pads"
+   },
+   {
+    "id": "hsd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "hsd-ap",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling with apBoost default true"
+   },
+   {
+    "id": "hsd-dd",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     401,
+     411
+    ],
+    "symbol": "hsd-dd",
+    "expect": "EffectEnum.DOUBLE_DAMAGE",
+    "note": "Double Damage x2 consumed; Strange Steam x1.2"
+   },
+   {
+    "id": "hsd-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "hsd-crit",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor reduced by Rocky Helmet / Black Augurite"
+   },
+   {
+    "id": "hsd-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     435,
+     442
+    ],
+    "symbol": "hsd-call",
+    "expect": "this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "hsd-lens",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     444,
+     464
+    ],
+    "symbol": "hsd-lens",
+    "expect": "this.items.has(Item.POWER_LENS)",
+    "note": "Power Lens reflects the defence-blocked part unless attacker holds Protective Pads"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "hd-min",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "at least 1 damage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     645,
+     649
+    ],
+    "symbol": "hd-taken",
+    "expect": "takenDamage += damageOnShield",
+    "note": "takenDamage includes shield damage"
+   },
+   {
+    "id": "hd-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     422,
+     422
+    ],
+    "symbol": "hd-fn",
+    "expect": "handleDamage({",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
