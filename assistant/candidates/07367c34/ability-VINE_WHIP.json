@@ -1,0 +1,608 @@
+{
+  "schema": 1,
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "itemId": "ability/VINE_WHIP",
+  "kind": "ability",
+  "identifier": "VINE_WHIP",
+  "reviewStatus": "candidate",
+  "generatedBy": {
+    "runId": "run-20261107T123940Z"
+  },
+  "record": {
+    "ability": "VINE_WHIP",
+    "label": "production-branch reference; deployment unverified",
+    "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+    "scope": "TANGELA (1 star) and TANGROWTH (2 stars), the queued units.",
+    "appliesTo": [
+      {
+        "key": "TANGELA",
+        "stars": 1,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "VINE_WHIP",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      },
+      {
+        "key": "TANGROWTH",
+        "stars": 2,
+        "maxPP": 100,
+        "range": 1,
+        "declaredSkill": "VINE_WHIP",
+        "declaredPassive": "NONE",
+        "source": "data/07367c34/catalog-units.json"
+      }
+    ],
+    "unitEvidence": {
+      "TANGELA": {
+        "evidence": [
+          "unit-tangela"
+        ]
+      },
+      "TANGROWTH": {
+        "evidence": [
+          "unit-tangrowth"
+        ]
+      }
+    },
+    "dispatch": {
+      "registry": "AbilityStrategies[Ability.VINE_WHIP] = new VineWhipStrategy()",
+      "strategy": "VineWhipStrategy extends AbilityStrategy",
+      "requiresTarget": true,
+      "canCritByDefault": false,
+      "evidence": [
+        "reg",
+        "reg-vw",
+        "vw-class",
+        "base-flags",
+        "base-pp",
+        "vw-super",
+        "cast",
+        "pp-gate"
+      ]
+    },
+    "summary": "Single-target special damage plus a 3000 ms paralysis request on a small cluster. The cast target and every entity on the 8 cells adjacent to the TARGET that is on the target's team (the target's allies, i.e. the caster's enemies; the caster's own side is never matched) each receive status.triggerParalysis(3000, thatUnit, caster) with apBoost left at its default false, so AP does not lengthen it. After all paralysis requests the target alone takes handleSpecialDamage(damage, SPECIAL, caster, crit) with damage 30 (TANGELA, 1 star) or 60 (TANGROWTH, 2 stars) as the REQUESTED amount. Each paralysis is requested subject to its own guards (Rune Protect, IMMUNITY_PARALYSIS on that unit, STORM, duration reductions, longer-timer rule, Cheri Berry); the applied duration can therefore differ per unit and can be zero. The damage is intermediate: handleSpecialDamage applies AP and crit multipliers, then handleDamage divides by the special defense factor (minimum 1), shields and other modifiers follow; takenDamage (which includes shield damage) is not used by this strategy. No heal, PP gain, shield or stat helper is involved.",
+    "targeting": {
+      "who": "the cast target (damage + paralysis) and the target's team-mates standing on the 8 cells around the target (paralysis only)",
+      "needsTarget": true,
+      "evidence": [
+        "vw-cells",
+        "vw-filter",
+        "vw-concat",
+        "vw-hit",
+        "base-flags",
+        "cast"
+      ]
+    },
+    "geometry": {
+      "shape": "target plus its 8-cell neighbourhood (Board.getAdjacentCells without the centre, then the target concatenated)",
+      "origin": "the target, not the caster",
+      "evidence": [
+        "vw-cells",
+        "vw-concat",
+        "adjacent"
+      ]
+    },
+    "effects": [
+      {
+        "kind": "damage",
+        "damageType": "SPECIAL",
+        "target": "the cast target only",
+        "declaredRaw": {
+          "byStars": {
+            "1": 30,
+            "2": 60,
+            "3": 100,
+            "4": 200,
+            "fallback": 200
+          }
+        },
+        "perUnitRaw": {
+          "TANGELA": 30,
+          "TANGROWTH": 60
+        },
+        "scaling": "requested amount: handleSpecialDamage applies AP (damage x (1 + AP/100), apBoost default true) and the cast's crit flag (needs ABILITY_CRIT; canCritByDefault is false)",
+        "resolution": "intermediate, not guaranteed final HP loss: handleDamage divides the special damage by the special defense factor (ceil, minimum 1), then shields, items and later modifiers follow. Blocked by protect / skydiving / magicBounce on the target. Requested after every paralysis request, whether or not any paralysis took effect; the returned damage value is unused (no heal, no kill effect). The requested amount (30 / 60), the AP-and-crit amount handed to handleDamage, and the takenDamage that handleDamage would report (shield part included) are three different numbers; none is computed here.",
+        "evidence": [
+          "vw-dmg",
+          "vw-hit",
+          "special",
+          "special-block",
+          "special-ap",
+          "special-crit",
+          "def-step",
+          "def-min",
+          "armor-factor",
+          "cast"
+        ]
+      }
+    ],
+    "statusEffects": [
+      {
+        "status": "paralysis",
+        "target": "the cast target and each team-mate of the target on the 8 adjacent cells",
+        "declaredRaw": {
+          "duration": 3000,
+          "unit": "ms (requested)"
+        },
+        "scaling": "none from AP or crit: apBoost is left at its default false, so triggerParalysis does not multiply by (1 + AP/100)",
+        "applicationOrder": "adjacent target-team units in getAdjacentCells order (row by row, top-left to bottom-right), then the target last (concat); all before the damage",
+        "guards": "per unit, refused (no timer, no berry) when that unit has runeProtect or IMMUNITY_PARALYSIS; STORM weather x1.3, then x(1 - 0.2 x ELECTRIC_QUARTZ count of that unit's player); then applyStatusDurationReductions on that unit (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10% per ODD_KEYSTONE); the timer keeps the larger of the existing remaining time and the new request; a CHERI_BERRY holder eats the berry after a successful application (eatBerry's Cheri case heals the paralysis again, adds IMMUNITY_PARALYSIS, heals 50 and adds 10 attack). The strategy passes each affected unit as the pkm argument, so the reductions, the STORM item count and the Cheri Berry check all read that unit. Protect does not appear in the paralysis guard.",
+        "combatEffect": "a paralysed unit: attacking-state.ts:23 (attack-cooldown input) and move-speed.ts:7 (movement-speed formula) use half of the unit's stored speed while paralysed; the stored speed stat is not changed, other speed-based ability formulas were not traced. It also cannot dodge basic attacks (pokemon-state.ts:104, where the paralysed unit is the attack's target). The status clears when paralysisCooldown runs out. Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies, passives) were seen but not read.",
+        "evidence": [
+          "vw-para",
+          "para-trig",
+          "para-guard",
+          "para-ap",
+          "para-storm",
+          "para-red",
+          "para-longer",
+          "para-cheri",
+          "para-end",
+          "reductions",
+          "para-atk",
+          "para-move",
+          "para-dodge",
+          "cheri-eat"
+        ],
+        "perUnitRaw": {
+          "TANGELA": 3000,
+          "TANGROWTH": 3000
+        }
+      }
+    ],
+    "buffs": [],
+    "shields": [],
+    "starBehavior": {
+      "unitStars": {
+        "TANGELA": 1,
+        "TANGROWTH": 2
+      },
+      "damageByStars": {
+        "TANGELA": 30,
+        "TANGROWTH": 60
+      },
+      "note": "damage indexed by the caster's stars (pokemon.stars - 1), fallback 200; 100 and 200 are not reached by these units. The paralysis request is 3000 ms at every star level. maxPP 100 and range 1 for both.",
+      "evidence": [
+        "vw-dmg",
+        "vw-para",
+        "unit-tangela",
+        "unit-tangrowth"
+      ]
+    },
+    "positionalConditions": "The paralysis area is centred on the target. Only entities on the target's team that stand on the up-to-8 adjacent on-board cells are included; empty cells and the caster's own team (a different team from the target) are filtered out. Board edges shrink the set. No range or line condition beyond the normal cast target.",
+    "repeatedCastsAndModes": "No state is kept. Each cast re-requests 3000 ms; for a unit already paralysed the timer only grows if the new (reduced) request exceeds the remaining time. No modes.",
+    "rawVsResolved": "Requested: damage 30 (TANGELA) / 60 (TANGROWTH) to the target, paralysis 3000 ms to the target and its adjacent team-mates. Applied: damage = requested x (1 + AP/100) [x critPower] then divided by the special-defense factor with a minimum of 1, then shields/items (takenDamage includes shield damage); paralysis per unit = 3000 after STORM / ELECTRIC_QUARTZ / duration-reduction adjustments, refused entirely under Rune Protect or IMMUNITY_PARALYSIS, never shortening an existing longer timer. No stat helper (Big Eater Belt / Twist Band) is involved because no stat, heal, PP gain or shield is requested.",
+    "sourceTables": [
+      {
+        "id": "vineWhipDamage",
+        "file": "app/core/abilities/vine-whip.ts",
+        "pattern": "const damage = \\[([^\\]]+)\\]",
+        "recordPath": "effects.0.declaredRaw.byStars",
+        "unitValuesPath": "effects.0.perUnitRaw"
+      }
+    ],
+    "dependsOnUnverifiedGenericCombat": [
+      "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division and the minimum of 1 were read",
+      "When the cast fires in a real fight (PP gain, silence, targeting before the cast)",
+      "Crit resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
+      "Weather STORM, IMMUNITY_PARALYSIS and the duration-reduction effects' sources were not traced",
+      "Other uses of status.paralysis (bug-buzz, force-palm, zing-zap, synergies, passives) were not read"
+    ],
+    "unresolved": [
+      "Consulted: VineWhipStrategy, AbilityStrategy.process, castAbility, Board.getAdjacentCells, Status.triggerParalysis and applyStatusDurationReductions, handleSpecialDamage / handleDamage (speDef division, minimum 1), the sibling DISCHARGE record. The queue record lists no routing uncertainties; the registry maps Ability.VINE_WHIP to VineWhipStrategy for both units.",
+      "Whether the target is guaranteed to be the unit standing next to its own allies in a real fight (target selection is generic combat and was not traced); the strategy itself uses the target's neighbours, not the caster's.",
+      "Gameplay behaviour is not tested; this is source reading with mechanical checks only"
+    ],
+    "evidence": [
+      {
+        "id": "reg-vw",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          1271,
+          1271
+        ],
+        "symbol": "AbilityStrategies[Ability.VINE_WHIP]",
+        "expect": "[Ability.VINE_WHIP]: new VineWhipStrategy()",
+        "note": ""
+      },
+      {
+        "id": "vw-class",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          6,
+          6
+        ],
+        "symbol": "VineWhipStrategy",
+        "expect": "export class VineWhipStrategy extends AbilityStrategy",
+        "note": "requiresTarget and canCritByDefault not overridden (defaults true / false)"
+      },
+      {
+        "id": "vw-super",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          13,
+          13
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": "super.process(pokemon, board, target, crit)",
+        "note": "default cast animation / PP reset"
+      },
+      {
+        "id": "vw-dmg",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          14,
+          14
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": "const damage = [30, 60, 100, 200][pokemon.stars - 1] ?? 200",
+        "note": ""
+      },
+      {
+        "id": "vw-cells",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": ".getAdjacentCells(target.positionX, target.positionY)",
+        "note": "the 8 cells around the TARGET (not the caster)"
+      },
+      {
+        "id": "vw-filter",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          18,
+          18
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": ".filter((entity) => entity?.team === target.team)",
+        "note": "keeps adjacent entities of the target's team (empty cells have value undefined and drop out)"
+      },
+      {
+        "id": "vw-concat",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          19,
+          19
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": ".concat(target)",
+        "note": "the target itself is appended (never duplicated: getAdjacentCells excludes the centre)"
+      },
+      {
+        "id": "vw-para",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          22,
+          22
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": "enemy.status.triggerParalysis(3000, enemy, pokemon)",
+        "note": "pkm = the paralysed unit, origin = caster; apBoost left at default false"
+      },
+      {
+        "id": "vw-hit",
+        "file": "app/core/abilities/vine-whip.ts",
+        "lines": [
+          25,
+          25
+        ],
+        "symbol": "VineWhipStrategy.process",
+        "expect": "target.handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit)",
+        "note": "damage to the target only, after all paralysis requests; apBoost default"
+      },
+      {
+        "id": "reg",
+        "file": "app/core/abilities/abilities.ts",
+        "lines": [
+          728,
+          728
+        ],
+        "symbol": "AbilityStrategies",
+        "expect": "export const AbilityStrategies",
+        "note": "registry"
+      },
+      {
+        "id": "base-flags",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          6,
+          7
+        ],
+        "symbol": "AbilityStrategy",
+        "expect": "requiresTarget = true",
+        "note": "default flags: requiresTarget true, canCritByDefault false"
+      },
+      {
+        "id": "base-pp",
+        "file": "app/core/abilities/ability-strategy.ts",
+        "lines": [
+          16,
+          16
+        ],
+        "symbol": "AbilityStrategy.process",
+        "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+        "note": ""
+      },
+      {
+        "id": "cast",
+        "file": "app/core/abilities/cast.ts",
+        "lines": [
+          26,
+          26
+        ],
+        "symbol": "castAbility",
+        "expect": "abilityStrategy.process(pokemon, board, target, crit, preventDefaultAnim)",
+        "note": "crit rolled only with ABILITY_CRIT or canCritByDefault; the flag is passed to every damage call"
+      },
+      {
+        "id": "pp-gate",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          92,
+          92
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+        "note": "cast with the current target when PP is full"
+      },
+      {
+        "id": "adjacent",
+        "file": "app/core/board.ts",
+        "lines": [
+          152,
+          163
+        ],
+        "symbol": "Board.getAdjacentCells",
+        "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+        "note": "Board.getAdjacentCells (the candidate cited 143-152, which ends at the function's first line)"
+      },
+      {
+        "id": "para-trig",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          908,
+          913
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "triggerParalysis(",
+        "note": "Status.triggerParalysis signature (the candidate cited 176-181)"
+      },
+      {
+        "id": "para-guard",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          914,
+          914
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "!this.runeProtect && !pkm.effects.has(EffectEnum.IMMUNITY_PARALYSIS)",
+        "note": "not applied with runeProtect or IMMUNITY_PARALYSIS"
+      },
+      {
+        "id": "para-ap",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          918,
+          918
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "duration = apBoost && origin ? duration * (1 + origin.ap / 100) : duration",
+        "note": "apBoost line in triggerParalysis (the candidate cited 554, the same text in a different status method)"
+      },
+      {
+        "id": "para-storm",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          919,
+          927
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "if (pkm.simulation.weather === Weather.STORM) {",
+        "note": "STORM block in triggerParalysis (the candidate cited 912-919)"
+      },
+      {
+        "id": "para-red",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          929,
+          929
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "duration = this.applyStatusDurationReductions(duration, pkm)",
+        "note": "duration reductions read from pkm (= the paralysed enemy here)"
+      },
+      {
+        "id": "para-longer",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          931,
+          933
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "if (duration > this.paralysisCooldown) {",
+        "note": "longer-timer rule (the candidate cited 929-931)"
+      },
+      {
+        "id": "para-cheri",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          935,
+          937
+        ],
+        "symbol": "Status.triggerParalysis",
+        "expect": "pkm.items.has(Item.CHERI_BERRY)",
+        "note": "Cheri Berry check (the candidate cited 933-935)"
+      },
+      {
+        "id": "para-end",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          943,
+          943
+        ],
+        "symbol": "Status.updateParalysis",
+        "expect": "this.healParalysis(pkm)",
+        "note": "paralysis healed when the timer runs out"
+      },
+      {
+        "id": "reductions",
+        "file": "app/models/colyseus-models/status.ts",
+        "lines": [
+          1282,
+          1305
+        ],
+        "symbol": "Status.applyStatusDurationReductions",
+        "expect": "private applyStatusDurationReductions(",
+        "note": "applyStatusDurationReductions (the candidate cited 1264-1282)"
+      },
+      {
+        "id": "para-atk",
+        "file": "app/core/attacking-state.ts",
+        "lines": [
+          23,
+          23
+        ],
+        "symbol": "AttackingState.update",
+        "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+        "note": "paralysed units use half speed for the attack cooldown"
+      },
+      {
+        "id": "para-move",
+        "file": "app/core/move-speed.ts",
+        "lines": [
+          7,
+          7
+        ],
+        "symbol": "getMoveSpeed",
+        "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
+        "note": "and for movement speed"
+      },
+      {
+        "id": "para-dodge",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          104,
+          104
+        ],
+        "symbol": "PokemonState.handleAttack",
+        "expect": "!target.status.paralysis &&",
+        "note": "a paralysed target cannot dodge"
+      },
+      {
+        "id": "cheri-eat",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          1600,
+          1605
+        ],
+        "symbol": "PokemonEntity.eatBerry",
+        "expect": "this.status.healParalysis(this)",
+        "note": "added in the import recheck: the CHERI_BERRY case heals paralysis, adds IMMUNITY_PARALYSIS, heals 50 and adds 10 attack"
+      },
+      {
+        "id": "special",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          346,
+          353
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "apBoost = true",
+        "note": "handleSpecialDamage signature with apBoost = true"
+      },
+      {
+        "id": "special-block",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          354,
+          358
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "this.status.protect ||",
+        "note": "protect / skydiving / magicBounce block"
+      },
+      {
+        "id": "special-ap",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          400,
+          400
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "(damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+        "note": ""
+      },
+      {
+        "id": "special-crit",
+        "file": "app/core/pokemon-entity.ts",
+        "lines": [
+          432,
+          432
+        ],
+        "symbol": "PokemonEntity.handleSpecialDamage",
+        "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+        "note": ""
+      },
+      {
+        "id": "def-step",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          563,
+          563
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+        "note": ""
+      },
+      {
+        "id": "def-min",
+        "file": "app/core/pokemon-state.ts",
+        "lines": [
+          597,
+          597
+        ],
+        "symbol": "PokemonState.handleDamage",
+        "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+        "note": ""
+      },
+      {
+        "id": "armor-factor",
+        "file": "app/config/game/battle.ts",
+        "lines": [
+          5,
+          5
+        ],
+        "symbol": "ARMOR_FACTOR",
+        "expect": "export const ARMOR_FACTOR = 0.05",
+        "note": ""
+      },
+      {
+        "id": "unit-tangela",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          15367,
+          15385
+        ],
+        "symbol": "Tangela",
+        "expect": "export class Tangela extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      },
+      {
+        "id": "unit-tangrowth",
+        "file": "app/models/colyseus-models/pokemon.ts",
+        "lines": [
+          15387,
+          15404
+        ],
+        "symbol": "Tangrowth",
+        "expect": "export class Tangrowth extends Pokemon",
+        "note": "unit definition (stars, maxPP, range, skill)"
+      }
+    ]
+  }
+}
