@@ -1,0 +1,597 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TOPSY_TURVY",
+ "kind": "ability",
+ "identifier": "TOPSY_TURVY",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T003952Z"
+ },
+ "record": {
+  "ability": "TOPSY_TURVY",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare TOPSY_TURVY: Inkay (1 star) and Malamar (2 stars); both maxPP 100, range 1, no declared passive. The strategy is shared; the only unit difference is the star count (table index).",
+  "appliesTo": [
+   {
+    "key": "INKAY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TOPSY_TURVY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MALAMAR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TOPSY_TURVY",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "INKAY": {
+    "evidence": [
+     "unit-inkay"
+    ]
+   },
+   "MALAMAR": {
+    "evidence": [
+     "unit-malamar"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TOPSY_TURVY] = new TopsyTurvyStrategy()",
+   "strategy": "TopsyTurvyStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "note": "No overrides: base defaults (target required, crit only with ABILITY_CRIT). The effect itself runs 500 ms later in a DelayedCommand stored on the caster.",
+   "evidence": [
+    "reg-tt2",
+    "tp-class",
+    "tp-super",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "tp-cmd"
+   ]
+  },
+  "summary": "After spending PP, a DelayedCommand (500 ms) is stored on the CASTER's command list; it runs when the caster's own state update advances it past the delay (PokemonState.update -> updateCommands; the delay must fall strictly below 0). When it runs, against the originally chosen target (no re-check of its alive state or position in this code): (1) target.handleSpecialDamage(raw 40/80/160/320 by caster stars, SPECIAL, caster, crit) - requested x (1 + caster AP/100), x critPower on a crit, then special defence, shields, minimum 1; (2) then, in this order, each of ATK, AP, DEF and SPE_DEF is mirrored around the target's baseline: with d = current - base (baseAtk / baseDef / baseSpeDef, which are copied from the board Pokemon at entity construction, or 0 for AP), the strategy calls add...(-2 x d, caster, apBoost 0, crit false) when the current value differs from the baseline, so a bonus d becomes -d and a penalty becomes a bonus of the same size. Those -2d amounts are REQUESTS: the helpers round them, apply Big Eater Belt (x1.25 rounded down for a positive request, e.g. when the target is debuffed), reverse them with a Twist Band holder when the request is negative from an enemy (a buffed Twist Band target is buffed again by +2d instead of reduced), redirect AP into Attack on a Nullify Bandanna holder (round(0.2 x -2 AP) to attack, AP unchanged), and clamp (atk >= 1, def >= 0, speDef >= 0, ap >= -100). The stat flips run even if the damage was blocked by protect / skydiving / Magic Bounce or the target died, because they are plain stat calls without those checks.",
+  "targeting": {
+   "who": "the single enemy target chosen at cast time (range 1 for both units)",
+   "needsTarget": true,
+   "note": "The target reference is captured by the closure; the delayed code does not re-test whether it is still alive, still an enemy, or still adjacent.",
+   "evidence": [
+    "tp-cmd",
+    "tp-dmg",
+    "tp-atk"
+   ]
+  },
+  "geometry": {
+   "shape": "single target; no geometry",
+   "evidence": [
+    "tp-dmg"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "delayed-damage",
+    "target": "the target",
+    "declaredRaw": {
+     "byStars": {
+      "1": 40,
+      "2": 80,
+      "3": 160,
+      "4": 320,
+      "fallback": 320
+     }
+    },
+    "perUnitRaw": {
+     "INKAY": 40,
+     "MALAMAR": 80
+    },
+    "damageType": "SPECIAL",
+    "delayMs": 500,
+    "scaling": "requested = table value. handleSpecialDamage: x(1 + AP/100) of the caster at execution time (apBoost true; AP read when the command runs, not at cast time); x critPower on a crit (reduced by the target's Rocky Helmet and Black Augurite per core-mechanics.md); x2 DOUBLE_DAMAGE consumed; x1.2 Strange Steam; then PokemonState.handleDamage: special defence, shields, minimum 1 (min(1)(ceil)).",
+    "resolution": "requested (raw table) -> applied special damage -> handleDamage takenDamage (includes shield damage; the strategy does not use it). Protect / skydiving / Magic Bounce on the target returns takenDamage 0 (Magic Bounce may reflect after 500 ms unless the caster holds Protective Pads). The damage is dealt FIRST, so the stat flips below do not change this hit.",
+    "evidence": [
+     "tp-table",
+     "tp-cmd",
+     "tp-delay",
+     "tp-dmg",
+     "cmd-update",
+     "cmd-run",
+     "state-update",
+     "ent-update",
+     "hsd-block2",
+     "hsd-ap2",
+     "hsd-crit2",
+     "hd-min2"
+    ]
+   },
+   {
+    "kind": "stat-mirror",
+    "stat": "ATK",
+    "target": "the target",
+    "declaredRaw": {
+     "note": "requested change = -2 x (atk - baseAtk), only when atk != baseAtk; apBoost 0, crit false"
+    },
+    "scaling": "none (apBoost 0). addAttack: value = round(-2d); Big Eater Belt x1.25 rounded down only if value > 0 (target debuffed, d < 0); Twist Band flips a negative value from the enemy caster (d > 0) into +2d; then atk = min(1)(atk + value).",
+    "resolution": "requested -2d -> applied value after rounding and the item helpers -> actual change after the floor of 1. Without items a +d bonus becomes -d (atk = base - d, clamped at 1) and a -d penalty becomes +d.",
+    "evidence": [
+     "tp-atk",
+     "base-ctor",
+     "add-atk2",
+     "bigeater2",
+     "twist2"
+    ]
+   },
+   {
+    "kind": "stat-mirror",
+    "stat": "AP",
+    "target": "the target",
+    "declaredRaw": {
+     "note": "requested change = -2 x ap, only when ap != 0"
+    },
+    "scaling": "none (apBoost 0). addAbilityPower: with NULLIFY_BANDANNA the request is converted: addAttack(round(0.2 x value)) and AP is not changed; otherwise value = round(-2 ap), Big Eater Belt only if value > 0, Twist Band flips a negative value from the enemy caster, then ap = min(-100)(ap + value).",
+    "resolution": "requested -2 ap -> applied -> actual after the floor of -100. Without items ap becomes -ap (a +50 AP target ends at -50; a -30 AP target at +30).",
+    "evidence": [
+     "tp-ap",
+     "add-ap",
+     "add-ap-bandana",
+     "bigeater2",
+     "twist2"
+    ]
+   },
+   {
+    "kind": "stat-mirror",
+    "stat": "DEF",
+    "target": "the target",
+    "declaredRaw": {
+     "note": "requested change = -2 x (def - baseDef), only when def != baseDef"
+    },
+    "scaling": "none (apBoost 0). addDefense: round, Big Eater Belt only for a positive value, Twist Band flips a negative value from the enemy caster, def = min(0)(def + value).",
+    "resolution": "requested -> applied -> actual after the floor of 0.",
+    "evidence": [
+     "tp-def",
+     "add-def2",
+     "bigeater2",
+     "twist2"
+    ]
+   },
+   {
+    "kind": "stat-mirror",
+    "stat": "SPE_DEF",
+    "target": "the target",
+    "declaredRaw": {
+     "note": "requested change = -2 x (speDef - baseSpeDef), only when speDef != baseSpeDef"
+    },
+    "scaling": "none (apBoost 0). addSpecialDefense: same pipeline, speDef = min(0)(speDef + value).",
+    "resolution": "requested -> applied -> actual after the floor of 0. The special defence flip happens after the damage, so it matters only for later hits.",
+    "evidence": [
+     "tp-spedef",
+     "add-spedef",
+     "bigeater2",
+     "twist2"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "INKAY": 1,
+    "MALAMAR": 2
+   },
+   "declaredRawDamage": {
+    "INKAY": 40,
+    "MALAMAR": 80
+   },
+   "note": "Indexed by the casting entity's stars; 160 and 320 are not reached at the bare factory star counts of these units. The mirror part does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "evidence": [
+    "tp-table",
+    "unit-inkay",
+    "unit-malamar"
+   ]
+  },
+  "positionalConditions": "None inside the effect; the command runs 500 ms after the cast wherever the target then is.",
+  "repeatedCastsAndModes": "No stored state beyond the pending command. Each cast mirrors the stats as they are when its command runs; a second cast on the same target mirrors them back (up to clamps and item effects). Several pending commands can coexist.",
+  "rawVsResolved": "Declared raw damage 40/80 (1/2 stars) is a request; applied after AP, crit and steam factors; resolved after defence, shields and the minimum of 1. The stat mirrors are requests of -2 x (current - base) (-2 x ap for AP) that the stat helpers may round, reverse (Twist Band), scale (Big Eater Belt on a positive request), redirect (Nullify Bandanna) and clamp (atk 1, def 0, speDef 0, ap -100).",
+  "sourceTables": [
+   {
+    "id": "damage",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
+   "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
+   "Whether baseAtk/baseDef/baseSpeDef already include or exclude item and synergy bonuses (they are copied from the board Pokemon at construction; the order relative to applyItemEffect and synergy effects was not traced)"
+  ],
+  "unresolved": [
+   "Whether the pending command still runs if the caster dies before 500 ms: commands advance only through the caster's own PokemonState.update, and the removal of dead entities from the update loop was not traced",
+   "What happens to the stat flips if the target died or was removed before the command runs (no check in the strategy)",
+   "Which stat-changing effects (items, synergies, other abilities) alter atk/def/speDef relative to the baseline and are therefore mirrored, not enumerated",
+   "Whether the two units ever reach a different star count than the factory value",
+   "No routing uncertainties were queued for this record",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-inkay",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17099,
+     17117
+    ],
+    "symbol": "unit-inkay",
+    "expect": "skill = Ability.TOPSY_TURVY",
+    "note": "class Inkay: stars 1, maxPP 100, range 1"
+   },
+   {
+    "id": "unit-malamar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17119,
+     17136
+    ],
+    "symbol": "unit-malamar",
+    "expect": "skill = Ability.TOPSY_TURVY",
+    "note": "class Malamar: stars 2, maxPP 100, range 1"
+   },
+   {
+    "id": "reg-tt2",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1249,
+     1249
+    ],
+    "symbol": "reg-tt2",
+    "expect": "[Ability.TOPSY_TURVY]: new TopsyTurvyStrategy()",
+    "note": ""
+   },
+   {
+    "id": "tp-class",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "tp-class",
+    "expect": "export class TopsyTurvyStrategy extends AbilityStrategy",
+    "note": "no requiresTarget / canCritByDefault override"
+   },
+   {
+    "id": "tp-super",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "tp-super",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": ""
+   },
+   {
+    "id": "tp-table",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     15,
+     15
+    ],
+    "symbol": "tp-table",
+    "expect": "const damage = [40, 80, 160, 320][pokemon.stars - 1] ?? 320",
+    "note": ""
+   },
+   {
+    "id": "tp-cmd",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "tp-cmd",
+    "expect": "new DelayedCommand(() => {",
+    "note": "delayed command pushed on the CASTER's commands list, 500 ms"
+   },
+   {
+    "id": "tp-dmg",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     18,
+     24
+    ],
+    "symbol": "tp-dmg",
+    "expect": "target.handleSpecialDamage(",
+    "note": "special damage, caster as attacker, the cast's crit"
+   },
+   {
+    "id": "tp-atk",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     25,
+     28
+    ],
+    "symbol": "tp-atk",
+    "expect": "target.addAttack(-2 * d, pokemon, 0, false)",
+    "note": "if atk != baseAtk: d = atk - baseAtk, addAttack(-2d)"
+   },
+   {
+    "id": "tp-ap",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     29,
+     31
+    ],
+    "symbol": "tp-ap",
+    "expect": "target.addAbilityPower(-2 * target.ap, pokemon, 0, false)",
+    "note": "if ap != 0: addAbilityPower(-2 ap)"
+   },
+   {
+    "id": "tp-def",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     32,
+     35
+    ],
+    "symbol": "tp-def",
+    "expect": "target.addDefense(-2 * d, pokemon, 0, false)",
+    "note": "if def != baseDef"
+   },
+   {
+    "id": "tp-spedef",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     36,
+     39
+    ],
+    "symbol": "tp-spedef",
+    "expect": "target.addSpecialDefense(-2 * d, pokemon, 0, false)",
+    "note": "if speDef != baseSpeDef"
+   },
+   {
+    "id": "tp-delay",
+    "file": "app/core/abilities/topsy-turvy.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "tp-delay",
+    "expect": "}, 500)",
+    "note": "delay 500"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     5,
+     20
+    ],
+    "symbol": "cmd-update",
+    "expect": "if (this.delay < 0)",
+    "note": "delay -= dt, executes when delay falls below 0 (strictly)"
+   },
+   {
+    "id": "cmd-run",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "cmd-run",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": "per-entity commands advance only in that entity's own state update"
+   },
+   {
+    "id": "state-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     886,
+     892
+    ],
+    "symbol": "state-update",
+    "expect": "this.updateCommands(pokemon, dt)",
+    "note": "updateCommands is the first step of PokemonState.update"
+   },
+   {
+    "id": "ent-update",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     226,
+     228
+    ],
+    "symbol": "ent-update",
+    "expect": "this.state.update(this, dt, board, player)",
+    "note": ""
+   },
+   {
+    "id": "base-ctor",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     178,
+     180
+    ],
+    "symbol": "base-ctor",
+    "expect": "this.baseSpeDef = pokemon.speDef",
+    "note": "baseAtk/baseDef/baseSpeDef copied from the board Pokemon at entity construction"
+   },
+   {
+    "id": "add-atk2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "add-atk2",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "addAttack: round, Big Eater Belt, Twist Band, floor 1"
+   },
+   {
+    "id": "add-def2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "add-def2",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "addDefense floor 0"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "add-spedef",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "addSpecialDefense floor 0"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "add-ap",
+    "expect": "target.ap = min(-100)(target.ap + value)",
+    "note": "addAbilityPower: Nullify Bandanna redirect, round, Big Eater Belt, Twist Band, floor -100"
+   },
+   {
+    "id": "add-ap-bandana",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     628,
+     631
+    ],
+    "symbol": "add-ap-bandana",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false)",
+    "note": "with NULLIFY_BANDANNA the AP change becomes an attack change of round(0.2 x value) and returns"
+   },
+   {
+    "id": "bigeater2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "bigeater2",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "positive value (or negative from own team) on a Big Eater Belt holder x1.25 rounded down"
+   },
+   {
+    "id": "twist2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "twist2",
+    "expect": "value *= -1",
+    "note": "negative value from another team on a Twist Band holder is reversed"
+   },
+   {
+    "id": "hsd-block2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     354,
+     358
+    ],
+    "symbol": "hsd-block2",
+    "expect": "this.status.magicBounce",
+    "note": "protect / skydiving / magicBounce block the damage"
+   },
+   {
+    "id": "hsd-ap2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     400
+    ],
+    "symbol": "hsd-ap2",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": ""
+   },
+   {
+    "id": "hsd-crit2",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     412,
+     433
+    ],
+    "symbol": "hsd-crit2",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": ""
+   },
+   {
+    "id": "hd-min2",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "hd-min2",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": ""
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   }
+  ]
+ }
+}
