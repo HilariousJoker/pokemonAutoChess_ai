@@ -1,0 +1,480 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/WONDER_ROOM",
+ "kind": "ability",
+ "identifier": "WONDER_ROOM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T183911Z"
+ },
+ "record": {
+  "ability": "WONDER_ROOM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "The two units in appliesTo declare WONDER_ROOM: Elgyem (1 star) and Beheeyem (2 stars), both maxPP 90, range 2. The strategy has no star table, so both behave identically. The identifier WONDER_ROOM is also the name of an EffectEnum flag (routing uncertainty NAME_SHARED_WITH_EFFECT): the ability sets that flag and the flag is consumed in pokemon-state.ts; no other source adds it.",
+  "appliesTo": [
+   {
+    "key": "BEHEEYEM",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "WONDER_ROOM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ELGYEM",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 2,
+    "declaredSkill": "WONDER_ROOM",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BEHEEYEM": {
+    "evidence": [
+     "unit-beheeyem"
+    ]
+   },
+   "ELGYEM": {
+    "evidence": [
+     "unit-elgyem"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.WONDER_ROOM] = new WonderRoomStrategy()",
+   "strategy": "WonderRoomStrategy extends AbilityStrategy",
+   "requiresTarget": true,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-x",
+    "base",
+    "base-flags",
+    "cast",
+    "pp-gate",
+    "wr-class",
+    "wr-super"
+   ]
+  },
+  "summary": "Marks every enemy in the 3x3 block centred on the cast target (target cell included) with the WONDER_ROOM effect for 5000 ms. While an enemy has the flag, (a) a basic attack against it is converted to SPECIAL (and then multiplied by the attacker's AP) and (b) inside handleDamage its DEF and SPE_DEF are swapped. The ability deals no damage itself, has no AP, star or crit scaling, and no tables.",
+  "targeting": {
+   "who": "every enemy-team unit in the cast target's cell and its 8 neighbours",
+   "needsTarget": true,
+   "note": "requiresTarget is true (default), so the caster casts at a chosen target; the 3x3 block is centred on that target, not on the caster. Allies, empty cells and off-board cells are skipped. Which unit is the cast target comes from generic targeting, not read.",
+   "evidence": [
+    "wr-cells",
+    "wr-filter",
+    "adj",
+    "base-flags"
+   ]
+  },
+  "geometry": {
+   "shape": "3x3 square centred on the cast target (centre included), clipped by the board bounds",
+   "evidence": [
+    "wr-cells",
+    "adj"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "statusFlag",
+    "effect": "WONDER_ROOM",
+    "target": "each enemy in the 3x3 block around the cast target",
+    "declaredRaw": {
+     "durationMs": 5000,
+     "label": "requested duration (raw, fixed literal)"
+    },
+    "scaling": "none: the duration is the literal 5000 and the strategy reads no AP, stars or crit. effects is a set, so recasting on a unit that already has the flag adds nothing; each cast still queues its own DelayedCommand that deletes the flag unconditionally, so the earlier cast's command removes it at its own time even if a later cast was meant to extend it (the flag is not refreshed, the first expiring command wins).",
+    "resolution": "applied = flag present from the cast until a delayed delete runs. SimulationCommand.update fires the delete on the first update where the remaining delay is strictly below 0, so the real duration is 5000 ms plus up to one update step. No immunity, Rune Protect or protect check exists in this strategy: the flag is added unconditionally to each enemy found.",
+    "evidence": [
+     "wr-add",
+     "wr-del",
+     "wr-filter",
+     "cmd-update",
+     "effects-set"
+    ]
+   },
+   {
+    "kind": "conditionalDefenceModifier",
+    "effect": "effect consumers (not part of the strategy)",
+    "target": "the flagged unit when it is attacked or damaged",
+    "scaling": "Basic attack path (PokemonState.attack): if the TARGET has WONDER_ROOM, attackType becomes SPECIAL, and the damage is then multiplied by (1 + attacker AP / 100), rounded up. Damage path (PokemonState.handleDamage): for the unit taking damage, def and speDef are first halved (rounded) if armorReduction, then swapped; PHYSICAL damage is divided by the swapped def (= original SPE_DEF) and SPECIAL by the swapped speDef (= original DEF); TRUE damage ignores both.",
+    "resolution": "The flag changes which defensive stat applies and, for basic attacks, the damage type and AP factor. It does not change HP, shields or the minimum-1 rule. An ability hit keeps the type it was dealt with (WONDER_ROOM converts only basic attacks), but its defence stat is swapped. Requested vs applied: no amount is requested by the ability; the effect on damage depends on the DEF / SPE_DEF values and the attacker's AP, not examined numerically here.",
+    "evidence": [
+     "atk-fn",
+     "atk-wr",
+     "atk-ap",
+     "hd-armor",
+     "hd-wr",
+     "hd-spedef",
+     "hd-phys",
+     "hd-min1",
+     "hd-shield",
+     "hd-taken",
+     "hd-protect",
+     "eff-enum"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "BEHEEYEM": 2,
+    "ELGYEM": 1
+   },
+   "note": "No star-indexed table or branch in the strategy; the two units differ only in stats listed in the unit blocks.",
+   "evidence": [
+    "wr-class",
+    "unit-elgyem",
+    "unit-beheeyem"
+   ]
+  },
+  "positionalConditions": "Only the 3x3 block around the cast target (clipped at the board edge) and the team test matter.",
+  "repeatedCastsAndModes": "No stored state. Each cast spends maxPP PP (floor 0) and queues one more 5000 ms delete command per affected enemy. Because the flag is a set entry and every delete is unconditional, overlapping casts do not extend the duration: the earliest queued delete ends it.",
+  "rawVsResolved": "Requested: flag for 5000 ms on each enemy in the block; no damage or stat amount. Applied: flag present until the first matching delayed delete runs (at least 5000 ms; the command fires when its delay is strictly below 0). Consumer effects (basic attack becomes SPECIAL with AP; DEF and SPE_DEF swap after armorReduction halving) depend on the damaged unit's stats and the attacker's AP and were not evaluated numerically.",
+  "sourceTables": [],
+  "numericExamples": [],
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
+   "How and when the simulation updates entity commands (the update loop calling SimulationCommand.update) was not read; only the strict-below-0 test in update() was",
+   "Whether a commands list is cleared when the unit dies or the round ends was not read",
+   "Damage resolution paths other than the two WONDER_ROOM lines (flat reductions, Shiny Charm, Fossil, Cover Band) were not traced for this ability"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT: Ability.WONDER_ROOM (this strategy) and EffectEnum.WONDER_ROOM (the flag) share a name; a search for EffectEnum.WONDER_ROOM in app/core and app/models found only the strategy's add/delete and the two reads in pokemon-state.ts (attack at line 85, handleDamage at line 516), but synergy/item code outside those folders was not searched",
+   "Other damage-dealing paths that bypass PokemonState.attack or handleDamage's def/speDef lines were not searched, so 'every damage swaps defences' is only established for handleDamage",
+   "Whether the swap interacts with Rune/Protective effects that read def or speDef elsewhere (e.g. other stat-reading abilities) was not examined",
+   "Whether the two units ever reach a different star count than the bare factory value",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-elgyem",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17245,
+     17263
+    ],
+    "symbol": "class Elgyem",
+    "expect": "skill = Ability.WONDER_ROOM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "unit-beheeyem",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17265,
+     17282
+    ],
+    "symbol": "class Beheeyem",
+    "expect": "skill = Ability.WONDER_ROOM",
+    "note": "unit class block: skill / passive / stars / stats"
+   },
+   {
+    "id": "reg-x",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1287,
+     1287
+    ],
+    "symbol": "AbilityStrategies[Ability.WONDER_ROOM]",
+    "expect": "[Ability.WONDER_ROOM]: new WonderRoomStrategy()",
+    "note": "registry entry"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": "registry: Ability -> AbilityStrategy instance"
+   },
+   {
+    "id": "base",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     1,
+     28
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": "base process spends maxPP of PP; default flags requiresTarget = true, canCritByDefault = false"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     8,
+     8
+    ],
+    "symbol": "AbilityStrategy defaults",
+    "expect": "canCritByDefault = false",
+    "note": ""
+   },
+   {
+    "id": "cast",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     20,
+     22
+    ],
+    "symbol": "castAbility",
+    "expect": "abilityStrategy.canCritByDefault",
+    "note": "crit is rolled only with ABILITY_CRIT or canCritByDefault; canCast false => no cast"
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "hd-spedef",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     563,
+     563
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * speDef)",
+    "note": "SPECIAL damage divided by (1 + ARMOR_FACTOR x speDef)"
+   },
+   {
+    "id": "hd-min1",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "rounded up, minimum 1"
+   },
+   {
+    "id": "hd-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     646,
+     646
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.shield = min(0)(pokemon.shield - damageOnShield)",
+    "note": "shield absorbs first; shield damage is included in takenDamage"
+   },
+   {
+    "id": "hd-taken",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     649,
+     649
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
+    "note": "HP part of takenDamage capped at current hp"
+   },
+   {
+    "id": "hd-protect",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     459
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "protect / skydiving: takenDamage 0"
+   },
+   {
+    "id": "wr-class",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     7,
+     7
+    ],
+    "symbol": "WonderRoomStrategy",
+    "expect": "export class WonderRoomStrategy extends AbilityStrategy",
+    "note": "no table, no override of requiresTarget / canCritByDefault"
+   },
+   {
+    "id": "wr-super",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "WonderRoomStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit)",
+    "note": "default process: spends maxPP, broadcasts the animation"
+   },
+   {
+    "id": "wr-cells",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": ".getAdjacentCells",
+    "expect": "getAdjacentCells(target.positionX, target.positionY, true)",
+    "note": "the cast TARGET's cell plus its 8 neighbours (includesCenter = true)"
+   },
+   {
+    "id": "wr-filter",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     18,
+     19
+    ],
+    "symbol": "WonderRoomStrategy.process",
+    "expect": "if (enemy && enemy.team !== pokemon.team)",
+    "note": "occupied cell and different team from the caster"
+   },
+   {
+    "id": "wr-add",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     20,
+     20
+    ],
+    "symbol": "WonderRoomStrategy.process",
+    "expect": "enemy.effects.add(EffectEnum.WONDER_ROOM)",
+    "note": "flag set immediately"
+   },
+   {
+    "id": "wr-del",
+    "file": "app/core/abilities/wonder-room.ts",
+    "lines": [
+     21,
+     24
+    ],
+    "symbol": "WonderRoomStrategy.process",
+    "expect": "enemy.effects.delete(EffectEnum.WONDER_ROOM)",
+    "note": "DelayedCommand removes the flag after 5000 ms (unconditional delete, no refresh logic)"
+   },
+   {
+    "id": "adj",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "getAdjacentCells(cellX: number, cellY: number, includesCenter = false)",
+    "note": "3x3 around the cell; the centre is included only when includesCenter is true; only cells on the board"
+   },
+   {
+    "id": "cmd-update",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     12,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "if (this.delay < 0) {",
+    "note": "the command fires on the first update after delay has dropped below 0 (strictly)"
+   },
+   {
+    "id": "effects-set",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     113,
+     113
+    ],
+    "symbol": "PokemonEntity.effects",
+    "expect": "@type({ set: \"string\" }) effects = new SetSchema<EffectEnum>()",
+    "note": "effects is a set: adding twice stores one entry"
+   },
+   {
+    "id": "atk-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     29,
+     29
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "attack(",
+    "note": "basic attack function that contains the WONDER_ROOM check"
+   },
+   {
+    "id": "atk-wr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     85,
+     87
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "if (target.effects.has(EffectEnum.WONDER_ROOM)) {",
+    "note": "a basic attack against a WONDER_ROOM target has its attackType set to SPECIAL"
+   },
+   {
+    "id": "atk-ap",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     89,
+     91
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "damage = Math.ceil(damage * (1 + pokemon.ap / 100))",
+    "note": "SPECIAL basic attacks are multiplied by the attacker's AP (rounded up)"
+   },
+   {
+    "id": "hd-armor",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     510,
+     515
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.status.armorReduction",
+    "note": "def / speDef are halved first (rounded) under armorReduction"
+   },
+   {
+    "id": "hd-wr",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     516,
+     520
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.effects.has(EffectEnum.WONDER_ROOM)) {",
+    "note": "def and speDef are swapped for the defender, after the armorReduction halving"
+   },
+   {
+    "id": "hd-phys",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     560,
+     562
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage / (1 + ARMOR_FACTOR * def)",
+    "note": "PHYSICAL damage is divided by the (possibly swapped) def"
+   },
+   {
+    "id": "eff-enum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     151,
+     151
+    ],
+    "symbol": "EffectEnum",
+    "expect": "WONDER_ROOM = \"WONDER_ROOM\"",
+    "note": "the effect id; only wonder-room.ts adds it (search of app/core and app/models found no other adder)"
+   }
+  ]
+ }
+}
