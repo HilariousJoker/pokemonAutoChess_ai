@@ -1,0 +1,508 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "ability/TRIPLE_DIVE",
+ "kind": "ability",
+ "identifier": "TRIPLE_DIVE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261107T064033Z"
+ },
+ "record": {
+  "ability": "TRIPLE_DIVE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "scope": "WIGLETT (1 star) and WUGTRIO (2 stars) declare TRIPLE_DIVE (no passive in the catalog). Other units are not covered.",
+  "appliesTo": [
+   {
+    "key": "WIGLETT",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TRIPLE_DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WUGTRIO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "TRIPLE_DIVE",
+    "declaredPassive": "NONE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "WIGLETT": {
+    "evidence": [
+     "unit-wiglett"
+    ]
+   },
+   "WUGTRIO": {
+    "evidence": [
+     "unit-wugtrio"
+    ]
+   }
+  },
+  "dispatch": {
+   "registry": "AbilityStrategies[Ability.TRIPLE_DIVE] = new TripleDiveStrategy()",
+   "strategy": "TripleDiveStrategy extends AbilityStrategy",
+   "requiresTarget": false,
+   "canCritByDefault": false,
+   "evidence": [
+    "reg",
+    "reg-td",
+    "td-class",
+    "base-flags",
+    "base-pp",
+    "td-super",
+    "pp-gate"
+   ]
+  },
+  "summary": "Three dives at the lowest-HP enemies. At cast time every entity on the board whose team differs from the caster's is collected (no filter for range, targetability or status), sorted by current hp ascending and cut to the first 3 (fewer if fewer enemies exist; with none, PP is still spent and nothing else happens). One DelayedCommand per selected enemy is stored on the caster with delay 400 x index ms (0, 400, 800). When each fires, the caster moves to the empty cell closest (Manhattan distance) to that enemy's current position, if any empty cell exists (moveTo with forcedDisplacement false, so the immobility checks canBeMoved are skipped), and the enemy takes handleSpecialDamage(damage, SPECIAL, attacker = caster, crit = the cast's crit flag). Requested damage per dive = 15 (1 star) / 30 (2 stars) from the table [15, 30, 60, 120] by the caster's stars. handleSpecialDamage first adds AP (damage + damage x AP/100; the AP is read when each dive fires), doubles for DOUBLE_DAMAGE, multiplies by 1.2 for STRANGE_STEAM_BOARD_EFFECT, and on an ability crit multiplies by 1 + (critPower - 1) x the target's crit reduction (Rocky Helmet 0, minus 0.1 per Black Augurite, floor 0); crit exists only with ABILITY_CRIT (canCritByDefault false). The result then goes through handleDamage: special damage is divided by (1 + 0.05 x SPE_DEF), rounded up with a minimum of 1 (core-mechanics section A), shields absorb first. Protect, skydiving or magic bounce on the target block the dive's damage (magic bounce reflects it 500 ms later unless the caster holds Protective Pads). The dive's returned takenDamage is ignored; nothing is healed or applied besides the damage and the movement.",
+  "targeting": {
+   "who": "the three lowest-HP enemies on the whole board at cast time (ties keep the order of board.cells, a stable sort)",
+   "needsTarget": false,
+   "note": "requiresTarget is false so the cast does not wait for a target in range; the enemy list is fixed at cast time, but the damage is applied later to those same entities even if they have moved, died or become untargetable meanwhile.",
+   "evidence": [
+    "td-class",
+    "td-select",
+    "td-schedule",
+    "td-hit"
+   ]
+  },
+  "geometry": {
+   "shape": "up to three single targets anywhere on the board; the caster relocates next to each in turn",
+   "movement": "to the closest empty cell by Manhattan distance to the enemy's position at that moment (tie order from Board.forEach), skipped when no empty cell exists; no range check on the damage",
+   "evidence": [
+    "td-select",
+    "td-place",
+    "closest",
+    "manhattan",
+    "moveto"
+   ]
+  },
+  "effects": [
+   {
+    "kind": "special damage (three hits, one per selected enemy)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 15,
+      "2": 30,
+      "3": 60,
+      "4": 120,
+      "fallback": 120
+     }
+    },
+    "perUnitRaw": {
+     "WIGLETT": 15,
+     "WUGTRIO": 30
+    },
+    "scaling": "requested damage x (1 + AP/100) (apBoost true by default), x2 with DOUBLE_DAMAGE (consumed), x1.2 with STRANGE_STEAM_BOARD_EFFECT on either side, x (1 + (critPower - 1) x reduction) on an ability crit; the 60 and 120 entries are not reachable by the two listed units.",
+    "resolution": "Requested = table value; downstream request = the scaled special damage; applied = PokemonState.handleDamage: divided by (1 + 0.05 x SPE_DEF), rounded up with a minimum of 1, shields absorb before HP; takenDamage includes shield damage and is not used by this strategy. A target with status.protect or skydiving or magic bounce takes 0 from that dive (spellBlockedCount increments); a dead or resurrecting target takes 0 (handleDamage returns early). A Power Lens on the target reflects the blocked part to the caster as retaliation.",
+    "evidence": [
+     "td-damage",
+     "td-hit",
+     "special-guard",
+     "special-ap",
+     "special-crit",
+     "special-handle",
+     "handle-dead",
+     "armor-factor"
+    ]
+   },
+   {
+    "kind": "caster movement before each hit",
+    "declaredRaw": "moveTo(closest empty cell to the enemy)",
+    "scaling": "none",
+    "resolution": "swapCells to an empty cell, caster put in the moving state (no state change while status.tree) and cooldown set to 100. forcedDisplacement is false, so a locked caster or one with Heavy Duty Boots is still moved. With no empty cell the caster stays and the hit still lands.",
+    "evidence": [
+     "td-place",
+     "closest",
+     "manhattan",
+     "moveto",
+     "tomoving"
+    ]
+   },
+   {
+    "kind": "scheduling",
+    "declaredRaw": "delays 0, 400, 800 ms",
+    "scaling": "none",
+    "resolution": "commands are stored on the caster and counted down by dt in its state's update; the first fires on the first update after the cast, so the three hits are about 400 ms apart. If the caster dies, its pending commands are not traced further.",
+    "evidence": [
+     "td-schedule",
+     "td-broadcast",
+     "td-delay",
+     "simcmd",
+     "delayedcmd",
+     "updatecmds"
+    ]
+   }
+  ],
+  "statusEffects": [],
+  "buffs": [],
+  "shields": [],
+  "starBehavior": {
+   "unitStars": {
+    "WIGLETT": 1,
+    "WUGTRIO": 2
+   },
+   "declaredRawDamage": {
+    "WIGLETT": 15,
+    "WUGTRIO": 30
+   },
+   "note": "damage table indexed by the casting entity's stars; the number of dives (3) does not depend on stars.",
+   "evidence": [
+    "td-damage",
+    "unit-wiglett",
+    "unit-wugtrio"
+   ]
+  },
+  "positionalConditions": "Targets are chosen by lowest current HP, not by position; the caster's destination depends on the empty cells at the moment each dive fires.",
+  "repeatedCastsAndModes": "No stored state on the caster besides the pending commands. Casting again before earlier commands have fired would stack them; the second cast re-selects the lowest-HP enemies at that time.",
+  "rawVsResolved": "Requested: 15 (WIGLETT) or 30 (WUGTRIO) special damage on up to three enemies. Downstream: scaled by AP, Double Damage, Strange Steam and crit. Applied: reduced by the target's SPE_DEF (ceil, minimum 1), shields first, or 0 when blocked by protect / skydiving / magic bounce / death. No heal, PP change or shield for the caster, so the heal, PP and Grass overheal rules do not apply; takenDamage is not used.",
+  "sourceTables": [
+   {
+    "id": "tripleDiveDamage",
+    "file": "app/core/abilities/triple-dive.ts",
+    "pattern": "const damage = \\[([^\\]]+)\\]",
+    "recordPath": "effects.0.declaredRaw.byStars",
+    "unitValuesPath": "effects.0.perUnitRaw"
+   }
+  ],
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether dead or untargetable enemies remain in board.cells at cast time (no filter in the strategy)",
+   "Order in which Board.forEach visits cells (ties for the closest empty cell and for equal HP)",
+   "Whether pending caster commands are dropped when the caster dies",
+   "What handleDamage does for status effects, items and synergies not traced one by one (section A caveats)"
+  ],
+  "unresolved": [
+   "Consulted: handleSpecialDamage, PokemonState.handleDamage (early returns only), Board.getClosestAvailablePlace, distanceM, moveTo, toMovingState, DelayedCommand, core-mechanics sections A, H and J (no heal, shield or PP gain here)",
+   "The Power Lens retaliation and magic-bounce reflect numbers were read from handleSpecialDamage but not worked through",
+   "Source reading only; no probe or fight was run"
+  ],
+  "evidence": [
+   {
+    "id": "unit-wiglett",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11526,
+     11540
+    ],
+    "symbol": "class Wiglett",
+    "expect": "skill = Ability.TRIPLE_DIVE",
+    "note": "1 star, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "unit-wugtrio",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     11542,
+     11555
+    ],
+    "symbol": "class Wugtrio",
+    "expect": "skill = Ability.TRIPLE_DIVE",
+    "note": "2 stars, maxPP 100, range 1, no passive"
+   },
+   {
+    "id": "reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     728,
+     728
+    ],
+    "symbol": "AbilityStrategies",
+    "expect": "export const AbilityStrategies",
+    "note": ""
+   },
+   {
+    "id": "reg-td",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     1258,
+     1258
+    ],
+    "symbol": "AbilityStrategies[Ability.TRIPLE_DIVE]",
+    "expect": "[Ability.TRIPLE_DIVE]: new TripleDiveStrategy()",
+    "note": ""
+   },
+   {
+    "id": "td-class",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "TripleDiveStrategy",
+    "expect": "requiresTarget = false",
+    "note": "no target needed; the process signature types target as null"
+   },
+   {
+    "id": "td-super",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     10,
+     10
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "super.process(pokemon, board, target, crit, true)",
+    "note": "PP spent, cast counted, default animation suppressed (the strategy broadcasts its own per dive)"
+   },
+   {
+    "id": "td-damage",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     12,
+     12
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "const damage = [15, 30, 60, 120][pokemon.stars - 1] ?? 120",
+    "note": "requested damage per dive by the caster's stars"
+   },
+   {
+    "id": "td-select",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     14,
+     21
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "entity.team !== pokemon.team",
+    "note": "every non-undefined entity on the board of the other team, sorted by current hp ascending, first 3 kept (snapshot at cast time)"
+   },
+   {
+    "id": "td-schedule",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     24,
+     26
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "pokemon.commands.push(",
+    "note": "one DelayedCommand per selected enemy on the caster"
+   },
+   {
+    "id": "td-place",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     27,
+     40
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "pokemon.moveTo(",
+    "note": "closest empty cell to the enemy; the caster moves there when one exists"
+   },
+   {
+    "id": "td-broadcast",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     42,
+     47
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "pokemon.broadcastAbility({",
+    "note": "animation per dive"
+   },
+   {
+    "id": "td-hit",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     49,
+     55
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "enemy.handleSpecialDamage(",
+    "note": "SPECIAL damage, attacker the caster, crit flag of the cast"
+   },
+   {
+    "id": "td-delay",
+    "file": "app/core/abilities/triple-dive.ts",
+    "lines": [
+     57,
+     57
+    ],
+    "symbol": "TripleDiveStrategy.process",
+    "expect": "}, 400 * i)",
+    "note": "delays 0, 400, 800 ms by selection order"
+   },
+   {
+    "id": "base-flags",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     7,
+     8
+    ],
+    "symbol": "AbilityStrategy",
+    "expect": "requiresTarget = true",
+    "note": "base default true, overridden to false here"
+   },
+   {
+    "id": "base-pp",
+    "file": "app/core/abilities/ability-strategy.ts",
+    "lines": [
+     16,
+     17
+    ],
+    "symbol": "AbilityStrategy.process",
+    "expect": "pokemon.pp = min(0)(pokemon.pp - pokemon.maxPP)",
+    "note": ""
+   },
+   {
+    "id": "pp-gate",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     92,
+     92
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
+    "note": ""
+   },
+   {
+    "id": "closest",
+    "file": "app/core/board.ts",
+    "lines": [
+     544,
+     566
+    ],
+    "symbol": "Board.getClosestAvailablePlace",
+    "expect": "if (value === undefined) {",
+    "note": "only empty cells are candidates, sorted by distanceM, first one returned or null"
+   },
+   {
+    "id": "manhattan",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance"
+   },
+   {
+    "id": "moveto",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     889,
+     897
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "board.swapCells(this.positionX, this.positionY, x, y)",
+    "note": "forcedDisplacement false: the canBeMoved checks are skipped; caster goes to the moving state and cooldown 100"
+   },
+   {
+    "id": "tomoving",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     487
+    ],
+    "symbol": "PokemonEntity.toMovingState",
+    "expect": "if (this.passive === Passive.INANIMATE || this.status.tree) return",
+    "note": ""
+   },
+   {
+    "id": "special-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving and magic bounce block the hit; spellBlockedCount incremented"
+   },
+   {
+    "id": "special-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     401
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "AP scaling (apBoost defaults to true)"
+   },
+   {
+    "id": "special-crit",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     410,
+     432
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
+    "note": "crit factor reduced by Rocky Helmet (to 0) and Black Augurite"
+   },
+   {
+    "id": "special-handle",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     434,
+     441
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "const damageResult = this.state.handleDamage({",
+    "note": "delegates to PokemonState.handleDamage"
+   },
+   {
+    "id": "handle-dead",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     450,
+     453
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.hp <= 0 || pokemon.status.resurrecting) {",
+    "note": "dead or resurrecting target: no damage"
+   },
+   {
+    "id": "armor-factor",
+    "file": "app/config/game/battle.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "ARMOR_FACTOR",
+    "expect": "ARMOR_FACTOR",
+    "note": ""
+   },
+   {
+    "id": "simcmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     13,
+     19
+    ],
+    "symbol": "SimulationCommand.update",
+    "expect": "this.delay -= dt",
+    "note": ""
+   },
+   {
+    "id": "delayedcmd",
+    "file": "app/core/simulation-command.ts",
+    "lines": [
+     22,
+     32
+    ],
+    "symbol": "DelayedCommand",
+    "expect": "this.delayedFunction()",
+    "note": ""
+   },
+   {
+    "id": "updatecmds",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     871,
+     873
+    ],
+    "symbol": "PokemonState.updateCommands",
+    "expect": "pokemon.commands.forEach((command) => command.update(dt))",
+    "note": ""
+   }
+  ]
+ }
+}
