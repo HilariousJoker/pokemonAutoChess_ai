@@ -1,0 +1,310 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/BASCULIN_RED_BLUE",
+ "kind": "passive",
+ "identifier": "BASCULIN_RED_BLUE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T003950Z"
+ },
+ "record": {
+  "passive": "BASCULIN_RED_BLUE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BASCULIN_BLUE",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BARED_FANGS",
+    "declaredPassive": "BASCULIN_RED_BLUE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BASCULIN_RED",
+    "stars": 3,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "BARED_FANGS",
+    "declaredPassive": "BASCULIN_RED_BLUE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "chg-pas",
+     "ctor-pas",
+     "cast-effect"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "cast-call",
+     "cast-gate"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "pas-filter",
+     "pas-max",
+     "pas-delta",
+     "addatk",
+     "belt-fn",
+     "twist-fn",
+     "board-clear"
+    ]
+   },
+   "context": {
+    "evidence": [
+     "pool-duo"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "BASCULIN_RED": {
+    "evidence": [
+     "unit-red"
+    ]
+   },
+   "BASCULIN_BLUE": {
+    "evidence": [
+     "unit-blue"
+    ]
+   }
+  },
+  "kind": "OnAbilityCastEffect (shared instance): attack catch-up to the strongest same-team holder",
+  "summary": "PassiveEffects[Passive.BASCULIN_RED_BLUE] holds one OnAbilityCastEffect. After a Basculin Red / Blue casts its ability (castAbility, after the strategy's process, and only if the cast was not refused), the effect collects all living entities on the caster's team that hold the passive (board.cells, caster included), takes the one with the highest current attack, and, if the caster's attack is lower, requests the difference as an attack gain on the caster (addAttack(delta, caster, 0, false)). If the caster already has the highest attack (or ties it) nothing happens. The effect reads the attackers' current attack values at that moment, including temporary changes, and only ever raises the caster's attack; it never lowers the leader's. It is not permanent.",
+  "triggers": [
+   "OnAbilityCastEffect: after each successful ability cast by a unit with this passive (castAbility in cast.ts)"
+  ],
+  "effects": [
+   {
+    "kind": "attackCatchUp",
+    "declaredRaw": "requested +(highest same-passive team attack - caster attack) attack on the caster, only when positive",
+    "scaling": "apBoost 0 and crit false with the caster being the unit itself: no AP or crit factor (the value is rounded by Math.round, which does not change an integer). applyBigEaterBeltStatBuff then applies to a positive value: a Big Eater Belt holder gains 1.25 x delta rounded down, so it can overshoot the leader's attack; applyTwistBandBuff does not apply to a positive value. addAttack keeps attack at least 1. core-mechanics §I and item-effects.md (BIG_EATER_BELT, TWIST_BAND) were consulted.",
+    "resolution": "requested delta = leader.atk - caster.atk (leader chosen among living same-team holders, the caster included); applied = delta, or floor(1.25 x delta) with a Big Eater Belt; permanent is false, so only the fight entity changes. Because the leader may be a different unit, the caster can end above, at or (with rounding) near the leader's attack depending on the item.",
+    "evidence": [
+     "pas-filter",
+     "pas-max",
+     "pas-delta",
+     "addatk",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "holderSelection",
+    "declaredRaw": "holders = board entities of the caster's team whose passive is BASCULIN_RED_BLUE",
+    "scaling": "none",
+    "resolution": "only units with this passive qualify (Basculin Red and Blue; Basculin White has a different passive); dead holders are gone from the board cells, so a dead leader no longer counts.",
+    "evidence": [
+     "pas-filter",
+     "board-clear",
+     "unit-red",
+     "unit-blue"
+    ]
+   }
+  ],
+  "conditions": [
+   "triggered only by a cast by a holder of this passive that is not refused (canCast)",
+   "needs a living same-team holder with strictly higher attack than the caster",
+   "comparison uses current attack (after buffs, debuffs and earlier catch-ups)",
+   "the leader's attack is read once per cast; no ongoing sync"
+  ],
+  "resetBehaviour": "No per-entity state. The gain lives on the fight entity only (permanent false); a rebuilt entity (resurrect) gets its stats recomputed from the board pokemon.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How and when casts happen in a real fight (castAbility callers) was not traced",
+   "roundToNDigits behaviour for the Big Eater Belt rounding was taken from the helper text only"
+  ],
+  "unresolved": [
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE resolved by name search: besides the PassiveEffects entry and the two unit classes, the identifier appears in the Passive enum, the pool list (PkmDuo.BASCULIN_RED_BLUE) and the Pkm/duo mapping; no other combat code refers to it",
+   "The sort is applied to the filtered array; with equal attack values the chosen leader is the first in board order, which does not matter for the delta (equal attack) but was not otherwise examined",
+   "Whether the cast target or the BARED_FANGS ability itself reads the attack (the passive runs after process, so the gain affects only later actions); the ability is a separate record",
+   "Whether a Basculin White or other passive holders interact was checked only by the passive equality in the filter",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-red",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19395,
+     19409
+    ],
+    "symbol": "class BasculinRed",
+    "expect": "passive = Passive.BASCULIN_RED_BLUE",
+    "note": "unit class block: stars 3, maxPP 80, range 1, BARED_FANGS, atk 15"
+   },
+   {
+    "id": "unit-blue",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19411,
+     19425
+    ],
+    "symbol": "class BasculinBlue",
+    "expect": "passive = Passive.BASCULIN_RED_BLUE",
+    "note": "unit class block: stars 3, maxPP 80, range 1, BARED_FANGS, atk 15"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1487,
+     1488
+    ],
+    "symbol": "PassiveEffects[Passive.BASCULIN_RED_BLUE]",
+    "expect": "new OnAbilityCastEffect((pokemon, board) => {",
+    "note": "array entry holding one shared OnAbilityCastEffect instance"
+   },
+   {
+    "id": "pas-filter",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1489,
+     1494
+    ],
+    "symbol": "PassiveEffects[Passive.BASCULIN_RED_BLUE]",
+    "expect": "p.passive === Passive.BASCULIN_RED_BLUE",
+    "note": "collects entities of the caster's team (any team member holding this passive, including the caster) from board.cells, skipping undefined cells"
+   },
+   {
+    "id": "pas-max",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1496,
+     1496
+    ],
+    "symbol": "PassiveEffects[Passive.BASCULIN_RED_BLUE]",
+    "expect": "basculins.sort((a, b) => b.atk - a.atk)[0]",
+    "note": "picks the holder with the highest current attack (ties: the sort keeps its input order for equal values)"
+   },
+   {
+    "id": "pas-delta",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1498,
+     1501
+    ],
+    "symbol": "PassiveEffects[Passive.BASCULIN_RED_BLUE]",
+    "expect": "pokemon.addAttack(delta, pokemon, 0, false)",
+    "note": "if the caster's attack is below the best, requests the difference as an attack gain on itself, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "cast-effect",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     331,
+     347
+    ],
+    "symbol": "OnAbilityCastEffect",
+    "expect": "export class OnAbilityCastEffect extends Effect",
+    "note": "applied after casting an ability with (pokemon, board, target, crit)"
+   },
+   {
+    "id": "cast-call",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     26,
+     30
+    ],
+    "symbol": "castAbility",
+    "expect": "pokemon.getEffects(OnAbilityCastEffect).forEach((effect) => {",
+    "note": "runs after abilityStrategy.process returns; castAbility returns early if the pokemon cannot cast"
+   },
+   {
+    "id": "cast-gate",
+    "file": "app/core/abilities/cast.ts",
+    "lines": [
+     16,
+     16
+    ],
+    "symbol": "castAbility",
+    "expect": "if (pokemon.canCast === false) return",
+    "note": "no effect when the cast is refused"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1786,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "else if (effect instanceof EffectClass) this.effectsSet.add(effect)",
+    "note": "effect instances are added to effectsSet as they are"
+   },
+   {
+    "id": "ctor-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     223,
+     223
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.changePassive(pokemon.passive)",
+    "note": "the entity constructor installs the passive effects"
+   },
+   {
+    "id": "addatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     744
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "helpers first, then attack floor 1"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 (rounded 'down') on a positive value for a Big Eater Belt holder"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff",
+    "note": "only a negative value from environment or another team is flipped; the delta here is positive"
+   },
+   {
+    "id": "board-clear",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     818,
+     818
+    ],
+    "symbol": "PokemonState.onDeath (death handling)",
+    "expect": "board.setEntityOnCell(pokemon.positionX, pokemon.positionY, undefined)",
+    "note": "a dying entity is removed from its board cell, so dead holders are not in board.cells"
+   },
+   {
+    "id": "pool-duo",
+    "file": "app/config/game/pools.ts",
+    "lines": [
+     113,
+     113
+    ],
+    "symbol": "pool list",
+    "expect": "PkmDuo.BASCULIN_RED_BLUE",
+    "note": "the two units are offered together as a duo in the pool (shop context, not combat)"
+   }
+  ]
+ }
+}
