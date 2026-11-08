@@ -1,0 +1,337 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/BAD_LUCK",
+ "kind": "passive",
+ "identifier": "BAD_LUCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T003950Z"
+ },
+ "record": {
+  "passive": "BAD_LUCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "HONCHKROW",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "FOUL_PLAY",
+    "declaredPassive": "BAD_LUCK",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MURKROW",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "FOUL_PLAY",
+    "declaredPassive": "BAD_LUCK",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "chg-pas",
+     "ctor-pas",
+     "start-class"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "start-loop",
+     "board-foreach",
+     "pas-loop"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "pas-luck",
+     "addluck",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   "readers": {
+    "evidence": [
+     "use-metronome",
+     "use-present",
+     "use-armthrust"
+    ]
+   },
+   "sharedName": {
+    "evidence": [
+     "effectenum",
+     "passive-enum"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "MURKROW": {
+    "evidence": [
+     "unit-murkrow"
+    ]
+   },
+   "HONCHKROW": {
+    "evidence": [
+     "unit-honchkrow"
+    ]
+   }
+  },
+  "kind": "OnSimulationStartEffect (shared instance): one-time luck debuff on every opposing entity",
+  "summary": "PassiveEffects[Passive.BAD_LUCK] holds one OnSimulationStartEffect. When the simulation starts, every entity of both teams has its OnSimulationStartEffects applied; for a Murkrow or Honchkrow entity the callback walks the whole board and, for each occupied cell whose entity is on the other team, requests -20 luck on that enemy (the enemy is passed as its own caster, apBoost 0, no crit, not permanent). addLuck does not round, applies the Big Eater Belt and Twist Band helpers, and clamps luck to -100..100. Because the caster is the enemy itself, a Big Eater Belt holder multiplies this negative change by 1.25 (rounded with the 'down' mode; the direction for negatives was not traced, so the exact applied number, -25 or -26, is not stated) and Twist Band does not flip it (same team). Each Murkrow / Honchkrow entity applies it once, so several of them stack down to the -100 floor. It runs once at the start; it does not follow later spawns, deaths or moves. The identifier BAD_LUCK also exists as an EffectEnum member, but no code in app/core uses it.",
+  "triggers": [
+   "Simulation.start: OnSimulationStartEffect of each Murkrow / Honchkrow entity (both teams' entities are processed)"
+  ],
+  "effects": [
+   {
+    "kind": "enemyLuckDebuff",
+    "declaredRaw": "-20 luck requested on every opposing entity present on the board at simulation start",
+    "scaling": "apBoost 0 and crit false: no AP or crit factor, no rounding for luck. The caster argument is the target itself, so applyBigEaterBeltStatBuff treats the negative value as a change from the holder's own team and scales it by 1.25 for a Big Eater Belt holder (rounded 'down'); applyTwistBandBuff does not flip it because caster.team equals the holder's team. This differs from an 'environment' caster such as the MURKY weather effect (where Twist Band would flip a debuff). core-mechanics §I and item-effects.md (TWIST_BAND, BIG_EATER_BELT) were consulted.",
+    "resolution": "requested -20 per source entity; applied = -20 (or the Belt-scaled value) per source, summed over sources, then clamped so luck stays within -100..100. permanent is false, so the enemy's board pokemon is unchanged. Opposing entities already at -100 are unchanged.",
+    "evidence": [
+     "pas-luck",
+     "addluck",
+     "belt-fn",
+     "twist-fn",
+     "pas-loop",
+     "board-foreach"
+    ]
+   },
+   {
+    "kind": "startOnly",
+    "declaredRaw": "applied once when the simulation starts",
+    "scaling": "none",
+    "resolution": "no repeat: entities spawned later (summons, resurrections) are not visited; a Murkrow that dies later does not undo the debuff.",
+    "evidence": [
+     "start-loop",
+     "start-class"
+    ]
+   }
+  ],
+  "conditions": [
+   "only occupied cells with an entity whose team differs from the holder's",
+   "evaluated at simulation start for each holder entity",
+   "units on the holder's own team are untouched",
+   "luck matters only to effects that read it, e.g. Metronome (rarity roll), Present (chance) and Arm Thrust (hit count) among those found by name search"
+  ],
+  "resetBehaviour": "No per-entity state in the effect. The luck change lives on the fight entity only (permanent false) and is rebuilt from the board pokemon if the entity is rebuilt (resurrect() overwrites luck from the clone).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Which other luck readers exist beyond those found by name search of app/core (Metronome, Present, Arm Thrust, Spectral Thief copies it)",
+   "roundToNDigits behaviour for negative values (direction of 'down') was not read"
+  ],
+  "unresolved": [
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by name search: EffectEnum.BAD_LUCK exists in app/types/enum/Effect.ts but no code in app/core refers to it; only the locale strings and the enum member carry the name. Passive.BAD_LUCK is what the two units use",
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE resolved by name search: besides the PassiveEffects entry, the unit classes and the two enums, the BAD_LUCK name occurs only in locale files (the passive's description 'Reduce all opponents LUCK by 20')",
+   "Order against dish effects: in Simulation.start each entity's dishes are applied before its OnSimulationStart effects, one entity at a time; whether a dish luck bonus on an enemy processed later can change the clamp outcome was not traced",
+   "Spectral Thief's luck copy and Feather Dance's luck changes interact with the debuff only through addLuck and were not traced in detail",
+   "Whether the entities on the board at simulation start include ones not yet processed by their own start effects does not change this passive, but the order of effects between several Murkrow was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-murkrow",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13398,
+     13413
+    ],
+    "symbol": "class Murkrow",
+    "expect": "passive = Passive.BAD_LUCK",
+    "note": "unit class block: stars 1, maxPP 70, range 1, FOUL_PLAY, passive BAD_LUCK"
+   },
+   {
+    "id": "unit-honchkrow",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13415,
+     13429
+    ],
+    "symbol": "class Honchkrow",
+    "expect": "passive = Passive.BAD_LUCK",
+    "note": "unit class block: stars 2, maxPP 70, range 1, FOUL_PLAY, passive BAD_LUCK"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1528,
+     1536
+    ],
+    "symbol": "PassiveEffects[Passive.BAD_LUCK]",
+    "expect": "new OnSimulationStartEffect(({ simulation, entity }) => {",
+    "note": "array entry holding one shared OnSimulationStartEffect instance (origin Passive.BAD_LUCK)"
+   },
+   {
+    "id": "pas-loop",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1529,
+     1531
+    ],
+    "symbol": "PassiveEffects[Passive.BAD_LUCK]",
+    "expect": "if (pkm && pkm.team !== entity.team) {",
+    "note": "visits every cell of the simulation board and selects occupied cells whose team differs from the holder's"
+   },
+   {
+    "id": "pas-luck",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1532,
+     1532
+    ],
+    "symbol": "PassiveEffects[Passive.BAD_LUCK]",
+    "expect": "pkm.addLuck(-20, pkm, 0, false)",
+    "note": "requested -20 luck on each enemy, the enemy itself being the 'caster', apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1786,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "else if (effect instanceof EffectClass) this.effectsSet.add(effect)",
+    "note": "effect instances are added to effectsSet as they are"
+   },
+   {
+    "id": "ctor-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     223,
+     223
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.changePassive(pokemon.passive)",
+    "note": "the entity constructor installs the passive effects"
+   },
+   {
+    "id": "start-loop",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     237,
+     262
+    ],
+    "symbol": "Simulation.start",
+    "expect": "entity.getEffects(OnSimulationStartEffect).forEach((effect) => {",
+    "note": "at simulation start, for both teams' entities, each entity's OnSimulationStartEffect is applied with { simulation, player, team, entity }"
+   },
+   {
+    "id": "start-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     160,
+     176
+    ],
+    "symbol": "OnSimulationStartEffect",
+    "expect": "export class OnSimulationStartEffect extends Effect",
+    "note": "'applied after simulation started, when the board is fully set up'"
+   },
+   {
+    "id": "board-foreach",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "callback(x, y, this.cells[this.columns * y + x])",
+    "note": "iterates every cell, passing the occupying entity or undefined"
+   },
+   {
+    "id": "addluck",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     649,
+     672
+    ],
+    "symbol": "PokemonEntity.addLuck",
+    "expect": "target.luck = clamp(target.luck + value, -100, +100)",
+    "note": "luck is not rounded here; Big Eater Belt and Twist Band helpers run first; clamp -100..100; permanent false leaves the board pokemon alone"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 for a positive value, or a negative one from a caster on the holder's own team"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "(caster === \"environment\" || caster.team !== pokemon.team)",
+    "note": "only a negative value from environment or another team is flipped; here the caster is the enemy itself, so same team: no flip"
+   },
+   {
+    "id": "effectenum",
+    "file": "app/types/enum/Effect.ts",
+    "lines": [
+     150,
+     150
+    ],
+    "symbol": "EffectEnum.BAD_LUCK",
+    "expect": "BAD_LUCK = \"BAD_LUCK\"",
+    "note": "a same-named EffectEnum member exists; no code in app/core refers to EffectEnum.BAD_LUCK (name search), so it is a separate identifier from Passive.BAD_LUCK"
+   },
+   {
+    "id": "passive-enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     124,
+     124
+    ],
+    "symbol": "Passive.BAD_LUCK",
+    "expect": "BAD_LUCK = \"BAD_LUCK\"",
+    "note": "the passive identifier"
+   },
+   {
+    "id": "use-metronome",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     642,
+     642
+    ],
+    "symbol": "MetronomeStrategy.process",
+    "expect": "const threshold = Math.pow(Math.random(), 1 + pokemon.luck / 100)",
+    "note": "one reader of luck in combat code (Metronome's rarity roll); named only to show what luck feeds"
+   },
+   {
+    "id": "use-present",
+    "file": "app/core/abilities/present.ts",
+    "lines": [
+     14,
+     14
+    ],
+    "symbol": "PresentStrategy.process",
+    "expect": "const chance = Math.pow(Math.random(), 1 - pokemon.luck / 100)",
+    "note": "another reader of luck (Present)"
+   },
+   {
+    "id": "use-armthrust",
+    "file": "app/core/abilities/arm-thrust.ts",
+    "lines": [
+     22,
+     22
+    ],
+    "symbol": "ArmThrustStrategy.process",
+    "expect": "pokemon.luck / 100",
+    "note": "a third reader of luck (Arm Thrust hit count)"
+   }
+  ]
+ }
+}
