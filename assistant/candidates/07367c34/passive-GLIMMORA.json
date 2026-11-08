@@ -1,0 +1,383 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/GLIMMORA",
+ "kind": "passive",
+ "identifier": "GLIMMORA",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T124039Z"
+ },
+ "record": {
+  "passive": "GLIMMORA",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GLIMMET",
+    "stars": 1,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "MORTAL_SPIN",
+    "declaredPassive": "GLIMMORA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GLIMMORA",
+    "stars": 2,
+    "maxPP": 70,
+    "range": 1,
+    "declaredSkill": "MORTAL_SPIN",
+    "declaredPassive": "GLIMMORA",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "pas-origin",
+     "dmg-class",
+     "dmg-call",
+     "dmg-trigger"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "pas-gate",
+     "pas-none",
+     "chg-pas"
+    ]
+   },
+   "geometry": {
+    "evidence": [
+     "pas-geom",
+     "pas-red"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "pas-cells",
+     "pas-dmg",
+     "sd-special",
+     "sd-ap",
+     "add-boardfx",
+     "move-fx",
+     "tick-poison",
+     "tick-each",
+     "clear-fx"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "GLIMMET": {
+    "evidence": [
+     "unit-glimmet"
+    ]
+   },
+   "GLIMMORA": {
+    "evidence": [
+     "unit-glimmora"
+    ]
+   }
+  },
+  "kind": "OnDamageReceivedEffect (shared instance): one-shot below 50% HP that lays TOXIC_SPIKES board effects and deals special damage",
+  "summary": "PassiveEffects[Passive.GLIMMORA] holds one shared OnDamageReceivedEffect (ToxicSpikesEffect). It runs after the unit receives damage (taken damage > 0 and hp still above 0). If the unit's passive is still GLIMMORA and hp < 0.5 x maxHP, it first calls changePassive(NONE) (so it can fire once per entity), then takes the cells at x-1..x+1 and y offsets +1,+2 (RED_TEAM: -2,-1) that are on the board. For each such cell it adds the TOXIC_SPIKES board effect (the occupant, of any team, also gains the effect unless it holds Heavy Duty Boots), broadcasts the animation, and, if the occupant belongs to another team, requests handleSpecialDamage(20, board, SPECIAL, the unit, crit false) with the default apBoost true, so the unit's AP scales the 20. The board effect is read by the once-per-second status routine: an entity carrying TOXIC_SPIKES that is not POISON type and has no Heavy Duty Boots gets triggerPoison(1000) on itself every second. The 20 is a requested raw amount before AP, special defense, shields and Protect.",
+  "triggers": [
+   "OnDamageReceivedEffect: after any received damage with takenDamage > 0 and hp > 0",
+   "once per entity per fight in practice, because changePassive(NONE) removes the effect instance",
+   "poison tick: PokemonState.updateEachSecond for every entity carrying the TOXIC_SPIKES effect"
+  ],
+  "effects": [
+   {
+    "kind": "conditionalOneShot",
+    "declaredRaw": "fires when hp < 0.5 x maxHP after a received damage event and the passive is still GLIMMORA",
+    "scaling": "none",
+    "resolution": "the check runs only inside onDamageReceived, which handleDamage calls when takenDamage > 0 and hp > 0 (core-mechanics section J1: takenDamage includes shield damage, so a hit absorbed entirely by a shield can also run the check; hp is compared after the hit). A killing blow does not run it. changePassive(NONE) runs before the spikes, removing the shared effect instance for this entity.",
+    "evidence": [
+     "pas-gate",
+     "pas-none",
+     "chg-pas",
+     "dmg-call",
+     "dmg-trigger"
+    ]
+   },
+   {
+    "kind": "areaSpecialDamage",
+    "declaredRaw": "requested 20 SPECIAL damage, attacker = the unit, crit false, apBoost default true, to each enemy-team occupant of the selected cells",
+    "scaling": "apBoost true: amount = 20 + 20 x unit.ap / 100 (before rounding inside handleDamage); no crit; no star scaling. The occupant list is read from the cells when the loop runs.",
+    "resolution": "requested 20; applied = 20 x (1 + AP/100) before the target's special defense (core-mechanics section A) and the floor of 1; handleSpecialDamage returns takenDamage 0 for a target with status.protect, skydiving or magicBounce; shield damage counts in takenDamage (section J1). The return value is discarded here. Occupants of the unit's own team are skipped for damage but still get the board effect.",
+    "evidence": [
+     "pas-cells",
+     "pas-dmg",
+     "sd-special",
+     "sd-ap"
+    ]
+   },
+   {
+    "kind": "boardEffectPoison",
+    "declaredRaw": "TOXIC_SPIKES board effect on up to 6 cells; carriers get triggerPoison(1000) every second unless POISON type or Heavy Duty Boots",
+    "scaling": "none from AP at this site; triggerPoison is called with the carrier as target and origin undefined",
+    "resolution": "the effect is applied to the current occupant of each cell (any team, not only enemies) and to entities that later move into the cell; entities lose it by leaving. The poison amount per tick (what triggerPoison does with the 1000 ms argument) was not traced.",
+    "evidence": [
+     "add-boardfx",
+     "move-fx",
+     "tick-poison",
+     "tick-each"
+    ]
+   }
+  ],
+  "geometry": "3 columns (x-1, x, x+1) by 2 rows. Default (non-RED) rows are the unit's y+1 and y+2; RED_TEAM rows are y-2 and y-1; cells off the board are skipped, so a unit near an edge covers fewer than 6 cells. The unit's own row is not included.",
+  "conditions": [
+   "hp < 0.5 x maxHP at the moment onDamageReceived runs (current hp after the hit, maxHP as stored)",
+   "passive must still be GLIMMORA (it is changed to NONE on firing)",
+   "applies to GLIMMET and GLIMMORA regardless of team; the geometry depends on team"
+  ],
+  "resetBehaviour": "changePassive(NONE) is the only reset; the effect cannot fire again for this entity. Board effects persist on the cells; the one clearing path found (simulation.ts:1784) belongs to another mechanism and was not traced. A resurrection path re-running the passive was not traced.",
+  "dependsOnUnverifiedGenericCombat": [
+   "What triggerPoison does with its 1000 ms argument (poison damage per tick, stacking) was not traced here; see the poison siblings LEECH_SEED / SLUDGE",
+   "Whether the ally-side effect (allies in the cells also gaining TOXIC_SPIKES) matters in a fight was not traced beyond the code above",
+   "The orientation of 'forward' for each team on the board was not traced; only the y offsets are recorded"
+  ],
+  "unresolved": [
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE: the identifier is also compared inside the effect itself (pokemon.passive === Passive.GLIMMORA) and tagged as the origin; a name search of app found no other behavioural reader",
+   "Whether a resurrected GLIMMET/GLIMMORA regains the passive (resurrect rebuilds from a clone) was not traced",
+   "The poison stage and strength from triggerPoison were not traced",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-glimmet",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16988,
+     17003
+    ],
+    "symbol": "class Glimmet",
+    "expect": "passive = Passive.GLIMMORA",
+    "note": "unit class block: stars 1, maxPP 70, range 1, MORTAL_SPIN, passive GLIMMORA"
+   },
+   {
+    "id": "unit-glimmora",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17005,
+     17019
+    ],
+    "symbol": "class Glimmora",
+    "expect": "passive = Passive.GLIMMORA",
+    "note": "unit class block: stars 2, maxPP 70, range 1, MORTAL_SPIN, passive GLIMMORA"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1309,
+     1309
+    ],
+    "symbol": "PassiveEffects[Passive.GLIMMORA]",
+    "expect": "[Passive.GLIMMORA]: [ToxicSpikesEffect]",
+    "note": "one shared OnDamageReceivedEffect instance"
+   },
+   {
+    "id": "pas-gate",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     489,
+     496
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "pokemon.hp < 0.5 * pokemon.maxHP &&",
+    "note": "gate: passive is still GLIMMORA, hp below half of maxHP, simulation and board exist; then the passive is changed to NONE"
+   },
+   {
+    "id": "pas-none",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     496,
+     496
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "pokemon.changePassive(Passive.NONE)",
+    "note": "one-shot: the passive is replaced by NONE before the spikes are placed"
+   },
+   {
+    "id": "pas-geom",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     498,
+     521
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "let startY = 1",
+    "note": "cell set: x from -1 to +1; y offsets 1 and 2 (rows startY..endY-1) by default, -2 and -1 for RED_TEAM; only cells on the board"
+   },
+   {
+    "id": "pas-red",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     502,
+     505
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "if (pokemon.team === Team.RED_TEAM) {",
+    "note": "RED_TEAM uses y offsets -2 and -1"
+   },
+   {
+    "id": "pas-cells",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     523,
+     546
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "board.addBoardEffect(",
+    "note": "per cell: board effect TOXIC_SPIKES, ability broadcast, and 20 special damage to an occupant of another team"
+   },
+   {
+    "id": "pas-dmg",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     537,
+     545
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "cell.value.handleSpecialDamage(",
+    "note": "handleSpecialDamage(20, board, SPECIAL, the unit, crit false) with the default apBoost (true) for occupants whose team differs from the unit's"
+   },
+   {
+    "id": "pas-origin",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     548,
+     548
+    ],
+    "symbol": "ToxicSpikesEffect",
+    "expect": "}, Passive.GLIMMORA)",
+    "note": "origin tag"
+   },
+   {
+    "id": "dmg-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     354,
+     372
+    ],
+    "symbol": "OnDamageReceivedEffect",
+    "expect": "export class OnDamageReceivedEffect extends Effect",
+    "note": "effect type invoked with pokemon, attacker, board, damage, damageBeforeReduction, attackType, isRetaliation"
+   },
+   {
+    "id": "dmg-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1221,
+     1232
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.getEffects(OnDamageReceivedEffect).forEach((effect) => {",
+    "note": "all OnDamageReceivedEffects run from onDamageReceived"
+   },
+   {
+    "id": "dmg-trigger",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     734,
+     744
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "called only when takenDamage > 0 and the unit's hp is still above 0 after the hit"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1767,
+     1780
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "const oldPassiveEffects = PassiveEffects[this.passive] ?? []",
+    "note": "changing the passive deletes the old passive's effect instances from effectsSet"
+   },
+   {
+    "id": "sd-special",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving or magic bounce block the hit first (takenDamage 0)"
+   },
+   {
+    "id": "sd-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     401
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "the attacker's AP scales the amount when apBoost is true"
+   },
+   {
+    "id": "add-boardfx",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     654
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "the occupant (any team) gets the effect unless it holds Heavy Duty Boots; the cell keeps the effect and a client event is broadcast"
+   },
+   {
+    "id": "move-fx",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     66
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "entity.effects.add(effectOnNewCell)",
+    "note": "entities moving into a cell with a board effect gain it (unless IMMUNITY_BOARD_EFFECTS) and lose the effects of the cell they leave"
+   },
+   {
+    "id": "tick-poison",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1063,
+     1069
+    ],
+    "symbol": "PokemonState.updateEachSecond",
+    "expect": "pokemon.effects.has(EffectEnum.TOXIC_SPIKES) &&",
+    "note": "each second an entity carrying TOXIC_SPIKES that is not POISON type and holds no Heavy Duty Boots gets triggerPoison(1000, itself, undefined)"
+   },
+   {
+    "id": "tick-each",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     972,
+     972
+    ],
+    "symbol": "PokemonState.updateEachSecond",
+    "expect": "updateEachSecond(pokemon: PokemonEntity, board: Board) {",
+    "note": "the once-per-second routine that contains the poison check"
+   },
+   {
+    "id": "clear-fx",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1784,
+     1784
+    ],
+    "symbol": "Simulation",
+    "expect": "this.board.clearBoardEffect(x, y, this) // clear all effects",
+    "note": "one other path clears all board effects of a cell (context not traced)"
+   }
+  ]
+ }
+}
