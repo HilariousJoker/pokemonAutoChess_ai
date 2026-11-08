@@ -1,0 +1,255 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/BLOSSOM",
+ "kind": "passive",
+ "identifier": "BLOSSOM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T063932Z"
+ },
+ "record": {
+  "passive": "BLOSSOM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CHERRIM",
+    "stars": 2,
+    "maxPP": 65,
+    "range": 3,
+    "declaredSkill": "NATURAL_GIFT",
+    "declaredPassive": "BLOSSOM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CHERRIM_SUNLIGHT",
+    "stars": 3,
+    "maxPP": 65,
+    "range": 3,
+    "declaredSkill": "NATURAL_GIFT",
+    "declaredPassive": "BLOSSOM",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CHERRIM": {
+    "evidence": [
+     "unit-cherrim"
+    ]
+   },
+   "CHERRIM_SUNLIGHT": {
+    "evidence": [
+     "unit-cherrim-sun"
+    ]
+   }
+  },
+  "kind": "board-phase form-switch passive (OnSpotlightChangeEffect in PassiveEffects); no combat effect",
+  "summary": "Passive.BLOSSOM registers one OnSpotlightChangeEffect. It runs on the player's board (shop/preparation phase), not inside a fight. When the effect runs with inSpotlight true (or with SHINY_STONE held, which forces true) a CHERRIM is replaced by CHERRIM_SUNLIGHT through player.transformPokemon; when it runs with inSpotlight false a CHERRIM_SUNLIGHT holding no SHINY_STONE is replaced by CHERRIM. The effect runs only from three callers: Player.onLightChange (the Light synergy was gained or lost), the position-change command (the Pokémon was moved) and the bot board set-up. inSpotlight is computed by the caller as Light synergy active AND (the unit stands on the light cell lightX/lightY OR holds SHINY_STONE). The Shiny Stone item drop also transforms a BLOSSOM holder directly to CHERRIM_SUNLIGHT. The passive changes no stat itself; the form difference is the unit blocks (Cherrim 2 stars hp 180 atk 15 def 4 speDef 4; Cherrim Sunlight 3 stars hp 250 atk 25 def 6 speDef 9; both maxPP 65, range 3, NATURAL_GIFT) plus whatever transformPokemon carries over.",
+  "triggers": [
+   "Player.onLightChange(hasLightActive) after updateSynergies detects Light gained or lost",
+   "position-change command when the Pokémon is moved (including onto or off the light cell)",
+   "bot board creation",
+   "Item.SHINY_STONE OnItemDroppedEffect (separate path)"
+  ],
+  "effects": [
+   {
+    "kind": "form_change",
+    "declaredRaw": "CHERRIM <-> CHERRIM_SUNLIGHT depending on inSpotlight",
+    "scaling": "none: no amount is declared; the effect does not call any stat helper",
+    "resolution": "player.transformPokemon builds the new form from PokemonFactory, carries permanent stats (carryOverPermanentStats) and dishes, keeps the cell, deletes the old board entry, adds the new one, re-adds each held item (setting shiny for SHINY_CHARM), calls onAcquired and updateSynergies. The stat difference between the forms is the declared unit stats, not a passive amount.",
+    "evidence": [
+     "registry",
+     "effect-class",
+     "transform",
+     "unit-cherrim",
+     "unit-cherrim-sun"
+    ]
+   },
+   {
+    "kind": "spotlight_computation",
+    "declaredRaw": "inSpotlight = Light synergy active and (on light cell or SHINY_STONE held); then forced true inside the effect when SHINY_STONE is held",
+    "scaling": "none",
+    "resolution": "the callers pass hasLightActive && (cell match || SHINY_STONE); the effect additionally sets inSpotlight = true for SHINY_STONE holders, so a holder of SHINY_STONE becomes (or stays) CHERRIM_SUNLIGHT whenever the effect runs, even if Light is inactive and the effect was triggered for another reason.",
+    "evidence": [
+     "light-change",
+     "light-trigger",
+     "move-caller",
+     "bot-caller",
+     "registry"
+    ]
+   },
+   {
+    "kind": "shiny_stone_direct",
+    "declaredRaw": "transform to CHERRIM_SUNLIGHT on item drop",
+    "scaling": "none",
+    "resolution": "the Shiny Stone item effect transforms any holder whose passive is BLOSSOM to CHERRIM_SUNLIGHT (also when it already is that form: transformPokemon creates a fresh copy and the stone is added again) and returns true.",
+    "evidence": [
+     "shiny-stone",
+     "transform"
+    ]
+   }
+  ],
+  "conditions": [
+   "Holder recognised by pokemon.passive === Passive.BLOSSOM (CHERRIM, CHERRIM_SUNLIGHT).",
+   "Reversion needs the unit to be CHERRIM_SUNLIGHT with no SHINY_STONE and the effect to run with inSpotlight false (Light synergy inactive, or unit not on the light cell).",
+   "The effect is not re-evaluated continuously: only on the callers listed (Light gained/lost, a move, bot setup), plus the Shiny Stone drop.",
+   "Only the two names Pkm.CHERRIM and Pkm.CHERRIM_SUNLIGHT are handled; the effect does nothing for another unit with this passive."
+  ],
+  "resetBehaviour": "No timer or counter. The form is a persistent board Pokémon replaced by transformPokemon; there is no in-fight state in the passive. The entity.inSpotlight getter in PokemonEntity is a separate in-fight property and is not read by this effect.",
+  "dependsOnUnverifiedGenericCombat": [
+   "NATURAL_GIFT ability (separate record) is the same for both forms",
+   "Synergy counting for Flora/Light/Gourmet after transformPokemon calls updateSynergies (both forms have the same three types)"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: classified by name search; Passive.BLOSSOM appears also in items.ts (Shiny Stone, recorded here). The other BLOSSOM hits in passives.ts line 964 and synergies.ts line 431 are PokemonActionState.BLOSSOM (an animation state), not this passive; the flower-pots.ts hit is Title.BLOSSOMED.",
+   "What carryOverPermanentStats copies exactly (and whether the stats gained by evolution stars carry between a 2-star and a 3-star form) was not read.",
+   "Whether the position-change command guards the effect call (for example benched Pokémon) beyond the passive !== NONE test was not traced.",
+   "Whether lightX/lightY are reset when Light is lost was not traced.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "sourceEvidence": {
+   "identity": {
+    "evidence": [
+     "enum",
+     "locale"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-cherrim",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13152,
+     13170
+    ],
+    "symbol": "class Cherrim",
+    "expect": "passive = Passive.BLOSSOM",
+    "note": "CHERRIM: 2 stars, hp 180, atk 15, speed 52, def 4, speDef 4, maxPP 65, range 3, skill NATURAL_GIFT, regional"
+   },
+   {
+    "id": "unit-cherrim-sun",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13172,
+     13190
+    ],
+    "symbol": "class CherrimSunlight",
+    "expect": "passive = Passive.BLOSSOM",
+    "note": "CHERRIM_SUNLIGHT: 3 stars, hp 250, atk 25, speed 52, def 6, speDef 9, maxPP 65, range 3, skill NATURAL_GIFT, regional"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     61,
+     61
+    ],
+    "symbol": "Passive.BLOSSOM",
+    "expect": "BLOSSOM = \"BLOSSOM\"",
+    "note": "enum member"
+   },
+   {
+    "id": "locale",
+    "file": "app/public/dist/client/locales/en/translation.json",
+    "lines": [
+     3376,
+     3376
+    ],
+    "symbol": "passive description BLOSSOM",
+    "expect": "Cherrim switches between its Sunlight form and Normal form depending on its exposure to LIGHT",
+    "note": "description text"
+   },
+   {
+    "id": "registry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1729,
+     1740
+    ],
+    "symbol": "PassiveEffects[Passive.BLOSSOM]",
+    "expect": "pokemon.name === Pkm.CHERRIM && inSpotlight",
+    "note": "the whole passive: one OnSpotlightChangeEffect; Shiny Stone forces inSpotlight true; CHERRIM -> CHERRIM_SUNLIGHT when in spotlight, CHERRIM_SUNLIGHT -> CHERRIM when not"
+   },
+   {
+    "id": "effect-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     129,
+     141
+    ],
+    "symbol": "OnSpotlightChangeEffect",
+    "expect": "export class OnSpotlightChangeEffect extends Effect",
+    "note": "effect type applied when a Pokémon enters or leaves the spotlight (apply is a no-op in the base class)"
+   },
+   {
+    "id": "light-change",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     902,
+     916
+    ],
+    "symbol": "Player.onLightChange",
+    "expect": "effect instanceof OnSpotlightChangeEffect",
+    "note": "caller 1: when the Light synergy is gained or lost, every board Pokémon's passive effects are run with inSpotlight = hasLightActive and (on the light cell or holding SHINY_STONE)"
+   },
+   {
+    "id": "light-trigger",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     391,
+     394
+    ],
+    "symbol": "Player.updateSynergies",
+    "expect": "if (lightGained || lightLost) this.onLightChange(lightGained)",
+    "note": "onLightChange runs only when the Light synergy crosses its first threshold up or down"
+   },
+   {
+    "id": "move-caller",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     2492,
+     2518
+    ],
+    "symbol": "position change command",
+    "expect": "effect instanceof OnSpotlightChangeEffect",
+    "note": "caller 2: after a Pokémon is moved, inSpotlight = Light synergy active and (new cell is the light cell or SHINY_STONE held)"
+   },
+   {
+    "id": "bot-caller",
+    "file": "app/core/bot.ts",
+    "lines": [
+     88,
+     118
+    ],
+    "symbol": "bot board setup",
+    "expect": "effect instanceof OnSpotlightChangeEffect",
+    "note": "caller 3: the same computation for bot boards"
+   },
+   {
+    "id": "transform",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     333,
+     352
+    ],
+    "symbol": "Player.transformPokemon",
+    "expect": "carryOverPermanentStats(newPokemon, [pokemon])",
+    "note": "replaces the board unit by the new form at the same cell, carries permanent stats and dishes, re-adds the held items, calls onAcquired and updateSynergies"
+   },
+   {
+    "id": "shiny-stone",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     1457,
+     1467
+    ],
+    "symbol": "Item.SHINY_STONE OnItemDroppedEffect",
+    "expect": "pokemon.passive === Passive.BLOSSOM",
+    "note": "when SHINY_STONE is dropped on a BLOSSOM holder it transforms to CHERRIM_SUNLIGHT and re-adds the stone; the effect returns true (item is equipped)"
+   }
+  ]
+ }
+}
