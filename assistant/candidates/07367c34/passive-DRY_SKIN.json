@@ -1,0 +1,510 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/DRY_SKIN",
+ "kind": "passive",
+ "identifier": "DRY_SKIN",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T124039Z"
+ },
+ "record": {
+  "passive": "DRY_SKIN",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "HELIOPTILE",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "PARABOLIC_CHARGE",
+    "declaredPassive": "DRY_SKIN",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HELIOLISK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 3,
+    "declaredSkill": "PARABOLIC_CHARGE",
+    "declaredPassive": "DRY_SKIN",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "spawn-origin",
+     "spawn-class",
+     "spawn-call"
+    ]
+   },
+   "weatherBranches": {
+    "evidence": [
+     "spawn-weather",
+     "spawn-periodic",
+     "spawn-sand",
+     "spawn-zenith"
+    ]
+   },
+   "periodicTick": {
+    "evidence": [
+     "per-class",
+     "per-rain",
+     "per-drought",
+     "per-interval",
+     "periodic-base",
+     "periodic-call"
+    ]
+   },
+   "helpers": {
+    "evidence": [
+     "dodge",
+     "ap",
+     "belt-twist",
+     "heal-entity",
+     "heal-state",
+     "heal-wound",
+     "heal-grass",
+     "heal-zenith",
+     "sd-guard",
+     "sd-body",
+     "hd-true",
+     "hd-min"
+    ]
+   },
+   "resurrection": {
+    "evidence": [
+     "res-clone",
+     "res-copy"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "HELIOPTILE": {
+    "evidence": [
+     "unit-helioptile"
+    ]
+   },
+   "HELIOLISK": {
+    "evidence": [
+     "unit-heliolisk"
+    ]
+   }
+  },
+  "kind": "OnSpawnEffect (shared instance) that branches on the simulation weather; RAIN/DROUGHT add a per-entity PeriodicEffect (1000 ms)",
+  "summary": "PassiveEffects[Passive.DRY_SKIN] holds one shared OnSpawnEffect. When the entity is spawned (after synergy and item effects) it reads entity.simulation.weather once: RAIN or DROUGHT add a new DrySkinPeriodicEffect to effectsSet; SANDSTORM requests addDodgeChance(0.25, self, apBoost 0, no crit) once; ZENITH requests addAbilityPower(50, self, apBoost 0, no crit) once; any other weather does nothing. The periodic effect has a 1000 ms interval (first tick after 1000 ms of state updates, then every 1000 ms) and re-reads the weather on every tick: RAIN requests handleHeal(8, self, apBoost 0, no crit); DROUGHT requests handleSpecialDamage(8, board, TRUE, self, crit false, apBoost false). The amounts 8, 0.25 and 50 are requested raw amounts; helpers can change what is applied (see effects).",
+  "triggers": [
+   "OnSpawnEffect applied in Simulation.addPokemon when the entity is created",
+   "PeriodicEffect.update every state update, applies when its timer reaches 0 (1000 ms interval) for the RAIN/DROUGHT branches",
+   "OnSpawnEffect applied to the rebuilt clone in PokemonEntity.resurrect (see unresolved)"
+  ],
+  "effects": [
+   {
+    "kind": "periodicHeal",
+    "declaredRaw": "RAIN: requested heal 8 per 1000 ms tick, caster = holder, apBoost 0, crit false",
+    "scaling": "none from AP or crit (apBoost 0, crit false). handleHeal modifiers still apply in order: x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, then Math.round (the x1.2 ZENITH step cannot occur in RAIN).",
+    "resolution": "requested 8; downstream: a wounded holder gets 0 (the wound branch runs first; a Blood Moon / Blood Stone shield request needs BLOODMOON weather, which is not RAIN, so none here); status.protect gives 0 (Rune Protect alone blocks nothing, core-mechanics section J2); otherwise final HP change = min(missing HP, modified heal) and healDone grows by it. Overheal = modified heal - missing HP; a holder with the Grass synergy effect requests addMaxHP(0.4 x overheal) (not 40% of max HP).",
+    "evidence": [
+     "per-rain",
+     "per-interval",
+     "periodic-base",
+     "periodic-call",
+     "heal-entity",
+     "heal-state",
+     "heal-wound",
+     "heal-grass"
+    ]
+   },
+   {
+    "kind": "periodicTrueDamage",
+    "declaredRaw": "DROUGHT: requested TRUE special-damage 8 per 1000 ms tick, attacker = holder itself, crit false, apBoost false",
+    "scaling": "none: apBoost false means no AP bonus; TRUE damage skips def/speDef reduction and the def-based items/effects in handleDamage; reduced damage is ceil'd with a minimum of 1.",
+    "resolution": "requested 8; handleSpecialDamage first returns takenDamage 0 and does nothing else when the holder has status.protect, skydiving or magicBounce; otherwise handleDamage reduces nothing for TRUE and the returned takenDamage counts shield damage (core-mechanics section J1), so the amount returned can exceed the actual HP lost when a shield absorbs part of the tick. The holder is both attacker and target, so any effect keyed on the attacker or on attacker differing from the target is separate and not traced here.",
+    "evidence": [
+     "per-drought",
+     "per-interval",
+     "periodic-base",
+     "sd-guard",
+     "sd-body",
+     "hd-true",
+     "hd-min"
+    ]
+   },
+   {
+    "kind": "dodgeBuffOnce",
+    "declaredRaw": "SANDSTORM: requested +0.25 dodge once at spawn, caster = holder, apBoost 0, crit false",
+    "scaling": "none (apBoost 0). addDodgeChance applies Big Eater Belt to a positive value (x1.25 rounded down to 3 digits, nbDigits 3) and Twist Band only flips negatives, then dodge = min(0.9, dodge + value).",
+    "resolution": "requested +0.25; applied = 0.25 (0.312 with a Big Eater Belt on the holder: 0.3125 rounded down to 3 digits), then capped so the stored dodge never exceeds 0.9. One-time, no per-tick repeat.",
+    "evidence": [
+     "spawn-sand",
+     "dodge",
+     "belt-twist"
+    ]
+   },
+   {
+    "kind": "abilityPowerBuffOnce",
+    "declaredRaw": "ZENITH: requested +50 AP once at spawn, caster = holder, apBoost 0, crit false",
+    "scaling": "none (apBoost 0, no crit). addAbilityPower rounds, then applies Big Eater Belt (x1.25 rounded down, 0 digits) and Twist Band; Nullify Bandanna instead turns the gain into round(0.2 x value) Attack and returns.",
+    "resolution": "requested +50 AP; applied = 50 (62 with a Big Eater Belt, since 62.5 rounds down); with a Nullify Bandanna the AP gain is replaced by +10 Attack (and no AP change). Final AP floor is -100 (min(-100)).",
+    "evidence": [
+     "spawn-zenith",
+     "ap",
+     "belt-twist"
+    ]
+   }
+  ],
+  "conditions": [
+   "weather is read from entity.simulation.weather at spawn and, for the periodic part, again on every tick (the simulation's weather is fixed by its constructor, so the two readings agree unless the field is reassigned; it is reset to NEUTRAL at the end of the fight)",
+   "NEUTRAL and every weather other than RAIN, DROUGHT, SANDSTORM, ZENITH: no effect",
+   "applies to every entity of HELIOPTILE and HELIOLISK regardless of team or stars"
+  ],
+  "resetBehaviour": "One new DrySkinPeriodicEffect per spawn with timer = 1000 and count 0; no state shared between entities. The SANDSTORM dodge and ZENITH AP buffs are plain stat changes with no reset in this passive.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Which weather values the game assigns to a fight and how often each occurs was not traced; only the comparisons in this passive are recorded",
+   "Other effects keyed on a unit damaging itself (onDamageDealt style hooks, items) were not audited for the DROUGHT self-damage tick",
+   "Order of periodic effects versus other per-update work inside PokemonState.update beyond the cited lines was not traced"
+  ],
+  "unresolved": [
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE: besides its PassiveEffects entry the identifier appears only inside the same file as DrySkinPeriodicEffect (origin tag) and the two unit classes; a name search of app found no other behavioural reader (translation strings only), so the uncertainty is the effect's own helper class",
+   "Whether the clone built in PokemonEntity.resurrect keeps its DrySkinPeriodicEffect applied to the real entity: the cited lines copy ap and dodge but the periodic effect lives on the clone's effectsSet; the real entity keeps its own existing periodic effect unless resurrect clears effectsSet (not traced)",
+   "Whether passive OnSpawn effects can fire a second time on the same entity (for example through dish consumption) and so stack a second periodic effect was not traced",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-helioptile",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12666,
+     12685
+    ],
+    "symbol": "class Helioptile",
+    "expect": "passive = Passive.DRY_SKIN",
+    "note": "unit class block: stars 1, maxPP 80, range 3, PARABOLIC_CHARGE, passive DRY_SKIN"
+   },
+   {
+    "id": "unit-heliolisk",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12687,
+     12705
+    ],
+    "symbol": "class Heliolisk",
+    "expect": "passive = Passive.DRY_SKIN",
+    "note": "unit class block: stars 2, maxPP 80, range 3, PARABOLIC_CHARGE, passive DRY_SKIN"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1430,
+     1430
+    ],
+    "symbol": "PassiveEffects[Passive.DRY_SKIN]",
+    "expect": "[Passive.DRY_SKIN]: [drySkinOnSpawnEffect]",
+    "note": "one shared OnSpawnEffect instance is registered for the passive"
+   },
+   {
+    "id": "spawn-weather",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1081,
+     1086
+    ],
+    "symbol": "drySkinOnSpawnEffect",
+    "expect": "entity.simulation.weather === Weather.RAIN ||",
+    "note": "RAIN or DROUGHT: a new DrySkinPeriodicEffect is added to entity.effectsSet"
+   },
+   {
+    "id": "spawn-periodic",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1086,
+     1086
+    ],
+    "symbol": "drySkinOnSpawnEffect",
+    "expect": "entity.effectsSet.add(new DrySkinPeriodicEffect())",
+    "note": "a fresh periodic effect instance per spawn"
+   },
+   {
+    "id": "spawn-sand",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1087,
+     1088
+    ],
+    "symbol": "drySkinOnSpawnEffect",
+    "expect": "entity.addDodgeChance(0.25, entity, 0, false)",
+    "note": "SANDSTORM: +0.25 dodge requested once, caster = the unit, apBoost 0, no crit"
+   },
+   {
+    "id": "spawn-zenith",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1089,
+     1090
+    ],
+    "symbol": "drySkinOnSpawnEffect",
+    "expect": "entity.addAbilityPower(50, entity, 0, false)",
+    "note": "ZENITH: +50 AP requested once, caster = the unit, apBoost 0, no crit"
+   },
+   {
+    "id": "spawn-origin",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1092,
+     1092
+    ],
+    "symbol": "drySkinOnSpawnEffect",
+    "expect": "}, Passive.DRY_SKIN)",
+    "note": "origin tag of the OnSpawnEffect"
+   },
+   {
+    "id": "per-class",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1058,
+     1080
+    ],
+    "symbol": "DrySkinPeriodicEffect",
+    "expect": "class DrySkinPeriodicEffect extends PeriodicEffect",
+    "note": "periodic effect, interval 1000 ms (last constructor argument)"
+   },
+   {
+    "id": "per-rain",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1062,
+     1064
+    ],
+    "symbol": "DrySkinPeriodicEffect",
+    "expect": "pokemon.handleHeal(8, pokemon, 0, false)",
+    "note": "RAIN tick: heal 8, caster = the unit, apBoost 0, no crit"
+   },
+   {
+    "id": "per-drought",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1065,
+     1073
+    ],
+    "symbol": "DrySkinPeriodicEffect",
+    "expect": "AttackType.TRUE",
+    "note": "DROUGHT tick: handleSpecialDamage(8, board, TRUE, self, crit false, apBoost false)"
+   },
+   {
+    "id": "per-interval",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1075,
+     1077
+    ],
+    "symbol": "DrySkinPeriodicEffect",
+    "expect": "1000",
+    "note": "interval argument 1000 ms"
+   },
+   {
+    "id": "periodic-base",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     261,
+     284
+    ],
+    "symbol": "PeriodicEffect",
+    "expect": "this.timer -= dt",
+    "note": "timer starts at intervalMs, counts down by dt, applies and resets when <= 0"
+   },
+   {
+    "id": "periodic-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     895,
+     899
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "effect.update(dt, pokemon, board)",
+    "note": "periodic effects are updated every state update of the entity"
+   },
+   {
+    "id": "spawn-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     31,
+     43
+    ],
+    "symbol": "OnSpawnEffect",
+    "expect": "export class OnSpawnEffect extends Effect",
+    "note": "'applied on fight start or when spawning'"
+   },
+   {
+    "id": "spawn-call",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     384,
+     387
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "pokemonEntity.getEffects(OnSpawnEffect).forEach((effect) => {",
+    "note": "OnSpawnEffects applied after synergy and item effects"
+   },
+   {
+    "id": "dodge",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     607,
+     620
+    ],
+    "symbol": "PokemonEntity.addDodgeChance",
+    "expect": "this.dodge = max(0.9)(this.dodge + value)",
+    "note": "dodge capped at 0.9; Big Eater Belt (3 digits) and Twist Band helpers applied first"
+   },
+   {
+    "id": "ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     640
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "if (this.items.has(Item.NULLIFY_BANDANNA)) {",
+    "note": "Nullify Bandanna turns AP gain into round(0.2 x value) Attack; otherwise round, Big Eater Belt, Twist Band"
+   },
+   {
+    "id": "belt-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt multiplies a positive buff by 1.25 rounded down; Twist Band flips negative values from enemies/environment"
+   },
+   {
+    "id": "heal-entity",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "entity wrapper delegates to the state"
+   },
+   {
+    "id": "heal-state",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     380
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "branch order: wound first, then hp>0 and !protect, modifiers, cap, Grass overheal"
+   },
+   {
+    "id": "heal-wound",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     315,
+     331
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.wound) {",
+    "note": "wound branch returns 0/0 after an optional Blood Moon / Blood Stone shield request"
+   },
+   {
+    "id": "heal-grass",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     373,
+     375
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.addMaxHP(0.4 * overheal, pokemon, 0, false, false)",
+    "note": "Grass overheal requested as 0.4 x overheal max HP"
+   },
+   {
+    "id": "heal-zenith",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     349,
+     351
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "pokemon.simulation.weather === Weather.ZENITH",
+    "note": "x1.2 heal modifier under ZENITH only (not RAIN)"
+   },
+   {
+    "id": "sd-guard",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     358
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "protect, skydiving or magic bounce block the tick before handleDamage and return takenDamage 0"
+   },
+   {
+    "id": "sd-body",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     399,
+     442
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "specialDamage = damage + (damage * (attacker && apBoost ? attacker.ap : 0)) / 100",
+    "note": "apBoost false -> no AP bonus; crit false; passes to state.handleDamage"
+   },
+   {
+    "id": "hd-true",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     564,
+     566
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = damage",
+    "note": "TRUE damage skips def/speDef reduction"
+   },
+   {
+    "id": "hd-min",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     597,
+     597
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
+    "note": "reduced damage is ceil'd with a floor of 1"
+   },
+   {
+    "id": "res-clone",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1450,
+     1452
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "cloneReference.getEffects(OnSpawnEffect).forEach((effect) => {",
+    "note": "resurrect rebuilds a clone and re-applies OnSpawn effects to the clone"
+   },
+   {
+    "id": "res-copy",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1458,
+     1462
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "this.dodge = cloneReference.dodge",
+    "note": "ap and dodge are copied back from the clone; the clone's periodic effect is not copied by these lines"
+   }
+  ]
+ }
+}
