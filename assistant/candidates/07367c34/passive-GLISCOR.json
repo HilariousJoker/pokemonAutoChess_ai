@@ -1,0 +1,288 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/GLISCOR",
+ "kind": "passive",
+ "identifier": "GLISCOR",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T183931Z"
+ },
+ "record": {
+  "passive": "GLISCOR",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GLIGAR",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_JAB",
+    "declaredPassive": "GLISCOR",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "GLISCOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "POISON_JAB",
+    "declaredPassive": "GLISCOR",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "enum"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "tick-gate",
+     "trig-stack",
+     "trig-cap"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "pd-base",
+     "pd-mods",
+     "pd-sign",
+     "pd-cd",
+     "pd-expire",
+     "heal-fn",
+     "heal-wrap",
+     "xfer"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "GLIGAR": {
+    "evidence": [
+     "unit-gligar"
+    ]
+   },
+   "GLISCOR": {
+    "evidence": [
+     "unit-gliscor"
+    ]
+   }
+  },
+  "kind": "Inline check inside the poison tick (Status.updatePoison); no PassiveEffects entry",
+  "summary": "Passive.GLISCOR has no PassiveEffects entry. Its only reader is a branch inside Status.updatePoison: while the unit is poisoned the once-per-second poison tick uses (poisonStacks - 2) instead of poisonStacks as the multiplier of 5% of maxHP. With 1 stack the multiplier is -1, so the tick requests a heal of round(0.05 x maxHP) (after the shared modifiers) through handleHeal(self, apBoost 0, no crit) instead of damage; with 2 stacks it is 0 and nothing happens; with 3 stacks it takes 1x (5% maxHP) as TRUE damage, with 4 stacks (origin VENOMOUS) 2x and with 5 (origin TOXIC) 3x. The rain x0.7, Assault Vest x0.5, Toxic Boost x0.5 and Swift Swim / Hydration / Water Veil / Surge Surfer multipliers run after this branch and therefore also shrink the (negative) heal request; the result is rounded once, then negated for the heal. The requested heal is then subject to handleHeal (core-mechanics section J2): a wounded unit gets 0 (plus the Blood Moon / Blood Stone addShield request of round(0.3 x stones x requested heal)), status.protect gives 0 (Rune Protect alone does not), burning and enraged halve it, ZENITH weather x1.2, BUFF_HEAL_RECEIVED x1.3, then the missing-HP cap; Grass overheal becomes addMaxHP(0.4 x overheal). Damage ticks (3+ stacks) go through handleDamage as TRUE damage with a floor of 1, so Armor/Special Defense do not apply but shields and Protect do (section J1).",
+  "triggers": [
+   "Status.updatePoison every 1000 ms while poisonStacks > 0 (poisonDamageCooldown)",
+   "poison application (triggerPoison) adds one stack; transferNegativeStatus adds one stack to the receiver"
+  ],
+  "effects": [
+   {
+    "kind": "poisonTickRemap",
+    "declaredRaw": "poison tick multiplier = stacks - 2 (instead of stacks) of 0.05 x maxHP",
+    "scaling": "requested amount = 0.05 x maxHP x (stacks - 2), then x0.7 rain / x0.5 Assault Vest / x0.5 Toxic Boost / x0.7 Swift Swim or x0.5 Hydration or x0.3 Water Veil, Surge Surfer, then Math.round (JS rounding: .5 rounds toward +infinity, so a negative -2.5 becomes -2)",
+    "resolution": "requested only: 1 stack -> heal request round(|value|); 2 stacks -> 0 (no heal, no damage); >=3 stacks -> TRUE damage request. Stacks cap at 3 (4 VENOMOUS origin, 5 TOXIC origin), so the strongest damage tick is 1x/2x/3x of 5% maxHP.",
+    "evidence": [
+     "pd-base",
+     "pd-mods",
+     "pd-sign",
+     "trig-stack",
+     "trig-cap"
+    ]
+   },
+   {
+    "kind": "selfHealOnPoisonTick",
+    "declaredRaw": "requested heal = round(-poisonDamage) when poisonDamage < 0 (only possible with exactly 1 stack)",
+    "scaling": "caster = the unit itself, apBoost 0, crit false: AP and crit power do not apply; the amount is the requested value, not the applied one",
+    "resolution": "applied heal is decided by handleHeal (section J2): wound -> 0 (plus Blood Stone shield request round(0.3 x stones x requested) under Blood Moon, recipient = caster); status.protect -> 0 (Rune Protect alone does not block); modifiers burn x0.5, enraged x0.5, ZENITH x1.2, BUFF_HEAL_RECEIVED x1.3 then round; capped to missing HP; overheal on a GRASS-synergy unit adds addMaxHP(0.4 x overheal). healDone credit goes to the unit itself.",
+    "evidence": [
+     "pd-sign",
+     "heal-fn",
+     "heal-wrap"
+    ]
+   },
+   {
+    "kind": "trueDamageOnPoisonTick",
+    "declaredRaw": "3+ stacks: min 1 TRUE damage of round(0.05 x maxHP x (stacks - 2) x modifiers), attacker = poisonOrigin",
+    "scaling": "requested amount only; Armor/Special Defense not applied (TRUE); takenDamage includes shield damage (section J1) so applied HP loss can be lower than requested",
+    "resolution": "handleDamage with shouldTargetGainMana false",
+    "evidence": [
+     "pd-sign"
+    ]
+   }
+  ],
+  "conditions": [
+   "unit.passive === GLISCOR (checked every poison tick; no change of passive found)",
+   "poisonStacks > 0 (updatePoison only runs then)",
+   "IMMUNITY_POISON or Rune Protect blocks new stacks, so no tick; existing stacks keep ticking"
+  ],
+  "resetBehaviour": "No state is stored by the passive. When poisonCooldown expires all stacks reset to 0 and the next application restarts at 1 stack (heal tick). The first stack heals only on the tick that finds exactly one stack; a second stack within the same second skips the heal.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Exactly when the first poison tick falls relative to the first application (poisonDamageCooldown initial value) was not traced; reading only the code above",
+   "Pecha Berry (clears stacks, grants IMMUNITY_POISON) and other cure paths were seen but not traced beyond their location"
+  ],
+  "unresolved": [
+   "Routing uncertainty NO_PASSIVE_EFFECTS_ENTRY: confirmed, there is no PassiveEffects[Passive.GLISCOR]; the behaviour is the inline status.ts branch only; a name search of app (excluding locales and precomputed data) found no other reader of Passive.GLISCOR",
+   "The in-game text says the first POISONNED stack heals instead of damaging; the code matches only for exactly one stack (stack 2 is a zero tick, stack 3 is damage at 1x)",
+   "Whether other abilities add several stacks in one tick (making stack 1 never reach a tick) was not traced",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-gligar",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7949,
+     7968
+    ],
+    "symbol": "class Gligar",
+    "expect": "passive = Passive.GLISCOR",
+    "note": "unit class block: stars 1, maxPP 100, range 1, POISON_JAB, passive GLISCOR"
+   },
+   {
+    "id": "unit-gliscor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7970,
+     7988
+    ],
+    "symbol": "class Gliscor",
+    "expect": "passive = Passive.GLISCOR",
+    "note": "unit class block: stars 2, maxPP 100, range 1, POISON_JAB, passive GLISCOR"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     42,
+     42
+    ],
+    "symbol": "Passive.GLISCOR",
+    "expect": "GLISCOR = \"GLISCOR\"",
+    "note": "enum member; the only behavioural reader of the identifier found by name search of app (excluding locales/precomputed) is status.ts:621"
+   },
+   {
+    "id": "tick-gate",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     235,
+     237
+    ],
+    "symbol": "updateEachSecond-style status update",
+    "expect": "this.updatePoison(dt, pokemon, board)",
+    "note": "updatePoison is run only while poisonStacks > 0"
+   },
+   {
+    "id": "trig-stack",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     590
+    ],
+    "symbol": "triggerPoison",
+    "expect": "this.poisonStacks = max(maxStacks)(this.poisonStacks + 1)",
+    "note": "each poison application adds one stack, capped by maxStacks"
+   },
+   {
+    "id": "trig-cap",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     575,
+     587
+    ],
+    "symbol": "triggerPoison maxStacks",
+    "expect": "maxStacks = 5",
+    "note": "cap 3; 4 if the origin has VENOMOUS; 5 if TOXIC; blocked entirely by IMMUNITY_POISON or runeProtect"
+   },
+   {
+    "id": "pd-base",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     623
+    ],
+    "symbol": "updatePoison",
+    "expect": "poisonDamage = pkm.maxHP * 0.05 * (this.poisonStacks - 2)",
+    "note": "Gliscor-passive branch replaces the ordinary stacks multiplier by stacks - 2"
+   },
+   {
+    "id": "pd-mods",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     624,
+     646
+    ],
+    "symbol": "updatePoison modifiers",
+    "expect": "poisonDamage *= 0.7",
+    "note": "rain x0.7, Assault Vest x0.5, Toxic Boost x0.5, Swift Swim x0.7 / Hydration x0.5 / Water Veil or Surge Surfer x0.3, then Math.round; applied after the Gliscor branch, so they scale a negative value too"
+   },
+   {
+    "id": "pd-sign",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     648,
+     657
+    ],
+    "symbol": "updatePoison heal/damage split",
+    "expect": "pkm.handleHeal(Math.round(-poisonDamage), pkm, 0, false)",
+    "note": "negative -> handleHeal (caster = self, apBoost 0, no crit); positive -> handleDamage TRUE damage min 1 attacker poisonOrigin; exactly 0 -> neither"
+   },
+   {
+    "id": "pd-cd",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     658,
+     670
+    ],
+    "symbol": "updatePoison cooldown",
+    "expect": "this.poisonDamageCooldown = 1000",
+    "note": "tick every 1000 ms; poison gas re-applies a stack each tick"
+   },
+   {
+    "id": "pd-expire",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     672,
+     676
+    ],
+    "symbol": "updatePoison expiry",
+    "expect": "this.poisonStacks = 0",
+    "note": "when poisonCooldown runs out all stacks reset to 0"
+   },
+   {
+    "id": "heal-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     307,
+     380
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect)",
+    "note": "wound branch first, then protect/hp guard, modifiers, cap, Grass overheal"
+   },
+   {
+    "id": "heal-wrap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "entity wrapper"
+   },
+   {
+    "id": "xfer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     169,
+     175
+    ],
+    "symbol": "transferNegativeStatus",
+    "expect": "to.status.triggerPoison(this.poisonCooldown, to, from)",
+    "note": "transfer adds one stack to the receiver (not the stack count copied)"
+   }
+  ]
+ }
+}
