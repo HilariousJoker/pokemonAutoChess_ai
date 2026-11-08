@@ -1,0 +1,306 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/GLUTTON",
+ "kind": "passive",
+ "identifier": "GLUTTON",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T183931Z"
+ },
+ "record": {
+  "passive": "GLUTTON",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "MUNCHLAX",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BODY_SLAM",
+    "declaredPassive": "GLUTTON",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SNORLAX",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "BODY_SLAM",
+    "declaredPassive": "GLUTTON",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "enum"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "chef-hat",
+     "dish-call",
+     "berry-start",
+     "berry-trig-low",
+     "berry-eater"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "chef-glutton",
+     "board-maxhp",
+     "berry-glutton",
+     "apply-stat",
+     "entity-maxhp",
+     "belt",
+     "dish-glutton"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "MUNCHLAX": {
+    "evidence": [
+     "unit-munchlax"
+    ]
+   },
+   "SNORLAX": {
+    "evidence": [
+     "unit-snorlax"
+    ]
+   }
+  },
+  "kind": "Three inline passive checks (chef stage start, eatBerry, applyDishEffects); no PassiveEffects entry",
+  "summary": "Passive.GLUTTON has no PassiveEffects entry; three places read it. (1) Chef Hat: the chefCookEffect (registered only on Item.CHEF_HAT) runs at stage start for the holder; if the holder's passive is GLUTTON it calls chef.addMaxHP(30) on the board Pokemon (Pokemon.addMaxHP: hp = max(1, hp + 30), maxHP = hp), so a Munchlax/Snorlax needs a Chef Hat to get this +30 each stage. (2) Every berry eaten by the fighting entity (eatBerry, reached when a held berry is eaten below 50% HP or via the BERRY_EATER path) ends with applyStat(Stat.HP, 10, true): entity.addMaxHP(10, self, 0, false, permanent true), i.e. requested +10 max HP, rounded, increased by Big Eater Belt (x1.25 rounded down, so 12) and, with Twist Band, unchanged for a positive value; the entity's maxHP and current hp rise by that applied value (no heal guard, no healDone) and the same applied value is added to the board Pokemon's maxHP unless it is a ghost opponent (the permanent flag passes the applied value, so the Belt bonus is also permanent). (3) Each dish consumed at simulation start (applyDishEffects) gives the board Pokemon +20 max HP (Pokemon.addMaxHP, raw) and the in-fight entity entity.addMaxHP(20, self, 0, false) (permanent false, so the Belt would make it 25 for the entity only while the board gets 20). The title check uses board hp > 750 (berry) or board maxHP > 750 (chef, dish). Amounts are requested raw values: +30 chef, +10 berry, +20 dish.",
+  "triggers": [
+   "OnStageStartEffect of Chef Hat (holder must have passive GLUTTON)",
+   "eatBerry completion on the fighting entity",
+   "applyDishEffects at simulation start, once per held dish"
+  ],
+  "effects": [
+   {
+    "kind": "permanentMaxHPChef",
+    "declaredRaw": "+30 max HP per stage for a Chef Hat holder with GLUTTON",
+    "scaling": "none; flat; board Pokemon only via Pokemon.addMaxHP (no AP, no Belt, no crit)",
+    "resolution": "requested 30 = applied 30 on the board Pokemon; the fight entity is created from the board stats afterwards",
+    "evidence": [
+     "chef-hat",
+     "chef-glutton",
+     "board-maxhp"
+    ]
+   },
+   {
+    "kind": "permanentMaxHPBerry",
+    "declaredRaw": "+10 max HP after each berry eaten",
+    "scaling": "apBoost 0, no crit; requested 10 then Big Eater Belt (x1.25 floor) / Twist Band helpers",
+    "resolution": "requested 10; applied = round(10), Belt -> 12; entity maxHP and hp rise by applied; board maxHP rises by the same applied value when permanent and not a ghost opponent. Not a heal: wound/Protect do not stop it (section J4: addMaxHP has no heal guard).",
+    "evidence": [
+     "berry-glutton",
+     "apply-stat",
+     "entity-maxhp",
+     "belt",
+     "berry-start",
+     "berry-trig-low",
+     "berry-eater"
+    ]
+   },
+   {
+    "kind": "maxHPPerDish",
+    "declaredRaw": "+20 max HP per dish at simulation start",
+    "scaling": "board raw +20; entity addMaxHP(20, self, 0, false) with permanent false",
+    "resolution": "requested 20; entity applied 20 (Belt 25) and hp rises with it; board applied exactly 20 (not permanent through the helper, written directly); dishes are then cleared",
+    "evidence": [
+     "dish-call",
+     "dish-glutton",
+     "board-maxhp",
+     "entity-maxhp"
+    ]
+   }
+  ],
+  "conditions": [
+   "unit.passive === GLUTTON (Munchlax, Snorlax)",
+   "chef branch requires the unit to hold a Chef Hat (only Gourmet-type units can equip it per onItemDropped)",
+   "berry branch requires an eaten berry; dish branch requires dishes on the board Pokemon"
+  ],
+  "resetBehaviour": "No state kept by the passive; the permanent gains persist on the board Pokemon (berry, chef, dish) and the entity gains last for the fight.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How a Pokemon obtains berries and dishes during a run (shop, Gourmet cooking) was not traced beyond the call sites cited",
+   "The effect of the Glutton title (cosmetic, Title.GLUTTON) was not traced"
+  ],
+  "unresolved": [
+   "Routing uncertainty NO_PASSIVE_EFFECTS_ENTRY: confirmed; behaviour is the three inline reads only; a name search of app (excluding locales and precomputed data) found no other Passive.GLUTTON reader",
+   "Berry branch: whether any berry case returns early before the Glutton line was not read case by case; only the end of eatBerry is cited",
+   "Whether evolution (Munchlax -> Snorlax) copies the accumulated board maxHP was not traced",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-munchlax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9322,
+     9342
+    ],
+    "symbol": "class Munchlax",
+    "expect": "passive = Passive.GLUTTON",
+    "note": "unit class block: stars 1, maxPP 100, range 1, BODY_SLAM, passive GLUTTON"
+   },
+   {
+    "id": "unit-snorlax",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     9344,
+     9362
+    ],
+    "symbol": "class Snorlax",
+    "expect": "passive = Passive.GLUTTON",
+    "note": "unit class block: stars 2, maxPP 100, range 1, BODY_SLAM, passive GLUTTON"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     67,
+     67
+    ],
+    "symbol": "Passive.GLUTTON",
+    "expect": "GLUTTON = \"GLUTTON\"",
+    "note": "enum member; readers found by name search: items.ts:404, pokemon-entity.ts:1716, simulation.ts:591 (no PassiveEffects entry)"
+   },
+   {
+    "id": "chef-hat",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     1252,
+     1253
+    ],
+    "symbol": "ItemEffects[Item.CHEF_HAT]",
+    "expect": "chefCookEffect",
+    "note": "chefCookEffect is registered only on Item.CHEF_HAT (OnStageStartEffect, runs for the holder)"
+   },
+   {
+    "id": "chef-glutton",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     404,
+     409
+    ],
+    "symbol": "chefCookEffect",
+    "expect": "chef.addMaxHP(30)",
+    "note": "stage start, holder with passive GLUTTON: +30 max HP on the board Pokemon (Pokemon.addMaxHP); title when maxHP > 750"
+   },
+   {
+    "id": "board-maxhp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     387,
+     390
+    ],
+    "symbol": "Pokemon.addMaxHP",
+    "expect": "this.maxHP = this.hp",
+    "note": "board addMaxHP: hp = max(1, hp + amount) and maxHP = hp; no helper, no Big Eater Belt"
+   },
+   {
+    "id": "berry-glutton",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1716,
+     1721
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.applyStat(Stat.HP, 10, true)",
+    "note": "after the berry switch and removal of the berry: permanent +10 max HP; title if the board Pokemon hp > 750"
+   },
+   {
+    "id": "berry-start",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1572,
+     1582
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "eatBerry(",
+    "note": "eatBerry signature and heal closure"
+   },
+   {
+    "id": "berry-trig-low",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1203,
+     1209
+    ],
+    "symbol": "damage handling",
+    "expect": "this.eatBerry(berry)",
+    "note": "a held berry is eaten when 0 < hp < 50% maxHP after damage"
+   },
+   {
+    "id": "berry-eater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     983,
+     987
+    ],
+    "symbol": "BERRY_EATER",
+    "expect": "this.eatBerry(item, target)",
+    "note": "BERRY_EATER passive eating berries of an attacked target (another path into eatBerry)"
+   },
+   {
+    "id": "apply-stat",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1399,
+     1440
+    ],
+    "symbol": "PokemonEntity.applyStat",
+    "expect": "this.addMaxHP(value, this, 0, false, permanent)",
+    "note": "Stat.HP maps to entity addMaxHP with permanent flag"
+   },
+   {
+    "id": "entity-maxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     577,
+     606
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "round, Big Eater Belt x1.25 floor, Twist Band; maxHP += value; hp raised by value; permanent -> boardPokemon.addMaxHP(value) unless ghost opponent"
+   },
+   {
+    "id": "belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt buff"
+   },
+   {
+    "id": "dish-call",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     244,
+     250
+    ],
+    "symbol": "Simulation start hook",
+    "expect": "this.applyDishEffects(dish, boardPokemon, entity, player)",
+    "note": "each dish held by a board Pokemon is applied at simulation start, then dishes are cleared"
+   },
+   {
+    "id": "dish-glutton",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     591,
+     597
+    ],
+    "symbol": "applyDishEffects",
+    "expect": "entity?.addMaxHP(20, entity, 0, false)",
+    "note": "per dish: board +20 max HP (Pokemon.addMaxHP) and, if in the fight, entity +20 via entity addMaxHP (permanent false); title if board maxHP > 750"
+   }
+  ]
+ }
+}
