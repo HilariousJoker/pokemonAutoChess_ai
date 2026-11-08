@@ -1,0 +1,242 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/DREAM_CATCHER",
+ "kind": "passive",
+ "identifier": "DREAM_CATCHER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T063932Z"
+ },
+ "record": {
+  "passive": "DREAM_CATCHER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "MUNNA",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MOON_DREAM",
+    "declaredPassive": "DREAM_CATCHER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MUSHARNA",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 2,
+    "declaredSkill": "MOON_DREAM",
+    "declaredPassive": "DREAM_CATCHER",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MUNNA": {
+    "evidence": [
+     "unit-munna"
+    ]
+   },
+   "MUSHARNA": {
+    "evidence": [
+     "unit-musharna"
+    ]
+   }
+  },
+  "kind": "on-hit passive implemented as an inline branch in PokemonEntity.onHit (no PassiveEffects entry)",
+  "summary": "Passive.DREAM_CATCHER has no PassiveEffects entry; the behaviour is one branch in PokemonEntity.onHit. After a basic attack that counts as successful, if the attacked target has status.sleep, the holder collects the other units of its own team on the board (excluding itself), sorts them by Manhattan distance to the holder's current target cell (this.targetX, this.targetY), keeps the first TWO and calls ally.addShield(10, ally, 1, false) on each, plus a MOON_DREAM broadcast on that ally. The requested shield is 10 per ally with apBoost 1, and the 'caster' passed is the receiving ally itself, so the AP scaling uses the RECEIVING ally's AP, not the holder's: requested 10 x (1 + ally.ap / 100). The applied change then depends on the ally: a Big Eater Belt turns the requested 10 into floor(12.5) = 12 first, an enraged ally halves a positive value, the value is rounded, and nothing is added to a unit with hp 0. No crit scaling. The English text says '3 closest allies' but the code slices two (see unresolved).",
+  "triggers": [
+   "PokemonEntity.onHit when this.passive === DREAM_CATCHER and target.status.sleep is set at that moment; onHit is called by AttackingState.attack for a successful basic attack and by the Loaded Dice item effect for its bounce hit"
+  ],
+  "effects": [
+   {
+    "kind": "shield_allies",
+    "stat": "SHIELD",
+    "declaredRaw": "10 requested per ally (apBoost 1, crit false), at most 2 allies per hit",
+    "targets": "up to 2 teammates other than the holder, nearest to the holder's target cell by Manhattan distance; ties keep the board-cell order of the stable sort",
+    "scaling": "addShield(10, ally, 1, false): requested 10, multiplied by (1 + ally.ap / 100) with the RECEIVER as caster; crit false. Applied change: Big Eater Belt on the receiver first (floor(10 x 1.25) = 12 requested before AP), then the state's addShield: AP multiplier, x0.5 when the receiver is enraged (positive value), Math.round, shield = max(0, shield + value), skipped when the receiver's hp is 0. shieldDone is credited to the receiver (caster = ally), not to the holder.",
+    "resolution": "The shield is added to the ally's current shield (it stacks with an existing shield); no cap. It is a shield request, not a heal: heal rules (wound, Protect) do not apply, and status.protect is not tested by addShield (core-mechanics.md section J4).",
+    "evidence": [
+     "onhit-branch",
+     "entity-shield",
+     "big-eater",
+     "state-shield",
+     "distance"
+    ]
+   },
+   {
+    "kind": "trigger_conditions",
+    "declaredRaw": "successful basic attack on a sleeping target",
+    "scaling": "none",
+    "resolution": "isAttackSuccessful is false for a dodge (unless X-Ray Vision, Lock On or the target is paralysed, asleep, frozen or locked: a sleeping target cannot dodge) and when the target has status.protect or skydiving. The sleep test reads the target's state at onHit time, after the damage was dealt.",
+    "evidence": [
+     "onhit-caller",
+     "attack-fail",
+     "loaded-dice-hit"
+    ]
+   }
+  ],
+  "conditions": [
+   "Holder recognised by entity.passive === Passive.DREAM_CATCHER (MUNNA, MUSHARNA).",
+   "target.status.sleep must be truthy at the time of onHit.",
+   "Allies are board cells holding a PokemonEntity of the same team with a different id; the holder never shields itself.",
+   "If fewer than two allies exist, only those receive the shield; with no allies nothing happens."
+  ],
+  "resetBehaviour": "No state kept by the passive; each qualifying hit gives a fresh shield request and there is no cooldown or per-fight limit.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Damage resolution that decides whether a hit wakes the target before onHit reads status.sleep (sleep duration reduction on damage appears in the damage-received hook, not traced here)",
+   "How shields absorb damage (core-mechanics.md section A)"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: confirmed, passives.ts has no DREAM_CATCHER key and the only behavioural reference is the onHit branch (git grep in app/core, app/models, app/types, app/rooms).",
+   "NAME_MISMATCH with the text: the English description says 3 closest allies, the code at the pinned commit slices 2 (slice(0, 2)).",
+   "Whether a hit that wakes the target (sleep cooldown reduced by 300 in the damage-received hook) clears status.sleep before onHit runs was not traced.",
+   "Whether the sort is stable for equal distances on the runtime used was not tested; ties follow board.cells order under the standard stable Array.sort.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "sourceEvidence": {
+   "identity": {
+    "evidence": [
+     "enum",
+     "locale"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-munna",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7877,
+     7896
+    ],
+    "symbol": "class Munna",
+    "expect": "passive = Passive.DREAM_CATCHER",
+    "note": "MUNNA: 1 star, maxPP 80, range 2, skill MOON_DREAM"
+   },
+   {
+    "id": "unit-musharna",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7898,
+     7916
+    ],
+    "symbol": "class Musharna",
+    "expect": "passive = Passive.DREAM_CATCHER",
+    "note": "MUSHARNA: 2 stars, maxPP 80, range 2, skill MOON_DREAM"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     95,
+     95
+    ],
+    "symbol": "Passive.DREAM_CATCHER",
+    "expect": "DREAM_CATCHER = \"DREAM_CATCHER\"",
+    "note": "enum member; passives.ts has no DREAM_CATCHER key"
+   },
+   {
+    "id": "locale",
+    "file": "app/public/dist/client/locales/en/translation.json",
+    "lines": [
+     3408,
+     3408
+    ],
+    "symbol": "passive description DREAM_CATCHER",
+    "expect": "its attacks give 10 SHIELD to the 3 closest allies",
+    "note": "description says 3 allies; the code slices 2 (see unresolved)"
+   },
+   {
+    "id": "onhit-branch",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     998,
+     1015
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "ally.addShield(10, ally, 1, false)",
+    "note": "the whole passive: allies of the holder's team except itself, sorted by Manhattan distance to the holder's current target cell, first 2 receive addShield(10, ally, 1, false) and a MOON_DREAM broadcast"
+   },
+   {
+    "id": "onhit-caller",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     294,
+     304
+    ],
+    "symbol": "AttackingState.attack",
+    "expect": "if (isAttackSuccessful) { pokemon.onHit({",
+    "note": "onHit runs after every basic attack that was not dodged and not blocked by protect/skydiving"
+   },
+   {
+    "id": "attack-fail",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     93,
+     117
+    ],
+    "symbol": "AttackingState.attack",
+    "expect": "isAttackSuccessful = false",
+    "note": "isAttackSuccessful is false for a dodge and when the target has status.protect or skydiving"
+   },
+   {
+    "id": "loaded-dice-hit",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     194,
+     202
+    ],
+    "symbol": "loadedDiceOnAttackEffect",
+    "expect": "pokemon.onHit({",
+    "note": "Loaded Dice calls onHit again for its bounce target, so the passive can also run for that second target"
+   },
+   {
+    "id": "distance",
+    "file": "app/utils/distance.ts",
+    "lines": [
+     6,
+     9
+    ],
+    "symbol": "distanceM",
+    "expect": "return Math.abs(x1 - x0) + Math.abs(y1 - y0)",
+    "note": "Manhattan distance used by the sort"
+   },
+   {
+    "id": "entity-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "entity addShield: Big Eater Belt helper on the recipient, then the state's addShield"
+   },
+   {
+    "id": "big-eater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt on the recipient turns a requested 10 into floor(12.5) = 12 before the state's addShield"
+   },
+   {
+    "id": "state-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "needs hp > 0; apBoost > 0 multiplies by 1 + caster.ap x apBoost / 100; enraged recipient halves; Math.round; shield = max(0, shield + value)"
+   }
+  ]
+ }
+}
