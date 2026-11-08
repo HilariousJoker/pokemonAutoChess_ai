@@ -1,0 +1,353 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/AQUA_VEIL",
+ "kind": "passive",
+ "identifier": "AQUA_VEIL",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T003950Z"
+ },
+ "record": {
+  "passive": "AQUA_VEIL",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BARBOACH",
+    "stars": 1,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "FISSURE",
+    "declaredPassive": "AQUA_VEIL",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "WHISCASH",
+    "stars": 2,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "FISSURE",
+    "declaredPassive": "AQUA_VEIL",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "chg-pas",
+     "ctor-pas",
+     "spawn-class"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "spawn-call",
+     "spawn-order",
+     "sim-weather",
+     "pas-rain",
+     "res-spawn"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "pas-rune",
+     "trig-rune",
+     "clear-neg",
+     "upd-rune",
+     "upd-call",
+     "flag",
+     "guard-example",
+     "res-rune",
+     "others-rain"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "BARBOACH": {
+    "evidence": [
+     "unit-barboach"
+    ]
+   },
+   "WHISCASH": {
+    "evidence": [
+     "unit-whiscash"
+    ]
+   }
+  },
+  "kind": "OnSpawnEffect (shared instance) gated on rain weather",
+  "summary": "PassiveEffects[Passive.AQUA_VEIL] holds one OnSpawnEffect. When the unit's entity is spawned for a fight (after synergy and item effects) it checks entity.simulation.weather: only if the weather is RAIN does it call status.triggerRuneProtect(60000, entity, entity). triggerRuneProtect sets runeProtect = true, zeroes the cooldowns of the negative statuses the unit already has, and sets runeProtectCooldown to 60000 ms unless a longer value is already there. The cooldown counts down in the status update (runeProtect becomes false when it runs out), so the protection lasts 60000 ms of simulated time. In any other weather the effect does nothing. Rune Protect blocks new applications of the status triggers that check !runeProtect; it is not the Protect status and blocks neither damage nor ordinary healing (core-mechanics §J: status.protect versus status.runeProtect).",
+  "triggers": [
+   "OnSpawnEffect applied in Simulation.addPokemon when the entity is created (fight start or later spawn)",
+   "OnSpawnEffect of the rebuilt clone in PokemonEntity.resurrect (see unresolved)"
+  ],
+  "effects": [
+   {
+    "kind": "conditionalRuneProtect",
+    "declaredRaw": "Rune Protect for 60000 ms (duration requested), only when the simulation's weather is RAIN",
+    "scaling": "none: no AP, crit or star scaling; the duration is a fixed constant. triggerRuneProtect does not apply the status-duration reductions that other triggers use; it only keeps the larger of the new timer and the existing runeProtectCooldown.",
+    "resolution": "requested 60000 ms; applied = 60000 ms unless a longer runeProtectCooldown already exists (a fresh entity starts at 0); the count-down runs in the status update. The negative-status cooldowns already on the entity are zeroed at the same time (nothing is applied to a fresh entity at spawn, so this matters only for later spawns).",
+    "evidence": [
+     "pas-rain",
+     "pas-rune",
+     "trig-rune",
+     "clear-neg",
+     "upd-rune",
+     "upd-call",
+     "flag"
+    ]
+   },
+   {
+    "kind": "guardEffect",
+    "declaredRaw": "runeProtect = true makes status triggers that check !runeProtect do nothing",
+    "scaling": "none",
+    "resolution": "only status applications are refused where the code checks the flag; damage, healing and PP gain are unaffected by Rune Protect alone (they depend on status.protect, see core-mechanics §J).",
+    "evidence": [
+     "guard-example",
+     "flag"
+    ]
+   }
+  ],
+  "conditions": [
+   "simulation.weather must be Weather.RAIN at the moment the OnSpawnEffect runs",
+   "applies to every entity of BARBOACH and WHISCASH regardless of team or stars",
+   "the check is made once per spawn; later weather values do not matter (the weather is fixed by the constructor)"
+  ],
+  "resetBehaviour": "No counter and no per-entity state in the effect. The runeProtect flag is cleared by the status update when its cooldown reaches zero; status.clearPositiveStatus resets runeProtectCooldown to 0 (resurrect() then re-copies the flag from the clone).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Which status triggers check runeProtect was sampled (one guard site cited), not enumerated; the full list was not read",
+   "How long a real fight lasts relative to 60000 ms was not read"
+  ],
+  "unresolved": [
+   "Routing uncertainties: none recorded for this identifier in the queue; the name search of app/core, app/models and app/config found only the PassiveEffects entry and the two unit classes",
+   "Which weather values the game assigns to a fight and how often RAIN occurs was not traced; only the comparison in this passive is recorded",
+   "Whether the OnSpawn effect applied to the resurrect() clone makes runeProtect true again at a resurrection depends on the weather at that moment (Simulation.stop sets the weather to NEUTRAL, simulation.ts line 1463) and was not traced",
+   "The effect is also applied when a dish is consumed (simulation.ts around line 587 applies OnSpawnEffect from dish effects, not passive effects); whether passive OnSpawn effects can fire a second time on the same entity was not traced",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-barboach",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12923,
+     12938
+    ],
+    "symbol": "class Barboach",
+    "expect": "passive = Passive.AQUA_VEIL",
+    "note": "unit class block: stars 1, maxPP 90, range 1, FISSURE, passive AQUA_VEIL"
+   },
+   {
+    "id": "unit-whiscash",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12940,
+     12954
+    ],
+    "symbol": "class Whiscash",
+    "expect": "passive = Passive.AQUA_VEIL",
+    "note": "unit class block: stars 2, maxPP 90, range 1, FISSURE, passive AQUA_VEIL"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1437,
+     1437
+    ],
+    "symbol": "PassiveEffects[Passive.AQUA_VEIL]",
+    "expect": "[Passive.AQUA_VEIL]: [",
+    "note": "array entry holding one shared OnSpawnEffect instance (not a factory)"
+   },
+   {
+    "id": "pas-rain",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1439,
+     1439
+    ],
+    "symbol": "PassiveEffects[Passive.AQUA_VEIL]",
+    "expect": "entity.simulation.weather === Weather.RAIN",
+    "note": "gate: the simulation's weather must be RAIN when the effect is applied"
+   },
+   {
+    "id": "pas-rune",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1440,
+     1440
+    ],
+    "symbol": "PassiveEffects[Passive.AQUA_VEIL]",
+    "expect": "entity.status.triggerRuneProtect(60000, entity, entity)",
+    "note": "Rune Protect for 60000 ms, entity is both holder and origin"
+   },
+   {
+    "id": "spawn-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     31,
+     43
+    ],
+    "symbol": "OnSpawnEffect",
+    "expect": "export class OnSpawnEffect extends Effect",
+    "note": "'applied on fight start or when spawning'; invoked with (entity, player, isSpawn)"
+   },
+   {
+    "id": "spawn-call",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     385,
+     387
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "pokemonEntity.getEffects(OnSpawnEffect).forEach((effect) => {",
+    "note": "every OnSpawnEffect of the new entity is applied after synergy and item effects"
+   },
+   {
+    "id": "spawn-order",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     376,
+     382
+    ],
+    "symbol": "Simulation.addPokemon",
+    "expect": "3) OnSpawn effects (can include effects coming from synergies/items)",
+    "note": "documented order: synergies, items, then OnSpawn effects"
+   },
+   {
+    "id": "sim-weather",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     138,
+     138
+    ],
+    "symbol": "Simulation.constructor",
+    "expect": "this.weather = weather",
+    "note": "the weather is fixed by the constructor argument"
+   },
+   {
+    "id": "ctor-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     223,
+     223
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.changePassive(pokemon.passive)",
+    "note": "the entity constructor installs the passive effects"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1786,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "else if (effect instanceof EffectClass) this.effectsSet.add(effect)",
+    "note": "effect instances are added to effectsSet as they are"
+   },
+   {
+    "id": "trig-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     956,
+     966
+    ],
+    "symbol": "Status.triggerRuneProtect",
+    "expect": "this.clearNegativeStatus(pokemon, origin)",
+    "note": "sets runeProtect true, clears the cooldown of negative statuses, and raises runeProtectCooldown to the timer only if it is longer than the current one"
+   },
+   {
+    "id": "clear-neg",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     133
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.burnCooldown = 0",
+    "note": "zeroes the cooldowns of the negative statuses (the status flags themselves are cleared by their own update when the cooldown runs out); curse keeps its cooldown and gains 2000; possessed cooldown cleared unless possessed by an ally"
+   },
+   {
+    "id": "upd-rune",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     968,
+     974
+    ],
+    "symbol": "Status.updateRuneProtect",
+    "expect": "if (this.runeProtectCooldown - dt <= 0) {",
+    "note": "countdown: runeProtect becomes false when the cooldown runs out"
+   },
+   {
+    "id": "upd-call",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     227,
+     229
+    ],
+    "symbol": "Status.updateStatus",
+    "expect": "this.updateRuneProtect(dt)",
+    "note": "called every update while runeProtect is true"
+   },
+   {
+    "id": "flag",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     40,
+     40
+    ],
+    "symbol": "Status.runeProtect",
+    "expect": "@type(\"boolean\") runeProtect = false",
+    "note": "state flag, starts false"
+   },
+   {
+    "id": "guard-example",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     552,
+     555
+    ],
+    "symbol": "Status",
+    "expect": "if (!this.runeProtect) {",
+    "note": "status triggers are gated by !runeProtect (many sites, e.g. silence/confusion/flinch/charm); Rune Protect blocks new applications, which is not the same as the Protect status (see core-mechanics §J)"
+   },
+   {
+    "id": "res-rune",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1557,
+     1560
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "this.status.runeProtect = cloneReference.status.runeProtect",
+    "note": "on resurrect the Rune Protect state is copied from a rebuilt clone whose OnSpawn effects were applied"
+   },
+   {
+    "id": "res-spawn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1450,
+     1452
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "cloneReference.getEffects(OnSpawnEffect).forEach((effect) => {",
+    "note": "the clone's OnSpawn effects (including this passive) run again at resurrection"
+   },
+   {
+    "id": "others-rain",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1062,
+     1062
+    ],
+    "symbol": "other RAIN reader",
+    "expect": "pokemon.simulation.weather === Weather.RAIN",
+    "note": "another passive reading the same weather (not part of AQUA_VEIL); listed only to show the identifier is not unique to this check"
+   }
+  ]
+ }
+}
