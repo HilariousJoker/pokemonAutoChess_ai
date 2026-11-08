@@ -1,0 +1,197 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/LAST_RESPECTS",
+ "kind": "passive",
+ "identifier": "LAST_RESPECTS",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T183931Z"
+ },
+ "record": {
+  "passive": "LAST_RESPECTS",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GREAVARD",
+    "stars": 1,
+    "maxPP": 140,
+    "range": 1,
+    "declaredSkill": "LAST_RESPECTS",
+    "declaredPassive": "LAST_RESPECTS",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "HOUNDSTONE",
+    "stars": 2,
+    "maxPP": 140,
+    "range": 1,
+    "declaredSkill": "LAST_RESPECTS",
+    "declaredPassive": "LAST_RESPECTS",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "enum",
+     "ability-sep"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "trig-death",
+     "on-death",
+     "adjacent"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "on-death",
+     "addpp"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "GREAVARD": {
+    "evidence": [
+     "unit-greavard"
+    ]
+   },
+   "HOUNDSTONE": {
+    "evidence": [
+     "unit-houndstone"
+    ]
+   }
+  },
+  "kind": "Inline check in PokemonEntity.onDeath (on an adjacent ally's death); no PassiveEffects entry",
+  "summary": "Passive.LAST_RESPECTS has no PassiveEffects entry; its only reader is a block at the end of PokemonEntity.onDeath. When any entity dies (triggerDeath, hp <= 0 with no pending resurrection; the dying unit's team is reset to baseTeam first), every entity in the 8 cells around it (Board.getAdjacentCells, diagonals included, off-board cells skipped) that has passive LAST_RESPECTS and the same team as the dying unit gets addPP(p.maxPP - p.pp, p, 0, false). The requested amount is therefore 'up to maxPP': with pp below maxPP the request fills the bar exactly to maxPP (140 for both units), which then lets the unit cast (casting rules: section B/H of the core mechanics). The requested value is computed from the receiver's current pp at that moment and goes through addPP (section J3): fatigue halves a positive request (rounded), the gain is dropped when the unit is silenced, has status.protect (not Rune Protect), NO_PP_GAIN, or is resurrecting; so under fatigue only half of the missing PP is added. If pp is already above maxPP (the cap is 2 x maxPP - 1) the request is negative and the call lowers pp to maxPP (a negative value is not blocked by silence/protect, only by status.tree; Twist Band does not flip it because the caster is the unit itself, same team). The dying unit can be an ally of either kind (any unit), not only a LAST_RESPECTS unit, and its own passive does not trigger itself because the centre cell is excluded. The ability LAST_RESPECTS (curse + special damage) is a separate mechanism that shares only the name.",
+  "triggers": [
+   "PokemonEntity.onDeath of any entity adjacent to the unit and on the unit's team (via triggerDeath)"
+  ],
+  "effects": [
+   {
+    "kind": "ppRefillOnAdjacentAllyDeath",
+    "declaredRaw": "addPP(maxPP - pp) to each adjacent same-team LAST_RESPECTS unit when a unit dies",
+    "scaling": "requested amount = maxPP - current pp, apBoost 0, no crit; fatigue halves a positive request (Math.round, so .5 rounds up)",
+    "resolution": "requested maxPP - pp; applied = that after fatigue rounding unless dropped by silence / status.protect / NO_PP_GAIN / resurrecting; the result is clamped to 0..2 x maxPP - 1; a negative request (pp > maxPP) reduces pp to maxPP. Rune Protect alone blocks nothing here.",
+    "evidence": [
+     "on-death",
+     "adjacent",
+     "addpp",
+     "trig-death"
+    ]
+   }
+  ],
+  "conditions": [
+   "unit.passive === LAST_RESPECTS (Greavard, Houndstone)",
+   "the unit is in one of the 8 cells adjacent to the dying entity",
+   "the unit's team equals the dying entity's team (after the dying entity's team is reset to baseTeam)",
+   "the death is processed by triggerDeath (a resurrecting unit does not die and does not trigger)"
+  ],
+  "resetBehaviour": "No state kept; each qualifying death triggers once per adjacent qualifying unit.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How a full PP bar turns into a cast (the next attack or ability tick) is covered by core mechanics B/H, not re-traced here",
+   "Other places that remove entities without triggerDeath (e.g. despawn effects) were not enumerated; onDeath has one caller found, triggerDeath"
+  ],
+  "unresolved": [
+   "Routing uncertainty NO_PASSIVE_EFFECTS_ENTRY: confirmed, no PassiveEffects[Passive.LAST_RESPECTS]; the behaviour is the inline onDeath block only",
+   "Routing uncertainty NAME_SHARED_WITH_ABILITY: resolved by reading: Ability.LAST_RESPECTS is the unit skill (LastRespectsStrategy in last-respects.ts, curse + damage) and Passive.LAST_RESPECTS is the onDeath refill; the two are separate. Only the passive is described here; the ability may have its own queue record",
+   "The in-game text says 'when an ADJACENT ally is KO'; the code matches that with team equality after baseTeam reset, so a charmed/swapped unit's team at death is its original team",
+   "Whether the dying unit's own position is the one used (positionX/positionY before the cell is cleared) is read from the order in triggerDeath (onDeath then setEntityOnCell undefined)",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-greavard",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19269,
+     19284
+    ],
+    "symbol": "class Greavard",
+    "expect": "passive = Passive.LAST_RESPECTS",
+    "note": "unit class block: stars 1, maxPP 140, range 1, skill LAST_RESPECTS, passive LAST_RESPECTS"
+   },
+   {
+    "id": "unit-houndstone",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19286,
+     19300
+    ],
+    "symbol": "class Houndstone",
+    "expect": "passive = Passive.LAST_RESPECTS",
+    "note": "unit class block: stars 2, maxPP 140, range 1, skill LAST_RESPECTS, passive LAST_RESPECTS"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     168,
+     168
+    ],
+    "symbol": "Passive.LAST_RESPECTS",
+    "expect": "LAST_RESPECTS = \"LAST_RESPECTS\"",
+    "note": "enum member (the Ability enum has a separate member of the same name, Ability.LAST_RESPECTS at app/types/enum/Ability.ts:275)"
+   },
+   {
+    "id": "on-death",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1309,
+     1320
+    ],
+    "symbol": "PokemonEntity.onDeath",
+    "expect": "p?.addPP(p.maxPP - p.pp, p, 0, false)",
+    "note": "for each adjacent (8-neighbour) cell holding an entity of the dying unit's team with passive LAST_RESPECTS: addPP(maxPP - pp) on that ally. The only reader of Passive.LAST_RESPECTS found by name search of app"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "3x3 neighbourhood without the centre, restricted to cells on the board; includes diagonals"
+   },
+   {
+    "id": "trig-death",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     801,
+     822
+    ],
+    "symbol": "PokemonState.triggerDeath",
+    "expect": "pokemon.onDeath({ board, attacker })",
+    "note": "onDeath is called from triggerDeath after pokemon.team = pokemon.baseTeam and before the cell is cleared; triggerDeath is reached when hp <= 0 without a pending resurrection"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "amount with fatigue halving of positive requests, Twist Band, guards (silence, status.protect, NO_PP_GAIN, resurrecting, tree for negative), clamp 0..2 x maxPP - 1"
+   },
+   {
+    "id": "ability-sep",
+    "file": "app/core/abilities/last-respects.ts",
+    "lines": [
+     8,
+     22
+    ],
+    "symbol": "LastRespectsStrategy",
+    "expect": "const damage = [30, 60, 90, 180][pokemon.stars - 1] ?? 180",
+    "note": "the ability of the same name is a separate mechanism (curse + damage); it does not touch this passive"
+   }
+  ]
+ }
+}
