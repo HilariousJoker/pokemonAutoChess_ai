@@ -1,0 +1,194 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/ILLUMISE_VOLBEAT",
+ "kind": "passive",
+ "identifier": "ILLUMISE_VOLBEAT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T183931Z"
+ },
+ "record": {
+  "passive": "ILLUMISE_VOLBEAT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "ILLUMISE",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "STRUGGLE_BUG",
+    "declaredPassive": "ILLUMISE_VOLBEAT",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "VOLBEAT",
+    "stars": 3,
+    "maxPP": 90,
+    "range": 1,
+    "declaredSkill": "TAIL_GLOW",
+    "declaredPassive": "ILLUMISE_VOLBEAT",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "enum"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "tick-call",
+     "passive-loop",
+     "board-each"
+    ]
+   },
+   "effect": {
+    "evidence": [
+     "addpp",
+     "pp-base"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "ILLUMISE": {
+    "evidence": [
+     "unit-illumise"
+    ]
+   },
+   "VOLBEAT": {
+    "evidence": [
+     "unit-volbeat"
+    ]
+   }
+  },
+  "kind": "Inline check in PokemonState.updateEachSecond (once per second); no PassiveEffects entry",
+  "summary": "Passive.ILLUMISE_VOLBEAT has no PassiveEffects entry; its only reader is a block in PokemonState.updateEachSecond. Once per second (each time the unit's oneSecondCooldown has run out), a unit whose passive is ILLUMISE_VOLBEAT scans the whole board (Board.forEach covers every cell, both teams) and, for every OTHER entity whose passive is also ILLUMISE_VOLBEAT, calls addPP(5, self, 0, false). Requested amount 5 PP per matching other unit per second, on top of the ordinary passive PP of 10 per second and weather/effect PP from the same function. addPP (section J3): amount = round(5 x fatigue factor 0.5 if fatigued) (so 3 under fatigue: Math.round(2.5) = 3), Twist Band irrelevant for a positive value, the gain is dropped when the unit is silenced, has status.protect (Rune Protect alone does not block), has NO_PP_GAIN, or is resurrecting; the new pp is clamped to 0..2 x maxPP - 1 (179 for maxPP 90). Because the scan does not test team, a matching unit on the opposing team counts the same as a partner; because the only condition is the passive, both Illumise and Volbeat (and any other unit carrying the passive) count, but the unit itself does not. With one partner the gain is 5/s, with two others 10/s, etc.",
+  "triggers": [
+   "PokemonState.update -> updateEachSecond, every 1000 ms of the entity's own timer"
+  ],
+  "effects": [
+   {
+    "kind": "ppGainPerPartner",
+    "declaredRaw": "+5 PP per second for each other board unit with passive ILLUMISE_VOLBEAT",
+    "scaling": "flat 5 per match, apBoost 0, no crit; fatigue halves a positive request (rounded, 5 -> 3); no stat scaling",
+    "resolution": "requested 5 per match; applied = value after fatigue rounding, then dropped entirely if silence / status.protect / NO_PP_GAIN / resurrecting, else pp = clamp(pp + value, 0, 2 x maxPP - 1). Each match is a separate addPP call, so the guards are evaluated per call and the 2 x maxPP - 1 clamp can cut the last one.",
+    "evidence": [
+     "passive-loop",
+     "board-each",
+     "addpp",
+     "tick-call"
+    ]
+   }
+  ],
+  "conditions": [
+   "unit.passive === ILLUMISE_VOLBEAT (Illumise, Volbeat)",
+   "at least one other entity on the board (any team) has the same passive",
+   "entity is processed by updateEachSecond"
+  ],
+  "resetBehaviour": "No state kept; the gain stops when no other matching entity occupies a cell. Whether a KO'd entity is removed from its cell immediately (so it stops counting) was not traced.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether KO'd entities leave their board cell before the next second tick was not traced",
+   "Whether the board passed to updateEachSecond contains both teams is read from Board.forEach iterating every cell; the construction of the board was not read"
+  ],
+  "unresolved": [
+   "Routing uncertainty NO_PASSIVE_EFFECTS_ENTRY: confirmed, no PassiveEffects[Passive.ILLUMISE_VOLBEAT]; the behaviour is the inline updateEachSecond block only",
+   "The in-game text says 'each other member of their species alive on the board'; the code checks only the passive and not the team or alive state, so an opposing Illumise/Volbeat (e.g. a mirror or ghost opponent) would also count; whether the game can produce this was not traced",
+   "Not traced: how the two species are obtained as a duo (PkmDuo.ILLUMISE_VOLBEAT in pools.ts:56) and whether a player can field only one",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-illumise",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13053,
+     13066
+    ],
+    "symbol": "class Illumise",
+    "expect": "passive = Passive.ILLUMISE_VOLBEAT",
+    "note": "unit class block: stars 3, maxPP 90, range 1, STRUGGLE_BUG, passive ILLUMISE_VOLBEAT"
+   },
+   {
+    "id": "unit-volbeat",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13068,
+     13081
+    ],
+    "symbol": "class Volbeat",
+    "expect": "passive = Passive.ILLUMISE_VOLBEAT",
+    "note": "unit class block: stars 3, maxPP 90, range 1, TAIL_GLOW, passive ILLUMISE_VOLBEAT"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     59,
+     59
+    ],
+    "symbol": "Passive.ILLUMISE_VOLBEAT",
+    "expect": "ILLUMISE_VOLBEAT = \"ILLUMISE_VOLBEAT\"",
+    "note": "enum member; the only behavioural reader found by name search of app (excluding locales/precomputed) is pokemon-state.ts:1012-1018 (no PassiveEffects entry)"
+   },
+   {
+    "id": "tick-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     952,
+     955
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "this.updateEachSecond(pokemon, board)",
+    "note": "updateEachSecond runs when oneSecondCooldown <= 0, then the cooldown is set to 1000"
+   },
+   {
+    "id": "passive-loop",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1012,
+     1018
+    ],
+    "symbol": "updateEachSecond",
+    "expect": "if (p && p.passive === Passive.ILLUMISE_VOLBEAT && p !== pokemon) {",
+    "note": "for every other unit on the whole board whose passive is ILLUMISE_VOLBEAT: pokemon.addPP(5, pokemon, 0, false)"
+   },
+   {
+    "id": "board-each",
+    "file": "app/core/board.ts",
+    "lines": [
+     75,
+     83
+    ],
+    "symbol": "Board.forEach",
+    "expect": "for (let x = 0; x < this.columns; x++) {",
+    "note": "iterates every cell of the board (both teams), passing the entity or undefined"
+   },
+   {
+    "id": "addpp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "this.pp = clamp(this.pp + value, 0, this.maxPP * 2 - 1)",
+    "note": "amount with fatigue halving, Twist Band, guards (silence, status.protect, NO_PP_GAIN, resurrecting), clamp to 2 x maxPP - 1"
+   },
+   {
+    "id": "pp-base",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     972,
+     980
+    ],
+    "symbol": "updateEachSecond",
+    "expect": "pokemon.addPP(passivePPGain, pokemon, 0, false)",
+    "note": "the same tick also gives the ordinary 10 PP per second (weather-adjusted); this passive's gain is additional"
+   }
+  ]
+ }
+}
