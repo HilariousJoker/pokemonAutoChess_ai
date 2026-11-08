@@ -1,0 +1,385 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/AEGISLASH",
+ "kind": "passive",
+ "identifier": "AEGISLASH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T003950Z"
+ },
+ "record": {
+  "passive": "AEGISLASH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "AEGISLASH",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "AEGISLASH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "AEGISLASH_BLADE",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "KING_SHIELD",
+    "declaredPassive": "AEGISLASH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "sourceEvidence": {
+   "installation": {
+    "evidence": [
+     "pas-entry",
+     "chg-pas",
+     "ctor-pas",
+     "res-class"
+    ]
+   },
+   "trigger": {
+    "evidence": [
+     "res-call",
+     "res-clone",
+     "res-stats",
+     "res-sim"
+    ]
+   },
+   "formToggle": {
+    "evidence": [
+     "ks-aegis",
+     "ks-blade-cmd",
+     "ks-shield-cmd",
+     "ks-reg"
+    ]
+   }
+  },
+  "unitEvidence": {
+   "AEGISLASH": {
+    "evidence": [
+     "unit-aegislash"
+    ]
+   },
+   "AEGISLASH_BLADE": {
+    "evidence": [
+     "unit-blade"
+    ]
+   }
+  },
+  "kind": "OnResurrectionEffect (shared instance) that re-applies the blade-form stat deltas; the form toggle itself lives in the KING_SHIELD ability",
+  "summary": "PassiveEffects[Passive.AEGISLASH] holds a single OnResurrectionEffect. It runs as the last step of PokemonEntity.resurrect(), after attack, DEF, SPE_DEF (and other stats) were overwritten with values rebuilt from the board pokemon. If the entity's current name is AEGISLASH_BLADE at that moment, it requests +10 attack, -5 DEF and -5 SPE_DEF on itself (apBoost 0, no crit, not permanent) so that the blade-form deltas, which the rebuild wiped, are applied again; for a unit named AEGISLASH it does nothing. The form change itself is not in this passive: KING_SHIELD, when the caster has passive AEGISLASH, schedules a 1500 ms delayed command that toggles between the two forms (+10 / -5 / -5 into the blade, the reverse back) and renames the entity. The only caller of resurrect() found in app/core is Simulation.onFinish for entities of the winning team that carry status.resurrecting, so this passive acts at the end of a fight, not mid-fight.",
+  "triggers": [
+   "PokemonEntity.resurrect() (called from Simulation.onFinish for winning-team entities with status.resurrecting) applies every OnResurrectionEffect",
+   "KING_SHIELD cast with passive AEGISLASH: delayed form toggle (outside the passive file; separate ability record)"
+  ],
+  "effects": [
+   {
+    "kind": "resurrectionBladeStatReapply",
+    "declaredRaw": "+10 attack, -5 DEF, -5 SPE_DEF requested on itself, only when the entity name is AEGISLASH_BLADE",
+    "scaling": "apBoost 0 and crit false with the caster being the unit itself: no AP or crit factor (Math.round of the value). Each adder then runs applyBigEaterBeltStatBuff and applyTwistBandBuff. Big Eater Belt: the +10 attack becomes +12 (10 x 1.25 = 12.5 rounded down); the -5 DEF / -5 SPE_DEF are negative changes from a caster on the holder's own team (the unit itself), so a Belt holder gets them multiplied by 1.25 too (rounded with the 'down' mode; the direction of that rounding for negative numbers was not traced, so the exact applied value, -6 or -7, is not stated). Twist Band does not flip them because the caster is on the holder's own team. The shared references (core-mechanics §I, item-effects.md TWIST_BAND / BIG_EATER_BELT) were consulted for the helper behaviour.",
+    "resolution": "requested +10 / -5 / -5; applied after the helpers and the floors: attack min 1, DEF min 0, SPE_DEF min 0 (a rebuilt DEF or SPE_DEF below 5 would stop at 0 instead of going negative). permanent is false, so the board pokemon is not changed; only the fight entity is.",
+    "evidence": [
+     "pas-atk",
+     "pas-def",
+     "pas-spedef",
+     "addatk",
+     "adddef",
+     "addspedef",
+     "belt-fn",
+     "twist-fn"
+    ]
+   },
+   {
+    "kind": "formGate",
+    "declaredRaw": "effect body runs only if pokemon.name === Pkm.AEGISLASH_BLADE",
+    "scaling": "none",
+    "resolution": "name is the entity's current name. resurrect() overwrites stats from the rebuilt clone but never writes name or index, so a blade-form entity keeps its blade name through the rebuild and receives the deltas again; a shield-form entity is left at the rebuilt (shield) stats.",
+    "evidence": [
+     "pas-name",
+     "res-stats",
+     "res-clone",
+     "res-call"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only runs inside PokemonEntity.resurrect()",
+   "Only if the entity's name is AEGISLASH_BLADE at that moment",
+   "resurrect() is reached in app/core only from Simulation.onFinish, for the winning team's entities with status.resurrecting",
+   "Big Eater Belt / floors as listed in the effect"
+  ],
+  "resetBehaviour": "The effect instance is stateless (no counter). The form deltas it re-applies are not permanent (permanent = false) and live only on the fight entity; the rebuild in resurrect() overwrites atk / def / speDef from the board pokemon before the effect runs. The form name persists on the entity; whether a new fight starts from the board pokemon's own name is not traced here.",
+  "dependsOnUnverifiedGenericCombat": [
+   "What status.resurrecting is set by (items such as Max Revive / Sacred Ash, other effects) and how the resurrection animation interacts with the end of a fight were not read beyond the references to the flag",
+   "How a Big Eater Belt negative change is rounded by roundToNDigits 'down' (direction for negatives) was not read"
+  ],
+  "unresolved": [
+   "Routing uncertainty ALSO_REFERENCED_ELSEWHERE resolved by name search: besides the PassiveEffects entry and the two unit classes, KING_SHIELD (king-shield.ts 29-56) reads Passive.AEGISLASH and toggles the form with the same deltas, scribbles.ts maps AEGISLASH_BLADE to AEGISLASH for the first partner, and pokemons.ts lists the two forms; the KING_SHIELD behaviour is a separate ability record",
+   "The comment in the source says the blade deltas are 'preserved' on resurrection; the code re-applies them to the stats rebuilt from refToBoardPokemon. If the board pokemon itself were the AegislashBlade class (base atk 34 / def 4 / speDef 4) the rebuild would already start from blade-form numbers and the +10 / -5 / -5 would stack on top; whether a board pokemon can be that class in a fight (versus only the entity being renamed by KING_SHIELD) was not traced",
+   "Whether resurrect() is also reached by a path outside app/core (the name search of app/core found one call) was not checked",
+   "Whether the 1500 ms delayed form command still runs if the unit dies or the fight ends before it fires was not traced (also an open point in the KING_SHIELD record)",
+   "Which Passive.AEGISLASH consumers outside app/core (client, bot, scribbles beyond the name map) matter was not examined",
+   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+  ],
+  "evidence": [
+   {
+    "id": "unit-aegislash",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1634,
+     1651
+    ],
+    "symbol": "class Aegislash",
+    "expect": "passive = Passive.AEGISLASH",
+    "note": "unit class block: stars 3, maxPP 100, range 1, KING_SHIELD, atk 23 / def 14 / speDef 14"
+   },
+   {
+    "id": "unit-blade",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     1653,
+     1670
+    ],
+    "symbol": "class AegislashBlade",
+    "expect": "passive = Passive.AEGISLASH",
+    "note": "unit class block: same stars/skill/passive, atk 34 / def 4 / speDef 4 (the blade-form base values)"
+   },
+   {
+    "id": "pas-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1829,
+     1838
+    ],
+    "symbol": "PassiveEffects[Passive.AEGISLASH]",
+    "expect": "[Passive.AEGISLASH]: [",
+    "note": "the entry is an array holding one shared OnResurrectionEffect instance (not a factory)"
+   },
+   {
+    "id": "pas-name",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1830,
+     1831
+    ],
+    "symbol": "PassiveEffects[Passive.AEGISLASH]",
+    "expect": "pokemon.name === Pkm.AEGISLASH_BLADE",
+    "note": "the effect acts only when the entity's current name is the blade form"
+   },
+   {
+    "id": "pas-atk",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1833,
+     1833
+    ],
+    "symbol": "PassiveEffects[Passive.AEGISLASH]",
+    "expect": "pokemon.addAttack(10, pokemon, 0, false)",
+    "note": "requested +10 attack on itself, apBoost 0, no crit, not permanent"
+   },
+   {
+    "id": "pas-def",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1834,
+     1835
+    ],
+    "symbol": "PassiveEffects[Passive.AEGISLASH]",
+    "expect": "pokemon.addDefense(-5, pokemon, 0, false)",
+    "note": "requested -5 DEF on itself"
+   },
+   {
+    "id": "pas-spedef",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1835,
+     1836
+    ],
+    "symbol": "PassiveEffects[Passive.AEGISLASH]",
+    "expect": "pokemon.addSpecialDefense(-5, pokemon, 0, false)",
+    "note": "requested -5 SPE_DEF on itself"
+   },
+   {
+    "id": "res-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     251,
+     252
+    ],
+    "symbol": "OnResurrectionEffect",
+    "expect": "export class OnResurrectionEffect extends Effect",
+    "note": "effect type invoked with { pokemon, board }"
+   },
+   {
+    "id": "res-call",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1567,
+     1569
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "this.getEffects(OnResurrectionEffect).forEach((effect) =>",
+    "note": "last step of resurrect(): every OnResurrectionEffect of the entity is applied"
+   },
+   {
+    "id": "res-clone",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1440,
+     1448
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "const cloneReference = new PokemonEntity(",
+    "note": "stats are rebuilt from a fresh entity made from refToBoardPokemon (synergies and items re-applied)"
+   },
+   {
+    "id": "res-stats",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1455,
+     1465
+    ],
+    "symbol": "PokemonEntity.resurrect",
+    "expect": "this.speDef = cloneReference.speDef",
+    "note": "atk, def, speDef (and others) are overwritten with the rebuilt values; name/index are not touched"
+   },
+   {
+    "id": "res-sim",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1488,
+     1493
+    ],
+    "symbol": "Simulation.onFinish",
+    "expect": "entity.resurrect()",
+    "note": "the only call of resurrect() in app/core: end of fight, for entities of the winning team with status.resurrecting"
+   },
+   {
+    "id": "chg-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1786,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "else if (effect instanceof EffectClass) this.effectsSet.add(effect)",
+    "note": "non-function entries (effect instances) are added to the effectsSet as they are"
+   },
+   {
+    "id": "ctor-pas",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     223,
+     223
+    ],
+    "symbol": "PokemonEntity.constructor",
+    "expect": "this.changePassive(pokemon.passive)",
+    "note": "the entity constructor installs the passive effects"
+   },
+   {
+    "id": "ks-aegis",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     29,
+     33
+    ],
+    "symbol": "KingShieldStrategy.process",
+    "expect": "pokemon.name === Pkm.AEGISLASH",
+    "note": "KING_SHIELD (outside the passive file) toggles the form for units whose passive is AEGISLASH: shield to blade"
+   },
+   {
+    "id": "ks-blade-cmd",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     34,
+     43
+    ],
+    "symbol": "KingShieldStrategy.process",
+    "expect": "pokemon.name = Pkm.AEGISLASH_BLADE",
+    "note": "delayed command (1500 ms): +10 attack, -5 DEF, -5 SPE_DEF, name/index set to the blade form, pokemonsPlayed gets the blade"
+   },
+   {
+    "id": "ks-shield-cmd",
+    "file": "app/core/abilities/king-shield.ts",
+    "lines": [
+     45,
+     56
+    ],
+    "symbol": "KingShieldStrategy.process",
+    "expect": "pokemon.name = Pkm.AEGISLASH",
+    "note": "delayed command (1500 ms): reverse deltas and name/index back to the shield form when the unit is the blade"
+   },
+   {
+    "id": "addatk",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     744
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "target.atk = min(1)(target.atk + value)",
+    "note": "attack floor 1 after Big Eater Belt and Twist Band helpers"
+   },
+   {
+    "id": "adddef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     693
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "DEF floor 0 after the helpers"
+   },
+   {
+    "id": "addspedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     719
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "SPE_DEF floor 0 after the helpers"
+   },
+   {
+    "id": "belt-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "x1.25 (rounded 'down', nbDigits 0) for a positive value, or a negative one from a caster on the holder's own team"
+   },
+   {
+    "id": "twist-fn",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1867
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "function applyTwistBandBuff",
+    "note": "plain function: only a negative value from environment or another team is flipped for a Twist Band holder"
+   },
+   {
+    "id": "ks-reg",
+    "file": "app/core/abilities/abilities.ts",
+    "lines": [
+     997,
+     997
+    ],
+    "symbol": "AbilityStrategies[Ability.KING_SHIELD]",
+    "expect": "[Ability.KING_SHIELD]: new KingShieldStrategy()",
+    "note": "both listed units declare KING_SHIELD (separate ability record)"
+   }
+  ]
+ }
+}
