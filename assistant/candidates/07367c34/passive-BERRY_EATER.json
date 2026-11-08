@@ -1,0 +1,271 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/BERRY_EATER",
+ "kind": "passive",
+ "identifier": "BERRY_EATER",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T063932Z"
+ },
+ "record": {
+  "passive": "BERRY_EATER",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "CRABOMINABLE",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ICE_HAMMER",
+    "declaredPassive": "BERRY_EATER",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "CRABRAWLER",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ICE_HAMMER",
+    "declaredPassive": "BERRY_EATER",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "CRABRAWLER": {
+    "evidence": [
+     "unit-crabrawler"
+    ]
+   },
+   "CRABOMINABLE": {
+    "evidence": [
+     "unit-crabominable"
+    ]
+   }
+  },
+  "kind": "on-hit passive implemented as an inline branch in PokemonEntity.onHit (no PassiveEffects entry)",
+  "summary": "Passive.BERRY_EATER has no PassiveEffects entry; the whole behaviour is one branch in PokemonEntity.onHit. After each basic attack that counts as successful (not dodged, target not under status.protect or skydiving), the holder iterates the TARGET's held items and, for every item contained in the Berries list (20 non-special berries plus NANAB, GOLDEN_RAZZ, GOLDEN_NANAB, GOLDEN_PINAP; BERRY_JUICE is not in the list), calls eatBerry(item, target). Each eaten berry applies its own eatBerry effect to the HOLDER (heal requested through handleHeal with apBoost 0 and crit false, plus the berry's extra status/stat effect), then is removed from the victim with removeItem(berry, true), which removes its item effect and, as permanent removal, also deletes it from the victim's board Pokémon unless the victim is a ghost opponent. A berry the holder itself carries is not touched by this branch. No amount is declared by the passive; amounts come from eatBerry.",
+  "triggers": [
+   "PokemonEntity.onHit, called from AttackingState.attack when isAttackSuccessful is true, and a second time by the Loaded Dice item effect on its bounce target"
+  ],
+  "effects": [
+   {
+    "kind": "steal_and_consume_items",
+    "declaredRaw": "all berries held by the target (items in Berries), each eaten once",
+    "scaling": "none: eatBerry is called with healToShield false, apScaling 0, crit false, so no AP or crit scaling applies",
+    "resolution": "per berry the eatBerry switch applies its heal request (handleHeal, requested amount: 50 for most, 100 for PECHA and SITRUS, max(50, 0.5 x maxHP) for AGUAV and the golden berries) and its extra effect on the holder. The applied heal is not the requested amount: handleHeal checks the wound branch first (Blood Moon with a Blood Stone requests a shield), the status.protect guard (Protect blocks ordinary healing; Rune Protect alone does not), modifiers, the missing-HP cap and Grass overheal as addMaxHP(0.4 x overheal) (core-mechanics.md section J, probe SHARED_HELPERS). The berry is then removed from the victim with removeItem(berry, true).",
+    "evidence": [
+     "onhit-branch",
+     "berries-list",
+     "eat-berry",
+     "eat-berry-remove",
+     "remove-item",
+     "handle-heal"
+    ]
+   },
+   {
+    "kind": "post_eat_hooks",
+    "declaredRaw": "none from this passive",
+    "scaling": "none",
+    "resolution": "after every eaten berry the holder additionally runs eatBerry's tail: GLUTTON passive check (not the Crab line), BERRY_JUICE effect gives addShield(100, self, 0, false) and OVERGROW gives addAbilityPower(50, self, 0, false) if the holder has those effects; these depend on other sources, not on this passive.",
+    "evidence": [
+     "eat-berry-post"
+    ]
+   },
+   {
+    "kind": "trigger_conditions",
+    "declaredRaw": "successful basic attack",
+    "scaling": "none",
+    "resolution": "isAttackSuccessful is false when the target dodges (unless X-Ray Vision, Lock On, or the target is paralysed, asleep, frozen or locked) and when the target has status.protect or skydiving; then onHit and this passive do not run. Loaded Dice can call onHit again for a bounce target.",
+    "evidence": [
+     "onhit-caller",
+     "attack-fail",
+     "loaded-dice-hit"
+    ]
+   }
+  ],
+  "conditions": [
+   "Holder must have entity.passive === Passive.BERRY_EATER (CRABRAWLER, CRABOMINABLE).",
+   "Only items that are in Berries are eaten; other items are never touched and BERRY_JUICE is not in the list.",
+   "Unlike the low-HP berry trigger in the damaged state (hp below 50 % maxHP, first berry only), this branch has no HP condition and eats all of the target's berries in one hit.",
+   "Berries the holder itself holds are not eaten by this branch."
+  ],
+  "resetBehaviour": "No state or counter kept by the passive; the removal from the victim is permanent for that run of the game state through removeItem(berry, true) unless the victim is a ghost opponent (refToBoardPokemon not changed).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Per-berry details of eatBerry beyond the heal request and the post-eat hooks were read but are not transcribed here berry by berry",
+   "Dodge chance resolution and the minimum-damage rules (core-mechanics.md section A) decide whether an attack is successful"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: confirmed, passives.ts has no BERRY_EATER key and the only reference in app/core, app/models and app/types is the onHit branch (git grep).",
+   "Whether iterating target.items.values() while eatBerry removes entries from the same collection skips any berry was not traced (schema collection semantics unread).",
+   "Whether any caller other than AttackingState.attack and the Loaded Dice effect calls onHit was searched by the string .onHit( in app/ (two callers found).",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-crabrawler",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     603,
+     622
+    ],
+    "symbol": "class Crabrawler",
+    "expect": "passive = Passive.BERRY_EATER",
+    "note": "CRABRAWLER: 1 star, maxPP 100, range 1, skill ICE_HAMMER, evolves to CRABOMINABLE"
+   },
+   {
+    "id": "unit-crabominable",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     624,
+     643
+    ],
+    "symbol": "class Crabominable",
+    "expect": "passive = Passive.BERRY_EATER",
+    "note": "CRABOMINABLE: 2 stars, maxPP 100, range 1, skill ICE_HAMMER"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     87,
+     87
+    ],
+    "symbol": "Passive.BERRY_EATER",
+    "expect": "BERRY_EATER = \"BERRY_EATER\"",
+    "note": "enum member; passives.ts has no BERRY_EATER key (0 matches)"
+   },
+   {
+    "id": "onhit-branch",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     983,
+     987
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "Berries.includes(item) && this.eatBerry(item, target)",
+    "note": "the whole passive: loop over the target's items, eat every berry"
+   },
+   {
+    "id": "onhit-caller",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     294,
+     304
+    ],
+    "symbol": "AttackingState.attack",
+    "expect": "if (isAttackSuccessful) { pokemon.onHit({",
+    "note": "onHit runs after every basic attack that was not dodged and not blocked by protect/skydiving"
+   },
+   {
+    "id": "attack-fail",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     93,
+     117
+    ],
+    "symbol": "AttackingState.attack",
+    "expect": "isAttackSuccessful = false",
+    "note": "isAttackSuccessful is set false for a dodge and for target.status.protect / skydiving"
+   },
+   {
+    "id": "loaded-dice-hit",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     194,
+     202
+    ],
+    "symbol": "loadedDiceOnAttackEffect",
+    "expect": "pokemon.onHit({",
+    "note": "a second onHit call on the bounce target from the Loaded Dice item, so the passive can also trigger on that second target"
+   },
+   {
+    "id": "berries-list",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     600,
+     600
+    ],
+    "symbol": "Berries",
+    "expect": "export const Berries = [...NonSpecialBerries, ...SpecialBerries]",
+    "note": "20 non-special berries + NANAB, GOLDEN_RAZZ, GOLDEN_NANAB, GOLDEN_PINAP; BERRY_JUICE is a separate dish item, not in this list"
+   },
+   {
+    "id": "eat-berry",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1572,
+     1590
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "case Item.AGUAV_BERRY:",
+    "note": "eatBerry(berry, stealedFrom, healToShield=false, apScaling=0, crit=false): per-berry effect applied to the EATER (this); heal is handleHeal(val, this, 0, false)"
+   },
+   {
+    "id": "eat-berry-remove",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1710,
+     1714
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "stealedFrom.removeItem(berry, true)",
+    "note": "berry removed from the victim with permanent=true"
+   },
+   {
+    "id": "eat-berry-post",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1716,
+     1730
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "if (this.passive === Passive.GLUTTON) {",
+    "note": "post-eat hooks on the eater: GLUTTON passive (not the Crab line), BERRY_JUICE effect +100 shield, OVERGROW +50 AP"
+   },
+   {
+    "id": "remove-item",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     817,
+     822
+    ],
+    "symbol": "PokemonEntity.removeItem",
+    "expect": "this.refToBoardPokemon.items.delete(item)",
+    "note": "permanent removal also deletes the item from the board Pokémon unless isGhostOpponent"
+   },
+   {
+    "id": "handle-heal",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "heal branch order, wound, status.protect guard, modifiers, cap, Grass overheal: core-mechanics.md section J (not repeated here)"
+   },
+   {
+    "id": "locale",
+    "file": "app/public/dist/client/locales/en/translation.json",
+    "lines": [
+     3401,
+     3401
+    ],
+    "symbol": "passive description BERRY_EATER",
+    "expect": "When the Pokémon attacks a target, it steals all its berries and eats them",
+    "note": "description text"
+   }
+  ],
+  "sourceEvidence": {
+   "identity": {
+    "evidence": [
+     "enum",
+     "locale"
+    ]
+   }
+  }
+ }
+}
