@@ -1,0 +1,255 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/CLEAR_WING",
+ "kind": "passive",
+ "identifier": "CLEAR_WING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261108T063932Z"
+ },
+ "record": {
+  "passive": "CLEAR_WING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "YANMA",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "AERIAL_ACE",
+    "declaredPassive": "CLEAR_WING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "YANMEGA",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 2,
+    "declaredSkill": "AERIAL_ACE",
+    "declaredPassive": "CLEAR_WING",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "YANMA": {
+    "evidence": [
+     "unit-yanma"
+    ]
+   },
+   "YANMEGA": {
+    "evidence": [
+     "unit-yanmega"
+    ]
+   }
+  },
+  "kind": "periodic stat-gain passive (PeriodicEffect, one instance per entity)",
+  "summary": "Passive.CLEAR_WING registers a factory that creates one ClearWingEffect per entity. ClearWingEffect is a PeriodicEffect with a 1000 ms interval whose action is pokemon.addSpeed(1, pokemon, 0, false): the requested change is +1 speed on each tick, for the holder itself, with no AP or crit scaling. The timer starts at 1000 ms, is reduced by dt on every PokemonState.update, and when it reaches 0 or below the effect fires and the timer is reset to a full 1000 ms (overshoot is dropped). The applied change equals the requested +1: Big Eater Belt would raise it to 1.25 but rounds down to 0 digits (floor(1.25) = 1), so it stays +1; Twist Band only affects negative values; the result is clamped to 0..MAX_SPEED (300), so at 300 speed the tick adds nothing. The gain is on the combat entity only (permanent is false), so it does not persist beyond the fight. The passive declares no other effect.",
+  "triggers": [
+   "Every PokemonState.update call (the timer decreases by dt; the effect fires each time it reaches 0)"
+  ],
+  "effects": [
+   {
+    "kind": "buff",
+    "stat": "SPEED",
+    "declaredRaw": "+1 speed per 1000 ms tick (requested)",
+    "scaling": "addSpeed(1, self, apBoost 0, crit false): no AP and no crit scaling. Requested +1; Big Eater Belt applyBigEaterBeltStatBuff multiplies a positive value by 1.25 and rounds down to 0 digits, so it returns 1 again (applied +1); Twist Band applyTwistBandBuff acts only on negative values; MELMETAL passive redirect is not relevant to the holders.",
+    "resolution": "applied change = clamp(speed + 1, 0, 300) - speed: +1 until speed reaches MAX_SPEED 300, then 0. Only the in-fight entity is modified, refToBoardPokemon is not touched (permanent false).",
+    "evidence": [
+     "effect",
+     "registry",
+     "periodic",
+     "state-update",
+     "change-passive",
+     "add-speed",
+     "big-eater",
+     "twist-band",
+     "round",
+     "max-speed"
+    ]
+   }
+  ],
+  "conditions": [
+   "Holder recognised by entity.passive === Passive.CLEAR_WING (YANMA, YANMEGA); the effect is added when the entity's passive is set in its constructor.",
+   "The timer is per entity and per fight (the entity and its effect instance are created for the simulation).",
+   "The effect is an ordinary PeriodicEffect: it is updated whenever the entity's state update runs; this record did not trace whether dead, resting or idle states skip PokemonState.update."
+  ],
+  "resetBehaviour": "Timer and count live on the effect instance created per entity; there is no reset except the timer restarting after each tick. count is incremented but not read by this effect. Nothing persists after the fight.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How speed converts to attack rate and movement (not part of this record)",
+   "Other speed changes (items, synergies, statuses such as paralysis) that act on the same stat"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: confirmed to be only the ClearWingEffect class, the registry entry and the two unit classes (git grep for CLEAR_WING in app/core, app/models, app/types, app/rooms); the line 629 hit is the class's origin tag.",
+   "Whether PokemonState.update is called in every state (idle, moving, attacking, resurrecting, dead) was not traced beyond the PeriodicEffect loop; the first tick is 1000 ms after the entity is created, and a delay from the pre-fight phase was not examined.",
+   "Whether the simulation creates entities with timers in the pre-fight phase (so the first gain could arrive at a different time than 1 s after combat starts) was not read.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "sourceEvidence": {
+   "identity": {
+    "evidence": [
+     "enum",
+     "locale"
+    ]
+   }
+  },
+  "evidence": [
+   {
+    "id": "unit-yanma",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12632,
+     12648
+    ],
+    "symbol": "class Yanma",
+    "expect": "passive = Passive.CLEAR_WING",
+    "note": "YANMA: 1 star, maxPP 100, range 2, skill AERIAL_ACE, evolves to YANMEGA"
+   },
+   {
+    "id": "unit-yanmega",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12650,
+     12666
+    ],
+    "symbol": "class Yanmega",
+    "expect": "passive = Passive.CLEAR_WING",
+    "note": "YANMEGA: 2 stars, maxPP 100, range 2, skill AERIAL_ACE"
+   },
+   {
+    "id": "enum",
+    "file": "app/types/enum/Passive.ts",
+    "lines": [
+     52,
+     52
+    ],
+    "symbol": "Passive.CLEAR_WING",
+    "expect": "CLEAR_WING = \"CLEAR_WING\"",
+    "note": "enum member"
+   },
+   {
+    "id": "locale",
+    "file": "app/public/dist/client/locales/en/translation.json",
+    "lines": [
+     3367,
+     3367
+    ],
+    "symbol": "passive description CLEAR_WING",
+    "expect": "Gains 1 SPEED each second",
+    "note": "description text"
+   },
+   {
+    "id": "effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     623,
+     633
+    ],
+    "symbol": "ClearWingEffect",
+    "expect": "pokemon.addSpeed(1, pokemon, 0, false)",
+    "note": "PeriodicEffect, interval 1000 ms, each tick addSpeed(1, self, apBoost 0, crit false)"
+   },
+   {
+    "id": "registry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1312,
+     1314
+    ],
+    "symbol": "PassiveEffects[Passive.CLEAR_WING]",
+    "expect": "() => new ClearWingEffect()",
+    "note": "registered as a factory function so every entity gets its own effect instance (own timer and count)"
+   },
+   {
+    "id": "periodic",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     261,
+     285
+    ],
+    "symbol": "PeriodicEffect",
+    "expect": "this.timer -= dt",
+    "note": "timer starts at intervalMs; update subtracts dt, and when timer <= 0 it increments count, applies the effect and resets the timer to intervalMs (the overshoot is not carried over)"
+   },
+   {
+    "id": "state-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     886,
+     899
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "effect.update(dt, pokemon, board)",
+    "note": "each simulation update runs every PeriodicEffect in effectsSet"
+   },
+   {
+    "id": "change-passive",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1767,
+     1790
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "if (isPlainFunction(effect)) this.effectsSet.add(effect())",
+    "note": "a factory function in PassiveEffects is called once per entity when the passive is set (entity constructor calls changePassive)"
+   },
+   {
+    "id": "add-speed",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     780
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "target.speed = clamp(target.speed + value, 0, MAX_SPEED)",
+    "note": "helpers Big Eater Belt and Twist Band run first, MELMETAL redirects to attack, apBoost 0 so no AP scaling, crit false, clamp to 0..MAX_SPEED, permanent false so only the combat entity is changed"
+   },
+   {
+    "id": "big-eater",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1852
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt multiplies a positive change by 1.25 and rounds DOWN to 0 digits; with value 1 the result is floor(1.25) = 1, so the +1 is unchanged"
+   },
+   {
+    "id": "twist-band",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1854,
+     1866
+    ],
+    "symbol": "applyTwistBandBuff",
+    "expect": "if (",
+    "note": "Twist Band only changes negative values, so it has no effect on +1"
+   },
+   {
+    "id": "round",
+    "file": "app/utils/number.ts",
+    "lines": [
+     16,
+     32
+    ],
+    "symbol": "roundToNDigits",
+    "expect": "Math.floor(scaled)",
+    "note": "mode \"down\" is Math.floor of value x 10^digits divided by 10^digits"
+   },
+   {
+    "id": "max-speed",
+    "file": "app/config/game/game.ts",
+    "lines": [
+     5,
+     5
+    ],
+    "symbol": "MAX_SPEED",
+    "expect": "export const MAX_SPEED = 300",
+    "note": "speed ceiling used by addSpeed"
+   }
+  ]
+ }
+}
