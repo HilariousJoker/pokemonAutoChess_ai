@@ -1,0 +1,340 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/OGERPON_HEARTHFLAME",
+ "kind": "passive",
+ "identifier": "OGERPON_HEARTHFLAME",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T004035Z"
+ },
+ "record": {
+  "passive": "OGERPON_HEARTHFLAME",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "OGERPON_HEARTHFLAME",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IVY_CUDGEL",
+    "declaredPassive": "OGERPON_HEARTHFLAME",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "OGERPON_HEARTHFLAME_MASK",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IVY_CUDGEL",
+    "declaredPassive": "OGERPON_HEARTHFLAME",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "OGERPON_HEARTHFLAME": {
+    "evidence": [
+     "unit-hearthflame"
+    ]
+   },
+   "OGERPON_HEARTHFLAME_MASK": {
+    "evidence": [
+     "unit-hearthflame-mask"
+    ]
+   }
+  },
+  "kind": "mask-form switch on shield depletion (OnShieldDepletedEffect) plus a passive-keyed branch inside the IVY_CUDGEL ability",
+  "summary": "Passive.OGERPON_HEARTHFLAME has one PassiveEffects entry, an OnShieldDepletedEffect created by ogerponMaskDropEffect, and the rest of its behaviour lives in a passive-keyed branch of the IVY_CUDGEL ability (the Passive is also referenced in the ability file and the item-drop code). Units OGERPON_HEARTHFLAME and OGERPON_HEARTHFLAME_MASK are both 3 stars, maxPP 100, range 1, GRASS + FIRE, with the same stats; the MASK form holds the HEARTHFLAME_MASK item (declared SHIELD 100 and ATK 10). When the masked unit's shield is depleted, the entity is renamed to OGERPON_HEARTHFLAME and the mask item is removed from the entity. On every IVY_CUDGEL cast (both forms) the target takes the ability hit (100 at 3 stars, special damage), then every adjacent enemy takes a flat 30 special damage (requested) and a BURN of 5000 ms. As written the burn call is triggerBurn(5000, pokemon, cell.value), i.e. with the caster as the status owner argument and the target as origin, the reverse of the order other abilities use (target, source); the effects of that on immunity and duration checks and on who is credited with burn damage are stated as read, not executed. Requested amounts are labelled; no gameplay claims.",
+  "triggers": [
+   "OnShieldDepletedEffect: the shield reaches 0 after a hit or a negative addShield",
+   "IVY_CUDGEL cast: branch keyed on pokemon.passive"
+  ],
+  "effects": [
+   {
+    "kind": "mask_shield_to_form_change",
+    "declaredRaw": "HEARTHFLAME_MASK declares SHIELD 100 and ATK 10; when the shield is depleted the MASK form reverts to OGERPON_HEARTHFLAME",
+    "scaling": "none; shield requested = 100 via addShield(100, self, 0, false)",
+    "resolution": "requested shield 100; applied by addShield: enraged halves a positive shield, Math.round; ATK 10 goes through addAttack (Big Eater Belt etc., section I of core-mechanics.md). On depletion the effect sets entity name/index to OGERPON_HEARTHFLAME and removes the mask item from the entity; the stat bonuses already applied are not reversed in the code read",
+    "evidence": [
+     "entry-h",
+     "mask-stats-h",
+     "mask-drop",
+     "mask-equip",
+     "apply-stat-shield",
+     "addshield",
+     "shield-depleted-hit",
+     "shield-depleted-add",
+     "shield-effect-class",
+     "unit-hearthflame",
+     "unit-hearthflame-mask"
+    ]
+   },
+   {
+    "kind": "ivy_cudgel_hit",
+    "declaredRaw": "IVY_CUDGEL hit on the target: 100 at 3 stars (table 50 / 75 / 100 / 200)",
+    "scaling": "handleSpecialDamage default apBoost; crit flag from the cast",
+    "resolution": "requested 100 (3 stars); blocked on a protected / skydiving / magic-bouncing target; otherwise reduced by SPE_DEF with the min-1 rule",
+    "evidence": [
+     "ability-damage",
+     "special-damage",
+     "protect-block"
+    ]
+   },
+   {
+    "kind": "adjacent_enemy_damage_and_burn",
+    "declaredRaw": "30 special damage and BURN 5000 ms to each adjacent enemy",
+    "scaling": "damage: flat 30 requested through handleSpecialDamage (default apBoost, so AP scaling applies inside that helper, not read here); burn: fixed 5000 ms",
+    "resolution": "damage is defended by SPE_DEF and blocked by protect; triggerBurn(5000, pokemon, cell.value) is written with the CASTER as the pkm argument and the target as origin, the reverse of the convention in other abilities, so as read the IMMUNITY_BURN / WATER_BUBBLE / duration-reduction / Guts / Rawst checks run on the caster, burnOrigin becomes the target itself, while the lock this.runeProtect and the burn flag/cooldown are on the target's status; burn tick is 5 percent of the burning unit's maxHP per second as TRUE damage",
+    "evidence": [
+     "hearth-branch",
+     "trigger-burn",
+     "burn-damage",
+     "burn-convention",
+     "adjacent",
+     "duration-reductions"
+    ]
+   }
+  ],
+  "conditions": [
+   "Mask-drop switch only when the current name is the MASK form and the mask item is held.",
+   "The IVY_CUDGEL branch is keyed on pokemon.passive, so both forms behave alike.",
+   "Adjacent cells exclude the centre; only enemy occupants are hit."
+  ],
+  "resetBehaviour": "The mask-drop switch happens once (the mask item is removed). The ability branch runs on every IVY_CUDGEL cast; protect and status durations are timers.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How the entity name change affects stat display or later forms in the same fight (only the name/index fields are set)",
+   "Burn tick and Flinch effects beyond the lines cited"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: references outside the PassiveEffects entry are the IVY_CUDGEL branch (ivy-cudgel.ts 31-45), the ogerponMaskEffect item-drop check (items.ts 314-348) and the unit classes; locale strings were ignored.",
+   "Argument order of triggerBurn in the HEARTHFLAME branch is (5000, caster, target); status.ts signature is (duration, pkm, origin) and other abilities pass (target, source). Read as written; not executed, so the real in-fight effect (whose immunity is checked, who is the burn damage attacker) is unconfirmed.",
+   "The AP/crit scaling inside handleSpecialDamage (default apBoost) was not traced for the flat 30.",
+   "Whether the mask bonuses are re-applied after the form switch was not read beyond the effect body.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "mask-drop",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     740,
+     753
+    ],
+    "symbol": "ogerponMaskDropEffect",
+    "expect": "pokemon.name = to",
+    "note": "OnShieldDepletedEffect (origin = the mask item): when the unit's name is the MASK form and it holds the mask, its entity name/index are switched to the unmasked form and the mask item is removed from the entity"
+   },
+   {
+    "id": "shield-depleted-hit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     638,
+     642
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.getEffects(OnShieldDepletedEffect).forEach((effect) => {",
+    "note": "called when a hit's shield part is >= the remaining shield"
+   },
+   {
+    "id": "shield-depleted-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     409,
+     418
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "entity.getEffects(OnShieldDepletedEffect).forEach((effect) => {",
+    "note": "also called when a negative addShield brings the shield to 0 or below"
+   },
+   {
+    "id": "shield-effect-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     441,
+     457
+    ],
+    "symbol": "OnShieldDepletedEffect",
+    "expect": "export class OnShieldDepletedEffect extends Effect",
+    "note": "applied after taking a hit that removed all the remaining shield"
+   },
+   {
+    "id": "mask-equip",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     314,
+     348
+    ],
+    "symbol": "ogerponMaskEffect",
+    "expect": "player.transformPokemon(pokemon, Pkm.OGERPON_CORNERSTONE_MASK)",
+    "note": "OnItemDroppedEffect: dropping a mask item on an Ogerpon swaps any current mask, adds the new mask and transforms into the matching MASK form (refused if 3 items are held and no mask to replace)"
+   },
+   {
+    "id": "apply-stat-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1425,
+     1427
+    ],
+    "symbol": "PokemonEntity.applyStat",
+    "expect": "this.addShield(value, this, 0, false)",
+    "note": "declared item SHIELD stat becomes addShield(value, self, 0, false) when the entity is created (see core-mechanics.md section I)"
+   },
+   {
+    "id": "addshield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     394
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "addShield: no AP scaling at apBoost 0, crit factor only if crit, enraged halves positive shield, then Math.round"
+   },
+   {
+    "id": "protect-block",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "a protected unit takes no damage (death false, takenDamage 0)"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1303
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "duration = Math.round(duration * 0.7)",
+    "note": "SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone x(1 - 0.1 per stone) of the player of pkm"
+   },
+   {
+    "id": "ability-damage",
+    "file": "app/core/abilities/ivy-cudgel.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "IvyCudgelStrategy.process",
+    "expect": "const damage = [50, 75, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "main hit on the target for every Ogerpon form (50 / 75 / 100 / 200 by stars; all four units here are 3 stars -> 100), special damage via handleSpecialDamage"
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     360
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "handleSpecialDamage on a protected, skydiving or magic-bouncing target is blocked (spellBlockedCount) instead of damaging"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     160
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "getAdjacentCells(x, y, false) returns the up to 8 surrounding cells without the centre; the ability passes false for the passive branches"
+   },
+   {
+    "id": "unit-hearthflame",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16496,
+     16511
+    ],
+    "symbol": "OgerponHearthflame",
+    "expect": "passive = Passive.OGERPON_HEARTHFLAME",
+    "note": "OGERPON_HEARTHFLAME: 3 stars, maxPP 100, range 1, GRASS + FIRE, skill IVY_CUDGEL"
+   },
+   {
+    "id": "unit-hearthflame-mask",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16520,
+     16536
+    ],
+    "symbol": "OgerponHearthflameMask",
+    "expect": "passive = Passive.OGERPON_HEARTHFLAME",
+    "note": "OGERPON_HEARTHFLAME_MASK: same stats, GRASS + FIRE, onAcquired passes HEARTHFLAME_MASK"
+   },
+   {
+    "id": "entry-h",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1334,
+     1339
+    ],
+    "symbol": "PassiveEffects[Passive.OGERPON_HEARTHFLAME]",
+    "expect": "Pkm.OGERPON_HEARTHFLAME_MASK",
+    "note": "only entry: ogerponMaskDropEffect(HEARTHFLAME_MASK, OGERPON_HEARTHFLAME_MASK -> OGERPON_HEARTHFLAME)"
+   },
+   {
+    "id": "mask-stats-h",
+    "file": "app/config/game/items.ts",
+    "lines": [
+     97,
+     97
+    ],
+    "symbol": "ItemStats",
+    "expect": "[Item.HEARTHFLAME_MASK]: { [Stat.SHIELD]: 100, [Stat.ATK]: 10 }",
+    "note": "declared mask bonuses: SHIELD 100 and ATK 10"
+   },
+   {
+    "id": "hearth-branch",
+    "file": "app/core/abilities/ivy-cudgel.ts",
+    "lines": [
+     31,
+     45
+    ],
+    "symbol": "IvyCudgelStrategy.process",
+    "expect": "cell.value.status.triggerBurn(5000, pokemon, cell.value)",
+    "note": "HEARTHFLAME branch: each adjacent enemy takes 30 special damage and a burn of 5000 ms"
+   },
+   {
+    "id": "trigger-burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     413
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_BURN) &&",
+    "note": "signature (duration, pkm, origin): the immunity / WATER_BUBBLE / duration-reduction / Guts / Rawst checks use pkm; the lock is this.runeProtect; burnOrigin = origin"
+   },
+   {
+    "id": "burn-damage",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     484,
+     493
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "attacker: this.burnOrigin,",
+    "note": "burn tick: 5 percent of maxHP of pkm as TRUE damage each second, attacker = burnOrigin"
+   },
+   {
+    "id": "burn-convention",
+    "file": "app/core/abilities/flame-thrower.ts",
+    "lines": [
+     31,
+     31
+    ],
+    "symbol": "FlameThrowerStrategy",
+    "expect": "cell.value.status.triggerBurn(4000, cell.value, pokemon)",
+    "note": "convention in other abilities: (duration, the burned unit, the source)"
+   }
+  ]
+ }
+}
