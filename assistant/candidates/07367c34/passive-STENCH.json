@@ -1,0 +1,242 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/STENCH",
+ "kind": "passive",
+ "identifier": "STENCH",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T183927Z"
+ },
+ "record": {
+  "passive": "STENCH",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "STUNKY",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "POISON_GAS",
+    "declaredPassive": "STENCH",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SKUNTANK",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "POISON_GAS",
+    "declaredPassive": "STENCH",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "STUNKY": {
+    "evidence": [
+     "unit-stunky"
+    ]
+   },
+   "SKUNTANK": {
+    "evidence": [
+     "unit-skuntank"
+    ]
+   }
+  },
+  "kind": "movement-triggered board effect (OnMoveEffect in PassiveEffects) plus a jump-path variant in MovingState.move",
+  "summary": "Passive.STENCH is registered in PassiveEffects (passives.ts:1397) as one OnMoveEffect. STUNKY (1 star) and SKUNTANK (2 stars) are DARK + POISON, maxPP 80, range 1, skill POISON_GAS; nothing in the passive reads stars, so both behave alike. Every time MovingState.onMove runs for the holder (after a normal step or after the DARK 'dark jump'), the cell the holder left (oldX, oldY) receives the board effect EffectEnum.POISON_GAS (board.addBoardEffect), provided pokemon.simulation and board exist. When the move is the dark jump (DARK type, range 1, not GUZZLORD, not locked; farthest available cell chosen by board.getFarthestTargetCoordinateAvailablePlace), moving-state.ts first calls stenchJump, which adds POISON_GAS to every cell of the supercover line between the destination and the holder's current cell except the destination itself (so the origin cell and the cells in between). addBoardEffect puts the effect into the cell's boardEffects set and also into entity.effects of whatever unit currently stands on that cell (any team, including allies and the holder itself) unless that unit holds Heavy Duty Boots; units that later walk into the cell receive it through board.setEntityOnCell unless they have EffectEnum.IMMUNITY_BOARD_EFFECTS (that check is not in addBoardEffect, which checks only Heavy Duty Boots). The passive itself does no damage and applies no status directly. The poison comes from status.ts: while a unit with POISON_GAS in its effects has poisonStacks === 0 and no Heavy Duty Boots, updateAllStatus calls triggerPoison(1500, unit, undefined); on every poison damage tick a unit still standing in gas gets triggerPoison(1500) again. Requested vs applied: triggerPoison adds one stack (cap 3 because origin is undefined, so no VENOMOUS/TOXIC raise), sets poisonCooldown to at least the duration after applyStatusDurationReductions, and does nothing if the unit has EffectEnum.IMMUNITY_POISON or status.runeProtect (Rune Protect does block this poison). Poison tick damage is TRUE damage = round(maxHP x 0.05 x stacks) with the listed modifiers (Rain x0.7, Assault Vest x0.5, TOXIC_BOOST passive x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, GLISCOR stacks-2), minimum 1 when positive, through handleDamage with attacker = poisonOrigin (null here), so takenDamage may include shield absorption (core-mechanics section J). No code that removes POISON_GAS from boardEffects during a fight was found by name search in app/core and app/models/colyseus-models, so the gas stays on the cell for the rest of the fight. The same board effect is also produced by the POISON_GAS ability (poison-gas.ts), which is a different mechanism and not described here. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "MovingState.onMove(holder, board, oldX, oldY, newX, newY): after a pathfinding step (moving-state.ts:150) or after the dark jump (moving-state.ts:113); OnMoveEffect.apply is run for every OnMoveEffect of the holder",
+   "Dark jump only: stenchJump(pokemon, board, x, y) is called before swapCells when pokemon.passive === STENCH"
+  ],
+  "effects": [
+   {
+    "kind": "board effect (poison gas) on departure cell",
+    "declaredRaw": "addBoardEffect(oldX, oldY, EffectEnum.POISON_GAS, pokemon.simulation)",
+    "scaling": "none; no AP, stars or stat scaling",
+    "resolution": "Requested: mark the left cell with POISON_GAS. Applied: the cell's boardEffects set gets the effect (idempotent, a repeat only re-adds to the set); any unit standing on that cell without Heavy Duty Boots gets POISON_GAS in entity.effects. After swapCells the departed cell holds whatever unit was swapped in (normally none, since the destination is an available empty cell), so usually no unit is affected at that instant. Runs only if pokemon.simulation and board are set.",
+    "evidence": [
+     "effect",
+     "add-board-effect",
+     "on-move"
+    ]
+   },
+   {
+    "kind": "board effect (poison gas) along the dark-jump line",
+    "declaredRaw": "stenchJump: every cell from getCellsBetween(destination, current) except the destination gets POISON_GAS",
+    "scaling": "none",
+    "resolution": "getCellsBetween is a supercover line that includes both end cells; the destination cell is skipped. Because stenchJump runs before swapCells, the holder still stands on the origin cell and receives POISON_GAS in its own effects there; setEntityOnCell then removes the previous cell's board effects from the entity (the origin cell now carries POISON_GAS) and adds the effects of the new cell unless it has IMMUNITY_BOARD_EFFECTS, so the holder does not keep the gas from its origin cell. Units of either team standing on intermediate cells receive the effect unless they hold Heavy Duty Boots.",
+    "evidence": [
+     "stench-jump",
+     "moving-jump",
+     "cells-between",
+     "set-entity"
+    ]
+   },
+   {
+    "kind": "poison status from standing in the gas (resolved in status.ts, not in the passive)",
+    "declaredRaw": "triggerPoison(1500, unit, undefined) when POISON_GAS is in unit.effects and poisonStacks === 0; re-applied on each poison tick",
+    "scaling": "poison tick damage = round(maxHP x 0.05 x stacks) before modifiers (maxHP of the poisoned unit); no AP scaling",
+    "resolution": "Requested: poison with 1500 ms duration and one stack. Applied: IMMUNITY_POISON or Rune Protect blocks it; stacks cap at 3 (origin undefined); duration is passed through applyStatusDurationReductions and only raises poisonCooldown if larger; Pecha Berry is eaten if held. Tick damage uses handleDamage (TRUE, minimum 1); a negative computed amount (GLISCOR with fewer than 2 stacks) heals through handleHeal instead.",
+    "evidence": [
+     "status-update-all",
+     "status-trigger-poison",
+     "status-tick"
+    ]
+   }
+  ],
+  "conditions": [
+   "Heavy Duty Boots on a unit stop addBoardEffect from adding the effect to it and stop updateAllStatus / the tick from re-poisoning it",
+   "Dark jump requires DARK type, pokemon.range === 1, passive not GUZZLORD and status.locked false; otherwise the holder walks one pathfinding step and only the departure-cell effect applies",
+   "Allies, enemies and the holder itself are all affected when they stand in a gas cell; the board effect has no team check",
+   "The effect is only added while pokemon.simulation and board are defined (stenchJump and the OnMoveEffect both guard this)"
+  ],
+  "resetBehaviour": "boardEffects live on the Board for the fight; no clearing of POISON_GAS was found by name search, so the cells stay marked. entity.effects entries are removed when a unit moves off the cell (setEntityOnCell).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Which unit stands on a cell at the moment of a swap during simultaneous movement was not traced beyond the single-move sequence in MovingState.move",
+   "Applicable status-duration reductions in applyStatusDurationReductions were not read; section J of core-mechanics covers heal/PP/shield helpers, not status durations",
+   "Interaction of Heavy Duty Boots on a unit that moves into an existing gas cell: setEntityOnCell checks IMMUNITY_BOARD_EFFECTS only; whether another path strips the effect from Boots holders was not traced"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: the passive is also read directly in moving-state.ts (stenchJump) and the same POISON_GAS board effect is produced by the POISON_GAS ability (poison-gas.ts) and consumed in status.ts; only the passive-side movement part and the consuming status code are described",
+   "No numeric example: poison damage depends on the poisoned unit's maxHP, stacks and modifiers",
+   "No gameplay evidence; candidate is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-stunky",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13020,
+     13035
+    ],
+    "symbol": "Stunky",
+    "expect": "passive = Passive.STENCH",
+    "note": "STUNKY: 1 star, DARK + POISON, maxPP 80, range 1, skill POISON_GAS"
+   },
+   {
+    "id": "unit-skuntank",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13037,
+     13051
+    ],
+    "symbol": "Skuntank",
+    "expect": "passive = Passive.STENCH",
+    "note": "SKUNTANK: 2 stars, DARK + POISON, maxPP 80, range 1, skill POISON_GAS"
+   },
+   {
+    "id": "effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1397,
+     1408
+    ],
+    "symbol": "PassiveEffects[Passive.STENCH]",
+    "expect": "EffectEnum.POISON_GAS",
+    "note": "OnMoveEffect adds POISON_GAS to (oldX, oldY) when pokemon.simulation and board exist"
+   },
+   {
+    "id": "stench-jump",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     113,
+     133
+    ],
+    "symbol": "stenchJump",
+    "expect": ".getCellsBetween(x, y, pokemon.positionX, pokemon.positionY)",
+    "note": "adds POISON_GAS to every cell of the line except the destination (x, y)"
+   },
+   {
+    "id": "moving-jump",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     83,
+     114
+    ],
+    "symbol": "MovingState.move",
+    "expect": "stenchJump(pokemon, board, x, y)",
+    "note": "dark jump condition (DARK, range 1, not GUZZLORD, not locked), stenchJump before swapCells, then onMove"
+   },
+   {
+    "id": "on-move",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     155,
+     177
+    ],
+    "symbol": "MovingState.onMove",
+    "expect": "pokemon.getEffects(OnMoveEffect)",
+    "note": "onMove runs every OnMoveEffect after orientation update"
+   },
+   {
+    "id": "add-board-effect",
+    "file": "app/core/board.ts",
+    "lines": [
+     632,
+     650
+    ],
+    "symbol": "Board.addBoardEffect",
+    "expect": "entityOnCell.effects.add(effect)",
+    "note": "adds the effect to the unit on the cell unless Heavy Duty Boots, then to the cell's boardEffects"
+   },
+   {
+    "id": "cells-between",
+    "file": "app/core/board.ts",
+    "lines": [
+     304,
+     313
+    ],
+    "symbol": "Board.getCellsBetween",
+    "expect": "Supercover line algorithm",
+    "note": "supercover line including the start cell"
+   },
+   {
+    "id": "set-entity",
+    "file": "app/core/board.ts",
+    "lines": [
+     39,
+     66
+    ],
+    "symbol": "Board.setEntityOnCell",
+    "expect": "effectsOnNewCell.forEach",
+    "note": "moving entity loses effects of the previous cell and gains those of the new cell unless IMMUNITY_BOARD_EFFECTS"
+   },
+   {
+    "id": "status-update-all",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     193,
+     200
+    ],
+    "symbol": "Status.updateAllStatus",
+    "expect": "this.triggerPoison(1500, pokemon, undefined)",
+    "note": "POISON_GAS in effects, poisonStacks 0, no Heavy Duty Boots -> triggerPoison(1500)"
+   },
+   {
+    "id": "status-trigger-poison",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     572,
+     594
+    ],
+    "symbol": "Status.triggerPoison",
+    "expect": "!pkm.effects.has(EffectEnum.IMMUNITY_POISON) && !this.runeProtect",
+    "note": "blocked by IMMUNITY_POISON or Rune Protect; +1 stack capped at 3 without origin; duration only raises poisonCooldown"
+   },
+   {
+    "id": "status-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     617,
+     668
+    ],
+    "symbol": "Status.updatePoison",
+    "expect": "reapply poison stack on every poison tick if in poison gas",
+    "note": "tick damage round(maxHP x 0.05 x stacks) with modifiers, TRUE damage via handleDamage min 1; gas re-applies poison each tick unless Heavy Duty Boots"
+   }
+  ]
+ }
+}
