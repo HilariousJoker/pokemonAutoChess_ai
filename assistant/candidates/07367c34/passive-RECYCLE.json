@@ -1,0 +1,273 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/RECYCLE",
+ "kind": "passive",
+ "identifier": "RECYCLE",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T124148Z"
+ },
+ "record": {
+  "passive": "RECYCLE",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GARBODOR",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GUNK_SHOT",
+    "declaredPassive": "RECYCLE",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "TRUBBISH",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "GUNK_SHOT",
+    "declaredPassive": "RECYCLE",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GARBODOR": {
+    "evidence": [
+     "unit-garbodor"
+    ]
+   },
+   "TRUBBISH": {
+    "evidence": [
+     "unit-trubbish"
+    ]
+   }
+  },
+  "kind": "shop-phase item-drop passive (OnItemDroppedEffect; no combat effect)",
+  "summary": "Passive.RECYCLE is an OnItemDroppedEffect registered in PassiveEffects (passives.ts:1506): it acts when the player drags a consumable from the inventory onto a TRUBBISH (1 star) or GARBODOR (2 stars) (POISON + ARTIFICIAL, maxPP 100, range 1, skill GUNK_SHOT), not during a fight. A berry is eaten: the board unit's base max HP and HP rise by +15 (+45 for NANAB, GOLDEN_RAZZ, GOLDEN_NANAB, GOLDEN_PINAP), via Pokemon.addMaxHP (hp = max(1, hp + amount), maxHP = hp); the berry is removed from player.items (first occurrence) and is not equipped. Any other item in ConsumableItems (TMs, Dishes, Mulches, Flavors, Sweets, Dojo tickets, exchange / recycle ticket, picnic set, fire shard, cell battery, the scrolls, auspicious / malicious armor, soothe bell) gives +30 max HP and is likewise removed and not equipped; unless it is a Dish, Flavor or Sweet, a TRASH item is added to player.items, and for a TM the first matching entry of player.tms is replaced by TRASH. Non-consumable items return true and are equipped by the normal flow. The item's own OnItemDroppedEffects also run (no short-circuit), and any false result vetoes equipping. These are the requested amounts: addMaxHP has no AP, star or item scaling and no cap in the code read (the unit's stored hp and maxHP are raised permanently on the board object); nothing is a fight stat helper, so Big Eater Belt / Twist Band / Protect / Rune Protect do not take part. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "OnDragDropItemCommand.execute: player drags an item the player holds onto a board/bench pokemon whose passive is RECYCLE; all OnItemDroppedEffects of the item and of the passive are applied"
+  ],
+  "effects": [
+   {
+    "kind": "permanent_max_hp_gain",
+    "amount": 15,
+    "declaredRaw": "+15 max HP (berries), +45 for the four special berries",
+    "scaling": "none; fixed constants; no AP, level or star scaling",
+    "resolution": "requested = applied: pokemon.addMaxHP(amount) on the board Pokemon sets hp = max(1, hp + amount) and maxHP = hp; no cap or helper was found. The berry is taken out of player.items and the item is not equipped (effect returns false so the command is cancelled with DRAG_DROP_CANCEL).",
+    "evidence": [
+     "recycle-effect",
+     "berries",
+     "add-max-hp",
+     "remove-in-array",
+     "drag-drop",
+     "drag-drop-cancel",
+     "effect-class"
+    ]
+   },
+   {
+    "kind": "permanent_max_hp_gain",
+    "amount": 30,
+    "declaredRaw": "+30 max HP for any other ConsumableItems entry",
+    "scaling": "none; fixed constant",
+    "resolution": "requested = applied via Pokemon.addMaxHP(30); the item is removed from player.items; not equipped (returns false).",
+    "evidence": [
+     "recycle-effect",
+     "consumables",
+     "add-max-hp",
+     "drag-drop",
+     "drag-drop-cancel",
+     "drag-drop-start"
+    ]
+   },
+   {
+    "kind": "item_conversion",
+    "declaredRaw": "TRASH item for consumables other than Dishes, Flavors and Sweets (not for berries)",
+    "scaling": "none",
+    "resolution": "Item.TRASH is pushed onto player.items; for a TM the first matching entry in player.tms (indexOf(item)) is replaced by TRASH via splice(indexOf, 1, TRASH); then the dropped consumable is removed from player.items. Berries return before this branch and never produce TRASH.",
+    "evidence": [
+     "recycle-trash",
+     "player-tms",
+     "update-tms"
+    ]
+   }
+  ],
+  "conditions": [
+   "Only reached through OnDragDropItemCommand with a pokemon found at the drop position (or flower pot); the item must be in player.items and the player alive.",
+   "Berries are tested before the general consumable list; Berries are also part of ConsumableItems, so the berry branch wins.",
+   "Items not in Berries or ConsumableItems (components, craftable items, TRASH) return true: the passive does nothing and the normal equip flow continues.",
+   "Because all OnItemDroppedEffects run, the dropped item's own effect (for example a dojo ticket or an item with its own drop effect) also executes even when RECYCLE vetoes equipping; what those effects do was not traced here.",
+   "The check happens before the Dishes / holdability checks, so consumables such as Dishes are eaten by RECYCLE instead of reaching the canEat / dishes logic."
+  ],
+  "resetBehaviour": "Not a fight effect: the HP bonus is written to the board Pokemon's hp and maxHP and so persists with the unit for the game (evolution / merging behaviour of these stats was not traced); no timer or counter exists.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How the raised board hp / maxHP carries into fight entities (assumed to be read from the board Pokemon when the entity is created; not traced here)",
+   "What happens to the stored hp / maxHP when TRUBBISH evolves into GARBODOR or is merged (evolution code not read)"
+  ],
+  "unresolved": [
+   "The queue record has no routing uncertainty; the registry entry is PassiveEffects[Passive.RECYCLE] at passives.ts:1506, no other Passive.RECYCLE reference was found by grep except the two unit classes and the enum.",
+   "TM branch: player.tms.indexOf(item) is not guarded; if the item is not in player.tms (indexOf -1) splice(-1, 1, TRASH) would replace the LAST entry; whether a TM in the inventory can be absent from player.tms was not traced.",
+   "What a replaced TRASH entry in player.tms means for updateTms (it would later be given as an inventory item instead of a TM) was read only from the slice code; not traced further.",
+   "Effects of other OnItemDroppedEffects on the same drop (item side) were not enumerated.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-trubbish",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15575,
+     15589
+    ],
+    "symbol": "Trubbish",
+    "expect": "passive = Passive.RECYCLE",
+    "note": "TRUBBISH: 1 star, POISON + ARTIFICIAL, maxPP 100, range 1, skill GUNK_SHOT"
+   },
+   {
+    "id": "unit-garbodor",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     15591,
+     15605
+    ],
+    "symbol": "Garbodor",
+    "expect": "passive = Passive.RECYCLE",
+    "note": "GARBODOR: 2 stars, POISON + ARTIFICIAL, maxPP 100, range 1, skill GUNK_SHOT"
+   },
+   {
+    "id": "recycle-effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1506,
+     1526
+    ],
+    "symbol": "PassiveEffects[Passive.RECYCLE]",
+    "expect": "pokemon.addMaxHP(SpecialBerries.includes(item) ? 45 : 15)",
+    "note": "one OnItemDroppedEffect: berries give +15 max HP (+45 for the four special berries), other consumables +30; both remove the item from player.items and return false (item not equipped); other items return true"
+   },
+   {
+    "id": "recycle-trash",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1514,
+     1524
+    ],
+    "symbol": "PassiveEffects[Passive.RECYCLE]",
+    "expect": "player.items.push(Item.TRASH)",
+    "note": "for consumables that are not Dishes, Flavors or Sweets a TRASH item is pushed; if the item is a TM the matching entry of player.tms is replaced by TRASH; then the dropped item is removed from player.items"
+   },
+   {
+    "id": "effect-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     177,
+     198
+    ],
+    "symbol": "OnItemDroppedEffect",
+    "expect": "return false to prevent equipping the item",
+    "note": "OnItemDroppedEffect: called when an item is dragged to a pokemon; returning false prevents equipping"
+   },
+   {
+    "id": "drag-drop",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     799,
+     821
+    ],
+    "symbol": "OnDragDropItemCommand.execute",
+    "expect": "PassiveEffects[pokemon.passive]?.filter(",
+    "note": "on a drag-drop of an inventory item onto a pokemon, the effects of the item AND of the pokemon passive that are OnItemDroppedEffect are all applied (no short-circuit); any false result cancels equipping"
+   },
+   {
+    "id": "drag-drop-cancel",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     819,
+     822
+    ],
+    "symbol": "OnDragDropItemCommand.execute",
+    "expect": "if (shouldEquipItem === false) {",
+    "note": "when equipping is vetoed the command sends DRAG_DROP_CANCEL and returns before the Dishes / holdability checks"
+   },
+   {
+    "id": "drag-drop-start",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     690,
+     745
+    ],
+    "symbol": "OnDragDropItemCommand.execute",
+    "expect": "if (!player.items.includes(item)) {",
+    "note": "the item must be in player.items; flower-pot zone and berry-tree zone have their own branches, other zones resolve the pokemon with player.getPokemonAt(x, y); a missing pokemon cancels"
+   },
+   {
+    "id": "berries",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     593,
+     600
+    ],
+    "symbol": "SpecialBerries / Berries",
+    "expect": "export const Berries = [...NonSpecialBerries, ...SpecialBerries]",
+    "note": "SpecialBerries = NANAB, GOLDEN_RAZZ, GOLDEN_NANAB, GOLDEN_PINAP; Berries = NonSpecialBerries + SpecialBerries"
+   },
+   {
+    "id": "consumables",
+    "file": "app/types/enum/Item.ts",
+    "lines": [
+     1153,
+     1171
+    ],
+    "symbol": "ConsumableItems",
+    "expect": "...Berries,",
+    "note": "ConsumableItems = TMs, Dishes, Mulches, Flavors, Sweets, DojoTickets, Berries, plus EXCHANGE_TICKET, RECYCLE_TICKET, PICNIC_SET, FIRE_SHARD, CELL_BATTERY, the two scrolls, AUSPICIOUS_ARMOR, MALICIOUS_ARMOR, SOOTHE_BELL; TRASH is not in it"
+   },
+   {
+    "id": "add-max-hp",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     387,
+     390
+    ],
+    "symbol": "Pokemon.addMaxHP",
+    "expect": "this.maxHP = this.hp",
+    "note": "on the board Pokemon (not a fight entity): hp = max(1, hp + amount) then maxHP = hp; it changes the stored unit stats"
+   },
+   {
+    "id": "remove-in-array",
+    "file": "app/utils/array.ts",
+    "lines": [
+     27,
+     36
+    ],
+    "symbol": "removeInArray",
+    "expect": "arr.splice(index, 1)",
+    "note": "removes the first occurrence only"
+   },
+   {
+    "id": "player-tms",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     181,
+     184
+    ],
+    "symbol": "Player.tms",
+    "expect": "tms: Item[] = [",
+    "note": "player.tms is the ordered list of TMs of the player, indexed by Human synergy tier in updateTms"
+   },
+   {
+    "id": "update-tms",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     593,
+     603
+    ],
+    "symbol": "Player.updateTms",
+    "expect": "const gainedTMs = this.tms.slice(previousNbTMs, newNbTMs)",
+    "note": "TMs are handed out from player.tms by position when the Human synergy tier grows; a TRASH written into player.tms would be given as an item instead"
+   }
+  ]
+ }
+}
