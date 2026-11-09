@@ -13,7 +13,7 @@
   "ability": "JET_PUNCH",
   "label": "production-branch reference; deployment unverified",
   "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
-  "scope": "The three units in appliesTo declare JET_PUNCH: Finizen (3 stars, passive FINIZEN), Palafin (3 stars, passive FINIZEN) and Palafin Hero (4 stars, no passive). The strategy is shared; unit differences are the star count, base speed and the FINIZEN passive. Units not listed are not covered.",
+  "scope": "The three units in appliesTo declare JET_PUNCH: Finizen (3 stars, passive FINIZEN), Palafin (3 stars, passive FINIZEN) and Palafin Hero (4 stars, no passive). The strategy is shared; unit differences are the star count and base speed; the FINIZEN passive is outside this record. Units not listed are not covered.",
   "appliesTo": [
    {
     "key": "FINIZEN",
@@ -76,7 +76,7 @@
     "ab-super"
    ]
   },
-  "summary": "Deals SPECIAL damage to the cast target only. The requested amount is the caster's CURRENT speed stat multiplied by 1 (stars 1-3), 1.5 (4 stars) or 3 (5 stars and as the fallback). No status, buff or area is involved. The three listed units have 3, 3 and 4 stars, so their multipliers are 1, 1 and 1.5.",
+  "summary": "Deals SPECIAL damage to the cast target only. The requested amount is the caster's CURRENT speed stat multiplied by 1 (stars 1-3), 1.5 (4 stars) or 3 (5 stars and as the fallback). The request reads the STORED speed stat, not a paralysis-adjusted rate: a paralysed caster requests the same amount (paralysis only halves the speed used for the attack / move rate elsewhere). The default cast animation is suppressed (preventDefaultAnim true) and the strategy codes no movement. AP and a crit act inside handleSpecialDamage (apBoost default). Executed: speed 64 at 3 stars -> 64, speed 80 at 4 stars -> 120, 5 stars -> 240. No status, buff or area is involved. The three listed units have 3, 3 and 4 stars, so their multipliers are 1, 1 and 1.5.",
   "targeting": {
    "who": "the cast target only (single target)",
    "needsTarget": true,
@@ -119,7 +119,7 @@
      "PALAFIN_HERO": "1.5 x current speed"
     },
     "scaling": "requested = multiplier[stars-1] x pokemon.speed at the moment the cast resolves (current speed, including buffs, debuffs and the 0..300 clamp; for the base stat values 64/64/80 this is 64, 64 and 120 requested). handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the hit unit) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. See knowledge/07367c34/core-mechanics.md section A.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). See knowledge/07367c34/core-mechanics.md section A.",
     "evidence": [
      "ab-damage",
      "ab-hit",
@@ -155,7 +155,7 @@
     "PALAFIN": 64,
     "PALAFIN_HERO": 80
    },
-   "note": "The multiplier table has five entries (stars 1..5); the listed units use entries 3, 3 and 4. The FINIZEN passive's transformToHero renames the entity to PALAFIN_HERO and adds +16 speed (and +18 attack, +5 defense, +5 special defense, full hp) but the block that was read does not change `stars`, so a transformed Finizen/Palafin keeps multiplier 1 while its speed is 16 higher; the base-form PALAFIN_HERO unit has 4 stars and multiplier 1.5.",
+   "note": "The multiplier table has five entries (stars 1..5); the listed units use entries 3, 3 and 4. The base-form PALAFIN_HERO unit has 4 stars and multiplier 1.5. The FINIZEN passive and any transformation it performs are outside this record and are not described here.",
    "evidence": [
     "ab-damage",
     "unit-finizen",
@@ -165,8 +165,8 @@
    ]
   },
   "positionalConditions": "None: the hit lands on the cast target regardless of position.",
-  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and reads the caster's speed again, so the damage follows any speed changes between casts. The FINIZEN passive can transform Finizen/Palafin into PALAFIN_HERO mid-fight (when 5 allies, or all allies, have been KO'd; immediately if there are none), which raises speed by 16 for later casts.",
-  "rawVsResolved": "Requested: multiplier x current speed (base-stat examples: Finizen 64, Palafin 64, Palafin Hero 1.5 x 80 = 120; a transformed Finizen/Palafin reads speed 80 with multiplier 1 unless stars change elsewhere). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 for protected units.",
+  "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and reads the caster's speed again, so the damage follows any speed changes between casts. Passive-driven changes to stars or speed are outside this record.",
+  "rawVsResolved": "Requested: multiplier x current speed (base-stat examples: Finizen 64, Palafin 64, Palafin Hero 1.5 x 80 = 120; passive-driven changes are outside this record). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
   "sourceTables": [
    {
     "id": "multiplier",
@@ -183,10 +183,10 @@
    "Every source of speed changes during a fight (items, synergies, other abilities): the speed stat is read when the cast resolves; only addSpeed's clamp 0..300 was read, not each caller"
   ],
   "unresolved": [
-   "Whether the FINIZEN passive path or any other mechanic changes `stars` of a transformed entity (the transformToHero block shows no star change; callers of the transformation were not audited)",
-   "Whether Finizen/Palafin pass through other transformation or evolution code during a fight that could alter their star count",
+   "The FINIZEN passive (outside this record) and any star or speed change it causes are not described",
+   "Whether other transformation or evolution code can alter these units' star count during a fight was not audited",
    "Speed sources: the damage depends on the live speed stat, which many effects change; only the stat helper's clamp was read",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real JetPunchStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster and target): the multiplier table against the stored speed, the paralysed-caster case, the suppressed animation and the AP / crit doubling inside the helper."
   ],
   "evidence": [
    {
@@ -484,6 +484,20 @@
      "pass-skip"
     ]
    }
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214645Z",
+   "reason": "stored speed not a paralysis-adjusted rate; FINIZEN passive out of scope",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

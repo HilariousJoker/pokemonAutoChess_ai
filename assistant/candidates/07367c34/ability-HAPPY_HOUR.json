@@ -159,11 +159,11 @@
     "hh-class"
    ]
   },
-  "summary": "Gives every unit on the caster's team on the board, the caster included, a flat attack buff of 2/4/7/10 for 1/2/3/4 stars, scaled by the caster's AP. No damage, healing, status or targeting.",
+  "summary": "Needs no target. Every non-null same-team entity on the board, the caster included, receives addAttack(buff, caster, apBoost 1, the cast's crit) with buff 2 / 4 / 7 / 10 by the caster's stars (EEVEE 2, the eight evolutions 4; fallback 10). Per recipient: Math.round(buff x (1 + caster AP/100) x critPower if the cast crit), then the recipient's own Big Eater Belt (x1.25 rounded down), Twist Band none for a positive same-team buff, ATK floored at 1. The loop has no hp or targettability filter, enemies are untouched, and the strategy installs no restore timer (fight entity only). Executed (ATK 20): 2 stars +4, 1 star +2, AP 100 or a crit +8, a Belt holder +5, an ally at 0 HP still +4.",
   "targeting": {
    "who": "every board occupant with the same team as the caster (pokemon.team == ally.team), the caster itself included; no range or alive check beyond what board.forEach yields",
    "needsTarget": false,
-   "note": "requiresTarget is false, so it can be cast without walking up to a target; the target argument is null. Whether board.forEach visits only living entities was not read.",
+   "note": "requiresTarget is false, so it can be cast without walking up to a target; the target argument is null. board.forEach visits every cell and the loop adds no hp or targettability filter (executed: an ally at 0 HP is buffed); whether dead entities can sit in cells was not examined.",
    "evidence": [
     "hh-loop",
     "hh-class"
@@ -200,7 +200,7 @@
      "UMBREON": 4,
      "VAPOREON": 4
     },
-    "scaling": "round(raw x (1 + AP/100)) with apBoost 1 (caster AP), x critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false); then held-item hooks (Big Eater Belt, Twist Band) and a minimum attack of 1",
+    "scaling": "round(raw x (1 + AP/100)) with apBoost 1 (caster AP), x critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false); then the recipient's Big Eater Belt (x1.25 rounded down, 4 -> 5), Twist Band none for a positive same-team buff, and a minimum attack of 1",
     "resolution": "added to each ally's atk for the rest of the fight (permanent flag not set)",
     "evidence": [
      "hh-table",
@@ -235,7 +235,7 @@
     "UMBREON": 4,
     "VAPOREON": 4
    },
-   "note": "Eevee is 1 star (2), the eight evolutions are 2 stars (4); the 3-star and 4-star entries are not reached by a listed unit.",
+   "note": "Eevee is 1 star (2), the eight evolutions are 2 stars (4); the 3-star and 4-star entries (7 / 10, fallback 10) are declared in the tables but unused by the bound baseline classes.",
    "evidence": [
     "hh-table"
    ]
@@ -254,15 +254,15 @@
   ],
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
-   "Bodies of applyBigEaterBeltStatBuff and applyTwistBandBuff (held-item effects on every stat gain)",
+   "Other held-item effects on stat gains (applyBigEaterBeltStatBuff and applyTwistBandBuff were read and executed in this recheck)",
    "When the cast fires in a real fight (PP gain, movement) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the addAttack multiplier were read",
-   "Whether board.forEach includes dead entities, summons or clones"
+   "Whether dead entities, summons or clones can occupy board cells (the loop itself filters nothing)"
   ],
   "unresolved": [
    "Eevee's passive EEVEE is not investigated",
    "Evolution rules of Eevee and the Eeveelutions are not covered",
-   "No gameplay evidence: source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.forEach, addAttack, the Belt and Twist helpers) and the real HappyHourStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in board, ATK 20): the values above, enemies untouched, no hp filter."
   ],
   "evidence": [
    {
@@ -474,6 +474,20 @@
     "expect": "target.atk = min(1)(target.atk + value)",
     "note": "round(value x (1 + apBoost x casterAP/100) x crit), item hooks, min 1; permanent flag not set"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214645Z",
+   "reason": "cast crit, caster AP, recipient Belt, ATK floor, no hp filter",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

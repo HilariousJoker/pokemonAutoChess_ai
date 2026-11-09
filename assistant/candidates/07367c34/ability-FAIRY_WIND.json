@@ -258,7 +258,7 @@
     "fw-class"
    ]
   },
-  "summary": "Gives PP to every allied unit on the board except the caster. The amount is a per-star base (2.5/5/10/20 for 1/2/3/4 stars) multiplied by (2 + AP/100), then rounded inside addPP. The caster itself gains nothing and spends its maxPP like any cast. No damage, no status.",
+  "summary": "Gives PP to every allied unit on the board except the caster. The amount is a per-star base (2.5/5/10/20 for 1/2/3/4 stars) multiplied by (2 + AP/100), then rounded inside addPP. The AP term is already inside the request, but the cast's crit flag is still passed to addPP (apBoost 0, crit): it multiplies by the caster's critPower. The recipient's fatigue halves an originally positive gain before rounding; silence, Protect, NO_PP_GAIN and resurrecting refuse it and PP clamps at 2 x maxPP - 1; no Big Eater Belt bonus and no maxPP increase. Executed at 1 star (recipient PP 10): AP 0 request 5; AP 100 request 7.5 -> 8; AP 100 with critPower 2 and a crit 15; with fatigue also 7.5 -> 8. The caster itself gains nothing and spends its maxPP like any cast. No damage, no status.",
   "targeting": {
    "who": "all units on the board with the same team as the caster, excluding the caster (tg.id !== pokemon.id); no range, distance, targettability or alive check beyond what board.forEach yields",
    "needsTarget": false,
@@ -305,7 +305,7 @@
      "FLORGES_YELLOW": 10
     },
     "scaling": "value passed to addPP = rawStarValue x (2 + AP/100) (the base is doubled before AP scaling, so AP 0 gives 2x raw). addPP is called with apBoost 0, so no further AP scaling; the cast's crit flag multiplies by critPower only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
-    "resolution": "in addPP: Math.round(value x critPower-if-crit x 0.5-if-the-ally-is-fatigued), then the Twist Band hook (applyTwistBandBuff, body not read), then the gain is skipped if the ally is silenced, protected, has NO_PP_GAIN or is resurrecting; the ally's pp is clamped to 0..(2 x maxPP - 1).",
+    "resolution": "in addPP: Math.round(value x critPower-if-crit x 0.5-if-the-ally-is-fatigued), then the Twist Band helper (a positive gain is unchanged), then the gain is skipped if the ally is silenced, protected, has NO_PP_GAIN or is resurrecting; the ally's pp is clamped to 0..(2 x maxPP - 1).",
     "evidence": [
      "fw-table",
      "fw-ap",
@@ -353,7 +353,7 @@
     "FLORGES_WHITE": 10,
     "FLORGES_YELLOW": 10
    },
-   "note": "Stars of the caster index the table (1-4, fallback 20); the catalog lists these units at 1, 2 or 3 stars, so the 4-star value 20 is not reached by a listed unit.",
+   "note": "Stars of the caster index the table (1-4, fallback 20); the catalog lists these units at 1, 2 or 3 stars, so the 4-star entry (20, fallback 20) are declared in the tables but unused by the bound baseline classes.",
    "evidence": [
     "fw-table"
    ]
@@ -373,16 +373,16 @@
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
    "Whether board.forEach visits dead or not-yet-spawned entities, and what 'on the board' includes (summons, clones)",
-   "applyTwistBandBuff body and any other held-item effect on PP gain",
+   "Held-item effects on PP gain beyond the Twist Band helper (read and executed in this recheck)",
    "When the cast fires in a real fight (PP gain, movement) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the addPP multiplier were read"
   ],
   "unresolved": [
    "NAME_SHARED_WITH_EFFECT: EffectEnum.FAIRY_WIND is the Fairy synergy tier effect handled in simulation.ts (it is added to Fairy-type units' effects); what that effect does was not investigated and this record does not describe it",
    "Passive FLABEBE_COLOR is a separate queue record and is not investigated here",
-   "applyTwistBandBuff body not read",
+   "applyTwistBandBuff was read and executed in this recheck (no effect on a positive gain)",
    "Colour variants and the three forms differ in stats and evolution; only skill, stars, maxPP, range and passive were bound to the catalog and class blocks",
-   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addPP (fatigue, Twist Band, guards, clamp), Board.forEach) and the real FairyWindStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (recipients PP 10, maxPP 100): the requests 5 / 7.5 / 15 and finals, fatigue 13 / 18, the four refusals, the clamp 199, Belt and Twist no effect."
   ],
   "evidence": [
    {
@@ -601,6 +601,20 @@
      "effect-enum"
     ]
    }
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214645Z",
+   "reason": "crit still passed with the AP term inside; recipient guards; no Belt bonus",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

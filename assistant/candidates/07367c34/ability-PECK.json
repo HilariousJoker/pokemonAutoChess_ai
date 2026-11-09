@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target SPECIAL damage, 10 / 30 / 50 / 100 raw by the caster's stars (fallback 100), no other effect. The requested amount is the table value; AP scaling (x(1 + AP/100)) and the crit multiplier (only if the cast crit) are applied inside handleSpecialDamage; the target's SPE_DEF division follows, so the applied HP loss is lower. The returned takenDamage is ignored by PECK.",
+  "summary": "Single-target SPECIAL damage, 10 / 30 / 50 / 100 raw by the caster's stars (fallback 100), no other effect. The requested amount is the table value; AP scaling (x(1 + AP/100)) and the crit multiplier (only if the cast crit) are applied inside handleSpecialDamage; the target's SPE_DEF division, shields and guards then change the final HP loss, which can be below or above the table value (buffs raise it, defenses and shields lower it; executed: raw 10 with AP 100 against SPE_DEF 0 loses 20, against SPE_DEF 20 loses 10). The returned takenDamage is ignored by PECK (core-mechanics section J1). No status is added.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -96,7 +96,7 @@
      "FEAROW": 30
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true, so the caster's ap is applied); the cast crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false)",
-    "resolution": "intermediate, not guaranteed final HP damage: handleSpecialDamage first returns takenDamage 0 (spellBlockedCount++) if the target is protected, skydiving or magicBounce; otherwise handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. The returned takenDamage is the shield-absorbed part plus the HP lost (capped at current HP), rounded; 0 for a dead/resurrecting target; the Shiny Charm branch resets it to 0 (and death to false); the Fossil branch adds to it; a Cover Band redirect returns the cover ally's result. See core-mechanics.md §A and the BITE record for the shared takenDamage breakdown (probe: assistant/probes/pinned-helper-probe.mjs).",
+    "resolution": "the requested table value is not the final HP loss: handleSpecialDamage returns 0 and blocks the hit for a protected, skydiving or magicBounce target; otherwise handleDamage divides by (1 + 0.05 x SPE_DEF), rounds up with a minimum of 1, lets a shield absorb first and applies the other shared steps (core-mechanics section A). The returned takenDamage is unused (section J1).",
     "evidence": [
      "peck-dmg",
      "peck-hit",
@@ -128,7 +128,7 @@
     "SPEAROW": 10,
     "FEAROW": 30
    },
-   "note": "Indexed by the casting entity's stars; 3 stars (50) and 4 stars (100, also the fallback) are not reachable by these two units' bare star counts. maxPP is 100 and range 1 for both.",
+   "note": "Indexed by the casting entity's stars; the 3-star and 4-star entries (50 / 100, fallback 100) are declared in the tables but unused by the bound baseline classes. maxPP is 100 and range 1 for both.",
    "evidence": [
     "peck-dmg",
     "unit-spearow",
@@ -137,7 +137,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the same damage call.",
-  "rawVsResolved": "Requested: 10 (Spearow) / 30 (Fearow) raw. Applied: raw x (1 + AP/100) [x crit factor if crit], then SPE_DEF division (ceil, at least 1) and the other handleDamage steps (shield absorption, Shiny Charm, Fossil, Cover Band); the reported takenDamage (shield part + HP part) is not used by PECK. Blocked entirely (0) by protect / skydiving / magicBounce.",
+  "rawVsResolved": "Requested: 10 (Spearow) / 30 (Fearow) raw. Applied: raw x (1 + AP/100) [x crit factor if crit], then SPE_DEF division (ceil, at least 1), shield absorption and the other shared handleDamage steps; the final HP loss can be below or above the table value; the returned takenDamage is unused (section J1). Blocked entirely (0) by protect / skydiving / magicBounce.",
   "sourceTables": [
    {
     "id": "peckDamage",
@@ -155,7 +155,7 @@
   "unresolved": [
    "Whether any item, synergy or passive on the caster or target changes PECK beyond what is listed (the Power Lens retaliation inside handleSpecialDamage was seen but not traced for PECK)",
    "No other unit declares PECK in the queue record; DRILL_PECK (a separate ability) is not covered",
-   "Behaviour in a real fight is unobserved: this is source reading plus mechanical checks"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage / handleDamage as used by the strategy) and the real PeckStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (target maxHP 1000): the table requests, the doubling of AP 100 or a crit, the SPE_DEF division, a shield and protect."
   ],
   "evidence": [
    {
@@ -422,6 +422,20 @@
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214645Z",
+   "reason": "final HP loss not categorically lower; duplicate accounting removed",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

@@ -1461,6 +1461,85 @@ expect("CATCHUP_B1 MEDITATE (real exported meditateStrategy instance, real addAt
 const B1QD = B1.quiver
 expect("CATCHUP_B1 QUIVER_DANCE order and values (real strategy and stat helpers; ATK 20, SPE_DEF 10, speed 50, AP 0): ATK, SPE_DEF, SPEED, then AP: 1 star 23 / 13 / 60 / 20, 2 stars ATK 24 SPE_DEF 14; with AP 100 the first three see AP 100 (ATK +6, SPE_DEF +6, speed +20) and the last request AP +20 (apBoost 0, crit false) is NOT scaled and does not boost them (AP 120 afterwards); a crit doubles the first three (26 / 16 / 70) but not the AP (20)", [B1QD.star1.calls.slice(1).map((c) => c[0]), [B1QD.star1.atk, B1QD.star1.speDef, B1QD.star1.speed, B1QD.star1.ap], B1QD.star2.atk, B1QD.star2.speDef, [B1QD.ap100.atk, B1QD.ap100.speDef, B1QD.ap100.speed, B1QD.ap100.ap], [B1QD.crit.atk, B1QD.crit.speDef, B1QD.crit.speed, B1QD.crit.ap]], [["addAttack", "addSpecialDefense", "addSpeed", "addAbilityPower"], [23, 13, 60, 20], 24, 14, [26, 16, 70, 120], [26, 16, 70, 20]])
 expect("CATCHUP_B1 QUIVER_DANCE item helpers (2 stars unless stated): a Big Eater Belt rounds ATK / SPE_DEF first and then takes x1.25 down (4 -> 5: ATK 25, SPE_DEF 15), takes speed 10 -> 12 BEFORE scaling (62, not rounded by the adder) and takes the AP request 20 -> 25, so the last gain is not always 20; a Twist Band changes nothing (positive self-buff); a Nullify Bandanna holder (a helper path only - ordinary canCast blocks such a cast) gets no AP but addAttack(round(0.2 x 20) = 4): ATK 27, with a Belt on top 4 -> 5 (ATK 28); a MELMETAL passive (no bound unit) turns the speed part into addAttack(5) and leaves speed 50; a negative caster AP (-50) halves the scaled parts (ATK +2, speed +5) while the AP request still adds 20 (-30)", [[B1QD.belt.atk, B1QD.belt.speDef, B1QD.belt.speed, B1QD.belt.ap], B1QD.twist.ap, [B1QD.nullify.ap, B1QD.nullify.atk], B1QD.nullifyBelt.atk, [B1QD.melmetal.atk, B1QD.melmetal.speed], [B1QD.apMinus.atk, B1QD.apMinus.speed, B1QD.apMinus.ap]], [[25, 15, 62, 25], 20, [0, 27], 28, [28, 50], [22, 55, -30]])
+// 35. CATCHUP_B2 (batch 2 cycle 2): the real HAPPY_HOUR / FAIRY_WIND / JET_PUNCH / PECK / RAZOR_WIND strategy text with the real addAttack, addPP, handleSpecialDamage / handleDamage and
+// castAbility text, run against STAND-IN units and boards. Requests = arguments received; final = stored fields. Not a fight.
+const AB6 = "app/core/abilities/"
+// ---- HAPPY_HOUR: board.forEach over occupants of the caster's team, addAttack(buff, caster, 1, crit)
+const HappyHourX = stratReal(`${AB6}happy-hour.ts`, "HappyHourStrategy")
+const happyHour = ({ stars = 2, ap = 0, crit = false, units }) => {
+  const c = mkSelf({ stars, ap }); c.name = "caster"; c.team = BLUE_Z; c.atk = 20; c.id = "caster"
+  const others = units.map((u) => { const e = mkSelf({ items: u.items ?? [], atk: u.atk ?? 20 }); e.name = u.name; e.team = u.team ?? BLUE_Z; e.id = u.name; e.hp = u.hp ?? 100; return e })
+  const all = [c, ...others]; const board = { forEach: (cb) => all.forEach((e, i) => cb(i % 8, Math.floor(i / 8), e)) }
+  board.forEach(() => {}); board.forEach = (cb) => { all.forEach((e, i) => cb(i % 8, Math.floor(i / 8), e)); cb(7, 5, undefined) }
+  new HappyHourX().process(c, board, null, crit)
+  return Object.fromEntries(all.map((e) => [e.name, e.atk]))
+}
+// ---- FAIRY_WIND: addPP on every same-team unit except the caster
+const FairyWindX = stratReal(`${AB6}fairy-wind.ts`, "FairyWindStrategy")
+const fairyWind = ({ stars = 1, ap = 0, crit = false, status = {}, items = [], maxPP = 100, pp = 10, effects = [], allies = 1 }) => {
+  const c = mkHU({ name: "caster", pp: 100, maxPP: 100 }); Object.assign(c, { stars, ap, count: { ult: 0 }, broadcastAbility() {}, team: BLUE_Z, skill: "FAIRY_WIND", id: "caster" }); c.simulation = { ...c.simulation, blueAbilitiesCast: [], redAbilitiesCast: [] }
+  const mk = (name, team) => { const u = mkHU({ name, pp, maxPP, status, items }); Object.assign(u, { team, id: name, effects: new Set(effects) }); return u }
+  const ally = mk("ally", BLUE_Z), enemy = mk("enemy", RED_Z)
+  const extra = allies > 1 ? [mk("ally2", BLUE_Z)] : []
+  const all = [c, ally, enemy, ...extra]
+  const reqs = []; const real = ally.addPP.bind(ally); ally.addPP = (...a) => { reqs.push([a[0], a[2], a[3]]); return real(...a) }
+  const board = { forEach: (cb) => all.forEach((e, i) => cb(i % 8, Math.floor(i / 8), e)) }
+  new FairyWindX().process(c, board, null, crit)
+  return { reqs, ally: ally.pp, enemy: enemy.pp, caster: c.pp, maxPP: ally.maxPP }
+}
+// ---- JET_PUNCH: request = multiplier x the stored speed stat; real handleSpecialDamage recorder
+const JetPunchX = stratReal(`${AB6}jet-punch.ts`, "JetPunchStrategy")
+const jetPunch = ({ stars = 3, speed = 64, ap = 0, crit = false, paralysis = false }) => {
+  const c = mkFU({ team: "BLUE", stars, ap, hp: 800, maxHP: 800 }); Object.assign(c, { count: { ult: 0 }, skill: "JET_PUNCH", pp: 0, maxPP: 80, critPower: 2, speed }); c.status.paralysis = paralysis; c.simulation = { ...c.simulation, blueAbilitiesCast: [], redAbilitiesCast: [] }; const bc = []; c.broadcastAbility = () => bc.push("broadcast"); c.log = bc
+  const t = mkFU({ team: "RED", hp: 5000, maxHP: 5000 }); const seen = []; const hd = t.handleSpecialDamage.bind(t); t.handleSpecialDamage = (...a) => { const r = hd(...a); seen.push({ raw: a[0], type: a[2], crit: a[4], apBoostParam: a[5], returned: r.takenDamage }); return r }
+  new JetPunchX().process(c, {}, t, crit)
+  return { seen, hp: t.hp, broadcast: c.log.includes("broadcast") }
+}
+// ---- PECK / RAZOR_WIND: direct SPECIAL; request versus final HP loss with the real handleSpecialDamage / handleDamage
+const PeckX = stratReal(`${AB6}peck.ts`, "PeckStrategy"), RazorWindX = stratReal(`${AB6}razor-wind.ts`, "RazorWindStrategy")
+const direct = (Strat, { stars = 1, ap = 0, crit = false, speDef = 0, shield = 0, protect = false, hp = 500 }) => {
+  const c = mkFU({ team: "BLUE", stars, ap, hp: 800, maxHP: 800 }); Object.assign(c, { count: { ult: 0 }, broadcastAbility() {}, skill: "X", pp: 0, maxPP: 100, critPower: 2, positionX: 0, positionY: 0 }); c.simulation = { ...c.simulation, blueAbilitiesCast: [], redAbilitiesCast: [] }
+  const t = mkFU({ team: "RED", hp, maxHP: 1000, shield, speDef }); t.status.protect = protect
+  const seen = []; const hd = t.handleSpecialDamage.bind(t); t.handleSpecialDamage = (...a) => { const r = hd(...a); seen.push({ raw: a[0], type: a[2], crit: a[4], apBoostParam: a[5], boardPassed: a[1] !== undefined }); return r }
+  new Strat().process(c, { getAdjacentCells: () => [] }, t, crit)
+  return { seen, hpLoss: hp - t.hp, shield: t.shield }
+}
+// real castAbility with a controlled crit roll: PECK (canCritByDefault false) versus RAZOR_WIND (true)
+const castRoll = (Strat, { abilityCrit = false, roll = 0.01, critChance = 10 }) => {
+  const f = build({ EffectEnum: enums(), chance: (p, pk) => chanceZ(p, pk), OnAbilityCastEffect: class OnAbilityCastEffect {} }, js(strategySrc(`${AB6}cast.ts`)), "castAbility")
+  const c = mkFU({ team: "BLUE", stars: 1, hp: 800, maxHP: 800 }); Object.assign(c, { count: { ult: 0 }, broadcastAbility() {}, skill: "X", pp: 0, maxPP: 100, critPower: 2, canCast: true, critChance, getEffects: () => [] }); c.simulation = { ...c.simulation, blueAbilitiesCast: [], redAbilitiesCast: [] }
+  if (abilityCrit) c.effects = new Set(["ABILITY_CRIT"])
+  const t = mkFU({ team: "RED", hp: 500, maxHP: 1000, speDef: 0 }); const seen = []; const hd = t.handleSpecialDamage.bind(t); t.handleSpecialDamage = (...a) => { seen.push(a[4]); return hd(...a) }
+  chanceRolls.length = 0; chanceRolls.push(roll)
+  f(new Strat(), c, { getAdjacentCells: () => [] }, t)
+  return seen
+}
+out.CATCHUP_B2 = {
+  happyHour: {
+    plain: happyHour({ units: [{ name: "ally" }, { name: "foe", team: RED_Z }] }), star1: happyHour({ stars: 1, units: [{ name: "ally" }] }), ap100: happyHour({ ap: 100, units: [{ name: "ally" }] }), crit: happyHour({ crit: true, units: [{ name: "ally" }] }),
+    belt: happyHour({ units: [{ name: "belt", items: ["BIG_EATER_BELT"] }] }), twist: happyHour({ units: [{ name: "tw", items: ["TWIST_BAND"] }] }), deadAlly: happyHour({ units: [{ name: "dead", hp: 0 }] }), fallback: happyHour({ stars: 5, units: [{ name: "ally" }] })
+  },
+  fairyWind: {
+    star1: fairyWind({}), star2: fairyWind({ stars: 2 }), star3: fairyWind({ stars: 3 }), ap100: fairyWind({ ap: 100 }), apCrit: fairyWind({ ap: 100, crit: true }), apCritFatigue: fairyWind({ ap: 100, crit: true, status: { fatigue: true } }), fatigue: fairyWind({ status: { fatigue: true } }), fatigueAp100: fairyWind({ ap: 100, status: { fatigue: true } }),
+    silence: fairyWind({ status: { silence: true } }), protect: fairyWind({ status: { protect: true } }), noGain: fairyWind({ effects: ["NO_PP_GAIN"] }), resurrecting: fairyWind({ status: { resurrecting: true } }), clamp: fairyWind({ stars: 3, pp: 190, maxPP: 100, ap: 300 }), belt: fairyWind({ items: ["BIG_EATER_BELT"] }), twist: fairyWind({ items: ["TWIST_BAND"] }), fallback: fairyWind({ stars: 5 })
+  },
+  jetPunch: { finizen: jetPunch({}), hero: jetPunch({ stars: 4, speed: 80 }), star5: jetPunch({ stars: 5, speed: 80 }), fallback: jetPunch({ stars: 6, speed: 80 }), star1: jetPunch({ stars: 1, speed: 50 }), paralysed: jetPunch({ stars: 4, speed: 80, paralysis: true }), ap100: jetPunch({ ap: 100 }), crit: jetPunch({ crit: true }) },
+  peck: { star1: direct(PeckX, {}), star2: direct(PeckX, { stars: 2 }), star5: direct(PeckX, { stars: 5 }), ap100Def20: direct(PeckX, { ap: 100, speDef: 20 }), def20: direct(PeckX, { speDef: 20 }), apNoDef: direct(PeckX, { ap: 100 }), crit: direct(PeckX, { crit: true }), shield: direct(PeckX, { stars: 2, shield: 20 }), protect: direct(PeckX, { protect: true }) },
+  razorWind: { star1: direct(RazorWindX, {}), star2: direct(RazorWindX, { stars: 2 }), star3: direct(RazorWindX, { stars: 3 }), crit: direct(RazorWindX, { crit: true }) },
+  castCrit: { razorHit: castRoll(RazorWindX, { roll: 0.01 }), razorMiss: castRoll(RazorWindX, { roll: 0.9 }), peckNoEffect: castRoll(PeckX, { roll: 0.01 }), peckAbilityCrit: castRoll(PeckX, { roll: 0.01, abilityCrit: true }), peckAbilityCritMiss: castRoll(PeckX, { roll: 0.9, abilityCrit: true }) }
+}
+const B2 = out.CATCHUP_B2
+
+const B2HH = B2.happyHour
+expect("CATCHUP_B2 HAPPY_HOUR (real strategy and addAttack on a stand-in board; every unit ATK 20): every non-null same-team occupant, the caster included, gets addAttack(buff, caster, 1, crit) with buff 2 / 4 / 7 / 10 by the caster's stars: 2 stars +4 (24), 1 star +2 (22), the fallback (5 stars) +10 (30); enemies are untouched; the loop has no hp or targettability filter (an ally with hp 0 still gets +4); AP 100 or a cast crit doubles the rounded request (28); a recipient's Big Eater Belt gives 4 -> 5 (25); a Twist Band holder gets the plain +4", [B2HH.plain, B2HH.star1.ally, B2HH.fallback.ally, B2HH.deadAlly.dead, B2HH.ap100.ally, B2HH.crit.ally, B2HH.belt.belt, B2HH.twist.tw], [{ caster: 24, ally: 24, foe: 20 }, 22, 30, 24, 28, 28, 25, 24])
+const B2FW = B2.fairyWind
+expect("CATCHUP_B2 FAIRY_WIND request (real strategy and addPP; recipients PP 10, maxPP 100): every same-team unit except the caster (by id) gets addPP(flat x (2 + AP/100), caster, apBoost 0, cast crit): the caster's own PP only spends (0) and enemies are untouched; 1 star flat 2.5 -> request 5 (PP 15), 2 stars 10 (PP 20), 3 stars 20 (PP 30), the fallback 40; AP 100 -> request 7.5 -> Math.round 8 (PP 18); AP 100 with a crit (critPower 2) -> 15 (PP 25); a Big Eater Belt or Twist Band on the recipient changes nothing and maxPP stays 100", [B2FW.star1.reqs, B2FW.star1.ally, B2FW.star1.caster, B2FW.star1.enemy, B2FW.star2.ally, B2FW.star3.ally, B2FW.fallback.reqs, B2FW.ap100.ally, B2FW.apCrit.ally, B2FW.belt.ally, B2FW.twist.ally, B2FW.star1.maxPP], [[[5, 0, false]], 15, 0, 10, 20, 30, [[40, 0, false]], 18, 25, 15, 15, 100])
+expect("CATCHUP_B2 FAIRY_WIND recipient guards (real addPP): the recipient's fatigue halves the originally positive gain before rounding (AP 0: 2.5 -> 3, PP 13; AP 100 with a crit: 15 x 0.5 = 7.5 -> 8, PP 18); silence, Protect, NO_PP_GAIN and resurrecting each refuse the gain (PP stays 10); PP clamps at 2 x maxPP - 1 (190 + 50 -> 199)", [B2FW.fatigue.ally, B2FW.apCritFatigue.ally, B2FW.silence.ally, B2FW.protect.ally, B2FW.noGain.ally, B2FW.resurrecting.ally, B2FW.clamp.ally], [13, 18, 10, 10, 10, 10, 199])
+const B2JP = B2.jetPunch
+expect("CATCHUP_B2 JET_PUNCH (real strategy, real handleSpecialDamage on a stand-in target): the request is multiplier [1, 1, 1, 1.5, 3] (fallback 3) times the caster's STORED speed stat: FINIZEN / PALAFIN (3 stars, speed 64) 64, PALAFIN_HERO (4 stars, speed 80) 120, 5 stars 240 and the fallback 240, 1 star speed 50 -> 50; a paralysed caster still requests the stored-speed amount (120) - paralysis only halves the speed used for the attack / move rate elsewhere; no animation is broadcast (preventDefaultAnim true); AP (apBoost default) and a crit act inside handleSpecialDamage: the request stays 64 while the returned amount doubles (128)", [B2JP.finizen.seen[0].raw, B2JP.hero.seen[0].raw, B2JP.star5.seen[0].raw, B2JP.fallback.seen[0].raw, B2JP.star1.seen[0].raw, B2JP.paralysed.seen[0].raw, B2JP.finizen.broadcast, [B2JP.ap100.seen[0].raw, B2JP.ap100.seen[0].returned], [B2JP.crit.seen[0].raw, B2JP.crit.seen[0].returned]], [64, 120, 240, 240, 50, 120, false, [64, 128], [64, 128]])
+const B2PK = B2.peck, B2RW = B2.razorWind
+expect("CATCHUP_B2 PECK (real strategy and real handleSpecialDamage / handleDamage, target maxHP 1000, hp 500): direct SPECIAL 10 / 30 / fallback 100 with the board passed through; AP 100 or a crit doubles the damage inside the helper (10 -> HP loss 20) and the target's SPE_DEF divides it (SPE_DEF 20: 10 -> 5), so the final HP loss can be BELOW or ABOVE the raw table value (AP 100 against SPE_DEF 20 gives exactly 10, AP 100 against SPE_DEF 0 gives 20); a shield absorbs first (30 with a 20 shield -> HP loss 10); protect blocks (0); no status is added", [B2PK.star1.seen[0], B2PK.star2.seen[0].raw, B2PK.star5.seen[0].raw, B2PK.crit.hpLoss, B2PK.def20.hpLoss, B2PK.ap100Def20.hpLoss, B2PK.apNoDef.hpLoss, B2PK.shield.hpLoss, B2PK.protect.hpLoss], [{ raw: 10, type: "SPECIAL", crit: false, apBoostParam: undefined, boardPassed: true }, 30, 100, 20, 5, 10, 20, 10, 0])
+expect("CATCHUP_B2 RAZOR_WIND (real strategy; real castAbility with a controlled roll): direct SPECIAL 20 / 40 / 80 (1 / 2 / 3 stars) with the board passed to handleSpecialDamage (the strategy itself selects no geometry or area); a crit doubles it (HP loss 40); canCritByDefault is true, so the cast rolls chance(critChance / 100) WITHOUT ABILITY_CRIT: roll 0.01 at critChance 10 -> crit true, roll 0.9 -> crit false (not automatic); PECK (canCritByDefault false) rolls only with ABILITY_CRIT (no effect -> false; effect and roll 0.01 -> true, roll 0.9 -> false)", [B2RW.star1.seen[0], B2RW.star2.seen[0].raw, B2RW.star3.seen[0].raw, B2RW.crit.hpLoss, B2.castCrit.razorHit, B2.castCrit.razorMiss, B2.castCrit.peckNoEffect, B2.castCrit.peckAbilityCrit, B2.castCrit.peckAbilityCritMiss], [{ raw: 20, type: "SPECIAL", crit: false, apBoostParam: undefined, boardPassed: true }, 40, 80, 40, [true], [false], [false], [true], [false]])
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))
 const failed = expectations.filter((x) => !x.ok)
