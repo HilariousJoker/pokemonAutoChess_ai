@@ -1,0 +1,313 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/TADBULB",
+ "kind": "passive",
+ "identifier": "TADBULB",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T183927Z"
+ },
+ "record": {
+  "passive": "TADBULB",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "TADBULB",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SUPERCELL_SLAM",
+    "declaredPassive": "TADBULB",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "BELLIBOLT",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "SUPERCELL_SLAM",
+    "declaredPassive": "TADBULB",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "TADBULB": {
+    "evidence": [
+     "unit-tadbulb"
+    ]
+   },
+   "BELLIBOLT": {
+    "evidence": [
+     "unit-bellibolt"
+    ]
+   }
+  },
+  "kind": "triggered 'supercharge' (OnSimulationStartEffect + OnDamageReceivedEffect sharing superchargeTadbulb)",
+  "summary": "Passive.TADBULB is registered in PassiveEffects (passives.ts:1561) as two effects that both call superchargeTadbulb: an OnSimulationStartEffect that fires if entity.status.light is true at simulation start, and an OnDamageReceivedEffect that fires when damageBeforeReduction >= 50 and the damage is not a retaliation. TADBULB (1 star) and BELLIBOLT (2 stars) are ELECTRIC + LIGHT + AQUATIC, maxPP 100, range 1, skill SUPERCELL_SLAM; nothing in the passive reads stars. superchargeTadbulb first returns without doing anything if the holder supercharged less than 3000 ms ago by wall-clock Date.now() (lastSuperchargeTime is stored on the entity; it is real time, not simulation time). Otherwise it stamps the time and then (1) only if status.electricField is false (the first supercharge): sets electricField = true, addSpeed(20, self, 0), addShield(30, self, 0) and broadcasts SUPERCHARGE; then (2) for every adjacent cell (board.getAdjacentCells, 8 neighbours) holding an enemy: computes the orientation from holder to that enemy, takes board.getKnockBackPlace, and if a free destination exists calls moveTo(destination, forcedDisplacement true) and sets that enemy's cooldown to 500, then deals 10 SPECIAL damage through handleDamage with attacker = holder, isRetaliation true and shouldTargetGainMana true. Requested vs applied: the 10 is the requested damage; handleDamage then multiplies it for an enraged attacker (x2) and for an attacker with status.electricField (x1.2; since the field was set earlier in the same call or an earlier supercharge, the holder's own field applies from the first supercharge on, unless it was removed), then applies the target's Special Defense (armor reduction halves it, WONDER_ROOM swaps def/speDef), shields, minimum 1 and rounding; the amount reported back as takenDamage includes shield damage (core-mechanics sections A and J). The knockback does nothing if the enemy cannot be moved (skydiving, locked or Heavy Duty Boots: canBeMoved) or if no free knockback cell exists; the 500 cooldown is set whenever a destination exists, even if moveTo refused the displacement. The 50 threshold is compared with damageBeforeReduction, which is the damage value inside handleDamage after the attacker-side multipliers (enraged x2, electricField x1.2, psychicField x1.2) and the target-side multipliers placed before the defense step (e.g. Bloodmoon x1.2 physical, Sheer Cold x1.3 on frozen) but before Defense / Special Defense reduction, shields and the minimum of 1; the hook only runs when takenDamage > 0 and hp > 0 afterwards, so a lethal hit never supercharges and a fully prevented hit (Protect, skydiving) does not either. Retaliation damage never triggers it, so its own knockback hits (isRetaliation true) cannot loop. The English text 'First supercharge gives 20 SPEED, 30 SHIELD and ELECTRIC_FIELD' matches the code. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "OnSimulationStartEffect (simulation.ts:254): if entity.status.light is true; status.light is set at simulation start by the LIGHT synergy effects (SHINING_RAY, LIGHT_PULSE, ETERNAL_LIGHT, MAX_ILLUMINATION) for units in the spotlight (simulation.ts:1159-1195)",
+   "OnDamageReceivedEffect via PokemonEntity.onDamageReceived: damageBeforeReduction >= 50 and !isRetaliation, only when takenDamage > 0 and hp > 0 afterwards (pokemon-state.ts:734-744)"
+  ],
+  "effects": [
+   {
+    "kind": "stat buff + shield + field (first supercharge only)",
+    "declaredRaw": "electricField = true; addSpeed(20, self, 0, false); addShield(30, self, 0, false)",
+    "scaling": "none: apBoost 0 in both calls, no crit; no star scaling",
+    "resolution": "Requested +20 Speed and 30 shield. Applied: addSpeed and addShield pass the value through applyBigEaterBeltStatBuff (x1.25 rounded down for a positive value when the holder has Big Eater Belt: 25 Speed, 37 shield); Twist Band acts only on negative values; the shield is then added only while hp > 0 and halved if the holder is enraged (state.addShield, cited in STAMINA candidate). status.electricField is set directly, not through addElectricField. Runs only while electricField is false, so it does not repeat unless the field was removed (e.g. an ELECTRIC_TERRAIN holder dying removes it from allies).",
+    "evidence": [
+     "supercharge",
+     "add-speed-belt",
+     "belt-helpers",
+     "electric-field-damage"
+    ]
+   },
+   {
+    "kind": "special damage + knockback to adjacent enemies",
+    "declaredRaw": "handleDamage({ damage: 10, attackType: SPECIAL, attacker: holder, isRetaliation: true, shouldTargetGainMana: true }) after board.getKnockBackPlace / moveTo",
+    "scaling": "none for the 10 (no AP); damage multipliers in handleDamage: enraged attacker x2, attacker electricField x1.2",
+    "resolution": "Requested 10 SPECIAL per adjacent enemy. Applied: multipliers above (so 12 once the holder has electricField, 24 if also enraged), then target Special Defense, shield, Math.ceil and minimum 1 (handleDamage); takenDamage includes shield damage. Because isRetaliation is true, the target's own onDamageReceived runs normally but a TADBULB target ignores it (the passive checks !isRetaliation), and Reflect is skipped. shouldTargetGainMana true: the target gains ceil(residualDamage / 10) PP.",
+    "evidence": [
+     "supercharge",
+     "handle-damage-multipliers",
+     "adjacent-cells",
+     "knockback-place",
+     "move-to",
+     "can-be-moved",
+     "handle-damage-callback"
+    ]
+   },
+   {
+    "kind": "cooldown gate",
+    "declaredRaw": "Date.now() - lastSuperchargeTime < 3000 -> return",
+    "scaling": "wall-clock milliseconds, not simulation time",
+    "resolution": "A second trigger within 3000 real ms of the previous supercharge does nothing at all (no knockback, no damage). Simulation start and damage trigger share the same stamp.",
+    "evidence": [
+     "supercharge"
+    ]
+   },
+   {
+    "kind": "triggers",
+    "declaredRaw": "light at start; damageBeforeReduction >= 50 and !isRetaliation on damage received",
+    "scaling": "threshold 50 on the pre-defence amount",
+    "resolution": "see summary; the damage trigger requires takenDamage > 0 and hp > 0 after the hit.",
+    "evidence": [
+     "registry",
+     "damage-callback-site",
+     "on-damage-received",
+     "start-effects",
+     "light-set"
+    ]
+   }
+  ],
+  "conditions": [
+   "Start trigger needs status.light true (unit in LIGHT spotlight); it is evaluated once at simulation start",
+   "Damage trigger needs damageBeforeReduction >= 50 and a non-retaliation hit that deals takenDamage > 0 and leaves hp > 0",
+   "3000 ms wall-clock gate (Date.now) shared by both triggers",
+   "Knockback needs a free cell from getKnockBackPlace and a movable target; damage is dealt to every adjacent enemy even if it could not be moved",
+   "Speed/shield/field only while status.electricField is false"
+  ],
+  "resetBehaviour": "lastSuperchargeTime lives on the fight entity for the fight; electricField stays until removed by another effect (removeElectricField); the 20 Speed is never reverted by this passive.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether the electricField x1.2 attacker multiplier makes the knockback damage exactly 12 in every case: other multipliers in handleDamage between lines 441 and 535 were read only up to the defense step",
+   "Behaviour of the entity wall-clock field if the fight is paused or simulated faster than real time was not traced",
+   "getAdjacentCells and getKnockBackPlace orientation tables (OrientationKnockback) were read only for the free-cell test, not for their per-orientation fallback order"
+  ],
+  "unresolved": [
+   "The 3000 ms gate uses Date.now(), so its effect relative to game time depends on how fast the server runs the simulation; recorded as source behaviour, not resolved",
+   "No numeric example: damage depends on target Special Defense, shields and the holder's field/rage state",
+   "No gameplay evidence; candidate is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-tadbulb",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19603,
+     19622
+    ],
+    "symbol": "Tadbulb",
+    "expect": "passive = Passive.TADBULB",
+    "note": "TADBULB: 1 star, ELECTRIC + LIGHT + AQUATIC, maxPP 100, range 1, skill SUPERCELL_SLAM"
+   },
+   {
+    "id": "unit-bellibolt",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19624,
+     19642
+    ],
+    "symbol": "Bellibolt",
+    "expect": "passive = Passive.TADBULB",
+    "note": "BELLIBOLT: 2 stars, ELECTRIC + LIGHT + AQUATIC, maxPP 100, range 1, skill SUPERCELL_SLAM"
+   },
+   {
+    "id": "registry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1561,
+     1574
+    ],
+    "symbol": "PassiveEffects[Passive.TADBULB]",
+    "expect": "damageBeforeReduction >= 50 && !isRetaliation",
+    "note": "two effects: simulation start with light; damage received >= 50 before reduction, not retaliation"
+   },
+   {
+    "id": "supercharge",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1182,
+     1233
+    ],
+    "symbol": "superchargeTadbulb",
+    "expect": "Date.now() - pokemon.lastSuperchargeTime < 3000",
+    "note": "3 s wall-clock gate, first-supercharge buff block, adjacent enemy knockback and 10 SPECIAL retaliation damage"
+   },
+   {
+    "id": "start-effects",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     254,
+     261
+    ],
+    "symbol": "Simulation start loop",
+    "expect": "entity.getEffects(OnSimulationStartEffect)",
+    "note": "OnSimulationStartEffect applied to every entity at simulation start"
+   },
+   {
+    "id": "light-set",
+    "file": "app/core/simulation.ts",
+    "lines": [
+     1159,
+     1166
+    ],
+    "symbol": "applyEffects SHINING_RAY",
+    "expect": "pokemon.status.light = true",
+    "note": "status.light set for units in the spotlight by LIGHT synergy effects (also lines 1168-1195)"
+   },
+   {
+    "id": "damage-callback-site",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     734,
+     744
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damageBeforeReduction: damage",
+    "note": "onDamageReceived only if takenDamage > 0 and hp > 0, passing damage as damageBeforeReduction"
+   },
+   {
+    "id": "handle-damage-multipliers",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     455,
+     469
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (attacker && attacker.status.electricField)",
+    "note": "enraged attacker x2, attacker electricField x1.2, psychicField x1.2 applied to damage before defences"
+   },
+   {
+    "id": "handle-damage-callback",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     501,
+     520
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "damage *= 1.3",
+    "note": "pre-defence multipliers (Sheer Cold) and armor reduction / Wonder Room before defences"
+   },
+   {
+    "id": "on-damage-received",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1185,
+     1233
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.getEffects(OnDamageReceivedEffect)",
+    "note": "runs after the count increment and berries, then every OnDamageReceivedEffect"
+   },
+   {
+    "id": "add-speed-belt",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     752,
+     761
+    ],
+    "symbol": "PokemonEntity.addSpeed",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addSpeed applies Big Eater Belt and Twist Band helpers"
+   },
+   {
+    "id": "belt-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt x1.25 rounded down for positive values; Twist Band only negative values"
+   },
+   {
+    "id": "electric-field-damage",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1323,
+     1336
+    ],
+    "symbol": "Status.addElectricField / removeElectricField",
+    "expect": "this.electricField = true",
+    "note": "electric field helpers; the passive sets the flag directly instead"
+   },
+   {
+    "id": "adjacent-cells",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     163
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "8 neighbour cells excluding the centre, only those on the board"
+   },
+   {
+    "id": "knockback-place",
+    "file": "app/core/board.ts",
+    "lines": [
+     694,
+     713
+    ],
+    "symbol": "Board.getKnockBackPlace",
+    "expect": "return { x: newX, y: newY }",
+    "note": "first on-board free cell among the knockback orientations, else null"
+   },
+   {
+    "id": "move-to",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     890,
+     899
+    ],
+    "symbol": "PokemonEntity.moveTo",
+    "expect": "if (forcedDisplacement && !this.canBeMoved) return",
+    "note": "forced displacement refused when the target cannot be moved; otherwise swapCells and cooldown 100"
+   },
+   {
+    "id": "can-be-moved",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     258,
+     264
+    ],
+    "symbol": "PokemonEntity.canBeMoved",
+    "expect": "!this.items.has(Item.HEAVY_DUTY_BOOTS)",
+    "note": "not movable while skydiving, locked or holding Heavy Duty Boots"
+   }
+  ]
+ }
+}
