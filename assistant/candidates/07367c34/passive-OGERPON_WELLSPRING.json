@@ -1,0 +1,373 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/OGERPON_WELLSPRING",
+ "kind": "passive",
+ "identifier": "OGERPON_WELLSPRING",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T063956Z"
+ },
+ "record": {
+  "passive": "OGERPON_WELLSPRING",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "OGERPON_WELLSPRING",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IVY_CUDGEL",
+    "declaredPassive": "OGERPON_WELLSPRING",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "OGERPON_WELLSPRING_MASK",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "IVY_CUDGEL",
+    "declaredPassive": "OGERPON_WELLSPRING",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "OGERPON_WELLSPRING": {
+    "evidence": [
+     "unit-well"
+    ]
+   },
+   "OGERPON_WELLSPRING_MASK": {
+    "evidence": [
+     "unit-well-mask"
+    ]
+   }
+  },
+  "kind": "mask-form switch on shield depletion (OnShieldDepletedEffect) plus a passive-keyed branch inside the IVY_CUDGEL ability",
+  "summary": "Passive.OGERPON_WELLSPRING has one PassiveEffects entry, an OnShieldDepletedEffect created by ogerponMaskDropEffect; the rest of its behaviour is a passive-keyed branch of the IVY_CUDGEL ability (the Passive is also referenced in the ability file and the item-drop code). Units OGERPON_WELLSPRING and OGERPON_WELLSPRING_MASK are both 3 stars, maxPP 100, range 1, GRASS + AQUATIC, same stats; the MASK form holds the WELLSPRING_MASK item (declared SHIELD 100 and SPE_DEF 10). When the masked unit's shield is depleted the entity is renamed to OGERPON_WELLSPRING and the mask item is removed from the entity. On every IVY_CUDGEL cast (both forms) the target takes the ability hit (100 at 3 stars, requested special damage); then each ally in the adjacent cells (centre excluded, so not the caster) receives addPP(25, caster, apBoost 1, crit) followed by handleHeal(50, caster, apBoost 1, crit). Both are REQUESTED amounts: the PP request is multiplied by (1 + caster AP/100) and by critPower on a crit, halved on a positive request if the ally is fatigued, rounded, and dropped entirely if the ally is silenced, has status.protect (not Rune Protect), has NO_PP_GAIN or is resurrecting; the final pp is clamped to 0..2 x maxPP - 1. The heal request goes through handleHeal: a wounded ally gets 0 (plus only a Blood Stone shield request under Blood Moon); otherwise an ally with hp > 0 and no status.protect gets 50 x (1 + AP/100) x critPower, then x1.3 BUFF_HEAL_RECEIVED, x0.5 burning, x0.5 enraged, x1.2 ZENITH, rounded, capped at the ally's missing HP; a GRASS-synergy ally converts overheal into addMaxHP(0.4 x overheal) (current HP rises too; Big Eater Belt applies to that downstream call). Each ally is processed in cell order, PP first then heal; neither call checks the other. No gameplay claims.",
+  "triggers": [
+   "OnShieldDepletedEffect: the shield reaches 0 after a hit or a negative addShield",
+   "IVY_CUDGEL cast: branch keyed on pokemon.passive"
+  ],
+  "effects": [
+   {
+    "kind": "mask_shield_to_form_change",
+    "declaredRaw": "WELLSPRING_MASK declares SHIELD 100 and SPE_DEF 10; when the shield is depleted the MASK form reverts to OGERPON_WELLSPRING",
+    "scaling": "none; shield requested = 100 via addShield(100, self, 0, false); SPE_DEF requested = 10 via addSpecialDefense(10, self, 0, false)",
+    "resolution": "requested shield 100; applied by addShield: enraged halves a positive shield, Math.round. SPE_DEF 10 goes through addSpecialDefense (Big Eater Belt / Twist Band helpers, then speDef = max(0, speDef + value); section I of core-mechanics.md). On depletion the effect sets entity name/index to OGERPON_WELLSPRING and removes the mask item from the entity; the bonuses already applied (including +10 SPE_DEF) are not reversed in the code read",
+    "evidence": [
+     "entry-w",
+     "mask-stats-w",
+     "mask-drop",
+     "mask-equip",
+     "apply-stat-shield",
+     "apply-stat-spedef",
+     "add-spedef",
+     "stat-helpers",
+     "addshield",
+     "shield-depleted-hit",
+     "shield-depleted-add",
+     "shield-effect-class",
+     "unit-well",
+     "unit-well-mask"
+    ]
+   },
+   {
+    "kind": "ivy_cudgel_hit",
+    "declaredRaw": "IVY_CUDGEL hit on the target: 100 at 3 stars (table 50 / 75 / 100 / 200)",
+    "scaling": "handleSpecialDamage default apBoost; crit flag from the cast",
+    "resolution": "requested 100 (3 stars); blocked on a protected / skydiving / magic-bouncing target; otherwise reduced by SPE_DEF with the min-1 rule",
+    "evidence": [
+     "ability-damage",
+     "special-damage",
+     "protect-block"
+    ]
+   },
+   {
+    "kind": "adjacent_ally_pp_gain",
+    "declaredRaw": "+25 PP to each adjacent ally",
+    "scaling": "addPP(25, caster, apBoost 1, crit): requested 25 x (1 + caster AP / 100) x (critPower if crit) x (0.5 if the ally is fatigued), Math.round",
+    "resolution": "requested 25. Applied change: the rounded value (Twist Band can only flip a negative value, not relevant to a positive request; Big Eater Belt is not applied by addPP), dropped if the ally is silenced, has status.protect (Protect, NOT Rune Protect), has the NO_PP_GAIN effect or is resurrecting; otherwise pp = clamp(pp + value, 0, 2 x maxPP - 1). Allies only; the caster is not in the adjacent set (centre excluded). See core-mechanics.md J3",
+    "evidence": [
+     "well-branch",
+     "add-pp",
+     "adjacent"
+    ]
+   },
+   {
+    "kind": "adjacent_ally_heal",
+    "declaredRaw": "50 HP healed on each adjacent ally",
+    "scaling": "handleHeal(50, caster, apBoost 1, crit): requested 50 x (1 + caster AP / 100) x (critPower if crit), then recipient modifiers",
+    "resolution": "requested 50. Order (core-mechanics.md J2): wound branch first (wounded ally: healReceived 0 / overheal 0; under Blood Moon with a Blood Stone held by its player an addShield(round(0.3 x stones x raw heal)) request is made, recipient as caster); otherwise needs hp > 0 and no status.protect (Rune Protect is not read); modifiers x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH; Math.round; healReceived = min(missing HP, heal); overheal = heal - missing HP; GRASS-synergy recipient: addMaxHP(0.4 x overheal) (not 40 percent of max HP; Big Eater Belt applies to that call; current HP rises with it, no healDone). The returned values are not used by the ability",
+    "evidence": [
+     "well-branch",
+     "heal-wrapper",
+     "handle-heal",
+     "adjacent"
+    ]
+   }
+  ],
+  "conditions": [
+   "Mask-drop switch only when the current name is the MASK form and the mask item is held.",
+   "The IVY_CUDGEL branch is keyed on pokemon.passive, so both forms behave alike.",
+   "Adjacent cells exclude the centre; only same-team occupants receive PP and heal; there is no HP-threshold or lowest-HP targeting in the branch."
+  ],
+  "resetBehaviour": "The mask-drop switch happens once (the mask item is removed). The PP and heal branch runs on every IVY_CUDGEL cast; PP gains are not added to the caster; fight-only state.",
+  "dependsOnUnverifiedGenericCombat": [
+   "How the entity name change affects stat display or later forms in the same fight (only the name/index fields are set)",
+   "Whether allies' PP gain can trigger an immediate cast (casting readiness is checked elsewhere; not traced)"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: references outside the PassiveEffects entry are the IVY_CUDGEL branch (ivy-cudgel.ts 22-30), the ogerponMaskEffect item-drop check (items.ts 314-348) and the unit classes; locale strings were ignored.",
+   "Whether the mask bonuses (shield, SPE_DEF) are re-applied after the form switch was not read beyond the effect body.",
+   "The Blood Stone shield path and the Grass addMaxHP path are taken from core-mechanics.md J2 / J4 and the cited handleHeal lines; the entity addMaxHP body was not re-read for this record.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "mask-drop",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     740,
+     753
+    ],
+    "symbol": "ogerponMaskDropEffect",
+    "expect": "pokemon.name = to",
+    "note": "OnShieldDepletedEffect (origin = the mask item): when the unit's name is the MASK form and it holds the mask, its entity name/index are switched to the unmasked form and the mask item is removed from the entity"
+   },
+   {
+    "id": "shield-depleted-hit",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     638,
+     642
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.getEffects(OnShieldDepletedEffect).forEach((effect) => {",
+    "note": "called when a hit's shield part is >= the remaining shield"
+   },
+   {
+    "id": "shield-depleted-add",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     409,
+     418
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "entity.getEffects(OnShieldDepletedEffect).forEach((effect) => {",
+    "note": "also called when a negative addShield brings the shield to 0 or below"
+   },
+   {
+    "id": "shield-effect-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     441,
+     457
+    ],
+    "symbol": "OnShieldDepletedEffect",
+    "expect": "export class OnShieldDepletedEffect extends Effect",
+    "note": "applied after taking a hit that removed all the remaining shield"
+   },
+   {
+    "id": "mask-equip",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     314,
+     348
+    ],
+    "symbol": "ogerponMaskEffect",
+    "expect": "player.transformPokemon(pokemon, Pkm.OGERPON_CORNERSTONE_MASK)",
+    "note": "OnItemDroppedEffect: dropping a mask item on an Ogerpon swaps any current mask, adds the new mask and transforms into the matching MASK form (refused if 3 items are held and no mask to replace)"
+   },
+   {
+    "id": "apply-stat-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1425,
+     1427
+    ],
+    "symbol": "PokemonEntity.applyStat",
+    "expect": "this.addShield(value, this, 0, false)",
+    "note": "declared item SHIELD stat becomes addShield(value, self, 0, false) when the entity is created (see core-mechanics.md section I)"
+   },
+   {
+    "id": "addshield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     394
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "addShield: no AP scaling at apBoost 0, crit factor only if crit, enraged halves positive shield, then Math.round"
+   },
+   {
+    "id": "protect-block",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     459,
+     462
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "if (pokemon.status.protect || pokemon.status.skydiving) {",
+    "note": "a protected unit takes no damage (death false, takenDamage 0)"
+   },
+   {
+    "id": "special-damage",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     346,
+     360
+    ],
+    "symbol": "PokemonEntity.handleSpecialDamage",
+    "expect": "this.status.protect ||",
+    "note": "handleSpecialDamage on a protected, skydiving or magic-bouncing target is blocked (spellBlockedCount) instead of damaging"
+   },
+   {
+    "id": "ability-damage",
+    "file": "app/core/abilities/ivy-cudgel.ts",
+    "lines": [
+     15,
+     16
+    ],
+    "symbol": "IvyCudgelStrategy.process",
+    "expect": "const damage = [50, 75, 100, 200][pokemon.stars - 1] ?? 200",
+    "note": "main hit on the target for every Ogerpon form (50 / 75 / 100 / 200 by stars; all four units here are 3 stars -> 100), special damage via handleSpecialDamage"
+   },
+   {
+    "id": "adjacent",
+    "file": "app/core/board.ts",
+    "lines": [
+     152,
+     160
+    ],
+    "symbol": "Board.getAdjacentCells",
+    "expect": "if (x == cellX && y == cellY && !includesCenter) continue",
+    "note": "getAdjacentCells(x, y, false) returns the up to 8 surrounding cells without the centre; the ability passes false for the passive branches"
+   },
+   {
+    "id": "stat-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain functions: Big Eater Belt x1.25 rounded down on positive changes; Twist Band flips negative changes from enemies/environment"
+   },
+   {
+    "id": "unit-well",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16450,
+     16470
+    ],
+    "symbol": "OgerponWellspring",
+    "expect": "passive = Passive.OGERPON_WELLSPRING",
+    "note": "OGERPON_WELLSPRING: 3 stars, maxPP 100, range 1, GRASS + AQUATIC, skill IVY_CUDGEL"
+   },
+   {
+    "id": "unit-well-mask",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     16472,
+     16492
+    ],
+    "symbol": "OgerponWellspringMask",
+    "expect": "passive = Passive.OGERPON_WELLSPRING",
+    "note": "OGERPON_WELLSPRING_MASK: same stats, GRASS + AQUATIC"
+   },
+   {
+    "id": "entry-w",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1348,
+     1354
+    ],
+    "symbol": "PassiveEffects[Passive.OGERPON_WELLSPRING]",
+    "expect": "Pkm.OGERPON_WELLSPRING_MASK",
+    "note": "only entry: ogerponMaskDropEffect(WELLSPRING_MASK, OGERPON_WELLSPRING_MASK -> OGERPON_WELLSPRING)"
+   },
+   {
+    "id": "mask-stats-w",
+    "file": "app/config/game/items.ts",
+    "lines": [
+     95,
+     95
+    ],
+    "symbol": "ItemStats",
+    "expect": "[Item.WELLSPRING_MASK]: { [Stat.SHIELD]: 100, [Stat.SPE_DEF]: 10 }",
+    "note": "declared mask bonuses: SHIELD 100 and SPE_DEF 10"
+   },
+   {
+    "id": "well-branch",
+    "file": "app/core/abilities/ivy-cudgel.ts",
+    "lines": [
+     22,
+     30
+    ],
+    "symbol": "IvyCudgelStrategy.process",
+    "expect": "cell.value.handleHeal(50, pokemon, 1, crit)",
+    "note": "WELLSPRING branch: each ADJACENT ALLY (centre excluded, getAdjacentCells(..., false)) gets addPP(25, caster, 1, crit) then handleHeal(50, caster, 1, crit)"
+   },
+   {
+    "id": "apply-stat-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1407,
+     1409
+    ],
+    "symbol": "PokemonEntity.applyStat",
+    "expect": "this.addSpecialDefense(value, this, 0, false, permanent)",
+    "note": "declared item SPE_DEF stat becomes addSpecialDefense(value, self, 0, false)"
+   },
+   {
+    "id": "add-spedef",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     700,
+     724
+    ],
+    "symbol": "PokemonEntity.addSpecialDefense",
+    "expect": "target.speDef = min(0)(target.speDef + value)",
+    "note": "addSpecialDefense: Big Eater Belt / Twist Band helpers, then speDef = max(0, speDef + value)"
+   },
+   {
+    "id": "add-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "!(value > 0 && this.status.protect) &&",
+    "note": "addPP: round(base x (1 + apBoost x caster AP / 100) x crit x fatigue 0.5 on positive), Twist Band, positive dropped when silenced / status.protect / NO_PP_GAIN, any dropped while resurrecting; pp clamped 0..2 x maxPP - 1 (core-mechanics J3)"
+   },
+   {
+    "id": "heal-wrapper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     469,
+     476
+    ],
+    "symbol": "PokemonEntity.handleHeal",
+    "expect": "return this.state.handleHeal(this, heal, caster, apBoost, crit)",
+    "note": "entity wrapper to PokemonState.handleHeal"
+   },
+   {
+    "id": "handle-heal",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     308,
+     380
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.hp > 0 && !pokemon.status.protect) {",
+    "note": "wound branch first (Blood Moon / Blood Stone shield request, returns 0/0), then guard hp > 0 && !status.protect, modifiers in order, round, cap at missing HP, Grass overheal addMaxHP(0.4 x overheal) (core-mechanics J2)"
+   }
+  ]
+ }
+}
