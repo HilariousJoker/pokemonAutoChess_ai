@@ -63,7 +63,7 @@
     "sc-bc"
    ]
   },
-  "summary": "Area defense debuff centred on the CASTER (not the target): every enemy within radius 2 of the caster (strict squared distance < 6.25 from the caster's cell, caster cell excluded; off-board cells skipped) has addDefense(debuff, caster, 1, crit) called, with a requested raw change of -2 / -4 / -8 / -16 by caster stars (KRICKETOT -2, KRICKETUNE -4). No damage is dealt. The requested amount is modified by addDefense before it is stored: value = Math.round(value x (1 + caster AP/100) x (critPower only if the cast crit; canCritByDefault is false so only with ABILITY_CRIT)), so AP makes the debuff more negative. Then the Big Eater Belt helper does nothing for an enemy holder (it scales only positive values and negative values from the holder's own team), but the Twist Band helper flips a negative value from another team into a positive one, so an enemy holding Twist Band gains DEF by the absolute amount instead of losing it. Finally target.def = max(0, def + value): DEF cannot go below 0. The change is not temporary in this code (no timer is created here; the permanent flag is false, so only the combat entity changes, not the board unit). Requested amount (table), applied change (after AP, crit, Twist Band, and the floor at 0) are different amounts. No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "summary": "Area defense debuff centred on the CASTER (not the target): every enemy within radius 2 of the caster (getCellsInRadius, strict squared distance < 6.25 from the caster's cell, caster cell excluded; off-board cells skipped - offset (2,1) is inside, (2,2) outside) has addDefense(debuff, caster, 1, crit) called, with a requested raw change of -2 / -4 / -8 / -16 by caster stars (KRICKETOT -2, KRICKETUNE -4). No damage is dealt. The requested amount is modified by addDefense before it is stored: value = Math.round(value x (1 + caster AP/100) x (critPower only if the cast crit; canCritByDefault is false so only with ABILITY_CRIT)), so AP makes the debuff more negative. Then the Big Eater Belt helper does nothing for an enemy holder (it scales only positive values and negative values from the holder's own team), but the Twist Band helper flips a negative value from another team into a positive one, so an enemy holding Twist Band gains DEF by the absolute amount instead of losing it. Finally target.def = max(0, def + value): DEF cannot go below 0. This strategy installs no timer and no restore step: permanent = false only means the board unit is not modified (only the fight entity), it does not make the debuff a timed one, and other code that resets stats was not audited. Requested amount (table), applied change (after AP, crit, Twist Band, and the floor at 0) are different amounts. No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
   "targeting": {
    "who": "all enemies within radius 2 of the caster",
    "needsTarget": true,
@@ -160,8 +160,8 @@
    "Whether the DEF reduction is ever undone during the same fight (no restore step is part of the strategy; other code that resets stats was not audited)",
    "Whether a Twist Band holder on the enemy team is common enough to matter; only the helper behaviour is recorded",
    "Whether the listed units ever reach a different star count than the bare factory value",
-   "Consulted for helpers: core-mechanics.md sections A, H, I; the actual addDefense / applyBigEaterBeltStatBuff / applyTwistBandBuff definitions (pokemon-entity.ts) and the KING_SHIELD candidate; no heal / PP / shield helper is involved",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Consulted for helpers (the units declare no separate passive in the catalog; none is covered here): core-mechanics.md sections A, H, I; the actual addDefense / applyBigEaterBeltStatBuff / applyTwistBandBuff definitions (pokemon-entity.ts) and the KING_SHIELD candidate; no heal / PP / shield helper is involved",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addDefense, applyBigEaterBeltStatBuff, applyTwistBandBuff, getCellsInRadius) and the real ScreechStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (enemy DEF 10): -2 reaches offset (2,1) -> 8, not offset (2,2) or an ally; AP 100 doubles it (6); an enemy Twist Band holder gains (12); Big Eater Belt changes nothing; DEF floors at 0; no timer or restore is installed."
   ],
   "evidence": [
    {
@@ -417,6 +417,20 @@
     "expect": "skill = Ability.SCREECH",
     "note": "unit class block"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T195151Z",
+   "reason": "no timer or restore installed; permanent=false is not a timed debuff",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

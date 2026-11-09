@@ -62,7 +62,7 @@
     "st-super"
    ]
   },
-  "summary": "Single-target: the cast target is Paralysed and Silenced for the same requested duration (raw table 3000 / 5000 / 8000 / 16000 ms by caster stars: HIPPOPOTAS 3000, HIPPODOWN 5000) and then takes special damage (raw table 10 / 20 / 40 / 80: HIPPOPOTAS 10, HIPPODOWN 20). Order in the strategy: paralysis, silence, damage. Neither status duration is AP-scaled (triggerParalysis is called without apBoost; triggerSilence has no AP parameter) and neither depends on crit. Statuses are applied independently of the damage result, so a protected / skydiving / magicBounce target still gets both (subject to Rune Protect, IMMUNITY_PARALYSIS, and the Tree flag for silence). Requested duration/damage, applied duration (after weather and duration reductions, and the keep-the-larger timer rule) and the damage returned as takenDamage (shield damage included, unused here) are different amounts. No heal, PP gain or shield is part of this ability, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "summary": "Single-target: the cast target is Paralysed and Silenced for the same requested duration (raw table 3000 / 5000 / 8000 / 16000 ms by caster stars: HIPPOPOTAS 3000, HIPPODOWN 5000) and then takes special damage (raw table 10 / 20 / 40 / 80: HIPPOPOTAS 10, HIPPODOWN 20). Order in the strategy: paralysis, silence, damage. Neither status duration is AP-scaled (triggerParalysis is called without apBoost; triggerSilence has no AP parameter) and neither depends on crit. The two statuses are ATTEMPTS applied independently of the damage result, so a protected / skydiving / magicBounce target still receives both (executed: the damage is blocked, both statuses are stored), subject to their separate guards - Rune Protect refuses both, IMMUNITY_PARALYSIS only the paralysis, the tree flag only the silence - and they are not guaranteed to persist: a Cheri Berry holder eats the berry right after a successful paralysis application, which clears the paralysis at once (the silence stays). Requested duration/damage, applied duration (after weather and duration reductions, and the keep-the-larger timer rule) are different amounts (executed: STORM stores paralysis 3900 and MURKY silence 3900 for a 3000 request; target HYDRATION stores 1500; paralysis is rounded when stored, silence is not); the returned takenDamage is unused (section J1). No heal, PP gain or shield is part of this ability, so the shared heal rules (core-mechanics.md section J) do not apply.",
   "targeting": {
    "who": "the caster's cast target only",
    "needsTarget": true,
@@ -151,7 +151,7 @@
      "HIPPODOWN": 20
     },
     "scaling": "requested = 10 (HIPPOPOTAS) / 20 (HIPPODOWN). Applied: x(1 + caster AP/100) (apBoost default true); crit factor 1 + (critPower - 1) x reduction only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false)",
-    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the target is protected, skydiving or has magicBounce (magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, includes shield damage, unused here). Damage is dealt last, after both statuses.",
+    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the target is protected, skydiving or has magicBounce (magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef), armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; the returned takenDamage is unused (section J1). Damage is dealt last, after both statuses.",
     "evidence": [
      "st-dmg",
      "st-hsd",
@@ -192,11 +192,19 @@
       "3": 8000,
       "4": 16000
      },
-     "label": "raw requested duration"
+     "label": "raw requested duration",
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     },
+     "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit: apBoost is left at its default false, so no (1 + AP/100) factor",
     "applicationOrder": "first, before silence and the damage",
-    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then the target's duration reductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each, rounded). Timer rule: `if (duration > paralysisCooldown) paralysisCooldown = round(duration)`, the larger of the remaining time and the new reduced request. A CHERI_BERRY holder eats the berry after a successful application.",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ count of the target's player) if any; then the target's duration reductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, ODD_KEYSTONE -10% each, rounded). Timer rule: `if (duration > paralysisCooldown) paralysisCooldown = round(duration)`, the larger of the remaining time and the new reduced request. A CHERI_BERRY holder eats the berry after a successful application: eatBerry calls status.healParalysis (the paralysis is cleared immediately), adds IMMUNITY_PARALYSIS, and requests heal(50) and addAttack(10) - so a successful attempt need not leave paralysis active (executed with a stand-in healParalysis).",
     "resolution": "Requested vs applied: applied duration is the table value after the weather and reduction steps and the keep-the-larger rule.",
     "combatEffect": "a paralysed unit uses half speed for its attack cooldown and movement speed, and cannot dodge basic attacks. Other uses of status.paralysis were not read here (see the ZAP_CANNON candidate).",
     "evidence": [
@@ -241,7 +249,15 @@
       "3": 8000,
       "4": 16000
      },
-     "label": "raw requested duration"
+     "label": "raw requested duration",
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 8000,
+      "4": 16000,
+      "fallback": 16000
+     },
+     "unit": "ms (requested)"
     },
     "scaling": "none: triggerSilence has no apBoost parameter, no AP or crit factor",
     "applicationOrder": "second, after paralysis and before the damage",
@@ -319,7 +335,7 @@
    "The SAND_STREAM passive is a separate identifier and is not covered",
    "Whether the listed units ever reach a different star count than the bare factory value",
    "Consulted for helpers: core-mechanics.md sections A and H, ZAP_CANNON candidate (paralysis), NIGHT_DAZE candidate (damage); no heal / PP / shield helper is involved",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerParalysis, triggerSilence, applyStatusDurationReductions, handleSpecialDamage, the Cheri Berry case) and the real SandTombStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: order paralysis, silence, damage; Rune Protect / IMMUNITY_PARALYSIS / tree guards separately; protected target still receives both statuses; STORM, MURKY and HYDRATION change the stored durations; a longer remaining timer is kept; a Cheri Berry holder ends without paralysis."
   ],
   "evidence": [
    {
@@ -806,6 +822,20 @@
     "expect": "skill = Ability.SAND_TOMB",
     "note": "unit class block"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T195151Z",
+   "reason": "statuses are attempts (Cheri Berry can clear paralysis at once), separate guards, stored durations differ from requests",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

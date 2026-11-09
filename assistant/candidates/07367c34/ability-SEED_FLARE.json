@@ -62,7 +62,7 @@
     "sf-super"
    ]
   },
-  "summary": "Large area around the CASTER (not the target): every enemy within radius 5 of the caster (strict squared distance < 30.25, caster cell excluded; clipped to the board) first has addSpecialDefense(spDefDebuff, caster, 0, false) called, then takes special damage. Raw tables by caster stars: damage 20 / 25 / 30 / 35 / 70 (SHAYMIN at 3 stars 30, SHAYMIN_SKY at 4 stars 35); SPE_DEF change -3 / -3 / -3 / -3 / -6 (-3 for both listed units). The debuff is called with apBoost 0 and crit false, so addSpecialDefense does not scale it by AP or crit (Math.round of the raw value); the damage is scaled normally by AP and, only with ABILITY_CRIT, by crit. Order per victim: debuff first, damage second, so the damage is computed against the already reduced SPE_DEF (SPE_DEF is floored at 0 by the adder). Helpers: Big Eater Belt does nothing for an enemy holder (it scales positive values and negatives from the holder's own team only); Twist Band flips a negative value from another team, so an enemy Twist Band holder gains +3 SPE_DEF instead of losing 3, and then takes the damage against the higher SPE_DEF. The change is not permanent (permanent false) and no restore step exists in the strategy. Requested damage (table), applied damage (after AP, crit, defenses, floor of 1) and the unused returned takenDamage (shield damage included) are three different amounts. No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
+  "summary": "Large area around the CASTER (not the target): every enemy within radius 5 of the caster (strict squared distance < 30.25, caster cell excluded; clipped to the board) first has addSpecialDefense(spDefDebuff, caster, 0, false) called, then takes special damage. Raw tables by caster stars: damage 20 / 25 / 30 / 35 / 70 (SHAYMIN at 3 stars 30, SHAYMIN_SKY at 4 stars 35); SPE_DEF change -3 / -3 / -3 / -3 / -6 (-3 for both listed units). The debuff is called with apBoost 0 and crit false, so addSpecialDefense does not scale it by AP or crit (Math.round of the raw value); the damage is scaled normally by AP and, only with ABILITY_CRIT, by crit. Order per victim: debuff first, damage second, so the damage is computed against the already reduced SPE_DEF (SPE_DEF is floored at 0 by the adder). Helpers: Big Eater Belt does nothing for an enemy holder (it scales positive values and negatives from the holder's own team only); Twist Band flips a negative value from another team, so an enemy Twist Band holder gains +3 SPE_DEF instead of losing 3, and then takes the damage against the higher SPE_DEF. The change is not permanent (permanent false) and no restore step exists in the strategy. Requested damage (table) and applied damage (after AP, crit, defenses, floor of 1) differ; the returned takenDamage is unused (section J1). The radius-5 disc is clipped to the board and is not the whole board: from a corner cell such as (0,0) the cells (6,0) and (5,3) are outside (executed). No heal, PP gain or shield is involved, so the shared heal rules (core-mechanics.md section J) do not apply.",
   "targeting": {
    "who": "all enemies within radius 5 of the caster",
    "needsTarget": true,
@@ -138,7 +138,7 @@
      "SHAYMIN_SKY": 35
     },
     "scaling": "requested = 30 (SHAYMIN) / 35 (SHAYMIN_SKY). Applied: x(1 + caster AP/100) (apBoost default true); crit factor 1 + (critPower - 1) x reduction only if the cast crit (needs ABILITY_CRIT; canCritByDefault is false)",
-    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the victim is protected, skydiving or has magicBounce (the SPE_DEF change was already applied by then; magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef) using the victim's SPE_DEF AFTER the debuff, armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; takenDamage (returned, includes shield damage, unused here). Each victim takes the full amount (no split).",
+    "resolution": "handleSpecialDamage returns {death:false, takenDamage:0} and deals nothing when the victim is protected, skydiving or has magicBounce (the SPE_DEF change was already applied by then; magicBounce reflects damage x star factor to the caster unless it holds Protective Pads). Otherwise PokemonState.handleDamage: special damage / (1 + ARMOR_FACTOR x speDef) using the victim's SPE_DEF AFTER the debuff, armorReduction halves speDef, minimum 1 after Math.ceil, shield absorbs first, enraged attacker multiplier. Three amounts: requested = table; applied = after AP / crit / defense / floor of 1; the returned takenDamage is unused (section J1). Each victim takes the full amount (no split).",
     "applicationOrder": "second",
     "evidence": [
      "sf-dmg",
@@ -206,7 +206,7 @@
    "The SHAYMIN and ZENITH passives are separate identifiers and may change AP, stars or stats; not covered",
    "Whether the listed units ever reach a different star count than the bare factory value",
    "Consulted for helpers: core-mechanics.md sections A, H, I; the addSpecialDefense / applyBigEaterBeltStatBuff / applyTwistBandBuff definitions in pokemon-entity.ts; KING_SHIELD candidate; no heal / PP / shield helper is involved",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (getCellsInRadius, addSpecialDefense, the Belt and Twist helpers, handleSpecialDamage) and the real SeedFlareStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (caster (0,0), 3 stars): the SPE_DEF change (-3) precedes the damage request per victim (the recorder sees 7), AP and crit do not scale it, a Twist Band holder gains (13), SPE_DEF floors at 0; cells at squared distance 36 and 34 are untouched while 29 and 25 are inside."
   ],
   "evidence": [
    {
@@ -561,6 +561,20 @@
     "expect": "skill = Ability.SEED_FLARE",
     "note": "unit class block (stars 4, passive ZENITH)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T195151Z",
+   "reason": "radius-5 clipped disc, not whole board; SPE_DEF change precedes damage",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

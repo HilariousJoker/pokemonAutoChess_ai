@@ -384,6 +384,35 @@ const ARTIFACT = /(?:\braw|Guards:|Order:|Scaling:|Resolution:|duration|Combat e
   }
   check(`all ${bound} bound keys of the catch-up cycle 1 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 10 && problems.length === 0, problems.join("; "))
 }
+// ---- catch-up cycle 2 (SAND_TOMB, SCREECH, SEED_FLARE, SHADOW_SNEAK, SHEER_COLD): all ten unit bindings; key corrected facts; missing-value artifacts by pattern ----
+{
+  const clean2 = (r) => !ARTIFACT.test(r.out)
+  const only2 = (r, ability) => [...r.out.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1]).join() === ability
+  const c2 = (r, ability) => r.code === 0 && clean2(r) && lacks(r, "candidate is source reading", "not stored by this strategy") && has(r, "Evidence: source reading, mechanical checks and executed probes", "were NOT executed", `record \`abilities.${ability}\``) && only2(r, ability)
+  const aiScoped = (r, ability) => has(r, `### Source-traced: ${ability} (independent AI source review by Codex recorded; project-owner review pending`, "Not a review of the final imported copy", "not a project-owner review; not gameplay-tested") && lacks(r, `### Reviewed: ${ability}`)
+  for (const [unit, ab, stars, raw, bits] of [
+    ["HIPPOPOTAS", "SAND_TOMB", 1, 3000, ["right after a successful paralysis application", "SAND_STREAM"]], ["HIPPODOWN", "SAND_TOMB", 2, 5000, ["not guaranteed to persist"]],
+    ["KRICKETOT", "SCREECH", 1, -2, ["installs no timer and no restore step"]], ["KRICKETUNE", "SCREECH", 2, -4, ["Twist Band"]],
+    ["SHAYMIN", "SEED_FLARE", 3, -3, ["not the whole board"]], ["SHAYMIN_SKY", "SEED_FLARE", 4, -3, ["Requested damage (table) and applied damage"]],
+    ["MIMIKYU", "SHADOW_SNEAK", 3, 50, ["so a TRUE hit is not reflected (executed)"]], ["MIMIKYU_BUSTED", "SHADOW_SNEAK", 3, 50, ["protect, skydiving and magicBounce block the request (returned 0) for TRUE as well"]],
+    ["SNOVER", "SHEER_COLD", 1, 50, ["Math.max(0, x)"]], ["ABOMASNOW", "SHEER_COLD", 2, 100, ["9999 is a requested amount".replace("9999 is a requested amount", "requested amount, not a guaranteed kill")]]]) {
+    r = run(unit)
+    check(`${unit}: ${ab} ${stars}★ raw ${raw}; corrected wording present; Codex's AI review scoped to the original draft inspection (not the final copy), not owner-reviewed or gameplay-tested; no missing-value artifact`, c2(r, ab) && aiScoped(r, ab) && has(r, `this unit (${stars}★): **raw ${raw}`, `Unit facts: ${unit} is ${stars}★`.slice(0, 0), ...bits), r.err || r.out.slice(0, 200))
+  }
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD"]) for (const u of reu.abilities[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    const headers = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (headers.join() !== n) problems.push(`${u.key}: headers ${headers.join()}`)
+    if (!o.includes(`${u.key} is ${u.stars}★, maxPP ${u.maxPP}, range ${u.range}`)) problems.push(`${u.key}: unit facts`)
+    if (!/this unit(?: \(\d★\))?: \*\*raw /.test(o)) problems.push(`${u.key}: no per-unit raw value`)
+    if (ARTIFACT.test(o)) problems.push(`${u.key}: artifact`)
+    if (!/not in the evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+  }
+  check(`all ${bound} bound keys of the catch-up cycle 2 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 10 && problems.length === 0, problems.join("; "))
+}
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
@@ -500,9 +529,9 @@ r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
 check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
 {
   const shipped = rd2("review-status.json")
-  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER"]
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER", "SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD"]
   check("shipped review-status.json: the imported passives DRUMMER and WATER_SPRING are unreviewed with Codex's scoped AI review, projectOwnerReviewed=false, gameplayTested=false", ["DRUMMER", "WATER_SPRING"].every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#passives.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
-  check("shipped review-status.json: the fifty-nine imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+  check("shipped review-status.json: the sixty-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)

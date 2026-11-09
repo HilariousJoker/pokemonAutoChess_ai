@@ -61,7 +61,7 @@
     "as-gate"
    ]
   },
-  "summary": "Single-target hit on the cast target: raw 25/40/50/100 by caster stars (both listed units are 3 stars, so 50). If the target has status.silence the damage type is TRUE (skips the SPE_DEF division and the damage-reduction items/effects), otherwise SPECIAL. The raw amount goes through handleSpecialDamage, so AP scales it by (1 + AP/100) and the cast's crit flag adds the crit factor only if the cast crit (needs ABILITY_CRIT). The returned takenDamage is ignored: no heal, no status.",
+  "summary": "Single-target hit on the cast target: raw 25/40/50/100 by caster stars (both listed units are 3 stars, so 50). If the target has status.silence the damage type is TRUE (skips the SPE_DEF division and the damage-reduction items/effects), otherwise SPECIAL. The raw amount goes through handleSpecialDamage, so AP scales it by (1 + AP/100) and the cast's crit flag adds the crit factor only if the cast crit (needs ABILITY_CRIT). A silenced target's TRUE hit still goes through handleSpecialDamage, so protect, skydiving and magicBounce block the request (returned 0) for TRUE as well; the magicBounce reflection branch is SPECIAL-only, so a TRUE hit is not reflected (executed). The returned takenDamage is ignored (section J1 lists its exceptions): no heal, no status.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -97,7 +97,7 @@
      "MIMIKYU_BUSTED": 50
     },
     "scaling": "requested = raw x (1 + AP/100) (apBoost defaults true in handleSpecialDamage) [x (1 + (critPower - 1) x critReductionFactor) if the cast crit; Rocky Helmet negation applies only when the type is not TRUE, Black Augurite reduction likewise]. Other factors inside handleSpecialDamage (DOUBLE_DAMAGE, STRANGE_STEAM_BOARD_EFFECT x1.2) apply to either type.",
-    "resolution": "SPECIAL: divided by (1 + ARMOR_FACTOR x SPE_DEF) (armorReduction halves SPE_DEF, WONDER_ROOM swaps DEF and SPE_DEF), then damage-reduction items/effects, ceil, minimum 1, shield step. TRUE: reducedDamage = damage, the division and the reduction items/effects are skipped, but ceil, minimum 1 and the shield step still apply. A target with protect, skydiving or magicBounce takes 0 (magicBounce reflects only for SPECIAL type, so a silenced target's TRUE hit is not bounced). Power Lens retaliation only fires for SPECIAL. takenDamage (shield part plus HP lost) is returned and discarded by this strategy; see knowledge core-mechanics section J.",
+    "resolution": "SPECIAL: divided by (1 + ARMOR_FACTOR x SPE_DEF) (armorReduction halves SPE_DEF, WONDER_ROOM swaps DEF and SPE_DEF), then damage-reduction items/effects, ceil, minimum 1, shield step. TRUE: reducedDamage = damage, the division and the reduction items/effects are skipped, but ceil, minimum 1 and the shield step still apply. A target with protect, skydiving or magicBounce takes 0 (magicBounce reflects only for SPECIAL type, so a silenced target's TRUE hit is not bounced). Power Lens retaliation only fires for SPECIAL. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
     "evidence": [
      "ss-dmg",
      "ss-type",
@@ -125,7 +125,7 @@
     "MIMIKYU": 50,
     "MIMIKYU_BUSTED": 50
    },
-   "note": "indexed by the casting entity's stars; the 1/2/4-star values (25, 40, 100) are not reachable by these units' bare star counts.",
+   "note": "indexed by the casting entity's stars; the 1 / 2 / 4-star values (25, 40, 100) are declared in the table but unused by the two bound baseline classes.",
    "evidence": [
     "ss-dmg"
    ]
@@ -151,7 +151,7 @@
    "Whether any item or synergy effect changes SHADOW_SNEAK beyond the generic handleSpecialDamage steps read",
    "Units not listed in appliesTo that might share the identifier are not covered",
    "The MIMIKYU / MIMIKYU_BUSTED passives were not read for this record and may interact with silence or damage",
-   "No probe was run; source reading only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage (block guards, SPECIAL-only Magic Bounce branch), handleDamage) and the real ShadowSneakStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (raw 50, speDef 0): SPECIAL normally, TRUE on a silenced target; protect / skydiving / magicBounce return 0 for TRUE too; a TRUE hit queues no reflection while a SPECIAL hit on a magicBounce target queues one unless the attacker holds Protective Pads."
   ],
   "evidence": [
    {
@@ -396,6 +396,20 @@
     "expect": "if (pokemon.shield > 0) {",
     "note": "shield absorbs part of the damage"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T195151Z",
+   "reason": "TRUE hit still blocked by protect/skydiving/magicBounce and not reflected",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
