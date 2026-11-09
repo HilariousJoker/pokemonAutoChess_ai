@@ -62,7 +62,7 @@
     "rsm-super"
    ]
   },
-  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by the caster's stars) to the cast target, then applies armor reduction to that target for 3000/6000/9000/18000 ms (requested). While armor reduction lasts, the target's DEF and SPE_DEF are halved (Math.round(x/2)) inside later damage calculations. The status is applied AFTER the damage call, so this cast's own damage uses the target's normal SPE_DEF. The application is refused if the target has Rune Protect; the damage is not affected by that refusal, and the status call is not blocked by protect.",
+  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by the caster's stars) to the cast target, then applies armor reduction to that target for 3000/6000/9000/18000 ms (requested). While armor reduction lasts, the target's DEF and SPE_DEF are halved (Math.round(x/2)) inside later damage calculations. The status is applied AFTER the damage call, so this hit does not benefit from its own new armor reduction; an armor reduction that is ALREADY active when the damage is dealt DOES halve the target's SPE_DEF for this hit (executed: raw 25 vs SPE_DEF 20 gives 13 when fresh and 17 when already active). The application is refused if the target has Rune Protect; the damage is not affected by that refusal, and the status call is not blocked by protect.",
   "targeting": {
    "who": "damage and status: the cast target",
    "needsTarget": true,
@@ -99,7 +99,7 @@
      "ARCHEOPS": 50
     },
     "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record.",
-    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
     "evidence": [
      "rsm-table",
      "rsm-hit",
@@ -145,7 +145,8 @@
      "st-ar-upd",
      "st-red",
      "hd-ar"
-    ]
+    ],
+    "combatEffect": "handleDamage uses Math.round(def / 2) and Math.round(speDef / 2) for the target (before a WONDER_ROOM swap), so PHYSICAL and SPECIAL hits taken during the window are divided by smaller defenses. updateArmorReduction counts the cooldown down by dt and clears the flag at 0."
    }
   ],
   "buffs": [],
@@ -163,7 +164,7 @@
     "ARCHEN": 3000,
     "ARCHEOPS": 6000
    },
-   "note": "Both tables are indexed by the casting entity's stars; the 3- and 4-star columns (100 / 200 and 9000 / 18000 ms, also the ?? fallbacks) are not reachable by the two listed units' factory star counts. Whether other mechanics raise a star count was not examined.",
+   "note": "Both tables are indexed by the casting entity's stars; the 3- and 4-star columns (100 / 200 and 9000 / 18000 ms, also the ?? fallbacks) are declared in the tables but unused by the bound baseline classes. Whether other mechanics raise a star count was not examined.",
    "evidence": [
     "rsm-table",
     "rsm-dur",
@@ -173,7 +174,7 @@
   },
   "positionalConditions": "None in the strategy itself.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), deals its damage again and re-applies armor reduction; the remaining time is replaced only when the new duration is longer, so recasts refresh to the full duration but do not add.",
-  "rawVsResolved": "Requested: damage 25 (Archen) / 50 (Archeops); armor reduction 3000 / 6000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF at that moment (not yet halved by this cast), with a minimum of 1; takenDamage includes shield damage and is 0 when the target has protect / skydiving / magicBounce. Applied armor reduction duration = requested after the target's own duration reductions (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER, Odd Keystone); not applied under Rune Protect. No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
+  "rawVsResolved": "Requested: damage 25 (Archen) / 50 (Archeops); armor reduction 3000 / 6000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF at that moment (not yet halved by this cast, but already halved if an armor reduction was active), with a minimum of 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Applied armor reduction duration = requested after the target's own duration reductions (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER, Odd Keystone); not applied under Rune Protect. No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
   "sourceTables": [
    {
     "id": "damage",
@@ -197,11 +198,11 @@
    "Damage resolution after handleDamage's earlier branches (e.g. Shiny Charm, Fossil shield, resurrection, passives, weather and field multipliers) was only partly read: protect, SPE_DEF division, minimum 1 and shield absorption were read; later death handling was not"
   ],
   "unresolved": [
-   "If the target already has armorReduction active (from another source) when the damage is dealt, the halved defenses apply to this cast's damage too; the record describes the usual no-prior-status case",
+   "Executed: an armorReduction already active when the damage is dealt halves the target's defenses for this cast's damage too (13 -> 17); the usual no-prior-status case has no such halving",
    "A Rune-Protect refusal does not prove the target's armorReduction flag is false (see the RAGING_BULL record for the flag/cooldown detail); the flag was not re-traced here",
    "If the damage kills the target or triggers an on-death effect, the following triggerArmorReduction call on the dead target was not traced",
    "Helpers consulted: Status.triggerArmorReduction / updateArmorReduction / applyStatusDurationReductions and the armorReduction branch of PokemonState.handleDamage were read (see evidence); no routing uncertainties are listed for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage, triggerArmorReduction, applyStatusDurationReductions) and the real RockSmashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: order damage then armorReduction with the TARGET as the reduction source (target HYDRATION: 3000 -> 1500); 2 stars request 6000."
   ],
   "evidence": [
    {
@@ -512,6 +513,20 @@
     "expect": "skill = Ability.ROCK_SMASH",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T194233Z",
+   "reason": "own hit does not use its new armor reduction; an already-active one applies",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

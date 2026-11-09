@@ -99,7 +99,7 @@
      "TYRUNT": 1.2
     },
     "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record. The base figure depends on atk + def at cast time (current values, not the catalog values).",
-    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
     "evidence": [
      "rh-table",
      "rh-hit",
@@ -128,7 +128,7 @@
     "TYRANTRUM": 1.2,
     "TYRUNT": 1.2
    },
-   "note": "The multiplier table (1.2 / 1.2 / 1.5 / 3, fallback 3) is indexed by the casting entity's stars; 1 and 2 stars share 1.2, so Tyrunt and Tyrantrum differ only in their atk and def. The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "note": "The multiplier table (1.2 / 1.2 / 1.5 / 3, fallback 3) is indexed by the casting entity's stars; 1 and 2 stars share 1.2, so Tyrunt and Tyrantrum differ only in their atk and def. The 3- and 4-star columns are declared in the tables but unused by the bound baseline classes.",
    "evidence": [
     "rh-table",
     "unit-tyrantrum",
@@ -137,7 +137,7 @@
   },
   "positionalConditions": "None in the strategy itself.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0) and deals its damage again, recomputed from the then-current atk and def.",
-  "rawVsResolved": "Requested: round(1.2 x (atk + def)) for both listed units, from the caster's current atk and def. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1; takenDamage includes shield damage (and with flinch half goes to the shield) and is 0 when the target has protect / skydiving / magicBounce. No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
+  "rawVsResolved": "Requested: round(1.2 x (atk + def)) for both listed units, from the caster's current atk and def. Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). No heal, PP gain or shield is involved (shared helper reference: knowledge core-mechanics.md section J).",
   "sourceTables": [
    {
     "id": "multiplier",
@@ -156,8 +156,8 @@
   "unresolved": [
    "The catalog atk and def of the two units are starting values; the real figure uses atk and def at cast time, which items, synergies and earlier buffs change (not enumerated here)",
    "The damage is computed before handleSpecialDamage; if the target has protect / skydiving / magic bounce the damage is blocked (magic bounce may redirect SPECIAL damage; that branch was not traced) and the ability has no other effect",
-   "Helpers consulted: handleSpecialDamage and the SPE_DEF, shield and takenDamage steps of PokemonState.handleDamage were read (see evidence); no routing uncertainties are listed for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Helpers consulted: handleSpecialDamage and the SPE_DEF and shield steps of PokemonState.handleDamage were read (the returned takenDamage is unused by this ability; its exceptions are in core-mechanics.md section J1) (see evidence); no routing uncertainties are listed for this record",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real RockHeadStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target, speDef 0): request round(1.2 x (30 + 20)) = 60 (1 star), round(1.5 x 50) = 75 (3 stars), apBoost true, AP 100 doubles the applied figure (120), a caster armor-reduction status changes nothing."
   ],
   "evidence": [
    {
@@ -402,6 +402,20 @@
     "expect": "skill = Ability.ROCK_HEAD",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T194233Z",
+   "reason": "unused returned-damage identity replaced by a section J pointer",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

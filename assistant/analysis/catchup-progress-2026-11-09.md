@@ -8,10 +8,10 @@
 
 | Cycle | Status | Records | Checkpoint commit | Notes |
 |---|---|---|---|---|
-| 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 60 / 221) | commit 'Checkpoint cycle 0: ...' (hash recorded in the next checkpoint) | lock `run-20261109T193909Z` released; validate, FAST and production suites, probe, automation, inventory, queue checks passed |
-| 1 | not started | – | – | – |
+| 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 60 / 221) | `6d6d2014bdcb879b7bbccf255a4ce7716378d641` | lock `run-20261109T193909Z` released; validate, FAST and production suites, probe, automation, inventory, queue checks passed |
+| 1 | complete (checks pending at write time; see commit) | RAPID_SPIN, REFLECT, ROCK_HEAD, ROCK_SMASH, ROCK_WRECKER imported (65 / 231 expected) | commit 'Checkpoint cycle 1: ...' | lock `run-20261109T194233Z`; ROCK_WRECKER flinch-reduction blocker fixed; REFLECT / ROCK_SMASH / ROCK_WRECKER statusEffects normalised (reopened a second time within the run) |
 | 2 | not started | – | – | – |
 | 3 | not started | – | – | – |
 | 4 | not started | – | – | – |
 
-Next unfinished cycle: 1.
+Next unfinished cycle: 2.

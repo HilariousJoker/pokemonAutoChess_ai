@@ -62,7 +62,7 @@
     "rs-super"
    ]
   },
-  "summary": "Deals SPECIAL damage (raw 20/50/100/200 by the caster's stars) to the cast target, then gives the caster +DEF and +SPE_DEF of the same requested size, Math.round(0.5 x the caster's current atk at cast time), a value that grows with atk rather than a star table. The buff goes to the caster itself and is not conditioned on the damage result; AP/crit rounding and a held Big Eater Belt are applied afterwards by the stat adders (Twist Band cannot change a positive self buff).",
+  "summary": "Deals SPECIAL damage (raw 20/50/100/200 by the caster's stars) to the cast target, then gives the caster +DEF and +SPE_DEF of the same requested size, Math.round(0.5 x the caster's current atk at cast time), a value that grows with atk rather than a star table. The buff amount is sampled BEFORE the damage call (atk is read once, so a change of atk during or after the hit does not alter it) and the buffs are unconditional: they are made whether the damage call dealt damage or returned 0. The ability never reads the damage call's returned value; AP/crit rounding and a held Big Eater Belt are applied afterwards by the stat adders (Twist Band cannot change a positive self buff).",
   "targeting": {
    "who": "damage: the cast target; buffs: the caster itself",
    "needsTarget": true,
@@ -100,7 +100,7 @@
      "PHANPY": 20
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT); other damage multipliers inside handleSpecialDamage were not re-read for this record.",
-    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers; handleDamage then applies attacker / field / weather multipliers, halves def / speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and the target's shield absorbs first. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
     "evidence": [
      "rs-table",
      "rs-hit",
@@ -174,7 +174,7 @@
     "DONPHAN": 50,
     "PHANPY": 20
    },
-   "note": "Only the damage table (20/50/100/200, fallback 200) is indexed by the caster's stars; the 3- and 4-star columns are not reachable by the two listed units' factory star counts (whether other mechanics raise stars was not examined). The buff has no star table: it follows the caster's atk.",
+   "note": "Only the damage table (20/50/100/200, fallback 200) is indexed by the caster's stars; the 3- and 4-star columns are declared in the tables but unused by the bound baseline classes (whether other mechanics raise stars was not examined). The buff has no star table: it follows the caster's atk.",
    "evidence": [
     "rs-table",
     "rs-buff",
@@ -184,7 +184,7 @@
   },
   "positionalConditions": "None in the strategy itself.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), deals its damage again and adds another DEF and SPE_DEF gain on top (additive, within the fight); the amount is recomputed from atk at each cast.",
-  "rawVsResolved": "Requested: damage 20 (1 star) / 50 (2 stars); DEF and SPE_DEF each +Math.round(0.5 x current atk). Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage and is 0 when the target has protect / skydiving / magicBounce. Applied buff = requested after a second Math.round with AP and crit, then Big Eater Belt (x1.25 rounded down) if held; Twist Band cannot apply to a positive self buff; the stat is floored at 0 by min(0). Final values additionally depend on untraced item and field effects. The shared-helper reference is knowledge core-mechanics.md section J; no heal, PP gain or shield is involved.",
+  "rawVsResolved": "Requested: damage 20 (1 star) / 50 (2 stars); DEF and SPE_DEF each +Math.round(0.5 x current atk). Applied damage = requested x (1 + AP/100) x optional crit multiplier, then reduced by the target's SPE_DEF with a minimum of 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Applied buff = requested after a second Math.round with AP and crit, then Big Eater Belt (x1.25 rounded down) if held; Twist Band cannot apply to a positive self buff; the stat is floored at 0 by min(0). Final values additionally depend on untraced item and field effects. The shared-helper reference is knowledge core-mechanics.md section J; no heal, PP gain or shield is involved.",
   "sourceTables": [
    {
     "id": "damage",
@@ -205,7 +205,7 @@
    "The buffs are applied even if the damage was blocked (protect / skydiving / magic bounce): they are not conditioned on the damage result",
    "The buff size depends on the caster's atk at cast time, which other mechanics (items, synergies, earlier buffs) change; those sources were not enumerated for this record",
    "Helpers consulted: addDefense / addSpecialDefense, applyBigEaterBeltStatBuff and applyTwistBandBuff in pokemon-entity.ts were read (see evidence); no routing uncertainties are listed for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addDefense, addSpecialDefense, applyBigEaterBeltStatBuff, handleSpecialDamage) and the real RapidSpinStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (caster atk 14): buff round(0.5 x 14) = 7 raises def and speDef from 10 to 17; the buff is unchanged when a stand-in damage call changes atk or returns 0; AP 100 -> 24; Big Eater Belt -> 18."
   ],
   "evidence": [
    {
@@ -527,6 +527,20 @@
     "expect": "pokemon.addSpecialDefense(buffAmount, pokemon, 1, crit)",
     "note": "self SPE_DEF buff, apBoost 1, crit flag passed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T194233Z",
+   "reason": "atk sampled before the damage, unconditional buffs, generic damage-return prose qualified",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

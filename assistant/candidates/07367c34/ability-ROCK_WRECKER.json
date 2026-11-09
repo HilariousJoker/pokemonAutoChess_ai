@@ -62,7 +62,7 @@
     "rw-super"
    ]
   },
-  "summary": "In this order: (1) the cast target gets flinch for 2000 ms (requested, no star scaling); (2) it takes SPECIAL damage (raw 80/160/320/640 by the caster's stars), so the flinch is already active when the damage resolves: if the target has a shield, only half of the reduced damage (rounded up) goes to the shield and the other half (rounded up) goes to HP; (3) the CASTER gets fatigue for 4000 ms (requested, no AP scaling), which halves the caster's positive PP gains (rounded) while it lasts. Both statuses are refused by Rune Protect on their holder and are not blocked by protect; the damage is.",
+  "summary": "In this order: (1) the cast target gets flinch for 2000 ms (requested, no star scaling; the guard is the target's Rune Protect, while the duration reductions come from the CASTER because the strategy passes the caster to triggerFlinch); (2) it takes SPECIAL damage (raw 80/160/320/640 by the caster's stars), so the flinch is already active when the damage resolves: if the target has a shield, the first split puts ceil(50 %) of the reduced damage on the shield and ceil(50 %) as residual, but shield overflow joins the residual and an attacker's Protective Pads double the shield part first, so the final HP / shield loss can differ from a simple 50 / 50 split (executed: reduced 80, shield 30 -> HP loses 50; with Pads 90); (3) the CASTER gets fatigue for 4000 ms (requested, no AP scaling), which halves the caster's positive PP gains (rounded) while it lasts. Both statuses are refused by Rune Protect on their holder and are not blocked by protect; the damage is. The caster's fatigue duration likewise takes the caster's own reductions.",
   "targeting": {
    "who": "flinch and damage: the cast target; fatigue: the caster itself",
    "needsTarget": true,
@@ -100,7 +100,7 @@
      "DWEBBLE": 80
     },
     "scaling": "requested = the table/formula value. handleSpecialDamage: x (1 + AP/100) because apBoost is true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so a crit needs ABILITY_CRIT); other multipliers inside handleSpecialDamage were not re-read for this record.",
-    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). takenDamage = shield damage + HP damage (HP part capped at current hp); 0 if the target has protect / skydiving / magicBounce. Flinch was applied just before, so the shield split described above applies to this hit when the status was accepted.",
+    "resolution": "applied (figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, halves def/speDef first if the target has armorReduction, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first (with flinch, half of the reduced damage goes to the shield and half to HP). The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Flinch was applied just before, so the first shield split applies to this hit when the status was accepted; shield overflow and Protective Pads can then change the final HP / shield loss.",
     "evidence": [
      "rw-table",
      "rw-hit",
@@ -128,15 +128,16 @@
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "first, before the damage",
-    "guards": "refused if the TARGET's status has runeProtect; the refusal neither sets the flag nor cancels the damage. When applied, the duration passes through applyStatusDurationReductions(duration, pkm) where pkm is the entity the strategy supplied, here the TARGET: SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), then each Odd Keystone in the target's player's items a further 10 %. A new application replaces the remaining time only if longer.",
-    "effectWhileActive": "the only combat consumer found in app/core is the shield branch of PokemonState.handleDamage: with a shield, half of the reduced damage goes to the shield and half to HP (both rounded up; the shield-depletion overflow rules still apply). Without a shield, flinch changes nothing there. The curse-vulnerability check in status.ts also reads the flag (not traced).",
+    "guards": "refused if the TARGET's status has runeProtect (the guard is on the receiving status object); the refusal neither sets the flag nor cancels the damage. triggerFlinch(duration, pkm, origin) receives the CASTER as pkm (the strategy calls triggerFlinch(2000, pokemon)), so applyStatusDurationReductions uses the CASTER: caster SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3 (Math.round), then each Odd Keystone of the CASTER's player a further 10 % - a caster with HYDRATION stores 1000 ms, a target with HYDRATION alone still 2000 ms. A new application replaces the stored cooldown only if longer (the flag is set either way).",
+    "effectWhileActive": "the only combat consumer found in app/core is the shield branch of PokemonState.handleDamage: with a shield, the reduced damage is split ceil(50 %) shield / ceil(50 %) residual first; the shield-depletion overflow and Protective Pads (shield part doubled) can then change the final HP / shield loss. Without a shield, flinch changes nothing there. The curse-vulnerability check in status.ts also reads the flag (not traced).",
     "evidence": [
      "rw-flinch",
      "st-fl",
      "st-fl-upd",
      "st-red",
      "hd-flinch"
-    ]
+    ],
+    "combatEffect": "the only combat consumer found in app/core is the shield branch of PokemonState.handleDamage: with a shield, the reduced damage is split ceil(50 %) shield / ceil(50 %) residual first; the shield-depletion overflow and Protective Pads (shield part doubled) can then change the final HP / shield loss. Without a shield, flinch changes nothing there. The curse-vulnerability check in status.ts also reads the flag (not traced)."
    },
    {
     "status": "fatigue",
@@ -155,7 +156,8 @@
      "st-fat-upd",
      "st-red",
      "addpp-fat"
-    ]
+    ],
+    "combatEffect": "PokemonEntity.addPP multiplies positive PP gains by 0.5 while status.fatigue is true (value then rounded; negative values are not halved). The cast's own PP spend (done in the base process before fatigue starts) is not affected. addPP is called by attacks, abilities and items; other PP sources that bypass addPP were not enumerated."
    }
   ],
   "buffs": [],
@@ -169,7 +171,7 @@
     "CRUSTLE": 160,
     "DWEBBLE": 80
    },
-   "note": "Only the damage table (80/160/320/640, fallback 640) is indexed by the casting entity's stars; the flinch (2000 ms) and fatigue (4000 ms) durations are fixed. The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "note": "Only the damage table (80/160/320/640, fallback 640) is indexed by the casting entity's stars; the flinch (2000 ms) and fatigue (4000 ms) durations are fixed. The 3- and 4-star columns are declared in the tables but unused by the bound baseline classes.",
    "evidence": [
     "rw-table",
     "rw-flinch",
@@ -180,7 +182,7 @@
   },
   "positionalConditions": "None in the strategy itself.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), re-applies flinch to the target and fatigue to the caster (remaining time replaced only if longer, so they do not stack) and deals its damage again. Because fatigue halves the caster's positive PP gains for 4000 ms after each cast, the next cast may come later; that timing effect was not simulated.",
-  "rawVsResolved": "Requested: flinch 2000 ms, damage 80 (Dwebble) / 160 (Crustle), fatigue 4000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1; with flinch and a shield the shield takes ceil(50 %) and HP takes ceil(50 %) of the reduced damage; takenDamage includes shield damage and is 0 when the target has protect / skydiving / magicBounce. Applied status durations are the requested ones after the holder's own reductions, and nothing is applied under Rune Protect. Fatigue halves positive PP gains with rounding; it grants no heal or shield (shared helper reference: knowledge core-mechanics.md section J, addPP guards and fatigue rounding).",
+  "rawVsResolved": "Requested: flinch 2000 ms, damage 80 (Dwebble) / 160 (Crustle), fatigue 4000 ms. Applied damage = requested x (1 + AP/100) x optional crit multiplier, reduced by the target's SPE_DEF (halved first by armor reduction) with a minimum of 1; with flinch and a shield the shield takes ceil(50 %) and HP takes ceil(50 %) of the reduced damage. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Applied status durations are the requested ones after the holder's own reductions, and nothing is applied under Rune Protect. Fatigue halves positive PP gains with rounding; it grants no heal or shield (shared helper reference: knowledge core-mechanics.md section J, addPP guards and fatigue rounding).",
   "sourceTables": [
    {
     "id": "damage",
@@ -202,7 +204,7 @@
    "If the damage kills the target or triggers an on-death effect, effects keyed to that were not traced; the caster's fatigue is applied regardless of the damage result",
    "The in-code comment mentions [80,160,SP] damage; the executed table is 80/160/320/640 (the comment is ignored)",
    "Helpers consulted: Status.triggerFlinch / triggerFatigue / applyStatusDurationReductions, the flinch shield branch of PokemonState.handleDamage and the fatigue factor in PokemonEntity.addPP were read (see evidence); no routing uncertainties are listed for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFlinch, triggerFatigue, applyStatusDurationReductions, handleDamage's flinch shield branch) and the real RockWreckerStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: caster HYDRATION -> flinch 1000 ms (fatigue 2000), target HYDRATION alone -> 2000 ms, two caster Odd Keystones -> 1600 ms; target Rune Protect refuses the flinch only; caster Rune Protect refuses the fatigue only; shield 30 -> HP loss 50 (90 with Protective Pads)."
   ],
   "evidence": [
    {
@@ -546,6 +548,20 @@
     "expect": "skill = Ability.ROCK_WRECKER",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T194233Z",
+   "reason": "flinch duration reductions come from the CASTER; shield split with overflow and Protective Pads",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

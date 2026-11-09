@@ -62,7 +62,7 @@
     "rf-super"
    ]
   },
-  "summary": "Self-targeted status cast: the caster gains the reflect status for 3000 ms (stars 1-3; 5000 ms from 4 stars) via Status.triggerReflect. While reflect is active, every PHYSICAL hit it receives is fully negated (takenDamage 0). Unless the attacker holds Protective Pads or the hit is itself a retaliation, the attacker takes SPECIAL damage equal to round(factor x the incoming damage x (1 + the reflector's AP/100) x critPower if the reflector's ABILITY_CRIT roll succeeds), factor 0.5 / 0.75 / 1 / 1.5 by the reflector's stars (so 0.5 for Espurr, 0.75 for Meowstic). No damage is dealt by the cast itself. Recasting while active only extends the timer to the larger value.",
+  "summary": "Self-targeted status cast: the caster gains the reflect status for 3000 ms (stars 1-3; 5000 ms from 4 stars) via Status.triggerReflect. While reflect is active, a PHYSICAL hit that reaches the reflect branch of PokemonState.handleDamage is negated: the function returns death false / takenDamage 0 and nothing is dealt to the reflector. That branch is reached only after the earlier guards - a dead or resurrecting recipient returns first, and protect / skydiving return takenDamage 0 BEFORE it (no reflection in those cases) - and after the attacker-side multipliers. Whether the hit is reflected is a separate question: unless the attacker is absent, holds Protective Pads or the hit is itself a retaliation, the attacker receives, through attacker.handleDamage (not handleSpecialDamage) as SPECIAL damage with isRetaliation true, equal to round(factor x the incoming damage x (1 + the reflector's AP/100) x critPower if the reflector's ABILITY_CRIT roll succeeds), factor 0.5 / 0.75 / 1 / 1.5 by the reflector's stars (so 0.5 for Espurr, 0.75 for Meowstic). No damage is dealt by the cast itself. Recasting while active only extends the timer to the larger value.",
   "targeting": {
    "who": "the caster itself; the cast target is only the generic requiresTarget gate",
    "needsTarget": true,
@@ -131,7 +131,7 @@
      "MEOWSTIC_MALE": 0.75
     },
     "scaling": "reflected = Math.round(factor x damage x (1 + AP/100) x (critPower if reflectCrit)); damage is the incoming physical figure after the enraged / field / weather / Hisuian Typhlosion / Sheer Cold multipliers and BEFORE the defense division; AP and crit are the reflecting unit's own; reflectCrit needs the ABILITY_CRIT effect and a roll of its critChance.",
-    "resolution": "the reflected figure is sent to attacker.handleDamage as SPECIAL, so it is then reduced by the attacker's SPE_DEF (armor reduction halves it), has minimum 1 and can hit a shield. Skipped (nothing reflected) if the attacker holds Protective Pads, or the hit is a retaliation (isRetaliation). In every case the original physical hit returns takenDamage 0 and deals nothing to the reflecting unit. A Human-synergy heal effect from the reflected damage is also triggered (not traced further).",
+    "resolution": "the reflected figure is sent to attacker.handleDamage as SPECIAL, so it is then reduced by the attacker's SPE_DEF (armor reduction halves it), has minimum 1 and can hit a shield. Skipped (nothing reflected) if the attacker holds Protective Pads, or the hit is a retaliation (isRetaliation). For an eligible PHYSICAL hit that reaches the reflect branch, the original hit returns takenDamage 0 and deals nothing to the reflecting unit whether or not a reflection is generated (no-reflection cases: attacker holds Protective Pads, the hit is a retaliation, or there is no attacker); a protect / skydiving / dead / resurrecting recipient returns earlier and also reflects nothing; SPECIAL and TRUE hits are neither negated nor reflected by this branch. The reflection goes to attacker.handleDamage directly, so it does not pass handleSpecialDamage's AP / crit stage; the AP and crit figures are the reflector's own, in the reflect formula. A Human-synergy heal effect from the reflected damage is also triggered (not traced further).",
     "evidence": [
      "hd-reflect",
      "hd-reflect-factor",
@@ -141,7 +141,29 @@
    }
   ],
   "statusEffects": [
-   "reflect on the caster, 3000 ms (stars 1-3) / 5000 ms (4+)"
+   {
+    "status": "reflect",
+    "note": "reflect on the caster, 3000 ms (stars 1-3) / 5000 ms (4+)",
+    "target": "the caster",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 3000,
+      "3": 3000,
+      "4": 5000,
+      "fallback": 5000
+     },
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
+     "ESPURR": 3000,
+     "MEOWSTIC_MALE": 3000
+    },
+    "scaling": "none: no AP scaling and no duration reduction (triggerReflect stores the timer as given)",
+    "applicationOrder": "the only effect of the strategy, after the base PP spend",
+    "guards": "none in triggerReflect (no Rune Protect check); the cooldown only rises, so a longer remaining timer is kept",
+    "combatEffect": "status.reflect makes PokemonState.handleDamage negate PHYSICAL hits that reach its reflect branch and reflect them unless the attacker is absent, holds Protective Pads or the hit is a retaliation (see effects[1])"
+   }
   ],
   "buffs": [],
   "shields": [],
@@ -158,7 +180,7 @@
     "ESPURR": 0.5,
     "MEOWSTIC_MALE": 0.75
    },
-   "note": "The duration table is indexed by the casting entity's stars (3000 for stars 1-3, 5000 from star 4 and as the ?? fallback); the reflect factor table in handleDamage is indexed by the reflecting entity's stars (0.5 / 0.75 / 1 / 1.5). The 3- and 4-star columns are not reachable by the two listed units' factory star counts.",
+   "note": "The duration table is indexed by the casting entity's stars (3000 for stars 1-3, 5000 from star 4 and as the ?? fallback); the reflect factor table in handleDamage is indexed by the reflecting entity's stars (0.5 / 0.75 / 1 / 1.5). The 3- and 4-star columns are declared in the tables but unused by the bound baseline classes.",
    "evidence": [
     "rf-table",
     "hd-reflect-factor",
@@ -196,7 +218,8 @@
    "Interaction with AP: the reflected figure uses the reflector's AP; no AP scaling applies to the duration",
    "Espurr's passive ESPURR is not covered by this record",
    "Helpers consulted: Status.triggerReflect / updateReflect and the reflect branch of PokemonState.handleDamage were read (see evidence); handleDamage's later reduction steps (POKE_DOLL, GUTS and similar blocks) were seen but not analysed for the reflected hit",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "The units' passives (ESPURR declares the ESPURR passive in the catalog) were not reviewed or covered by this record; only the ability is described.",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerReflect, PokemonState.handleDamage (reflect branch and its earlier guards)) and the real ReflectStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in attacker recording the reflected call): 3000 ms stored, a longer remaining timer kept on recast; an eligible 100 hit negated with a SPECIAL retaliation of 50 (1 star) / 75 (2 stars) / 100 at AP 100; Pads and retaliation hits negated without reflection; protect / skydiving / resurrecting / dead recipients return 0 with no reflection; a SPECIAL hit is taken in full."
   ],
   "evidence": [
    {
@@ -430,6 +453,20 @@
     "expect": "skill = Ability.REFLECT",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T194233Z",
+   "reason": "no-reflection cases separate from negation; earlier guards; retaliation via handleDamage",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
