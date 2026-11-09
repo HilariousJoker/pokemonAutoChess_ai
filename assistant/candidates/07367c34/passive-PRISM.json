@@ -1,0 +1,213 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/PRISM",
+ "kind": "passive",
+ "identifier": "PRISM",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T063956Z"
+ },
+ "record": {
+  "passive": "PRISM",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "NECROZMA",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PRISMATIC_LASER",
+    "declaredPassive": "PRISM",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "ULTRA_NECROZMA",
+    "stars": 4,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "PRISMATIC_LASER",
+    "declaredPassive": "PRISM",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "NECROZMA": {
+    "evidence": [
+     "unit-necrozma"
+    ]
+   },
+   "ULTRA_NECROZMA": {
+    "evidence": [
+     "unit-ultra"
+    ]
+   }
+  },
+  "kind": "spotlight-driven form change (OnSpotlightChangeEffect) plus a Shiny Stone item-drop branch; between-fight board effect",
+  "summary": "Passive.PRISM has one PassiveEffects entry, an OnSpotlightChangeEffect, and is also referenced by the Shiny Stone item-drop effect (routing uncertainty ALSO_REFERENCED_ELSEWHERE). NECROZMA (3 stars, LIGHT + PSYCHIC, range 1) and ULTRA_NECROZMA (4 stars, DRAGON + LIGHT + PSYCHIC, range 3) share maxPP 100 and skill PRISMATIC_LASER. The effect runs on the player's board when the spotlight status is evaluated (light change, moving a pokemon, bot/preset setup), not during a fight: a pokemon holding a Shiny Stone is always treated as in the spotlight; a NECROZMA in the spotlight is replaced by ULTRA_NECROZMA through player.transformPokemon, and an ULTRA_NECROZMA that is not in the spotlight is replaced by NECROZMA. inSpotlight is computed by each caller as: the LIGHT synergy is active AND (the unit stands on the light cell OR holds a Shiny Stone). Dropping a Shiny Stone on a PRISM unit transforms it directly to ULTRA_NECROZMA and adds the stone to the new unit. transformPokemon keeps position, carries permanent stats and dishes, re-adds items to the new pokemon (the held items stay), runs onAcquired and recomputes synergies. In the player-facing callers the evaluation requires the LIGHT synergy to be active (hasSynergyActive / hasLightActive); the Shiny Stone only forces the spotlight when the synergy is active in those callers, while the effect itself forces it true whenever the stone is held. Nothing here changes combat numbers directly; the fight-time effect of being in the spotlight (SHINING_RAY and similar tiers) is a separate mechanism not covered. No gameplay claims.",
+  "triggers": [
+   "Player.onLightChange: for each board pokemon",
+   "position change handler in game-commands (a pokemon is moved)",
+   "bot / preset team setup",
+   "Shiny Stone dropped on a PRISM unit (OnItemDroppedEffect)"
+  ],
+  "effects": [
+   {
+    "kind": "necrozma_to_ultra_in_spotlight",
+    "declaredRaw": "NECROZMA -> ULTRA_NECROZMA when in the spotlight",
+    "scaling": "none",
+    "resolution": "replacement through transformPokemon: the new pokemon is created from its class with permanent stats carried over, items re-added; a Shiny Stone in the effect body forces inSpotlight = true even if the caller computed false",
+    "evidence": [
+     "prism-entry",
+     "spotlight-class",
+     "transform",
+     "on-light-change",
+     "position-change",
+     "bot-spotlight",
+     "unit-necrozma",
+     "unit-ultra"
+    ]
+   },
+   {
+    "kind": "ultra_to_necrozma_out_of_spotlight",
+    "declaredRaw": "ULTRA_NECROZMA -> NECROZMA when not in the spotlight",
+    "scaling": "none",
+    "resolution": "same transformPokemon replacement; a Shiny Stone prevents it (inSpotlight forced true in the effect body)",
+    "evidence": [
+     "prism-entry",
+     "transform",
+     "on-light-change"
+    ]
+   },
+   {
+    "kind": "shiny_stone_direct_transform",
+    "declaredRaw": "Shiny Stone dropped on a PRISM unit gives ULTRA_NECROZMA",
+    "scaling": "none",
+    "resolution": "the drop effect transforms the unit and adds the stone to the new pokemon; returns true",
+    "evidence": [
+     "shiny-stone-drop",
+     "transform"
+    ]
+   }
+  ],
+  "conditions": [
+   "The callers compute inSpotlight from the LIGHT synergy being active and the light cell or a held Shiny Stone; the effect adds the Shiny Stone override itself.",
+   "Only the two names NECROZMA and ULTRA_NECROZMA are switched; other PRISM carriers (none listed) are unaffected.",
+   "Runs on the player's board between fights; fight-time bonuses for the spotlight are separate."
+  ],
+  "resetBehaviour": "Re-evaluated every time the light state changes, a pokemon moves, or the stone is dropped; no timers. Whether the form is also re-evaluated at fight start was not traced.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Fight-time spotlight bonuses (PokemonEntity.inSpotlight and the synergy tiers) are separate and were not traced for these units",
+   "When player.onLightChange itself is called (the light cell moves each turn?) was not traced"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: references outside the PassiveEffects entry are the Shiny Stone drop effect (items.ts 1457-1468), player.onLightChange, the position-change handler, bot.ts, PokemonEntity.inSpotlight and the unit classes; locale strings were ignored.",
+   "Where Player.onLightChange is called and what sets lightX / lightY was not read.",
+   "Whether transformPokemon duplicates the Shiny Stone (the drop branch also calls transform.items.add) was not examined beyond the cited lines.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-necrozma",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13083,
+     13096
+    ],
+    "symbol": "Necrozma",
+    "expect": "passive = Passive.PRISM",
+    "note": "NECROZMA: 3 stars, LIGHT + PSYCHIC, maxPP 100, range 1, skill PRISMATIC_LASER"
+   },
+   {
+    "id": "unit-ultra",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     13098,
+     13115
+    ],
+    "symbol": "UltraNecrozma",
+    "expect": "passive = Passive.PRISM",
+    "note": "ULTRA_NECROZMA: 4 stars, DRAGON + LIGHT + PSYCHIC, maxPP 100, range 3, skill PRISMATIC_LASER"
+   },
+   {
+    "id": "prism-entry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1716,
+     1727
+    ],
+    "symbol": "PassiveEffects[Passive.PRISM]",
+    "expect": "player.transformPokemon(pokemon, Pkm.ULTRA_NECROZMA)",
+    "note": "OnSpotlightChangeEffect: Shiny Stone forces inSpotlight true; NECROZMA in the spotlight transforms to ULTRA_NECROZMA, ULTRA_NECROZMA not in the spotlight transforms back to NECROZMA"
+   },
+   {
+    "id": "spotlight-class",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     126,
+     141
+    ],
+    "symbol": "OnSpotlightChangeEffect",
+    "expect": "export class OnSpotlightChangeEffect extends Effect",
+    "note": "applied when a pokemon enters or leaves the spotlight (inSpotlight is an argument supplied by the caller)"
+   },
+   {
+    "id": "shiny-stone-drop",
+    "file": "app/core/effects/items.ts",
+    "lines": [
+     1457,
+     1468
+    ],
+    "symbol": "ItemEffects[Item.SHINY_STONE]",
+    "expect": "const transform = player.transformPokemon(pokemon, Pkm.ULTRA_NECROZMA)",
+    "note": "OnItemDroppedEffect: dropping a Shiny Stone on a PRISM unit transforms it straight to ULTRA_NECROZMA and adds the stone to the new pokemon"
+   },
+   {
+    "id": "on-light-change",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     902,
+     916
+    ],
+    "symbol": "Player.onLightChange",
+    "expect": "pokemon.items.has(Item.SHINY_STONE))",
+    "note": "for each board pokemon: inSpotlight = light active AND (on the light cell OR holds a Shiny Stone); applies every OnSpotlightChangeEffect of the pokemon passive"
+   },
+   {
+    "id": "position-change",
+    "file": "app/rooms/commands/game-commands.ts",
+    "lines": [
+     2491,
+     2520
+    ],
+    "symbol": "onDrop position handling",
+    "expect": "hasLight &&",
+    "note": "when a pokemon is moved, inSpotlight = LIGHT synergy active AND (new cell is the light cell OR Shiny Stone held); OnSpotlightChangeEffect applied"
+   },
+   {
+    "id": "bot-spotlight",
+    "file": "app/core/bot.ts",
+    "lines": [
+     84,
+     116
+    ],
+    "symbol": "bot team setup",
+    "expect": "effect instanceof OnSpotlightChangeEffect",
+    "note": "the bot / preset board setup applies the same spotlight check"
+   },
+   {
+    "id": "transform",
+    "file": "app/models/colyseus-models/player.ts",
+    "lines": [
+     333,
+     352
+    ],
+    "symbol": "Player.transformPokemon",
+    "expect": "carryOverPermanentStats(newPokemon, [pokemon])",
+    "note": "creates the new form, carries permanent stats and dishes, keeps position, moves items to the new pokemon with addItem, runs onAcquired and updates synergies"
+   }
+  ]
+ }
+}
