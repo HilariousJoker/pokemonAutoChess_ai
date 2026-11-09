@@ -1,0 +1,296 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/PSYDUCK",
+ "kind": "passive",
+ "identifier": "PSYDUCK",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T124148Z"
+ },
+ "record": {
+  "passive": "PSYDUCK",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "GOLDUCK",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHOCK",
+    "declaredPassive": "PSYDUCK",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PSYDUCK",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "PSYSHOCK",
+    "declaredPassive": "PSYDUCK",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "GOLDUCK": {
+    "evidence": [
+     "unit-golduck"
+    ]
+   },
+   "PSYDUCK": {
+    "evidence": [
+     "unit-psyduck"
+    ]
+   }
+  },
+  "kind": "on-being-hit confusion plus ability power on confusion (no PassiveEffects entry; logic in PokemonEntity.onHit and Status.triggerConfusion)",
+  "summary": "Passive.PSYDUCK has NO PassiveEffects entry (routing uncertainty NO_PASSIVE_EFFECTS_ENTRY); it is read in two places: PokemonEntity.onHit and Status.triggerConfusion. PSYDUCK (1 star) and GOLDUCK (2 stars) are WATER + PSYCHIC, maxPP 100, range 1, skill PSYSHOCK. (1) When an enemy's basic attack on the holder counts as successful (not dodged and not blocked by protect or skydiving; damage may still be 0), the attacker's onHit gives a chance(0.1, attacker) roll; on success the holder is confused for a requested 3000 ms (origin = holder itself, apBoost false so no AP scaling). The probability is 0.1^(1 - attackerLuck/100), capped at 1, and uses the ATTACKER's luck, not the holder's. (2) Whenever the holder becomes confused through Status.triggerConfusion from any source (this passive, Confusion/other abilities, status transfer), it gains addAbilityPower(100, self, apBoost 0, crit false), not permanent. Guards: triggerConfusion does nothing if the holder is already confused, has runeProtect (the Rune Protect status flag) or IMMUNITY_CONFUSION; no AP is gained in those cases. Applied duration = requested 3000 ms after the duration reductions (Swift Swim 0.7, else Hydration 0.5, else Water Veil / Surge Surfer 0.3, then Odd Keystone 10% per stone); Persim Berry held is eaten right after confusion is set (it clears the confusion but the +100 AP is still given afterwards, because the AP step comes after the berry in the code). Applied AP change: requested 100, Big Eater Belt makes it 125 (x1.25 rounded down; positive self-buff), Twist Band does nothing for a positive value, Nullify Bandanna turns it into +20 attack (round(0.2 x 100)) and no AP; ap is clamped at -100 minimum. While confused the holder targets via getTargetWhenConfused: with chance(0.5, holder) it only picks enemies, otherwise allies and itself are possible targets. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "PokemonEntity.onHit on the ATTACKER: target.passive === Passive.PSYDUCK && chance(0.1, this) -> target.status.triggerConfusion(3000, target, target); onHit is called from PokemonState.attack only when isAttackSuccessful",
+   "Status.triggerConfusion on the holder (any source): pkm.passive === Passive.PSYDUCK -> pkm.addAbilityPower(100, pkm, 0, false)"
+  ],
+  "effects": [
+   {
+    "kind": "status_on_self_when_hit",
+    "status": "confusion",
+    "declaredRaw": "3000 ms, probability 0.1",
+    "scaling": "no AP scaling (apBoost false, origin is the holder); probability uses the attacker's luck: min(1, 0.1^(1 - luck/100))",
+    "resolution": "requested: confusion for 3000 ms on the holder. Applied: only if the attack was successful (not dodged, no protect/skydiving), the holder is not already confused, has no runeProtect and no IMMUNITY_CONFUSION; duration then goes through applyStatusDurationReductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil / Surge Surfer x0.3; Odd Keystone x(1-0.1n)) and Math.round; the sandstorm x1.3 branch is not applied because apBoost is false. A held Persim Berry is eaten at once.",
+    "evidence": [
+     "onhit-trigger",
+     "onhit-call",
+     "attack-success",
+     "chance-fn",
+     "trigger-confusion",
+     "duration-reductions",
+     "persim"
+    ]
+   },
+   {
+    "kind": "buff",
+    "stat": "ABILITY_POWER",
+    "amount": 100,
+    "declaredRaw": "+100 AP each time confusion is applied to the holder",
+    "scaling": "addAbilityPower(100, self, 0, false): no AP or crit scaling; not permanent (entity only, board pokemon unchanged)",
+    "resolution": "requested: +100 AP. Applied: Big Eater Belt x1.25 rounded down -> 125 (positive self-buff), Twist Band no effect on positive values, Nullify Bandanna replaces it with +round(0.2 x 100) = +20 attack and no AP; ap is clamped to >= -100. Given only when triggerConfusion actually applies confusion (not already confused, no runeProtect, no IMMUNITY_CONFUSION); the AP is not removed when confusion ends, and there is no stack limit other than needing a new confusion after the previous one ended.",
+    "evidence": [
+     "trigger-confusion",
+     "add-ap",
+     "belt-twist",
+     "status-transfer"
+    ]
+   },
+   {
+    "kind": "status_effect_on_targeting",
+    "status": "confusion",
+    "declaredRaw": "consequence of the confusion status, not of the passive",
+    "scaling": "none",
+    "resolution": "while confused the holder retargets through getTargetWhenConfused: chance(0.5, holder) -> only enemies at the nearest distance; otherwise allies and the holder itself are also candidates. Confusion ends when confusionCooldown (decreased each status update) reaches 0.",
+    "evidence": [
+     "confused-targeting",
+     "confused-target-fn",
+     "confused-update",
+     "confused-tick"
+    ]
+   }
+  ],
+  "conditions": [
+   "The passive is recognised by entity.passive === Passive.PSYDUCK (both lines are on the Psyduck/Golduck classes only).",
+   "Hit trigger needs a successful basic attack: dodge or protect/skydiving makes isAttackSuccessful false and onHit is not called; abilities and other damage sources do not call onHit (only caller found in PokemonState.attack).",
+   "The AP bonus is tied to any confusion application on the holder, not only to this passive's own roll.",
+   "If the holder is already confused the new application is ignored: no duration refresh and no extra AP."
+  ],
+  "resetBehaviour": "Entity status is built per fight; confusion lasts its (reduced) duration and ends on cooldown, Persim Berry or other cleanse code; gained AP stays for the rest of the fight (no removal found in the code read). Nothing persists to the board pokemon.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Other callers that clear confusion (e.g. cleanse abilities or item effects) were not enumerated beyond Persim Berry and the status update",
+   "Other places that read Passive.PSYDUCK: grep of app/core and app/models found only pokemon-entity.ts:990 and status.ts:831 plus the unit classes"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: PSYDUCK has no PassiveEffects entry; behaviour is inline in onHit and triggerConfusion (read directly, both cited).",
+   "Reading of the AP step: addAbilityPower is called after eatBerry(PERSIM_BERRY) in the same block, so the AP is granted even when Persim clears the confusion at once; not tested.",
+   "Whether the Golduck 2-star and Psyduck 1-star differ in any behaviour: no star-dependent code was found; only base stats differ (not recorded here).",
+   "Whether confusion from transferNegativeStatus is reachable for these units in play was not traced.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-psyduck",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4371,
+     4386
+    ],
+    "symbol": "Psyduck",
+    "expect": "passive = Passive.PSYDUCK",
+    "note": "PSYDUCK: 1 star, WATER + PSYCHIC, maxPP 100, range 1, skill PSYSHOCK"
+   },
+   {
+    "id": "unit-golduck",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     4388,
+     4402
+    ],
+    "symbol": "Golduck",
+    "expect": "passive = Passive.PSYDUCK",
+    "note": "GOLDUCK: 2 stars, WATER + PSYCHIC, maxPP 100, range 1, skill PSYSHOCK"
+   },
+   {
+    "id": "onhit-trigger",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     989,
+     992
+    ],
+    "symbol": "PokemonEntity.onHit",
+    "expect": "target.status.triggerConfusion(3000, target, target)",
+    "note": "in the attacker's onHit, a target whose passive is PSYDUCK is confused for 3000 ms with probability chance(0.1, this); this is the ATTACKER (luck of the attacker), origin and pkm are both the Psyduck-line target, apBoost defaults to false"
+   },
+   {
+    "id": "onhit-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     295,
+     303
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "pokemon.onHit({",
+    "note": "onHit is called on the attacker only when isAttackSuccessful; it is the only caller found (grep for onHit( in app/core)"
+   },
+   {
+    "id": "attack-success",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     93,
+     117
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "isAttackSuccessful = false",
+    "note": "isAttackSuccessful turns false on a dodge (unless XRAY_VISION, LOCK_ON or target paralysed/asleep/frozen/locked) and when the target has status.protect or skydiving"
+   },
+   {
+    "id": "chance-fn",
+    "file": "app/utils/random.ts",
+    "lines": [
+     3,
+     13
+    ],
+    "symbol": "chance",
+    "expect": "Math.pow(probability, 1 - (pokemon?.luck ?? 0) / 100)",
+    "note": "chance(p, pokemon) = Math.random() < min(cap=1, p^(1 - luck/100)); 0 returns false"
+   },
+   {
+    "id": "trigger-confusion",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     806,
+     835
+    ],
+    "symbol": "Status.triggerConfusion",
+    "expect": "pkm.addAbilityPower(100, pkm, 0, false)",
+    "note": "confusion is applied only if not already confused, no runeProtect and no IMMUNITY_CONFUSION; sandstorm x1.3 only when apBoost; then duration reductions; Persim Berry eaten; if pkm.passive is PSYDUCK the confused unit gains addAbilityPower(100) with apBoost 0, crit false, not permanent"
+   },
+   {
+    "id": "duration-reductions",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     1282,
+     1302
+    ],
+    "symbol": "Status.applyStatusDurationReductions",
+    "expect": "Math.round(duration * 0.3)",
+    "note": "SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL or SURGE_SURFER x0.3; then Odd Keystone x(1 - 0.1 per stone)"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     643
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "applyTwistBandBuff(this, value, caster)",
+    "note": "NULLIFY_BANDANNA converts AP into round(0.2 x value) attack instead; otherwise value is scaled (apBoost 0, crit false -> unchanged), passes the Big Eater Belt and Twist Band helpers, then ap = max(-100, ap + value); the permanent flag is false so only the entity changes"
+   },
+   {
+    "id": "belt-twist",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1865
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt multiplies a positive change by 1.25 (rounded down to 0 digits); Twist Band only acts on negative values"
+   },
+   {
+    "id": "confused-update",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     837,
+     844
+    ],
+    "symbol": "Status.updateConfusion",
+    "expect": "this.confusionCooldown -= dt",
+    "note": "confusion ends when the cooldown reaches 0; the target is then cleared"
+   },
+   {
+    "id": "confused-tick",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     259,
+     261
+    ],
+    "symbol": "Status.updateStatus",
+    "expect": "this.updateConfusion(dt, pokemon)",
+    "note": "confusion cooldown is decreased each update while confused"
+   },
+   {
+    "id": "confused-targeting",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     45,
+     46
+    ],
+    "symbol": "AttackingState.updateTarget",
+    "expect": "target = this.getTargetWhenConfused(pokemon, board)",
+    "note": "a confused unit picks its attack target through getTargetWhenConfused"
+   },
+   {
+    "id": "confused-target-fn",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     1302,
+     1335
+    ],
+    "symbol": "PokemonState.getTargetWhenConfused",
+    "expect": "const chanceToBypassConfusion = chance(0.5, pokemon)",
+    "note": "with probability chance(0.5) the confusion is bypassed (enemies only); otherwise allies are also candidates and the unit itself is added to the candidates (it may attack itself)"
+   },
+   {
+    "id": "persim",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1647,
+     1652
+    ],
+    "symbol": "PokemonEntity.eatBerry",
+    "expect": "this.effects.add(EffectEnum.IMMUNITY_CONFUSION)",
+    "note": "Persim Berry clears confusion and its cooldown, adds IMMUNITY_CONFUSION and heals 50"
+   },
+   {
+    "id": "status-transfer",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     177,
+     179
+    ],
+    "symbol": "Status.transferNegativeStatus",
+    "expect": "to.status.triggerConfusion(this.confusionCooldown, to, from)",
+    "note": "transferNegativeStatus re-applies an existing confusion through triggerConfusion on the receiving entity (so a receiving PSYDUCK-line unit would gain the AP)"
+   }
+  ]
+ }
+}
