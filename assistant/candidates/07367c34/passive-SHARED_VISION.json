@@ -1,0 +1,201 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/SHARED_VISION",
+ "kind": "passive",
+ "identifier": "SHARED_VISION",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T124148Z"
+ },
+ "record": {
+  "passive": "SHARED_VISION",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "LATIAS",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "MIST_BALL",
+    "declaredPassive": "SHARED_VISION",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "LATIOS",
+    "stars": 3,
+    "maxPP": 100,
+    "range": 3,
+    "declaredSkill": "LUSTER_PURGE",
+    "declaredPassive": "SHARED_VISION",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "LATIAS": {
+    "evidence": [
+     "unit-latias"
+    ]
+   },
+   "LATIOS": {
+    "evidence": [
+     "unit-latios"
+    ]
+   }
+  },
+  "kind": "on-attack target sharing (OnAttackEffect in PassiveEffects)",
+  "summary": "Passive.SHARED_VISION is registered in PassiveEffects as the single OnAttackEffect SharedVisionEffect (passives.ts:150, 1259). LATIAS (skill MIST_BALL) and LATIOS (skill LUSTER_PURGE) are 3-star UNIQUE DRAGON + PSYCHIC units, maxPP 100, range 3. Whenever a holder performs a basic attack (PokemonState.attack calls onAttack, which runs the attacker's OnAttackEffects; it runs even if the attack is dodged or protected and not for ability casts), every entity on the board that has passive SHARED_VISION and is on the attacker's team copies the attacker's targetX, targetY and targetEntityId, unless the attacker's current target is that very entity (the guard against a confused ally targeting you). The attacker itself is included in the loop, where the copy is a no-op. In practice it makes the other Latias / Latios unit aim at what the attacking one is attacking. No damage, stat, status, PP or heal is involved, so the helper rules (Protect, Rune Protect, Big Eater Belt, Twist Band, takenDamage) do not apply. Whether the copied target is actually used depends on the ally's state on its next update (see conditions). No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "PokemonEntity.onAttack on the holder after its basic attack; SharedVisionEffect is one of the holder's OnAttackEffects (added through changePassive)"
+  ],
+  "effects": [
+   {
+    "kind": "target_sharing",
+    "declaredRaw": "copy targetX, targetY, targetEntityId from the attacking holder to all allied SHARED_VISION holders",
+    "scaling": "none; no AP, star, luck or range scaling",
+    "resolution": "requested = applied: three plain field assignments on each matching ally; guard: pokemon.team === ally.team and pokemon.targetEntityId !== ally.id. Nothing is clamped and no range check is made by this effect itself.",
+    "evidence": [
+     "effect-body",
+     "registry",
+     "on-attack",
+     "on-attack-call",
+     "change-passive",
+     "get-effects",
+     "attack-target",
+     "attack-retarget"
+    ]
+   }
+  ],
+  "conditions": [
+   "Both ally and attacker must have passive SHARED_VISION in the same team; units with the passive acquired by Transform (changePassive) would be treated alike (not traced).",
+   "Triggered by basic attacks only (the only onAttack caller is PokemonState.attack); abilities do not call it.",
+   "The ally uses the copied target only if its own next AttackingState.update reaches the stored-target path: a MERCILESS holder below max PP or a confused ally picks its own target instead, and a charmed ally goes toward moving state.",
+   "When the ally's stored target id equals the copied targetEntityId, the code path read (attacking-state.ts:47) does not re-check the ally's range for that target; whether movement / other states handle range for an ally that is out of range was not traced."
+  ],
+  "resetBehaviour": "Entity targets are per fight and are overwritten on every attack of any holder; the attacking state clears the target on exit (setTarget(null)). No timer or counter.",
+  "dependsOnUnverifiedGenericCombat": [
+   "What the ally does with a copied target in the moving state or when out of range (movement and range checks not read)",
+   "Attack timing of the ally (cooldown) is independent and was not changed by this effect"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: a grep of app/core, app/models, app/utils, app/rooms, app/types and app/config found Passive.SHARED_VISION only in passives.ts (effect and registry), the two unit classes and the enum; no other behaviour was found.",
+   "Shared effect class OnAttackEffect is generic; other units' on-attack effects are not described here.",
+   "Behaviour when only one holder is on the board is only the no-op self copy.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-latias",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7018,
+     7031
+    ],
+    "symbol": "Latias",
+    "expect": "passive = Passive.SHARED_VISION",
+    "note": "LATIAS: 3 stars, DRAGON + PSYCHIC, UNIQUE, maxPP 100, range 3, skill MIST_BALL"
+   },
+   {
+    "id": "unit-latios",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     7033,
+     7047
+    ],
+    "symbol": "Latios",
+    "expect": "passive = Passive.SHARED_VISION",
+    "note": "LATIOS: 3 stars, DRAGON + PSYCHIC, UNIQUE, maxPP 100, range 3, skill LUSTER_PURGE"
+   },
+   {
+    "id": "effect-body",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     150,
+     163
+    ],
+    "symbol": "SharedVisionEffect",
+    "expect": "ally.targetEntityId = pokemon.targetEntityId",
+    "note": "OnAttackEffect: for every entity on the board with passive SHARED_VISION in the attacker's team and whose id is not the attacker's current target, copy targetX, targetY and targetEntityId from the attacker"
+   },
+   {
+    "id": "registry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1259,
+     1259
+    ],
+    "symbol": "PassiveEffects[Passive.SHARED_VISION]",
+    "expect": "[Passive.SHARED_VISION]: [SharedVisionEffect],",
+    "note": "registry entry: the single SharedVisionEffect"
+   },
+   {
+    "id": "on-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     938,
+     951
+    ],
+    "symbol": "PokemonEntity.onAttack",
+    "expect": "this.getEffects(OnAttackEffect).forEach((effect) => {",
+    "note": "onAttack applies every OnAttackEffect of the attacker (pokemon = this attacker)"
+   },
+   {
+    "id": "on-attack-call",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     284,
+     293
+    ],
+    "symbol": "PokemonState.attack",
+    "expect": "pokemon.onAttack({",
+    "note": "onAttack is called in PokemonState.attack after the damage steps and before the isAttackSuccessful check for onHit, so it also runs when the attack was dodged or protected; abilities cast through castAbility do not pass here (only caller found)"
+   },
+   {
+    "id": "change-passive",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1785,
+     1791
+    ],
+    "symbol": "PokemonEntity.changePassive",
+    "expect": "this.effectsSet.add(effect)",
+    "note": "the passive effects of the entity are added to its effectsSet when the passive is set (SharedVisionEffect is an EffectClass instance)"
+   },
+   {
+    "id": "get-effects",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1793,
+     1801
+    ],
+    "symbol": "PokemonEntity.getEffects",
+    "expect": "(effect): effect is InstanceType<T> => effect instanceof effectClass",
+    "note": "getEffects filters by class and sorts by priority"
+   },
+   {
+    "id": "attack-target",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     26,
+     31
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "let target = board.getEntityOnCell(pokemon.targetX, pokemon.targetY)",
+    "note": "in the attacking state a unit first tries the cell stored in targetX/targetY and the entity stored in targetEntityId (this is what the copy overwrites)"
+   },
+   {
+    "id": "attack-retarget",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     45,
+     47
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "} else if (pokemon.status.confusion) {",
+    "note": "MERCILESS holders at less than max PP and confused units pick their own target before the stored one is used; a stored target whose id equals targetEntityId skips the range re-check in the branch at line 47"
+   }
+  ]
+ }
+}
