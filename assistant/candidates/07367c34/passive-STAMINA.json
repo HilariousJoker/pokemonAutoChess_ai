@@ -1,0 +1,209 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/STAMINA",
+ "kind": "passive",
+ "identifier": "STAMINA",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T124148Z"
+ },
+ "record": {
+  "passive": "STAMINA",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "nameCollision": "Passive.STAMINA (this record) is NOT EffectEnum.STAMINA, the NORMAL-synergy tier effect that gives +15 shield at simulation start (normalShieldEffect). The two share a name only (queue uncertainty NAME_SHARED_WITH_EFFECT).",
+  "appliesTo": [
+   {
+    "key": "MUDBRAY",
+    "stars": 1,
+    "maxPP": 45,
+    "range": 1,
+    "declaredSkill": "HIGH_HORSEPOWER",
+    "declaredPassive": "STAMINA",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "MUDSDALE",
+    "stars": 2,
+    "maxPP": 45,
+    "range": 1,
+    "declaredSkill": "HIGH_HORSEPOWER",
+    "declaredPassive": "STAMINA",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "MUDBRAY": {
+    "evidence": [
+     "unit-mudbray"
+    ]
+   },
+   "MUDSDALE": {
+    "evidence": [
+     "unit-mudsdale"
+    ]
+   }
+  },
+  "kind": "periodic self shield on damage received (OnDamageReceivedEffect in PassiveEffects)",
+  "summary": "Passive.STAMINA is registered in PassiveEffects (passives.ts:1594) as one OnDamageReceivedEffect. MUDBRAY (1 star) and MUDSDALE (2 stars) are GROUND + FIELD, maxPP 45, range 1, skill HIGH_HORSEPOWER. Each time the holder survives a damage event that dealt takenDamage > 0 (PokemonState.handleDamage calls onDamageReceived only if takenDamage > 0 and hp > 0 afterwards), damageReceivedCount is incremented and, when the new count is a multiple of 10 (10th, 20th, ...), the holder gains a shield: requested 20, addShield(20, self, apBoost 1, crit false). Applied amount: Big Eater Belt first makes 20 into 25 (x1.25 rounded down, a positive self-buff), then the shield is multiplied by (1 + AP/100) of the holder (the holder is its own caster), halved if the holder is enraged, rounded and added to pokemon.shield; the shield is added only while hp > 0 (always the case in this path). Twist Band is not called in addShield. takenDamage counts damage absorbed by an existing shield, so shield-absorbed hits also count toward the 10 (taken from the shared helper section J1; the passive uses the count, not the hp loss); a lethal hit does not run the effect. Nothing in the effect reads stars: MUDBRAY and MUDSDALE get the same 20. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "PokemonEntity.onDamageReceived on the holder after handleDamage with takenDamage > 0 and hp > 0 (including retaliation damage, attackType not filtered)"
+  ],
+  "effects": [
+   {
+    "kind": "shield",
+    "declaredRaw": "20 shield on every 10th damage event received",
+    "scaling": "AP: addShield apBoost 1 with the holder as caster -> x(1 + ap/100); no crit; no star scaling",
+    "resolution": "requested 20. Applied: Big Eater Belt -> floor(20 x 1.25) = 25 when held (applied before AP scaling), then x(1 + ap/100), then x0.5 if enraged, then Math.round; shield = max(0, shield + value). Shield is only added if hp > 0. This is a shield (pokemon.shield), not a heal: handleHeal / Protect / Rune Protect are not involved. The shield later absorbs damage in handleDamage and counts as takenDamage there.",
+    "evidence": [
+     "effect",
+     "entity-add-shield",
+     "state-add-shield",
+     "belt-helper"
+    ]
+   },
+   {
+    "kind": "counter",
+    "declaredRaw": "damageReceivedCount % 10 === 0",
+    "scaling": "none",
+    "resolution": "damageReceivedCount starts at 0 and is incremented at the start of every onDamageReceived call, so the shield is given at counts 10, 20, 30...; the count is not reset by the shield and counts every qualifying damage event of any type (physical, special, true, retaliation) with takenDamage > 0 and surviving hp.",
+    "evidence": [
+     "on-damage-received",
+     "caller",
+     "count-field",
+     "name-collision"
+    ]
+   }
+  ],
+  "conditions": [
+   "Damage events with takenDamage 0 (fully prevented) do not call onDamageReceived and so do not count; lethal hits do not call it either.",
+   "The count is shared with every other user of count.damageReceivedCount on the same entity (no other reader was found in app/core and app/models).",
+   "The NORMAL-synergy STAMINA effect (EffectEnum.STAMINA) is separate; a holder with both gets both, which is not described here.",
+   "EffectEnum.STAMINA name collision is documented in the name-collision evidence."
+  ],
+  "resetBehaviour": "Per fight: damageReceivedCount starts at 0 and is not reset during the fight; the shield stays until absorbed.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Exact accounting of takenDamage for shield-absorbed hits is taken from the shared helper section J1 and was not re-derived here",
+   "Whether Cover Band redirection (handleDamage returns the cover ally's result) changes which entity's count is incremented: the covering ally takes the hit, so it is that ally's onDamageReceived that runs"
+  ],
+  "unresolved": [
+   "NAME_SHARED_WITH_EFFECT: only Passive.STAMINA is described; EffectEnum.STAMINA is a different mechanism (cited as name-collision).",
+   "No numeric example is given because the holder's AP and held items vary.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "unit-mudbray",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19663,
+     19678
+    ],
+    "symbol": "Mudbray",
+    "expect": "passive = Passive.STAMINA",
+    "note": "MUDBRAY: 1 star, GROUND + FIELD, maxPP 45, range 1, skill HIGH_HORSEPOWER"
+   },
+   {
+    "id": "unit-mudsdale",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     19680,
+     19694
+    ],
+    "symbol": "Mudsdale",
+    "expect": "passive = Passive.STAMINA",
+    "note": "MUDSDALE: 2 stars, GROUND + FIELD, maxPP 45, range 1, skill HIGH_HORSEPOWER"
+   },
+   {
+    "id": "effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1594,
+     1601
+    ],
+    "symbol": "PassiveEffects[Passive.STAMINA]",
+    "expect": "pokemon.addShield(shield, pokemon, 1, false)",
+    "note": "OnDamageReceivedEffect: when damageReceivedCount % 10 === 0 the holder gains a shield of 20 requested, caster = itself, apBoost 1, crit false"
+   },
+   {
+    "id": "on-damage-received",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1185,
+     1233
+    ],
+    "symbol": "PokemonEntity.onDamageReceived",
+    "expect": "this.count.damageReceivedCount++",
+    "note": "every call increments damageReceivedCount first, then runs berries, sleep/charm reductions and every OnDamageReceivedEffect of the holder"
+   },
+   {
+    "id": "caller",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     726,
+     744
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.onDamageReceived({",
+    "note": "onDamageReceived is called only when takenDamage > 0 and the holder still has hp > 0 after the hit (a lethal hit does not call it)"
+   },
+   {
+    "id": "entity-add-shield",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addShield first passes the value through applyBigEaterBeltStatBuff (x1.25 rounded down for a positive value when the holder has Big Eater Belt), then PokemonState.addShield; there is no Twist Band call in this path"
+   },
+   {
+    "id": "state-add-shield",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     395
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (apBoost > 0) shield *= 1 + (caster.ap * apBoost) / 100",
+    "note": "only if hp > 0: shield x (1 + ap x apBoost / 100); crit multiplier if crit; x0.5 if the target is enraged and the shield is positive; Math.round; pokemon.shield = max(0, shield + value)"
+   },
+   {
+    "id": "belt-helper",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1851
+    ],
+    "symbol": "applyBigEaterBeltStatBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt: positive change x1.25 rounded down (0 digits)"
+   },
+   {
+    "id": "count-field",
+    "file": "app/models/colyseus-models/count.ts",
+    "lines": [
+     25,
+     25
+    ],
+    "symbol": "Count",
+    "expect": "damageReceivedCount: number = 0",
+    "note": "damageReceivedCount starts at 0 for the fight"
+   },
+   {
+    "id": "name-collision",
+    "file": "app/core/effects/synergies.ts",
+    "lines": [
+     462,
+     467
+    ],
+    "symbol": "normalShieldEffect",
+    "expect": "if (entity.effects.has(EffectEnum.STAMINA)) {",
+    "note": "EffectEnum.STAMINA is the NORMAL-synergy tier effect (+15 shield at simulation start) and only shares the name with Passive.STAMINA"
+   }
+  ]
+ }
+}
