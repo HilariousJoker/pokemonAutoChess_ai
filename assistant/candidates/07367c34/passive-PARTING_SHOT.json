@@ -1,0 +1,220 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/PARTING_SHOT",
+ "kind": "passive",
+ "identifier": "PARTING_SHOT",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T063956Z"
+ },
+ "record": {
+  "passive": "PARTING_SHOT",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "PANCHAM",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ARM_THRUST",
+    "declaredPassive": "PARTING_SHOT",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "PANGORO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "ARM_THRUST",
+    "declaredPassive": "PARTING_SHOT",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "PANCHAM": {
+    "evidence": [
+     "unit-pancham"
+    ]
+   },
+   "PANGORO": {
+    "evidence": [
+     "unit-pangoro"
+    ]
+   }
+  },
+  "kind": "movement-triggered debuff (no PassiveEffects entry; checked inside MovingState.move at the dark jump)",
+  "summary": "Passive.PARTING_SHOT has NO entry in PassiveEffects (routing uncertainty NO_PASSIVE_EFFECTS_ENTRY); its only caller is the dark-jump branch of MovingState.move, and the name PARTING_SHOT is shared with EffectEnum.PARTING_SHOT (NAME_SHARED_WITH_EFFECT), which is the marker put on the debuffed enemy. PANCHAM (1 star) and PANGORO (2 stars) are FIGHTING + DARK, range 1, maxPP 100. When such a unit moves (no target at range, a target at sight, and it can move), the DARK-synergy, range-1, non-locked branch makes it jump to the free cell next to the farthest targettable enemy instead of pathfinding; if that farthest enemy does not already carry the PARTING_SHOT effect, partingShot is called on it before the swap: requested AP -20 (addAbilityPower, caster = the jumper, apBoost 0, no crit) and requested ATK -0.2 x the target's baseAtk (addAttack, apBoost 0, no crit), then the marker effect is added so the same enemy is not debuffed twice (by any Pancham/Pangoro, since the marker lives on the target). Applied changes can differ from the requests: AP -20 is rounded and goes through Big Eater Belt (not applied: negative change from an enemy) and Twist Band (a target holding it receives +20 AP instead); a target holding NULLIFY_BANDANNA turns the AP request into an addAttack of round(0.2 x -20) = -4; ATK is clamped to at least 1 and a Twist Band turns -0.2 x baseAtk into a gain; baseAtk is the unit's base attack, not its current attack. Only the farthest target (not an area) is affected. No gameplay claims.",
+  "triggers": [
+   "MovingState.move: dark-jump branch (pokemon.types has DARK, range 1, passive not GUZZLORD, not status.locked) when a farthest target and a free cell exist",
+   "passive check: pokemon.passive === Passive.PARTING_SHOT and the chosen target lacks EffectEnum.PARTING_SHOT"
+  ],
+  "effects": [
+   {
+    "kind": "target_ap_loss",
+    "declaredRaw": "-20 ability power on the farthest enemy",
+    "scaling": "addAbilityPower(-20, jumper, apBoost 0, crit false): no AP or crit scaling",
+    "resolution": "requested -20. Applied: Math.round, Big Eater Belt only for positive values or negative values from the same team (the caster is an enemy, so not applied), Twist Band on the target turns -20 into +20 (caster is an enemy), ap = max(-100, ap + value); if the target holds NULLIFY_BANDANNA the request becomes addAttack(round(0.2 x -20) = -4, jumper, 0, false) instead and the AP is unchanged",
+    "evidence": [
+     "parting-fn",
+     "add-ap",
+     "stat-helpers",
+     "add-attack"
+    ]
+   },
+   {
+    "kind": "target_attack_loss",
+    "declaredRaw": "-20 percent of the target base attack",
+    "scaling": "addAttack(-0.2 x target.baseAtk, jumper, 0, false): the factor multiplies baseAtk (not current atk); AP boost 0 so caster AP is irrelevant",
+    "resolution": "requested -0.2 x baseAtk; applied: Math.round of the value, Big Eater Belt not applied (enemy source, negative), Twist Band on the target flips it into a gain, atk = max(1, atk + value). Temporary fight stat (permanent not set)",
+    "evidence": [
+     "parting-fn",
+     "add-attack",
+     "stat-helpers"
+    ]
+   },
+   {
+    "kind": "once_per_target_marker",
+    "declaredRaw": "EffectEnum.PARTING_SHOT added to the target effects",
+    "scaling": "none",
+    "resolution": "the marker is checked on the farthest target before the call, so an enemy already marked is skipped (the jump still happens). The marker is a Set member on the target and no removal was found in the files searched",
+    "evidence": [
+     "parting-fn",
+     "move-dark-jump"
+    ]
+   },
+   {
+    "kind": "dark_jump_destination",
+    "declaredRaw": "jump to the free cell next to the farthest enemy",
+    "scaling": "none",
+    "resolution": "getFarthestTargetCoordinateAvailablePlace(pokemon): strictly greater distance replaces the previous target; for the chosen target the free adjacent cell farthest from the jumper is selected (selectedCell is replaced whenever a farther target is found, and kept when the farther target has no free adjacent cell, so the selectedCell may belong to an earlier, nearer target - in that case target and cell can differ; the target field is set from the entity that produced the selected cell); fallback closest free cell of the farthest target",
+    "evidence": [
+     "move-dark-jump",
+     "farthest-helper",
+     "move-call"
+    ]
+   }
+  ],
+  "conditions": [
+   "Requires pokemon.types to include DARK, range 1, passive other than GUZZLORD and not status.locked (any other DARK range-1 unit takes the same jump but only PARTING_SHOT carriers apply the debuff).",
+   "Fires when move() is called and a farthest-coordinate result exists; not on attack or cast.",
+   "The debuff is skipped if the farthest target already has the PARTING_SHOT marker."
+  ],
+  "resetBehaviour": "The marker effect stays on the target for the rest of the fight (no removal found); the debuffs are not undone. Fight stats are rebuilt for the next fight (not traced).",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether the farthestCoordinate.target returned can differ from the owner of the selected cell (read from code: the selectedCell target is set when the cell is chosen)",
+   "Pathing and cooldown interplay (getMoveSpeed) after the jump",
+   "isTargettableBy conditions for the farthest search (not traced in detail)"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: PARTING_SHOT has no PassiveEffects entry; the only references are moving-state.ts lines 101-107, the partingShot helper in passives.ts and the two unit classes.",
+   "NAME_SHARED_WITH_EFFECT: EffectEnum.PARTING_SHOT is the per-target marker, distinct from Passive.PARTING_SHOT; locale strings were ignored.",
+   "Whether anything removes EffectEnum.PARTING_SHOT during a fight was searched only in app/core and status.ts by name; no removal found.",
+   "The isTargettableBy rules and distanceM definition used by the farthest search were not read.",
+   "No gameplay evidence; candidate is source reading plus mechanical checks."
+  ],
+  "evidence": [
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value * (1 + (apBoost * caster.ap) / 100) * (crit ? caster.critPower : 1)",
+    "note": "addAttack: Math.round of value x (1 + apBoost x caster AP / 100) x critPower if crit, then Big Eater Belt and Twist Band helpers, then atk = max(1, atk + value); temporary unless permanent"
+   },
+   {
+    "id": "stat-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "plain functions: Big Eater Belt x1.25 rounded down on positive changes; Twist Band flips negative changes from enemies/environment"
+   },
+   {
+    "id": "unit-pancham",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12890,
+     12905
+    ],
+    "symbol": "Pancham",
+    "expect": "passive = Passive.PARTING_SHOT",
+    "note": "PANCHAM: 1 star, FIGHTING + DARK, maxPP 100, range 1, skill ARM_THRUST"
+   },
+   {
+    "id": "unit-pangoro",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12907,
+     12921
+    ],
+    "symbol": "Pangoro",
+    "expect": "passive = Passive.PARTING_SHOT",
+    "note": "PANGORO: 2 stars, FIGHTING + DARK, maxPP 100, range 1, skill ARM_THRUST"
+   },
+   {
+    "id": "parting-fn",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     134,
+     148
+    ],
+    "symbol": "partingShot",
+    "expect": "target.addAttack(-0.2 * target.baseAtk, pokemon, 0, false)",
+    "note": "partingShot(pokemon, target, x, y): target.addAbilityPower(-20, pokemon, 0, false); target.addAttack(-0.2 x target.baseAtk, pokemon, 0, false); adds EffectEnum.PARTING_SHOT to target.effects; x, y are only passed to the ability broadcast"
+   },
+   {
+    "id": "move-dark-jump",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     83,
+     114
+    ],
+    "symbol": "MovingState.move",
+    "expect": "pokemon.passive === Passive.PARTING_SHOT &&",
+    "note": "DARK-synergy range-1 unit that is not GUZZLORD and not status.locked jumps to the farthest-target cell instead of pathfinding; PARTING_SHOT is applied to farthestCoordinate.target only if it does not already carry EffectEnum.PARTING_SHOT, before the swap"
+   },
+   {
+    "id": "move-call",
+    "file": "app/core/moving-state.ts",
+    "lines": [
+     58,
+     63
+    ],
+    "symbol": "MovingState.update",
+    "expect": "if (targetAtSight && pokemon.canMove) {",
+    "note": "move() is reached from the moving state when no target is at range, the unit is not casting or drumming, a target is at sight and canMove (the charm branch at lines 30-39 also calls move toward the charm origin)"
+   },
+   {
+    "id": "farthest-helper",
+    "file": "app/core/board.ts",
+    "lines": [
+     568,
+     632
+    ],
+    "symbol": "Board.getFarthestTargetCoordinateAvailablePlace",
+    "expect": "if (targetDistance > maxTargetDistance) {",
+    "note": "picks the strictly farthest targettable enemy (first one wins ties, distanceM), then the free adjacent cell of that target farthest from the caster; selectedCell is re-selected each time a farther target is found; fallback getClosestAvailablePlace of the farthest target; returns null if none"
+   },
+   {
+    "id": "add-ap",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     644
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false) // AP is gained as Attack instead",
+    "note": "NULLIFY_BANDANNA on the receiver converts AP change into addAttack(round(0.2 x value)); otherwise round, Big Eater Belt / Twist Band helpers, ap = max(-100, ap + value)"
+   }
+  ]
+ }
+}
