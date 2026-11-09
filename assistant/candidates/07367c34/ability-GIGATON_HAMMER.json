@@ -27,7 +27,7 @@
     "x-super"
    ]
   },
-  "summary": "The caster first fatigues itself for 6000 ms, then deals SPECIAL damage (raw 100/200/400 by stars 1/2/3; 800 at 4 stars or fallback) to the cast target. While fatigued the caster's positive PP gains are halved. No movement, other status or buff.",
+  "summary": "The caster FIRST attempts to fatigue itself (triggerFatigue(6000, self, self): the guard and the duration reductions read the CASTER - Rune Protect refuses it, HYDRATION stores 3000, two Odd Keystones 4800, a longer remaining fatigue is kept - so it is not a guaranteed 6 s application), BEFORE the SPECIAL damage; unlike ROCK_WRECKER, which fatigues after its hit, the damage call already sees the flag. It then deals SPECIAL damage (raw 100/200/400 by stars 1/2/3; 800 at 4 stars or fallback) to the cast target. While the flag is set the caster's positive PP gains through addPP are halved (executed: +10 -> +5, +5 -> 2.5 -> 3), negative changes are not. No movement, other status or buff.",
   "targeting": {
    "who": "the cast target (damage); the caster itself (fatigue)",
    "needsTarget": true,
@@ -64,7 +64,7 @@
      "TINKATUFF": 200
     },
     "scaling": "requested = table value (not tied to atk). applied by handleSpecialDamage: x (1 + AP/100) (apBoost true by default); if the cast crit (only with ABILITY_CRIT since canCritByDefault is false) x 1 + (critPower - 1) x critReductionFactor (Rocky Helmet cancels, Black Augurite reduces).",
-    "resolution": "then PokemonState.handleDamage: an hp <= 0 or resurrecting target takes nothing; attacker-state multipliers (enraged x2, fields x1.2, matching weather x1.2) apply first; SPECIAL damage divided by 1 + ARMOR_FACTOR x speDef; non-TRUE flat reductions; at least 1; shield before HP; protect / skydiving / magicBounce on the target block the hit. takenDamage includes shield damage. The damage is applied in the same call, after the self-fatigue has been set (fatigue does not change the damage).",
+    "resolution": "then PokemonState.handleDamage: an hp <= 0 or resurrecting target takes nothing; attacker-state multipliers (enraged x2, fields x1.2, matching weather x1.2) apply first; SPECIAL damage divided by 1 + ARMOR_FACTOR x speDef; non-TRUE flat reductions; at least 1; shield before HP; protect / skydiving / magicBounce on the target block the hit.. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). The damage is applied in the same call, after the self-fatigue has been set (fatigue does not change the damage).",
     "evidence": [
      "gh-dmg",
      "gh-hit",
@@ -114,7 +114,14 @@
      "gh-fat",
      "fat-def",
      "fat-pp"
-    ]
+    ],
+    "declaredRaw": {
+     "duration": 6000,
+     "unit": "ms (requested)"
+    },
+    "combatEffect": "see the structured effect fields",
+    "scaling": "see the effect text",
+    "guards": "see the effect text"
    }
   ],
   "buffs": [],
@@ -130,7 +137,7 @@
     "TINKATUFF": 200,
     "TINKATON": 400
    },
-   "note": "Indexed by the casting entity's stars; the 4-star value (800) is not used by these units at factory values. The fatigue duration does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
+   "note": "Indexed by the casting entity's stars; the 4-star entry (800, also the fallback) are declared in the tables but unused by the bound baseline classes. The fatigue duration does not depend on stars. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "gh-dmg",
     "unit-tinkatink",
@@ -140,7 +147,7 @@
   },
   "positionalConditions": "None in the strategy beyond having a cast target.",
   "repeatedCastsAndModes": "No stored state or modes. Casting again while fatigued keeps the longer of the remaining and new duration. Note that fatigue halves the PP gained toward the next cast (maxPP 120).",
-  "rawVsResolved": "Declared raw: damage 100 / 200 / 400; fatigue 6000 ms on self. Requested damage = raw; applied = raw x (1 + AP/100) (x crit factor if the cast crit), after attacker-state multipliers and divided by 1 + ARMOR_FACTOR x speDef, minus flat reductions, minimum 1; takenDamage includes shield damage. Requested fatigue = 6000 ms (no AP); applied = after status duration reductions and unless Rune Protect blocks it. Not computed for a specific target.",
+  "rawVsResolved": "Declared raw: damage 100 / 200 / 400; fatigue 6000 ms on self. Requested damage = raw; applied = raw x (1 + AP/100) (x crit factor if the cast crit), after attacker-state multipliers and divided by 1 + ARMOR_FACTOR x speDef, minus flat reductions, minimum 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Requested fatigue = 6000 ms (no AP); applied = after status duration reductions and unless Rune Protect blocks it. Not computed for a specific target.",
   "sourceTables": [
    {
     "id": "damage",
@@ -160,7 +167,7 @@
    "What the status.ts hasNegativeStatus listing and the status copy (line ~172) mean for items, abilities or synergies that react to negative statuses on the caster: not traced",
    "Whether the three units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFatigue, applyStatusDurationReductions, addPP, handleSpecialDamage) and the real GigatonHammerStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the order fatigue then damage (the call sees fatigue true), caster-side reductions and Rune Protect, the kept longer fatigue and the halving of positive PP gains."
   ],
   "ability": "GIGATON_HAMMER",
   "label": "production-branch reference; deployment unverified",
@@ -597,6 +604,20 @@
     "expect": "this.addPP(ON_ATTACK_MANA, this, 0, false)",
     "note": "PP from basic attacks goes through addPP, so fatigue halves it"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215731Z",
+   "reason": "caster fatigue attempted before the damage with caster-side guard and reductions",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

@@ -75,7 +75,7 @@
     "base-pp"
    ]
   },
-  "summary": "Needs a target. After the PP spend, deals one special hit to the target of raw 30/60/120/240 by caster stars (AP-scaled, crit possible via the passed crit flag). No status, movement or area effect.",
+  "summary": "Needs a target. After the PP spend, deals one special hit to the target of raw 30/60/120/240 by caster stars (AP-scaled, crit possible via the passed crit flag). The strategy makes no status call of any kind (executed: zero Status method calls) and no paralysis despite the name; effects must not be inferred from the ability name. A crit needs ABILITY_CRIT (canCritByDefault is false); AP and a crit act inside handleSpecialDamage (executed: raw 30 returns 60 with AP 100 or a crit). No movement or area effect.",
   "targeting": {
    "who": "the single target passed to the cast",
    "needsTarget": true,
@@ -111,7 +111,7 @@
      "AMPHAROS": 120
     },
     "scaling": "requested = raw table value by the caster's stars. handleSpecialDamage with the default apBoost true: x(1 + caster AP/100); DOUBLE_DAMAGE x2 and strange-steam x1.2 where present; x(1 + (critPower - 1) x reduction) when the crit flag is true (reduction 0 against a Rocky Helmet, -0.1 per Black Augurite of the target's player, floor 0). No rounding before the defence step.",
-    "resolution": "requested (raw table) -> applied (after AP / crit / multipliers) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; takenDamage = shield damage + min(residual, current HP), rounded (the return value is unused by this strategy). Blocked by protect / skydiving / magicBounce (takenDamage 0; a magic bounce may reflect damage to the caster unless it holds Protective Pads). Dead or resurrecting targets take nothing.",
+    "resolution": "requested (raw table) -> applied (after AP / crit / multipliers) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Blocked by protect / skydiving / magicBounce (no damage; a magic bounce may reflect damage to the caster unless it holds Protective Pads). Dead or resurrecting targets take nothing.",
     "evidence": [
      "table",
      "dmg",
@@ -141,7 +141,7 @@
     "FLAFFY": 60,
     "AMPHAROS": 120
    },
-   "note": "indexed by the casting entity's stars (stars - 1); the 240 entry is not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "note": "indexed by the casting entity's stars (stars - 1); the 4-star entry (240, also the fallback) are declared in the tables but unused by the bound baseline classes. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "table",
     "unit-mareep",
@@ -151,7 +151,7 @@
   },
   "positionalConditions": "None in the strategy beyond having a target; the cast range follows the unit's range, which this record does not interpret.",
   "repeatedCastsAndModes": "No stored state or modes. The strategy object is shared (one instance) but holds no fields.",
-  "rawVsResolved": "Declared raw: special damage 30/60/120 for the listed units' stars. Requested damage = raw; applied = raw x (1 + AP/100) x crit factor etc.; takenDamage (unused here) = what handleDamage reports after SPE_DEF, the min-1 floor, shield and HP cap, rounded.",
+  "rawVsResolved": "Declared raw: special damage 30/60/120 for the listed units' stars. Requested damage = raw; applied = raw x (1 + AP/100) x crit factor etc.; the returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "damage",
@@ -169,7 +169,7 @@
   "unresolved": [
    "Routing uncertainty CONSTANT_STRATEGY (queued): resolved by reading - the registry entry is the constant thunderShockStrategy, defined once in thunder-shock.ts as new ThunderShockStrategy(); no other Ability key references it. Its other caller is Unown's Hidden Power (castAbility), outside this record's units",
    "Whether the three units ever reach a different star count than the factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real ThunderShockStrategy (exported instance thunderShockStrategy) strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the exported instance's table values 30 / 60 / 120 / 240 and the absence of any Status method call."
   ],
   "evidence": [
    {
@@ -403,6 +403,20 @@
     "expect": "if (attacker && attacker.status.enraged) {",
     "note": "attacker-side multipliers (enraged x2, fields x1.2) precede the SPE_DEF division and the min-1 floor (core-mechanics section A)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215731Z",
+   "reason": "no paralysis or other status call; exported instance routing",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

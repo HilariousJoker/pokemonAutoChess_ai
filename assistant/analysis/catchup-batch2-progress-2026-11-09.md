@@ -11,7 +11,7 @@
 | 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 80 / 261) | `5b717b15bf23e6f4d0cbbe839c5062a52c148090` | lock `run-20261109T213857Z` released; validate, FAST and production suites, probe (section 33), automation, inventory, queue checks passed |
 | 1 | complete | AGILITY, HARDEN, DEFENSE_CURL, MEDITATE, QUIVER_DANCE imported (85 / 276 expected; measured in the final report) | `0168f6811e347b71fde9b867bc2678572bea97d1` | lock `run-20261109T214126Z`; validator registry check extended for the exported meditateStrategy instance (same semantic check as EXPLOSION); all seven checks passed |
 | 2 | complete | HAPPY_HOUR, FAIRY_WIND, JET_PUNCH, PECK, RAZOR_WIND imported (90 / 308 expected; measured in the final report) | `4284217fe7d05602b9b687c11c042b5b7e57ac2f` | lock `run-20261109T214645Z`; all seven checks passed |
-| 3 | complete | ANCIENT_POWER, FIERY_DANCE, METAL_CLAW, TROP_KICK, MYSTICAL_FIRE imported (95 / 320 expected; measured in the final report) | commit 'Checkpoint batch2 cycle 3' (see git log) | lock `run-20261109T215157Z`; MYSTICAL_FIRE Nullify-first blocker corrected; all seven checks passed |
-| 4 | not started | – | – | – |
+| 3 | complete | ANCIENT_POWER, FIERY_DANCE, METAL_CLAW, TROP_KICK, MYSTICAL_FIRE imported (95 / 320 expected; measured in the final report) | `1f01d88585d0068ff6dd6454e9a63e352fad16b7` | lock `run-20261109T215157Z`; MYSTICAL_FIRE Nullify-first blocker corrected; all seven checks passed |
+| 4 | complete | HORN_ATTACK, AIR_SLASH, GIGATON_HAMMER, THUNDER_SHOCK, HEX imported | commit 'Checkpoint batch2 cycle 4' (hash in the final report) | lock `run-20261109T215731Z`; validator registry check extended for the exported thunderShockStrategy instance; all seven checks passed |
 
-Next unfinished cycle: 4.
+Next unfinished cycle: none (all five cycles complete; the task stops after these 20 records).

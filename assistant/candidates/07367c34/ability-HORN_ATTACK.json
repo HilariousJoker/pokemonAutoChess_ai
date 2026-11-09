@@ -75,7 +75,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target special damage equal to a star multiplier (x3 / x4 / x5; x10 is the 4-star value and fallback, not reachable by the three listed units) times the caster's current atk, then (after the damage call) the target gets armor reduction with a requested duration of 8000 ms. The armor reduction is applied after the hit, so it does not halve SPE_DEF for this hit (only for later hits); it is refused by Rune Protect on the target, and its duration reductions read the target, not the caster.",
+  "summary": "Single-target special damage equal to a star multiplier (x3 / x4 / x5 for the bound NIDORANM / NIDORINO / NIDOKING; the table also declares x10 for 4 stars and as the fallback) times the caster's current atk, then (after the damage call) the target gets armor reduction with a requested duration of 8000 ms. The armor reduction is applied after the hit, so it does not halve SPE_DEF for this hit (only for later hits); it is refused by Rune Protect on the target, and its duration reductions read the target, not the caster. An armor reduction that is ALREADY active does halve SPE_DEF for this hit. Executed (caster atk 20, target SPE_DEF 20): requests 60 / 80 / 100 / 200 for 1 / 2 / 3 / 4 stars, returned damage 30 for a fresh target and 40 when the reduction was already active; target HYDRATION stores 4000 ms.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -123,7 +123,7 @@
      "NIDOKING": 100
     },
     "scaling": "requested amount = multiplier x pokemon.atk at the moment of the cast (atk includes bonuses already applied to the entity; the catalog base atk is 5 / 9 / 20). In handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x2 if the caster has DOUBLE_DAMAGE (consumed); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet target and by 0.1 per Black Augurite of the target's player (floor 0)",
-    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read as a list), SPE_DEF division damage / (1 + 0.05 x speDef) where speDef is halved (rounded) only if the target ALREADY has armorReduction when this hit resolves (HORN_ATTACK applies it after the damage, so a fresh application does not help this hit but a previous one, e.g. from an earlier HORN_ATTACK, does), Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. takenDamage (shield damage included) is returned but discarded by HORN_ATTACK; the armor reduction is applied regardless of what the damage did (including when the hit was blocked, and when the target died or a Cover Band ally took the hit - then the armor reduction still goes to the original target object).",
+    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read as a list), SPE_DEF division damage / (1 + 0.05 x speDef) where speDef is halved (rounded) only if the target ALREADY has armorReduction when this hit resolves (HORN_ATTACK applies it after the damage, so a fresh application does not help this hit but a previous one, e.g. from an earlier HORN_ATTACK, does), Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. the returned takenDamage is unused (section J1); the armor reduction is applied regardless of what the damage did (including when the hit was blocked, and when the target died or a Cover Band ally took the hit - then the armor reduction still goes to the original target object).",
     "evidence": [
      "ha-dmg",
      "ha-hit",
@@ -187,7 +187,7 @@
     "NIDORANM": 5,
     "NIDORINO": 9
    },
-   "note": "indexed by the casting entity's stars; the 4-star value (10, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP 90 and range 1 for all three. The armor reduction duration (8000) does not depend on stars.",
+   "note": "indexed by the casting entity's stars; the 4-star entry (10, also the fallback) are declared in the tables but unused by the bound baseline classes (bare stars 1, 2, 3). maxPP 90 and range 1 for all three. The armor reduction duration (8000) does not depend on stars.",
    "evidence": [
     "ha-dmg",
     "unit-nidoking",
@@ -197,7 +197,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. A repeated cast re-applies armor reduction: the flag stays true and the remaining time is replaced only by a longer duration; while the first application is active, the later hit's SPE_DEF division already uses the halved value.",
-  "rawVsResolved": "Requested: damage = multiplier (3/4/5) x current atk; armor reduction 8000 ms. Applied: damage x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather], then SPE_DEF division (halved only if armor reduction was already on), ceil, at least 1, and the other reductions; armor reduction is skipped under Rune Protect, otherwise its duration is the 8000 ms after the target-side duration reductions. takenDamage (shield included) is discarded.",
+  "rawVsResolved": "Requested: damage = multiplier (3/4/5) x current atk; armor reduction 8000 ms. Applied: damage x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather], then SPE_DEF division (halved only if armor reduction was already on), ceil, at least 1, and the other reductions; armor reduction is skipped under Rune Protect, otherwise its duration is the 8000 ms after the target-side duration reductions. the returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "hornAttackMultiplier",
@@ -215,7 +215,8 @@
   "unresolved": [
    "Whether any other code reads armorReduction beyond the files cited",
    "Whether any item or synergy effect other than those listed changes HORN_ATTACK damage",
-   "No routing uncertainty was recorded for HORN_ATTACK in the queue; no other unit sharing the identifier exists in the queue"
+   "No routing uncertainty was recorded for HORN_ATTACK in the queue; no other unit sharing the identifier exists in the queue",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage, triggerArmorReduction, applyStatusDurationReductions) and the real HornAttackStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the star multipliers against the current atk, the order damage then armor reduction, the fresh versus already-active reduction, the target-supplied duration reduction and the Rune Protect refusal."
   ],
   "evidence": [
    {
@@ -603,6 +604,20 @@
     "expect": "let def = pokemon.status.armorReduction",
     "note": "while set, def and speDef are halved (Math.round); WONDER_ROOM then swaps them"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215731Z",
+   "reason": "new armor reduction misses its own hit, already-active one halves SPE_DEF; target-supplied reductions",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

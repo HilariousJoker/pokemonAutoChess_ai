@@ -75,7 +75,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target special damage: raw 20/40/80 by the caster's stars (160 is the 4-star value and the fallback, not reachable by the three listed units). The raw amount is doubled (40/80/160) when the target has any negative status at the moment of the cast; the damage then goes through handleSpecialDamage (AP scaling, crit only if the cast crit, multipliers) and the target's SPE_DEF division. No status is applied and no heal/shield/buff is made.",
+  "summary": "Single-target special damage: raw 20/40/80 by the caster's stars (the table also declares 160 for 4 stars and as the fallback). The raw amount is doubled (40/80/160) when status.hasNegativeStatus() is truthy at the moment of the cast: any of burn, silence, fatigue, freeze, sleep, confusion, wound, paralysis, charm, flinch, armorReduction, curse, locked, blinded or possessed is set, or poisonStacks > 0. The predicate tests flags only, no timer: a wound flag with cooldown 0 (as after clearNegativeStatus, before the next update) still doubles, cooldowns alone with the flags false do not, and negative stat changes are not statuses (all executed); the damage then goes through handleSpecialDamage (AP scaling, crit only if the cast crit, multipliers) and the target's SPE_DEF division. No status is applied and no heal/shield/buff is made.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -118,7 +118,7 @@
      "CHANDELURE": 160
     },
     "scaling": "requested amount = raw (x2 if the target has a negative status). In handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true and HEX does not pass it); x2 if the caster has DOUBLE_DAMAGE (effect is consumed); x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT; the crit factor 1 + (critPower - 1) x critReductionFactor only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT), reduced to 0 for a Rocky Helmet target and by 0.1 per Black Augurite of the target's player (floor 0)",
-    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read only as a list), SPE_DEF division damage / (1 + 0.05 x speDef) with speDef halved (rounded) while the target has armorReduction, Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard flat or percentage reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0, no damage) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit to the caster unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. Requested amount = the raw (doubled or not) value; applied damage = what remains after these steps; takenDamage (returned, but discarded by HEX) = shield damage + HP lost, with the flinch half/half split on a shield. A Cover Band ally adjacent to a target that would die takes the hit instead.",
+    "resolution": "then PokemonState.handleDamage: x2 if the caster is enraged, attacker/target field and weather multipliers (read only as a list), SPE_DEF division damage / (1 + 0.05 x speDef) with speDef halved (rounded) while the target has armorReduction, Poke Doll / Guts-Sturdy-Defiant-Coaching / Wonder Guard flat or percentage reductions, then ceil with a minimum of 1; blocked entirely (takenDamage 0, no damage) by protect / skydiving / magicBounce (magicBounce also queues a reflected hit to the caster unless the caster holds Protective Pads), or if the target is at 0 hp or resurrecting. Requested amount = the raw (doubled or not) value; applied damage = what remains after these steps; the returned takenDamage is unused (core-mechanics section J1). A Cover Band ally adjacent to a target that would die takes the hit instead.",
     "conditionalMultiplier": {
      "condition": "target.status.hasNegativeStatus()",
      "factor": 2,
@@ -140,7 +140,8 @@
       "locked",
       "blinded",
       "possessed"
-     ]
+     ],
+     "note": "the predicate is status.hasNegativeStatus(): it tests the listed flags and poisonStacks > 0 and no timer, so a flag left set with cooldown 0 still doubles until its update clears it; it does not cover negative stat changes"
     },
     "evidence": [
      "hex-dmg",
@@ -185,7 +186,7 @@
     "LAMPENT": 80,
     "CHANDELURE": 160
    },
-   "note": "indexed by the casting entity's stars; the 4-star value (160, also the fallback) is not reachable by the three units' bare star counts (1, 2, 3). maxPP is 100 and range 3 for all three.",
+   "note": "indexed by the casting entity's stars; the 4-star entry (160, also the fallback) are declared in the tables but unused by the bound baseline classes (bare stars 1, 2, 3). maxPP is 100 and range 3 for all three.",
    "evidence": [
     "hex-dmg",
     "unit-litwick",
@@ -195,7 +196,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast re-evaluates hasNegativeStatus() on the target; the doubling is not remembered between casts.",
-  "rawVsResolved": "Requested: raw 20/40/80 by stars (x2 with a negative status on the target). Applied: requested x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather multipliers], then SPE_DEF division (ceil, at least 1) and the reductions listed in resolution. takenDamage (shield damage included) is returned by handleSpecialDamage but HEX discards it, so nothing downstream in HEX depends on it.",
+  "rawVsResolved": "Requested: raw 20/40/80 by stars (x2 with a negative status on the target). Applied: requested x (1 + AP/100) [x crit factor] [x DOUBLE_DAMAGE / strange-steam / enraged / field / weather multipliers], then SPE_DEF division (ceil, at least 1) and the reductions listed in resolution. The returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "hexDamage",
@@ -213,7 +214,8 @@
   "unresolved": [
    "How statuses become set on the target before the cast (not part of HEX); the doubling depends on the status at the exact moment of the cast",
    "Whether any item or synergy effect other than those listed changes HEX damage",
-   "No routing uncertainty was recorded for HEX in the queue; no other unit sharing the identifier exists in the queue"
+   "No routing uncertainty was recorded for HEX in the queue; no other unit sharing the identifier exists in the queue",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Status.hasNegativeStatus, handleSpecialDamage, handleDamage) and the real HexStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): each of the fifteen flags and poison stacks doubling the raw value, the wound-flag-with-cooldown-0 and cooldown-only cases, the stat-change case, the doubling before the AP scaling and the protected target."
   ],
   "evidence": [
    {
@@ -546,6 +548,20 @@
     "expect": "ally.items.has(Item.COVER_BAND)",
     "note": "Cover Band ally can take the hit instead"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215731Z",
+   "reason": "real hasNegativeStatus flag list without a timer test",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

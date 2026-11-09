@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target special damage (25/50/100/200 raw by stars; 25 for TAILLOW 1 star, 50 for SWELLOW 2 stars) plus a 7000 ms flinch on the cast target. The flinch is requested FIRST and unconditionally (it does not depend on the damage dealt, so it is also requested when the hit is then blocked by protect / skydiving / magicBounce), and the damage comes second: a target that already has a shield therefore takes this very hit under the flinch rule, with the reduced damage split into ceil(0.5 x reduced) on the shield and ceil(0.5 x reduced) on HP.",
+  "summary": "Single-target special damage (25/50/100/200 raw by stars; 25 for TAILLOW 1 star, 50 for SWELLOW 2 stars) plus a 7000 ms flinch attempt on the cast target (triggerFlinch(7000, target, caster): unlike ROCK_WRECKER, which passes the caster, the duration reductions here come from the TARGET - target HYDRATION stores 3500, caster HYDRATION changes nothing). The flinch is requested FIRST and unconditionally (it does not depend on the damage dealt, so it is also requested when the hit is then blocked by protect / skydiving / magicBounce), and the damage comes second: if the flinch was applied (Rune Protect refuses it) and the target has a shield, this very hit takes the flinch rule: a first split of ceil(50 %) on the shield and ceil(50 %) as residual, after which shield overflow and an attacker's Protective Pads can change the final losses (executed, raw 25: shield 20 -> HP 487, shield 5 -> HP 479, Pads -> HP 481). No final 50/50 loss and no persistent flinch on every hit is promised.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -98,7 +98,7 @@
      "SWELLOW": 50
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. When the target's shield is above 0 and the flinch from this cast is already set, the reduced damage is split 50/50 with ceil on shield and HP, so an odd amount puts one more in total than reduced. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the flinch was already requested. The takenDamage return value is not read by this strategy; its accounting is documented in the BITE record.",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. When the target's shield is above 0 and the flinch from this cast is set, the first split of the reduced damage is ceil(50 %) on the shield and ceil(50 %) residual (an odd amount puts one more in total); shield overflow and an attacker's Protective Pads then change the final HP / shield losses, and a Rune Protect target is not flinched at all. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the flinch was already requested. The returned takenDamage is unused (core-mechanics section J1).",
     "evidence": [
      "as-dmg",
      "as-hit",
@@ -123,7 +123,7 @@
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "before the damage call, unconditional",
-    "guards": "not applied if the target has runeProtect; the duration passes through applyStatusDurationReductions; a new flinch replaces the remaining time only if longer",
+    "guards": "not applied if the TARGET has runeProtect (independent of the damage: the hit still lands, executed); the duration passes through applyStatusDurationReductions with the TARGET as the supplied entity (SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER and Odd Keystones of the target's player); a new flinch replaces the remaining time only if longer",
     "combatEffect": "while flinched and while the target's shield is above 0, handleDamage splits the reduced damage into ceil(0.5 x reduced) on the shield and ceil(0.5 x reduced) on HP (BITE record: the only use of status.flinch found in app/core and app/models outside status.ts)",
     "evidence": [
      "as-flinch",
@@ -143,7 +143,7 @@
     "TAILLOW": 25,
     "SWELLOW": 50
    },
-   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). maxPP 80 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (100 / 200, fallback 200) are declared in the tables but unused by the bound baseline classes. maxPP 80 and range 1 for both.",
    "evidence": [
     "as-dmg",
     "unit-taillow",
@@ -173,7 +173,7 @@
    "Resurrection and other death-cancelling effects on the target were not enumerated",
    "Consulted: Status.triggerFlinch, PokemonState.handleDamage flinch/shield branch, handleSpecialDamage, sibling BITE record (flinch and takenDamage accounting)",
    "TAILLOW and SWELLOW have no passive in the catalog; no other unit sharing the identifier exists in the queue",
-   "Source reading only; no probe or fight was run"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFlinch, applyStatusDurationReductions, handleSpecialDamage, handleDamage (flinch shield branch)) and the real AirSlashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order flinch then damage, the target-supplied reductions, the Rune Protect refusal, the protected-target case and the shield-split cases (shield 20 / 5, Protective Pads)."
   ],
   "evidence": [
    {
@@ -407,6 +407,20 @@
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215731Z",
+   "reason": "flinch before damage, target-supplied reductions, Rune Protect independent of damage, shield split not a promise",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
