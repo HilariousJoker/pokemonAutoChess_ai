@@ -64,7 +64,7 @@
     "effect-sim"
    ]
   },
-  "summary": "Single-target special damage (40/80/120/200 raw by stars; 40 for SHELLOS_EAST_SEA 1 star, 80 for GASTRODON_EAST_SEA 2 stars), then the caster gains a requested +25 ability power. The AP gain happens AFTER the damage call, so this cast's damage does not benefit from it (later casts do). With no Big Eater Belt and no Nullify Bandanna the gain is exactly +25 (apBoost 0, crit false: no AP or crit scaling); Big Eater Belt makes it 31 (25 x 1.25 rounded down); Nullify Bandanna replaces it with round(0.2 x 25) = 5 attack and no AP. The gained AP lasts for the combat entity only (not permanent).",
+  "summary": "Single-target special damage (40/80/120/200 raw by stars; 40 for SHELLOS_EAST_SEA 1 star, 80 for GASTRODON_EAST_SEA 2 stars), then the caster gains a requested +25 ability power. The AP gain happens AFTER the damage call, so this cast's damage does not benefit from it (later casts do). With no Big Eater Belt and no Nullify Bandanna the gain is exactly +25 (apBoost 0, crit false: no AP or crit scaling); Big Eater Belt makes it 31 (25 x 1.25 rounded down); a Nullify Bandanna would route it as addAttack(round(0.2 x 25) = 5, apBoost 0) with no AP, and the Belt then makes that 6 - a helper path reached only by a DIRECT strategy call, because canCast blocks a Nullify holder inside castAbility (executed), so no normal Nullify casting build is claimed. Executed (caster AP 0): the damage call sees AP 0 and AP ends at 25, with a Belt 31, two casts 50, and a blocked hit still gives +25. The gained AP lasts for the combat entity only (not permanent).",
   "targeting": {
    "who": "damage: the cast target passed to the strategy (the caster's current target); AP gain: the caster",
    "needsTarget": true,
@@ -101,7 +101,7 @@
      "GASTRODON_EAST_SEA": 80
     },
     "scaling": "AP: damage x (1 + AP/100) using the caster's AP at the time of the damage call, i.e. before this cast's +25 (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the AP gain still follows. takenDamage is not read by this strategy (accounting is in the BITE record).",
+    "resolution": "Requested amount is the raw table value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, min 1) among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce; the AP gain still follows. The returned takenDamage is unused (core-mechanics section J1).",
     "evidence": [
      "dmg",
      "hit",
@@ -120,14 +120,15 @@
      "requestedAP": 25
     },
     "scaling": "none from AP or crit (apBoost 0, crit false); inside addAbilityPower the value is rounded, then Big Eater Belt (x1.25 rounded down) and Twist Band hooks run; Twist Band does not apply to this positive self-buff",
-    "resolution": "Applied change is +25, or +31 with Big Eater Belt; AP floor is -100 (not reachable by a gain). With a Nullify Bandanna the AP is NOT raised: addAttack(round(0.2 x 25) = 5, apBoost 0) is used instead (Big Eater Belt applies inside addAttack as well, see the helper; not traced here). Applies to the combat entity only (permanent false). Always requested, even if the damage was blocked.",
+    "resolution": "Applied change is +25, or +31 with Big Eater Belt; AP floor is -100 (irrelevant for a positive gain). With a Nullify Bandanna the AP is NOT raised: addAttack(round(0.2 x 25) = 5, apBoost 0) is used instead (Big Eater Belt applies inside addAttack as well: 5 -> 6, executed; a direct-call helper path only, since canCast blocks a Nullify holder from casting). Applies to the combat entity only (permanent false). Always requested, even if the damage was blocked.",
     "evidence": [
      "addap-call",
      "addap-null",
      "addap-val",
      "addap-upd",
      "belt",
-     "twist"
+     "twist",
+     "cancast-getter"
     ]
    }
   ],
@@ -154,7 +155,7 @@
     "SHELLOS_EAST_SEA": 40,
     "GASTRODON_EAST_SEA": 80
    },
-   "note": "indexed by the casting entity's stars; 120 and 200 (fallback) are not reachable by the two units' bare star counts (1, 2). The AP gain (25) does not depend on stars. maxPP 80 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (120 / 200, fallback 200) are declared in the tables but unused by the bound baseline classes. The AP gain (25) does not depend on stars. maxPP 80 and range 1 for both.",
    "evidence": [
     "dmg",
     "addap-call",
@@ -178,14 +179,14 @@
    "Final damage after handleDamage's later modifiers (items, damage-reduction effects, resurrection, field multipliers); only the SPECIAL speDef division, minimum of 1 and the protect / skydiving / magicBounce block were read here",
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read",
-   "addAttack (reached only with Nullify Bandanna) was not traced in detail"
+   "addAttack (reached only on a direct call with a Nullify Bandanna) was read and executed in this recheck"
   ],
   "unresolved": [
    "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: the units declare Ability.ANCIENT_POWER (registry line 739 -> AncientPowerStrategy); EffectEnum.ANCIENT_POWER is a different enum member of the FOSSIL synergy effects (synergies.ts 136-140), which the simulation only adds to the entity's effects set when it has the FOSSIL type (simulation.ts 828-834). Neither unit is listed with a FOSSIL type in the blocks read (AQUATIC / ROCK / AMORPHOUS), and AncientPowerStrategy does not read the effect. What the FOSSIL ANCIENT_POWER effect does elsewhere was not traced and is outside this record",
    "Whether any duration or cap limits the stacked AP was not searched",
    "Consulted: addAbilityPower, applyBigEaterBeltStatBuff, applyTwistBandBuff, handleSpecialDamage, handleDamage speDef step; sibling records ACCELEROCK / AGILITY candidates for the speed helper pattern",
    "GASTRODON_EAST_SEA and SHELLOS_EAST_SEA have no passive in the catalog; both are regional units (isInRegion); regional availability is not covered here",
-   "Source reading only; no probe or fight was run"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAbilityPower, addAttack, the Belt / Twist helpers, canCast, castAbility) and the real AncientPowerStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the damage-before-AP order, the +25 / +31 values, the blocked-hit case, the Nullify helper path (ATK +5, +6 with a Belt) and the castAbility refusal for a Nullify holder."
   ],
   "evidence": [
    {
@@ -484,7 +485,32 @@
     "symbol": "AttackingState.update",
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
+   },
+   {
+    "id": "cancast-getter",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     256
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.items.has(Item.NULLIFY_BANDANNA)",
+    "note": "canCast is false with silence or a Nullify Bandanna, so castAbility returns before the strategy runs"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215157Z",
+   "reason": "damage before +25 AP, Belt 31, Nullify as a direct-call helper path only",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

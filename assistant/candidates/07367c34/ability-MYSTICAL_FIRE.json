@@ -57,7 +57,7 @@
     "mf-impl"
    ]
   },
-  "summary": "Single-target special damage (20 / 40 / 80 / 160 raw by caster stars), then the same target loses ability power: a requested -15 / -20 / -25 / -50 AP, scaled by the CASTER's AP and by the crit factor if the cast crit. The AP loss is not capped by the damage hit and is applied even if that hit was blocked or killed the target.",
+  "summary": "Single-target SPECIAL damage (20 / 40 / 80 / 160 raw by caster stars) FIRST, then addAbilityPower(-15 / -20 / -25 / -50, caster, apBoost 1, crit) on the same target. For an ordinary target the request is scaled by the CASTER's AP and the cast crit before the helpers (1 star, caster AP 100 with a crit at critPower 2: round(-15 x 2 x 2) = -60 stored from AP 0), a Twist Band holder gains it instead and AP floors at -100. addAbilityPower checks the Nullify Bandanna FIRST: such a target skips the AP scaling and loses round(0.2 x the RAW request) = -3 ATK through addAttack(apBoost 0, crit false) (Nullify + Twist Band gains 3; ATK floors at 1). The AP-change call still happens when the damage returned 0 (protect, magicBounce) or killed the target.",
   "targeting": {
    "who": "the single current target",
    "needsTarget": true,
@@ -87,7 +87,7 @@
      "note": "requested damage"
     },
     "scaling": "requested amount: x (1 + AP/100) (apBoost default true); x2 if DOUBLE_DAMAGE (consumed); crit multiplier only if the cast crit (canCritByDefault false: needs ABILITY_CRIT)",
-    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF)) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (magicBounce can reflect it); results (death, takenDamage incl. shield damage) are ignored by this ability",
+    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF)) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (magicBounce can reflect it); the returned results are ignored by this ability (section J1)",
     "evidence": [
      "mf-damage",
      "special",
@@ -118,8 +118,8 @@
      },
      "note": "requested AP loss magnitudes as written in the source table; the code passes them negated, i.e. -15 / -20 / -25 / -50 (fallback -50)"
     },
-    "scaling": "requested amount: round(value x (1 + 1 x casterAP/100) x critPower-if-crit), apBoost 1 is passed: a caster with more AP removes more AP, and a crit multiplies it",
-    "resolution": "applied amount: if the target holds NULLIFY_BANDANNA the AP loss is skipped and instead its ATK changes by round(0.2 x requested value) (negative, e.g. -3 / -4 / -5 / -10 before addAttack's own helpers) through addAttack(.., caster, 0, false); otherwise Big Eater Belt does not apply (the value is negative and the caster is an enemy), Twist Band on the target flips the negative value to positive, so the target GAINS that much AP (also in the nullify branch through addAttack); then target.ap = max(-100, ap + value); not permanent (the board unit is unchanged); the change happens whether or not the damage hit was blocked",
+    "scaling": "for an ordinary target (no Nullify Bandanna): round(value x (1 + 1 x casterAP/100) x critPower-if-crit), apBoost 1 is passed, so a caster with more AP removes more AP and a crit multiplies it; this scaling is NOT applied on the Nullify path (below)",
+    "resolution": "applied amount: the Nullify check comes FIRST: if the target holds NULLIFY_BANDANNA the AP request is not scaled at all and its ATK changes instead by round(0.2 x the RAW negative request) (-3 / -4 / -5 / -10) through addAttack(.., caster, apBoost 0, crit false), so the caster's AP and crit do not scale it (executed: caster AP 100 with a crit still gives -3 ATK, ATK 20 -> 17); otherwise Big Eater Belt does not apply (the value is negative and the caster is an enemy), Twist Band on the target flips the negative value to positive, so the target GAINS that much AP (also in the nullify branch through addAttack); then target.ap = max(-100, ap + value); not permanent (the board unit is unchanged); the change happens whether or not the damage hit was blocked",
     "evidence": [
      "mf-ap",
      "add-ap",
@@ -153,7 +153,7 @@
     "DELPHOX": -25,
     "FENNEKIN": -15
    },
-   "note": "both tables are indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entries (160 damage, -50 AP) and the fallbacks are not reached by these units' bare star counts (2, 3, 1). maxPP is 80 and range 2 for all three.",
+   "note": "both tables are indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entries (160 damage, -50 AP) and the fallbacks are declared in the tables but unused by the bound baseline classes (bare stars 2, 3, 1). maxPP is 80 and range 2 for all three.",
    "evidence": [
     "mf-damage",
     "mf-ap",
@@ -190,7 +190,8 @@
    "Consulted: PokemonEntity.addAbilityPower (stat helper, found by name in pokemon-entity.ts), applyBigEaterBeltStatBuff and applyTwistBandBuff (plain functions at the end of that file), addAttack for the Nullify Bandanna branch, handleSpecialDamage and handleDamage; item-effects.json for Twist Band / Big Eater Belt",
    "Item.NULLIFY_BANDANNA is only cited at its use site in addAbilityPower; its item card was not read",
    "Whether items or synergies change MYSTICAL_FIRE beyond what is listed",
-   "Queue record lists no routing uncertainties"
+   "Queue record lists no routing uncertainties",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAbilityPower (Nullify routing, Belt / Twist, floor), addAttack, handleSpecialDamage) and the real MysticalFireStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units, target AP 0 / ATK 20): the damage-before-AP order, the scaled -60 AP case, the Twist gain, the -100 floor, the Nullify, Nullify + Twist and ATK-floor cases, and the AP change after blocked, bounced and killing hits."
   ],
   "evidence": [
    {
@@ -435,6 +436,20 @@
     "expect": "skill = Ability.MYSTICAL_FIRE",
     "note": "unit class block: skill / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215157Z",
+   "reason": "Nullify checked first so the raw request is not caster-scaled; AP change after a zero-return hit",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

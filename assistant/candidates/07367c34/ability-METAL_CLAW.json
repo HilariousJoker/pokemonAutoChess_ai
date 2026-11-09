@@ -27,7 +27,7 @@
     "mc-super"
    ]
   },
-  "summary": "Single-target TRUE damage plus a self attack buff. The strategy keeps requiresTarget = true. It deals 10 / 20 / 40 / 80 (by the caster's stars; Galarian Meowth 10, Perrserker 20) as TRUE damage to the target (scaled by the caster's AP and by critPower if the cast crits; ignores def and speDef and the item / effect reductions that skip TRUE; at least 1 and rounded up; shields absorb first), then raises the caster's own attack by 2 / 4 / 6 / 12 (Galarian Meowth 2, Perrserker 4) scaled by AP and crit and adjusted by a held Big Eater Belt. The attack buff does not depend on the damage landing (a protected or bounce-protected target blocks the damage but the caster still gets the buff).",
+  "summary": "Single-target TRUE damage plus a self attack buff. The strategy keeps requiresTarget = true. It deals 10 / 20 / 40 / 80 (by the caster's stars; Galarian Meowth 10, Perrserker 20) as TRUE damage to the target (requested through handleSpecialDamage, so AP, crit, DOUBLE_DAMAGE and the other shared multipliers still apply; TRUE skips only the SPE_DEF division and the reductions that exempt TRUE; shields absorb first and protect / skydiving / magicBounce still block it; at least 1 and rounded up), then raises the caster's own attack by 2 / 4 / 6 / 12 (Galarian Meowth 2, Perrserker 4) scaled by AP and crit and adjusted by a held Big Eater Belt. The attack buff does not depend on the damage landing (a protected or bounce-protected target blocks the damage but the caster still gets the buff). Executed: 10 TRUE loses 10 even against SPE_DEF 100, AP 100 or a crit makes it 20, a 6 shield absorbs first (HP loss 4), protect / magicBounce give 0 loss and ATK still rises 20 -> 22 (24 with AP 100 or a crit).",
   "targeting": {
    "who": "the single target of the cast (damage); the caster itself (attack buff)",
    "needsTarget": true,
@@ -64,7 +64,7 @@
      "PERRSERKER": 20
     },
     "scaling": "requested = table value. handleSpecialDamage (apBoost default true) multiplies by (1 + caster AP/100), x2 if the caster has DOUBLE_DAMAGE (consumed), x1.2 if either side has STRANGE_STEAM_BOARD_EFFECT, and on crit by 1 + (critPower - 1) x factor (factor 1 for TRUE: Rocky Helmet and Black Augurite reductions do not apply to TRUE). Then handleDamage: x2 if the attacker is enraged, field and other attacker/target multipliers, no defense, rounded up, minimum 1.",
-    "resolution": "requested (table) -> specialDamage (after AP, crit, etc.) -> reducedDamage (TRUE: no defense; ceil; min 1) -> shield absorbs first -> takenDamage reports shield damage plus HP damage capped at current hp. Blocked entirely (takenDamage 0, no death) by protect, skydiving or magicBounce on the target.",
+    "resolution": "requested (table) -> specialDamage (after AP, crit, etc.) -> reducedDamage (TRUE: no defense; ceil; min 1) -> shield absorbs first -> the returned takenDamage is unused (section J1). Blocked entirely (no damage, no death) by protect, skydiving or magicBounce on the target.",
     "evidence": [
      "mc-dmg",
      "mc-hit",
@@ -141,7 +141,7 @@
     "GALAR_MEOWTH": 2,
     "PERRSERKER": 4
    },
-   "note": "3 and 4 stars (damage 40 / 80, buff 6 / 12) are not reached at these units' factory star counts; whether other mechanics change a star count was not examined.",
+   "note": "the 3-star and 4-star entries (damage 40 / 80, buff 6 / 12) are declared in the tables but unused by the bound baseline classes; whether other mechanics change a star count was not examined.",
    "evidence": [
     "mc-dmg",
     "mc-atk",
@@ -151,7 +151,7 @@
   },
   "positionalConditions": "None beyond reaching the target in range 1.",
   "repeatedCastsAndModes": "No stored mode. Each cast adds the attack buff again (cumulative; no expiry coded in the strategy or in addAttack).",
-  "rawVsResolved": "Declared raw: TRUE damage 10 / 20 and attack buff 2 / 4 for the two units. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor (x other listed multipliers), then ceil and minimum 1; takenDamage includes shield damage and is capped for the HP part. Requested attack buff = raw; applied = round(raw x (1 + AP/100) x crit factor), then Big Eater Belt x1.25 rounded down if held.",
+  "rawVsResolved": "Declared raw: TRUE damage 10 / 20 and attack buff 2 / 4 for the two units. Requested damage = raw; applied damage = raw x (1 + AP/100) x crit factor (x other listed multipliers), then ceil and minimum 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Requested attack buff = raw; applied = round(raw x (1 + AP/100) x crit factor), then Big Eater Belt x1.25 rounded down if held.",
   "sourceTables": [
    {
     "id": "damage",
@@ -180,7 +180,7 @@
    "Whether the DOUBLE_DAMAGE and STRANGE_STEAM_BOARD_EFFECT effects can be present on these casters (source of those effects not traced)",
    "Whether the 3 and 4 star table entries are ever reached by these units",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage, addAttack, the Belt / Twist helpers) and the real MetalClawStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the TRUE request against SPE_DEF 100, AP / crit scaling, shield-first, the protect / magicBounce blocks and the self ATK request after a zero-return hit."
   ],
   "ability": "METAL_CLAW",
   "label": "production-branch reference; deployment unverified",
@@ -560,6 +560,20 @@
     "expect": "passive = Passive.STEELY_SPIRIT",
     "note": "Perrserker's passive is not part of this ability record"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215157Z",
+   "reason": "TRUE still AP/crit/shield/guard-sensitive; self ATK after a zero-return hit",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

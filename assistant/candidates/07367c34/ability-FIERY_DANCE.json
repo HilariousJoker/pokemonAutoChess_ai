@@ -62,7 +62,7 @@
     "fi-super"
    ]
   },
-  "summary": "The caster first gains +30 AP (no AP scaling), then deals single-target SPECIAL damage to the cast target: raw 25/50/100/200 by caster stars (Larvesta 25, Volcarona 50). Because the AP gain comes first, this cast's damage is scaled by the caster's AP including the +30 (unless Nullify Bandana turns the gain into 6 Attack). Crit applies only with ability crit. No status or movement.",
+  "summary": "The caster FIRST requests +30 AP (addAbilityPower(30, self, apBoost 0, crit false): not scaled by AP or crit, but a Belt makes it 37), then deals single-target SPECIAL damage (raw 25/50/100/200 by stars; LARVESTA 25, VOLCARONA 50) whose request sees the caster's resulting AP. Executed (caster AP 0): raw 25 with AP 30 is 32.5 and returns 33, 2 stars 50 returns 65, with a Belt (AP 37) 35; a blocked hit still gives the +30. A Nullify Bandanna holder cannot cast through castAbility (canCast, executed); on a DIRECT strategy call the conversion is addAttack(round(0.2 x 30) = 6) with no AP, and the Belt then makes it 7. Crit only with ability crit. No status or movement.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -86,13 +86,14 @@
     "declaredRaw": {
      "requested": 30
     },
-    "scaling": "addAbilityPower(30, self, apBoost 0, crit false): value = round(30) = 30. Big Eater Belt on the caster: positive buff x1.25 floored (37). Twist Band does not change a positive value. Nullify Bandana on the caster: no AP gained; instead Attack changes by round(0.2 x 30) = 6 (through addAttack's own helpers).",
+    "scaling": "addAbilityPower(30, self, apBoost 0, crit false): value = round(30) = 30. Big Eater Belt on the caster: positive buff x1.25 floored (37). Twist Band does not change a positive value. Nullify Bandana on the caster: no AP gained; instead Attack changes by round(0.2 x 30) = 6 (through addAttack's own helpers: a Belt makes it 7; a helper path reached only on a direct call, because canCast blocks a Nullify holder from casting).",
     "resolution": "Applied: AP = max(-100, AP + 30) (37 with Big Eater Belt). Applied BEFORE the damage, so the same cast benefits. Not permanent, so the board Pokemon's stored AP is unchanged. Stacks every cast for the fight.",
     "evidence": [
      "fi-ap",
      "add-ap",
      "beb",
-     "twist"
+     "twist",
+     "cancast-getter"
     ]
    },
    {
@@ -112,7 +113,7 @@
      "VOLCARONA": 50
     },
     "scaling": "requested = table value by caster stars. AP: x(1 + AP/100) using the caster's AP at the moment handleSpecialDamage runs, i.e. after this cast's +30 AP; the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
-    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields and takenDamage are resolved in handleDamage and not read by this strategy (return value unused). Blocked completely if the target is protected, skydiving or has magicBounce (the AP gain still happens).",
+    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields are resolved in handleDamage and the returned takenDamage is unused (section J1). Blocked completely if the target is protected, skydiving or has magicBounce (the AP gain still happens).",
     "evidence": [
      "fi-dmg",
      "fi-hit",
@@ -137,7 +138,7 @@
     "LARVESTA": 25,
     "VOLCARONA": 50
    },
-   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by these two units' star counts. The AP gain does not depend on stars. maxPP 100 and range 3 for both.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (100 / 200, fallback 200) are declared in the tables but unused by the bound baseline classes. The AP gain does not depend on stars. maxPP 100 and range 3 for both.",
    "evidence": [
     "fi-dmg",
     "unit-larvesta",
@@ -146,7 +147,7 @@
   },
   "positionalConditions": "None beyond needing a target (requiresTarget true; range 3 means the unit casts from up to 3 cells away, how range is enforced was not read).",
   "repeatedCastsAndModes": "No stored state or modes. The +30 AP accumulates cast after cast (floor -100 only matters for negative AP), raising later casts' damage multiplier.",
-  "rawVsResolved": "Raw: damage 25/50, AP +30. Requested = raw; applied AP gain = 30 (37 with Big Eater Belt; Nullify Bandana converts it to 6 Attack). Applied damage = requested x (1 + (AP after +30)/100) [x crit], then SPE_DEF division (ceil, at least 1). takenDamage is not read here.",
+  "rawVsResolved": "Raw: damage 25/50, AP +30. Requested = raw; applied AP gain = 30 (37 with Big Eater Belt; Nullify Bandana converts it to 6 Attack). Applied damage = requested x (1 + (AP after +30)/100) [x crit], then SPE_DEF division (ceil, at least 1). The returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "fieryDanceDamage",
@@ -162,7 +163,8 @@
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence) - only the pp >= maxPP && canCast gate was read"
   ],
   "unresolved": [
-   "How the target is chosen before the cast, and how range 3 is enforced, were not read."
+   "How the target is chosen before the cast, and how range 3 is enforced, were not read.",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAbilityPower, addAttack, handleSpecialDamage, canCast, castAbility) and the real FieryDanceStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the +30 before the damage with the damage seeing AP 30 / 37, the blocked-hit case, the Nullify helper path (ATK +6, +7 with a Belt) separated from valid casts (a Nullify holder casts nothing)."
   ],
   "evidence": [
    {
@@ -395,7 +397,32 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
     "note": ""
+   },
+   {
+    "id": "cancast-getter",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     250,
+     256
+    ],
+    "symbol": "PokemonEntity.canCast",
+    "expect": "!this.items.has(Item.NULLIFY_BANDANNA)",
+    "note": "canCast is false with silence or a Nullify Bandanna, so castAbility returns before the strategy runs"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215157Z",
+   "reason": "+30 AP before damage, Belt 37, Nullify separated from valid casts",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

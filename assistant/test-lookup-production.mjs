@@ -529,6 +529,35 @@ const ARTIFACT = /(?:\braw|Guards:|Order:|Scaling:|Resolution:|duration|Combat e
   }
   check(`all ${bound} bound keys of the batch 2 B2 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 32 && problems.length === 0, problems.join("; "))
 }
+// ---- catch-up batch 2 cycle 3 (ANCIENT_POWER, FIERY_DANCE, METAL_CLAW, TROP_KICK, MYSTICAL_FIRE): all ten unit bindings; key corrected facts; missing-value artifacts by pattern ----
+{
+  const cleanB3 = (r) => !ARTIFACT.test(r.out)
+  const onlyB3 = (r, ability) => [...r.out.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1]).join() === ability
+  const cB3 = (r, ability) => r.code === 0 && cleanB3(r) && lacks(r, "candidate is source reading", "not stored by this strategy") && has(r, "Evidence: source reading, mechanical checks and executed probes", "were NOT executed", `record \`abilities.${ability}\``) && onlyB3(r, ability)
+  const aiScoped = (r, ability) => has(r, `### Source-traced: ${ability} (independent AI source review by Codex recorded; project-owner review pending`, "Not a review of the final imported copy", "not a project-owner review; not gameplay-tested") && lacks(r, `### Reviewed: ${ability}`)
+  for (const [unit, ab, stars, raw, bits] of [
+    ["SHELLOS_EAST_SEA", "ANCIENT_POWER", 1, 40, ["so no normal Nullify casting build is claimed"]], ["GASTRODON_EAST_SEA", "ANCIENT_POWER", 2, 80, ["Big Eater Belt makes it 31"]],
+    ["LARVESTA", "FIERY_DANCE", 1, 25, ["a Belt makes it 37"]], ["VOLCARONA", "FIERY_DANCE", 2, 50, ["canCast, executed"]],
+    ["GALAR_MEOWTH", "METAL_CLAW", 1, 10, ["TRUE skips only the SPE_DEF division"]], ["PERRSERKER", "METAL_CLAW", 2, 20, ["a 6 shield absorbs first"]],
+    ["BOUNSWEET", "TROP_KICK", 1, 50, ["AP -50 turns -3 into -1.5 which rounds to -1"]], ["TSAREENA", "TROP_KICK", 3, 200, ["nothing restores it in the strategy"]],
+    ["FENNEKIN", "MYSTICAL_FIRE", 1, 20, ["round(-15 x 2 x 2) = -60"]], ["DELPHOX", "MYSTICAL_FIRE", 3, 80, ["checks the Nullify Bandanna FIRST"]]]) {
+    r = run(unit)
+    check(`${unit}: ${ab} ${stars}★ raw ${raw}; corrected wording present; Codex's AI review scoped to the original draft inspection (not the final copy), not owner-reviewed or gameplay-tested; no missing-value artifact`, cB3(r, ab) && aiScoped(r, ab) && has(r, `this unit (${stars}★): **raw ${raw}`, `Unit facts: ${unit} is ${stars}★`.slice(0, 0), ...bits), r.err || r.out.slice(0, 200))
+  }
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["ANCIENT_POWER", "FIERY_DANCE", "METAL_CLAW", "TROP_KICK", "MYSTICAL_FIRE"]) for (const u of reu.abilities[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    const headers = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (headers.join() !== n) problems.push(`${u.key}: headers ${headers.join()}`)
+    if (!o.includes(`${u.key} is ${u.stars}★, maxPP ${u.maxPP}, range ${u.range}`)) problems.push(`${u.key}: unit facts`)
+    if (!/this unit(?: \(\d★\))?: \*\*raw /.test(o)) problems.push(`${u.key}: no per-unit raw value`)
+    if (ARTIFACT.test(o)) problems.push(`${u.key}: artifact`)
+    if (!/not in the evolution pilot|covered by the 20-unit evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+  }
+  check(`all ${bound} bound keys of the batch 2 B3 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 12 && problems.length === 0, problems.join("; "))
+}
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
@@ -645,9 +674,9 @@ r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
 check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
 {
   const shipped = rd2("review-status.json")
-  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER", "SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD", "SHORE_UP", "SOLAR_BEAM", "SPLASH", "SUPER_FANG", "TAILWIND", "TAIL_WHIP", "TICKLE", "TOXIC", "WATERFALL", "YAWN", "AGILITY", "HARDEN", "DEFENSE_CURL", "MEDITATE", "QUIVER_DANCE", "HAPPY_HOUR", "FAIRY_WIND", "JET_PUNCH", "PECK", "RAZOR_WIND"]
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER", "SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD", "SHORE_UP", "SOLAR_BEAM", "SPLASH", "SUPER_FANG", "TAILWIND", "TAIL_WHIP", "TICKLE", "TOXIC", "WATERFALL", "YAWN", "AGILITY", "HARDEN", "DEFENSE_CURL", "MEDITATE", "QUIVER_DANCE", "HAPPY_HOUR", "FAIRY_WIND", "JET_PUNCH", "PECK", "RAZOR_WIND", "ANCIENT_POWER", "FIERY_DANCE", "METAL_CLAW", "TROP_KICK", "MYSTICAL_FIRE"]
   check("shipped review-status.json: the imported passives DRUMMER and WATER_SPRING are unreviewed with Codex's scoped AI review, projectOwnerReviewed=false, gameplayTested=false", ["DRUMMER", "WATER_SPRING"].every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#passives.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
-  check("shipped review-status.json: the eighty-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+  check("shipped review-status.json: the eighty-nine imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)

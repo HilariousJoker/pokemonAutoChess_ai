@@ -76,7 +76,7 @@
     "ab-super"
    ]
   },
-  "summary": "Single-target. In this order: first the cast target's Attack is lowered by a requested amount of 3/5/7 (by the caster's stars; scaled by the caster's AP and crit inside addAttack and changed by the target's items), then the target takes SPECIAL damage (raw 50/100/200 by stars). The Attack reduction is not undone by this strategy.",
+  "summary": "Single-target. In this order: first the cast target's Attack is lowered by a requested amount of 3/5/7 (by the caster's stars; scaled by the caster's AP and crit inside addAttack and changed by the target's items), then the target takes SPECIAL damage (raw 50/100/200 by stars). The negative request is scaled by the caster's AP and crit and Math.round-ed before the recipient helpers (AP -50 turns -3 into -1.5 which rounds to -1); an enemy Big Eater Belt does not amplify it, a Twist Band holder GAINS the amount, ATK floors at 1; it does not depend on the damage landing (a protected target is still debuffed) and nothing restores it in the strategy. Executed (target ATK 20): -3 -> 17, AP 100 or a crit -> 14, Twist Band -> 23, ATK 2 -> 1.",
   "targeting": {
    "who": "the cast target only",
    "needsTarget": true,
@@ -113,7 +113,7 @@
      "TSAREENA": 200
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce. The damage is dealt after the Attack debuff, which does not change it (special damage does not read the target's Attack). No heal or kill trigger follows in this strategy.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; the returned takenDamage is unused (core-mechanics.md section J1). The damage is dealt after the Attack debuff, which does not change it (special damage does not read the target's Attack). No heal or kill trigger follows in this strategy.",
     "evidence": [
      "ab-table",
      "ab-hit",
@@ -182,7 +182,7 @@
     "STEENEE": 5,
     "TSAREENA": 7
    },
-   "note": "Both tables are indexed by the casting entity's stars; the 4-star values (400 damage, 14 attack, also the ?? fallbacks) are not reachable by the bare factory star counts. All three units have maxPP 120 and range 1.",
+   "note": "Both tables are indexed by the casting entity's stars; the 4-star entries (400 damage, 14 attack, also the ?? fallbacks) are declared in the tables but unused by the bound baseline classes. All three units have maxPP 120 and range 1.",
    "evidence": [
     "ab-table",
     "ab-atk-table",
@@ -193,7 +193,7 @@
   },
   "positionalConditions": "None in the strategy; it uses only the cast target.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP; repeated casts on the same target lower its Attack again each time (cumulative, floor of 1, no restoration in the strategy).",
-  "rawVsResolved": "Requested: Attack -3/-5/-7 and raw SPECIAL damage 50/100/200 (1/2/3 stars). Applied Attack change = round(requested x (1 + AP/100) x optional critPower), then a Twist Band holder flips it into a gain, then the floor of 1 on atk. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; takenDamage includes shield damage.",
+  "rawVsResolved": "Requested: Attack -3/-5/-7 and raw SPECIAL damage 50/100/200 (1/2/3 stars). Applied Attack change = round(requested x (1 + AP/100) x optional critPower), then a Twist Band holder flips it into a gain, then the floor of 1 on atk. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then special-defence division and a minimum of 1; the returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "damage",
@@ -219,7 +219,7 @@
   ],
   "unresolved": [
    "Whether the three units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAttack, the Belt / Twist helpers, handleSpecialDamage) and the real TropKickStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units, target ATK 20): the ATK request before the damage, the scaled and rounded negative request (including the negative half), the enemy Belt, Twist and floor cases and the protected-target debuff."
   ],
   "evidence": [
    {
@@ -574,6 +574,20 @@
     "expect": "takenDamage += Math.min(residualDamage, pokemon.hp)",
     "note": "HP part of takenDamage"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T215157Z",
+   "reason": "negative ATK request scaled and rounded before recipient helpers",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
