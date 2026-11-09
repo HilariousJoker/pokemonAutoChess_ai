@@ -8,10 +8,10 @@
 
 | Cycle | Status | Records | Checkpoint commit | Notes |
 |---|---|---|---|---|
-| 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 80 / 261) | commit 'Checkpoint batch2 cycle 0' (see git log) | lock `run-20261109T213857Z` released; validate, FAST and production suites, probe (section 33), automation, inventory, queue checks passed |
-| 1 | not started | – | – | – |
+| 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 80 / 261) | `5b717b15bf23e6f4d0cbbe839c5062a52c148090` | lock `run-20261109T213857Z` released; validate, FAST and production suites, probe (section 33), automation, inventory, queue checks passed |
+| 1 | complete | AGILITY, HARDEN, DEFENSE_CURL, MEDITATE, QUIVER_DANCE imported (85 / 276 expected; measured in the final report) | commit 'Checkpoint batch2 cycle 1' (see git log) | lock `run-20261109T214126Z`; validator registry check extended for the exported meditateStrategy instance (same semantic check as EXPLOSION); all seven checks passed |
 | 2 | not started | – | – | – |
 | 3 | not started | – | – | – |
 | 4 | not started | – | – | – |
 
-Next unfinished cycle: 1.
+Next unfinished cycle: 2.

@@ -25,7 +25,7 @@
     "cast"
    ]
   },
-  "summary": "Needs no target. The caster raises its own Defense and Special Defense by the same raw amount, 5 (1 star) / 10 (2 stars), each scaled by AP (apBoost 1) and by crit power if the cast crit (crit only rolled with the ABILITY_CRIT effect), plus a Big Eater Belt x1.25 (rounded down) when held; then its attack cooldown is reset to round(250 / (0.4 + speed x 0.007)) ms. The buffs persist for the rest of the fight in the code read (no expiry present in this strategy).",
+  "summary": "Needs no target. The caster raises its own Defense and Special Defense by the same raw amount, 5 (1 star) / 10 (2 stars), each scaled by AP (apBoost 1) and by crit power if the cast crit (crit only rolled with the ABILITY_CRIT effect), plus a Big Eater Belt x1.25 (rounded down) when held; then resetCooldown(250) stores round(250 / (0.4 + speed x 0.007)) ms in the caster's cooldown field. The order is addDefense, addSpecialDefense, resetCooldown; the stored number is not a guaranteed 250 ms wait or next-action time (AttackingState.update stores resetCooldown(1000, speed) just before casting and onEnter sets the field to 0; speed 36 -> 383, speed 100 -> 227, executed). The buffs persist for the rest of the fight in the code read (no expiry present in this strategy).",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -105,10 +105,12 @@
      "baseDurationMs": 250
     },
     "scaling": "cooldown = round(250 / (0.4 + speed x 0.007)) with the caster's current speed (36 for both units at base: about 250/0.652 = 383 ms before any speed change).",
-    "resolution": "overwrites the caster's cooldown (not additive).",
+    "resolution": "overwrites the stored cooldown value (not additive); how it changes the unit's next action in a fight was not simulated.",
     "evidence": [
      "cd",
-     "reset-cd"
+     "reset-cd",
+     "attack-cd",
+     "attack-enter"
     ]
    }
   ],
@@ -143,7 +145,7 @@
     "BRONZOR": 5,
     "BRONZONG": 10
    },
-   "note": "table index is the casting entity's stars; 20 and 40 are not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "note": "table index is the casting entity's stars; the 3-star and 4-star entries (20 / 40) are declared in the tables but unused by the bound baseline classes. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "table",
     "unit-bronzor",
@@ -172,7 +174,7 @@
    "Whether resetCooldown(250) interacts with an ongoing attack animation (not traced)",
    "Whether the two units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addDefense, addSpecialDefense, resetCooldown, the Belt / Twist helpers) and the real DefenseCurlStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: call order, DEF / SPE_DEF 10 -> 15 / 20, the Belt, AP and crit doubling and the stored cooldown values."
   ],
   "ability": "DEFENSE_CURL",
   "label": "production-branch reference; deployment unverified",
@@ -396,7 +398,43 @@
     "symbol": "PokemonEntity.resetCooldown",
     "expect": "Math.round(baseDuration / (0.4 + speed * 0.007))",
     "note": "cooldown = round(250 / (0.4 + speed x 0.007)) ms using the unit's current speed"
+   },
+   {
+    "id": "attack-cd",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.resetCooldown(1000, speed)",
+    "note": "the attack loop stores the cooldown (speed halved when paralysed) right before casting"
+   },
+   {
+    "id": "attack-enter",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     115,
+     118
+    ],
+    "symbol": "AttackingState.onEnter",
+    "expect": "pokemon.cooldown = 0",
+    "note": "entering the attacking state sets the stored cooldown to 0"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214126Z",
+   "reason": "stored cooldown value, not a guaranteed 250 ms wait",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

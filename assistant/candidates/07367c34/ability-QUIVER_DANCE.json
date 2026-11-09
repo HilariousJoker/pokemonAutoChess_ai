@@ -133,7 +133,7 @@
     "qd-super"
    ]
   },
-  "summary": "Self-buff, no target needed. The caster gains ATK and SPE_DEF (raw 3/4/5/10 by stars) and SPEED (raw 10/10/10/15), each scaled by the caster's AP and by the cast's crit if it crit, plus a flat +20 AP that is not scaled. The buffs are applied to the caster only and are not marked permanent (no refToBoardPokemon update).",
+  "summary": "Self-buff, no target needed. In this order the caster requests ATK and SPE_DEF (raw 3/4/5/10 by stars: 3 for the Burmy forms, 4 for Wormadam and Mothim) and SPEED (raw 10/10/10/15) through addAttack, addSpecialDefense and addSpeed with apBoost 1 and the cast's crit, and last AP +20 through addAbilityPower(20, self, apBoost 0, crit false). ATK and SPE_DEF are rounded before the recipient's Big Eater Belt; speed takes the Belt BEFORE AP / crit scaling and is not rounded; the AP request is not scaled by AP or crit but still passes the item helpers (a Belt makes it 25; a Nullify Bandanna holder gets addAttack(4) instead of AP) and, being last, does not boost this cast's other gains. Changes are to the fight entity only (permanent false). Executed: ATK 20 / SPE_DEF 10 / speed 50 / AP 0 -> 23 / 13 / 60 / 20 at 1 star.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -176,10 +176,11 @@
      "WORMADAM_TRASH": 4
     },
     "scaling": "value x (1 + AP/100) rounded, x critPower if the cast crit (canCritByDefault is false, so needs ABILITY_CRIT); atk floor 1",
-    "resolution": "then belt/twist-band hooks inside addAttack (not traced); not permanent",
+    "resolution": "rounded first, then the recipient's Big Eater Belt (3 -> 3, 4 -> 5), Twist Band none for a positive self-buff; atk = min(1)(atk + value); not permanent",
     "evidence": [
      "qd-atk",
-     "fn-atk"
+     "fn-atk",
+     "item-helpers"
     ]
    },
    {
@@ -205,10 +206,11 @@
      "WORMADAM_TRASH": 4
     },
     "scaling": "value x (1 + AP/100) rounded, x critPower if the cast crit; floor 0",
-    "resolution": "then belt/twist-band hooks (not traced); not permanent",
+    "resolution": "rounded first, then the Belt (4 -> 5), Twist Band none; speDef = min(0)(speDef + value); not permanent",
     "evidence": [
      "qd-spedef",
-     "fn-spedef"
+     "fn-spedef",
+     "item-helpers"
     ]
    },
    {
@@ -234,11 +236,12 @@
      "WORMADAM_TRASH": 10
     },
     "scaling": "value x (1 + AP/100) x critPower if the cast crit; not rounded; clamped to 0..MAX_SPEED",
-    "resolution": "passive MELMETAL would redirect half to attack (no listed unit has it); belt/twist-band hooks not traced; not permanent",
+    "resolution": "the Belt takes the request first (10 -> 12), then AP / crit, no rounding, clamp 0..300; a MELMETAL passive (no listed unit has it) would redirect half to addAttack (a rounded second pass); not permanent",
     "evidence": [
      "qd-speed",
      "fn-speed",
-     "fn-speed-melmetal"
+     "fn-speed-melmetal",
+     "item-helpers"
     ]
    },
    {
@@ -257,12 +260,13 @@
      "WORMADAM_SANDY": 20,
      "WORMADAM_TRASH": 20
     },
-    "scaling": "none: apBoost 0 and crit false, so the 20 is not changed by the caster's AP or by the cast's crit",
-    "resolution": "with the NULLIFY_BANDANNA item the caster gains round(0.2 x 20) = 4 ATK instead of AP; belt/twist-band hooks not traced; ap floor -100",
+    "scaling": "apBoost 0 and crit false, so the caster's AP and the cast's crit do not scale it; the recipient item helpers still apply (Big Eater Belt 20 -> 25, Twist Band none for a positive self-buff)",
+    "resolution": "ap = min(-100)(ap + value); a NULLIFY_BANDANNA holder is checked first and gains addAttack(round(0.2 x 20) = 4) instead of AP, which then faces the Belt (4 -> 5); this is a helper path and no evidence that a Nullify holder can cast normally (canCast was not re-read here); being last, the AP gain does not boost this cast's other gains",
     "evidence": [
      "qd-ap",
      "fn-ap",
-     "fn-ap-nullify"
+     "fn-ap-nullify",
+     "item-helpers"
     ]
    }
   ],
@@ -302,7 +306,7 @@
     "WORMADAM_SANDY": 10,
     "WORMADAM_TRASH": 10
    },
-   "note": "tables are indexed by the caster's stars (1 for the Burmy forms, 2 for Wormadam and Mothim); the 3 and 4-star columns are not reachable by the bare factory star counts. Whether other mechanics raise an entity's star count was not examined.",
+   "note": "tables are indexed by the caster's stars (1 for the Burmy forms, 2 for Wormadam and Mothim); the 3-star and 4-star columns are declared in the tables but unused by the bound baseline classes. Whether other mechanics raise an entity's star count was not examined.",
    "evidence": [
     "qd-atk",
     "qd-spedef",
@@ -318,7 +322,7 @@
   },
   "positionalConditions": "None read: the cast does not depend on board position or on any target.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast adds the amounts again (stacking, subject to the stat clamps). The buffs are not permanent, so they apply to the in-fight entity only.",
-  "rawVsResolved": "Declared raw: ATK and SPE_DEF +3/+4 (1/2 stars), SPEED +10, AP +20. Resolved ATK, SPE_DEF and SPEED gain = raw x (1 + caster AP/100) (x critPower on a crit); the AP gain stays 20. The AP is read at the moment of each add call, in the order ATK, SPE_DEF, SPEED, AP, so the +20 AP does not scale this cast's own gains.",
+  "rawVsResolved": "Declared raw: ATK and SPE_DEF +3/+4 (1/2 stars), SPEED +10, AP +20. Resolved ATK, SPE_DEF and SPEED gain = raw x (1 + caster AP/100) (x critPower on a crit); the AP request is +20 (not scaled by AP or crit) but can become 25 with a Belt. The AP is read at the moment of each add call, in the order ATK, SPE_DEF, SPEED, AP, so the +20 AP does not scale this cast's own gains.",
   "sourceTables": [
    {
     "id": "atk",
@@ -344,18 +348,18 @@
   ],
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
-   "Belt/twist-band hooks (applyBigEaterBeltStatBuff, applyTwistBandBuff) applied inside every add* call were not read",
+   "Belt / Twist hooks (applyBigEaterBeltStatBuff, applyTwistBandBuff) inside the add* calls were read and executed in this recheck",
    "How ATK, SPE_DEF and SPEED translate into damage, attack rate and cooldown in a real fight",
    "When the cast fires in a real fight (PP gain, silence) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
-   "MAX_SPEED value was not read"
+   "MAX_SPEED is 300 (the clamp was executed)"
   ],
   "unresolved": [
    "The Burmy forms' passive BURMY is not investigated",
    "The other callers in abilities.ts that run another unit's strategy (copy-style abilities) were located but not read, so how QUIVER_DANCE behaves when cast through them (stars, caster) is unverified",
    "Whether the seven units ever reach a different star count than the bare factory value",
    "Whether the Burmy-to-Wormadam/Mothim evolution carries over any of these buffs was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAttack, addSpecialDefense, addSpeed, addAbilityPower and the Belt / Twist helpers) and the real QuiverDanceStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: the order, the AP 100 and crit cases, the Belt values (25 / 15 / 62 / AP 25), the Nullify holder helper path (ATK +4, +5 with a Belt) and the MELMETAL delegation."
   ],
   "evidence": [
    {
@@ -643,7 +647,32 @@
     "symbol": "class BurmyPlant passive",
     "expect": "passive = Passive.BURMY",
     "note": "Burmy forms declare passive BURMY (not covered)"
+   },
+   {
+    "id": "item-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "function applyBigEaterBeltStatBuff",
+    "note": "Belt x1.25 rounded down for buffs; Twist Band flips a debuff from an enemy"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214126Z",
+   "reason": "last AP request still passes the Belt; Nullify is a helper path only",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

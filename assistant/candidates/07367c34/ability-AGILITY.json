@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Self buff, no target and no damage: the caster's speed stat is raised by a requested 10/20/30/60 (by stars; 10 for RATTATA 1 star, 20 for RATICATE 2 stars) through addSpeed with apBoost 1 and the cast's crit flag. A held Big Eater Belt first multiplies the requested value by 1.25 (rounded down to an integer); then the value is multiplied by (1 + AP/100) and by critPower when the cast crit; the result is added to speed, which is clamped between 0 and 300 (MAX_SPEED). The buff is applied to the combat entity only (permanent false) and the default ability animation is suppressed.",
+  "summary": "Self buff, no target and no damage: the caster's speed stat is raised by a requested 10/20/30/60 (by stars; 10 for RATTATA 1 star, 20 for RATICATE 2 stars) through addSpeed with apBoost 1 and the cast's crit flag. A held Big Eater Belt first multiplies the requested value by 1.25 (rounded down to an integer); then the value is multiplied by (1 + AP/100) and by critPower when the cast crit; the result is added to speed, which is clamped between 0 and 300 (MAX_SPEED). The buff is applied to the combat entity only (permanent false) and the default ability animation is suppressed (preventDefaultAnim true: nothing is broadcast). Executed on a caster with speed 50: 1 star 60, 2 stars 70; a Belt takes 10 -> 12 first (62); AP 25 gives 12.5 and the stored speed is not rounded (62.5); the clamp stops at 300.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -95,7 +95,7 @@
      "RATICATE": 20
     },
     "scaling": "requested boost x Big Eater Belt 1.25 (rounded down, only if the caster holds BIG_EATER_BELT) x (1 + AP/100) x critPower if the cast crit (needs ABILITY_CRIT: canCritByDefault is false). Twist Band does not apply: the value is positive and the caster is on its own team.",
-    "resolution": "Requested = table value; applied change = the scaled value, but speed ends at clamp(speed + value, 0, 300), so the change is smaller when the caster is near 300. A MELMETAL-passive entity would convert it to 0.5 x attack instead; RATTATA and RATICATE have no passive in the catalog, so that branch is not taken. Applies to the combat entity only; the board Pok\u00e9mon keeps its base speed.",
+    "resolution": "Requested = table value; applied change = the scaled value, but speed ends at clamp(speed + value, 0, 300), so the change is smaller when the caster is near 300. The claims are limited to the ordinary bound units (RATTATA, RATICATE, no passive). A MELMETAL-passive entity (not a bound unit) would delegate to addAttack(0.5 x the Belt-adjusted value, self, 1, crit), which applies AP / crit with Math.round and a second Belt pass and leaves speed unchanged (executed: ATK +5, +7 with a Belt). Applies to the combat entity only; the board Pokémon keeps its base speed.",
     "evidence": [
      "ag-boost",
      "ag-add",
@@ -132,7 +132,7 @@
     "RATTATA": 10,
     "RATICATE": 20
    },
-   "note": "indexed by the casting entity's stars; the 30 and 60 entries are not reachable by the two units' bare star counts (1, 2). maxPP 100 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 30 and 60 entries (3 stars and 4+ stars / fallback) are declared in the tables but unused by the bound baseline classes. maxPP 100 and range 1 for both.",
    "evidence": [
     "ag-boost",
     "unit-rattata",
@@ -161,7 +161,7 @@
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and addSpeed's critPower multiplier were read",
    "Consulted: addSpeed, applyBigEaterBeltStatBuff and applyTwistBandBuff (pokemon-entity.ts), MAX_SPEED, sibling ACCELEROCK record",
    "RATTATA and RATICATE have no passive in the catalog; no other unit sharing the identifier exists in the queue",
-   "Source reading only; no probe or fight was run"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addSpeed, the Belt and Twist helpers, MELMETAL delegation) and the real AgilityStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (caster speed 50): the values above, the suppressed animation, the clamp and the MELMETAL delegation."
   ],
   "evidence": [
    {
@@ -362,6 +362,20 @@
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214126Z",
+   "reason": "Belt before unrounded scaling, MELMETAL delegation limited to a non-bound note",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

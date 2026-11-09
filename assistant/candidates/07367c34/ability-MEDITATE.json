@@ -30,7 +30,7 @@
     "med-super"
    ]
   },
-  "summary": "Needs no target and deals no damage. The caster raises its own attack by its baseAtk (the attack it had when the combat entity was created), scaled by (1 + AP/100) and by its critPower if the cast crits, rounded, then adjusted by its own Big Eater Belt if held, and added to its current attack (attack cannot fall below 1). Meditite requests +9 (baseAtk 9), Medicham +16 (baseAtk 16) before AP, crit and held items. The change is not temporary in code: addAttack has no timer and permanent is false, so it lasts for the combat only, and each cast adds again.",
+  "summary": "Needs no target and deals no damage. The caster raises its own attack by its baseAtk (the attack it had when the combat entity was created), scaled by (1 + AP/100) and by its critPower if the cast crits, rounded, then adjusted by its own Big Eater Belt if held, and added to its current attack (attack cannot fall below 1). The request is the combat entity's baseAtk, copied from the board Pokemon's atk when the entity is created (pokemon-entity.ts:178): not the entity's current atk and not a field of the bare-unit data. The catalog values 9 (Meditite) and 16 (Medicham) are examples that hold only when the board Pokemon had its catalog atk; any acquired modifier folded into that atk changes the request. Executed: baseAtk 9 on current atk 20 -> 29, two casts -> 38 (the fixed snapshot is added each time), current atk 40 -> 49 (not doubled). The change is not temporary in code: addAttack has no timer and permanent is false, so it lasts for the combat only, and each cast adds again.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -59,7 +59,7 @@
      "MEDITITE": 9,
      "MEDICHAM": 16
     },
-    "scaling": "requested = 1 x baseAtk (Meditite 9, Medicham 16 if the entity's initial atk equals the class value; not verified for per-run modifiers). Applied by addAttack with apBoost 1: round(requested x (1 + caster AP/100) x (critPower if the cast crit)); then the caster's Big Eater Belt (x1.25, rounded down to 0 digits) if held; Twist Band does not change a positive self-buff; final atk = max(1, atk + applied).",
+    "scaling": "requested = 1 x baseAtk (9 / 16 only in the catalog examples; the entity's baseAtk is the board Pokemon's atk at creation). Applied by addAttack with apBoost 1: round(requested x (1 + caster AP/100) x (critPower if the cast crit)); then the caster's Big Eater Belt (x1.25, rounded down to 0 digits) if held; Twist Band does not change a positive self-buff; final atk = max(1, atk + applied).",
     "resolution": "requested (baseAtk) -> applied (after AP, crit, belt) -> new atk (clamped at 1 minimum). Crit is rolled by castAbility only if the caster has ABILITY_CRIT (canCritByDefault is false). permanent = false: the board Pokemon is not changed. No expiry is coded in the strategy or in addAttack.",
     "evidence": [
      "med-buff",
@@ -126,7 +126,7 @@
    "NAME_SHARED_WITH_EFFECT: resolved by reading - EffectEnum.MEDITATE is the HUMAN synergy tier-1 effect (25 percent lifesteal via humanHealEffect) and is not called by or linked to this ability; Meditite and Medicham are HUMAN units, so both can have the synergy effect in addition to the ability, which this record does not cover",
    "Whether the entity's baseAtk equals the class atk (9 / 16) in every fight; the constructor copies pokemon.atk from the board Pokemon, whose possible modifications were not traced",
    "Whether anything other than the constructor assigns baseAtk (only the declaration and the constructor assignment appear in pokemon-entity.ts; other files such as simulation.ts only read it)",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAttack and the Belt / Twist helpers, the exported meditateStrategy instance) and the real MeditateStrategy (exported instance meditateStrategy) strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_B1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed: baseAtk 9 / 16 against different current ATK values, repeated casts, AP / crit doubling and the Belt (9 -> 11)."
   ],
   "ability": "MEDITATE",
   "label": "production-branch reference; deployment unverified",
@@ -466,6 +466,20 @@
     "expect": "skill = Ability.MEDITATE",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_B1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T214126Z",
+   "reason": "request is the constructor baseAtk snapshot; catalog 9/16 conditional",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_B1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
