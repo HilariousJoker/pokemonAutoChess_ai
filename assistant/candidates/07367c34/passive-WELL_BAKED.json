@@ -1,0 +1,209 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/WELL_BAKED",
+ "kind": "passive",
+ "identifier": "WELL_BAKED",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T183927Z"
+ },
+ "record": {
+  "passive": "WELL_BAKED",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "FIDOUGH",
+    "stars": 1,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "GROWL",
+    "declaredPassive": "WELL_BAKED",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "DACHSBUN",
+    "stars": 2,
+    "maxPP": 80,
+    "range": 1,
+    "declaredSkill": "GROWL",
+    "declaredPassive": "WELL_BAKED",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "FIDOUGH": {
+    "evidence": [
+     "unit-fidough"
+    ]
+   },
+   "DACHSBUN": {
+    "evidence": [
+     "unit-dachsbun"
+    ]
+   }
+  },
+  "kind": "burn modifier checked inside Status (triggerBurn / updateBurn / healBurn); no PassiveEffects entry",
+  "summary": "Passive.WELL_BAKED has no entry in PassiveEffects (queue uncertainty NO_PASSIVE_EFFECTS_ENTRY); it is read in three places in status.ts. FIDOUGH (1 star) and DACHSBUN (2 stars) are GOURMET + FAIRY + FIELD, maxPP 80, range 1, skill GROWL; nothing reads stars. (1) Status.triggerBurn: if the burn is applied (no IMMUNITY_BURN, no Rune Protect, not WATER_BUBBLE) and the unit was not already burning (alreadyBurning is read before the call changes anything), the holder calls addDefense(20, self, 0, false): requested +20 Defense, no AP scaling. A repeat burn while already burning refreshes the duration only (if longer) and adds no further Defense. (2) Status.updateBurn: every 1000 ms burn tick the burn damage is set to 0 (after all weather, Assault Vest, SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER modifiers have run), so handleDamage is not called for the burn tick; the Cooking Pot Speed gain still runs because it sits outside that check. (3) Status.healBurn (reached when burnCooldown runs out in updateBurn, and after clearNegativeStatus sets burnCooldown to 0 on the next update): if the unit was burning, burn is cleared and the holder calls addDefense(-20, self, 0, false) to remove the Defense. Applied amounts: addDefense passes the value through applyBigEaterBeltStatBuff, which scales a positive change and also a negative change when the caster is on the same team (here the holder itself), so with Big Eater Belt +20 becomes +25 and the removal -20 becomes -25 (symmetric, rounded down at 0 digits); Twist Band does not act (the removal is a same-team negative change); def is clamped at min 0. Defense is not permanent (the board reference is unchanged). The passive does not remove burn's other effects: handleHeal still halves healing on a burning unit (pokemon-state.ts:343) and a HISUIAN_TYPHLOSION attacker still deals x1.2 to a burning target, because status.burn stays true. If a burn is set by direct assignment instead of triggerBurn (the clone-from-reference copy, pokemon-entity.ts:1560), no +20 is granted but healBurn would still subtract 20 later; whether that path can reach a WELL_BAKED holder was not traced. The English text 'The Pokémon doesn't suffer from BURN damage. Instead, it gains 20 DEF when burning' matches this reading. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "Status.triggerBurn on the holder, when the burn is accepted and status.burn was false beforehand",
+   "Status.updateBurn burn tick (every 1000 ms while burning)",
+   "Status.healBurn when the burn ends (burnCooldown elapsed or burn cleared)"
+  ],
+  "effects": [
+   {
+    "kind": "stat buff (Defense, self) on becoming burnt",
+    "declaredRaw": "pkm.addDefense(20, pkm, 0, false) when WELL_BAKED and !alreadyBurning",
+    "scaling": "none (apBoost 0, no crit); no star scaling",
+    "resolution": "Requested +20 Defense. Applied: Big Eater Belt x1.25 rounded down (25); Twist Band not involved for a positive value; def = max(0, def + value); not permanent. Only on the transition from not burning to burning; a burn blocked by IMMUNITY_BURN, Rune Protect or WATER_BUBBLE grants nothing.",
+    "evidence": [
+     "trigger-burn",
+     "add-defense",
+     "belt-helpers"
+    ]
+   },
+   {
+    "kind": "damage suppression (burn tick)",
+    "declaredRaw": "burnDamage = 0 if pkm.passive === Passive.WELL_BAKED || pkm.items.has(Item.MAGMARIZER)",
+    "scaling": "none",
+    "resolution": "The computed tick amount (5 % of maxHP times the weather / item / ability modifiers) is replaced by 0 before rounding, so the `burnDamage > 0` branch that calls handleDamage (TRUE damage, shouldTargetGainMana true) is skipped: no burn damage and no PP from burn ticks. The cooldown is still reset to 1000 and the Cooking Pot Speed +10 per tick still happens.",
+    "evidence": [
+     "update-burn",
+     "heal-burn-halving"
+    ]
+   },
+   {
+    "kind": "stat removal (Defense) when the burn ends",
+    "declaredRaw": "pkm.addDefense(-20, pkm, 0, false) in healBurn when WELL_BAKED",
+    "scaling": "none",
+    "resolution": "Requested -20 Defense. Applied: Big Eater Belt applies to a negative change from a same-team caster, so -20 becomes -25 with the belt, matching the +25 given earlier; def clamped at min 0 so a unit whose Defense was lowered meanwhile can lose less than 20 relative to its current value. healBurn returns early if status.burn is false.",
+    "evidence": [
+     "heal-burn",
+     "add-defense",
+     "belt-helpers",
+     "clear-negative"
+    ]
+   }
+  ],
+  "conditions": [
+   "+20 Defense only when burning starts (status.burn was false); refreshing an existing burn does not stack",
+   "Burn must be accepted: IMMUNITY_BURN, Rune Protect (runeProtect) and WATER_BUBBLE block it, so no Defense",
+   "Burn tick damage is removed, but heal reduction (x0.5 while burning), Hisuian Typhlotion x1.2 and other burn readers still treat the unit as burning",
+   "Magmarizer also zeroes burn damage and gives Speed on its own; the two effects are independent"
+  ],
+  "resetBehaviour": "Defense bonus is removed by healBurn when the burn expires or is cleared (clearNegativeStatus zeroes burnCooldown, so the next updateBurn calls healBurn); the buff is per fight and not permanent.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether the clone-from-reference copy can set burn without the Defense bonus on a WELL_BAKED holder (then healBurn would subtract 20 later) was not traced",
+   "roundToNDigits rounding of -25 under Big Eater Belt is exact (-20 x 1.25 = -25), so the rounding direction does not matter here",
+   "The many triggerBurn callers were not read; they share the guard"
+  ],
+  "unresolved": [
+   "NO_PASSIVE_EFFECTS_ENTRY: confirmed; the passive is implemented only by the three identity tests in status.ts (no PassiveEffects entry, no other reference found by name search)",
+   "No numeric example: Defense change is a flat +20 / -20",
+   "No gameplay evidence; candidate is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-fidough",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17539,
+     17558
+    ],
+    "symbol": "Fidough",
+    "expect": "passive = Passive.WELL_BAKED",
+    "note": "FIDOUGH: 1 star, GOURMET + FAIRY + FIELD, maxPP 80, range 1, skill GROWL"
+   },
+   {
+    "id": "unit-dachsbun",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     17560,
+     17578
+    ],
+    "symbol": "Dachsbun",
+    "expect": "passive = Passive.WELL_BAKED",
+    "note": "DACHSBUN: 2 stars, GOURMET + FAIRY + FIELD, maxPP 80, range 1, skill GROWL"
+   },
+   {
+    "id": "trigger-burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     397,
+     438
+    ],
+    "symbol": "Status.triggerBurn",
+    "expect": "pkm.passive === Passive.WELL_BAKED && !alreadyBurning",
+    "note": "alreadyBurning read first; +20 Defense only when the burn is accepted and was not already active"
+   },
+   {
+    "id": "update-burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     440,
+     501
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "pkm.passive === Passive.WELL_BAKED ||",
+    "note": "burn tick damage forced to 0 for WELL_BAKED or Magmarizer; handleDamage only if burnDamage > 0"
+   },
+   {
+    "id": "heal-burn",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     503,
+     518
+    ],
+    "symbol": "Status.healBurn",
+    "expect": "pkm.addDefense(-20, pkm, 0, false)",
+    "note": "removes the 20 Defense when the burn ends"
+   },
+   {
+    "id": "clear-negative",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     122,
+     124
+    ],
+    "symbol": "Status.clearNegativeStatus",
+    "expect": "this.burnCooldown = 0",
+    "note": "clearing negative status zeroes burnCooldown, so updateBurn then calls healBurn"
+   },
+   {
+    "id": "add-defense",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     674,
+     698
+    ],
+    "symbol": "PokemonEntity.addDefense",
+    "expect": "target.def = min(0)(target.def + value)",
+    "note": "Big Eater Belt / Twist Band helpers then def clamped at 0, permanent only if flagged"
+   },
+   {
+    "id": "belt-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt scales positive changes and negative changes from the same team; Twist Band only negative changes from enemies"
+   },
+   {
+    "id": "heal-burn-halving",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     343,
+     345
+    ],
+    "symbol": "PokemonState.handleHeal",
+    "expect": "if (pokemon.status.burn) {",
+    "note": "healing halved while status.burn is true, unaffected by WELL_BAKED"
+   }
+  ]
+ }
+}
