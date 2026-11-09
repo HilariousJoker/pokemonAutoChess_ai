@@ -1,0 +1,293 @@
+{
+ "schema": 1,
+ "label": "production-branch reference; deployment unverified",
+ "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+ "itemId": "passive/SUDOWOODO",
+ "kind": "passive",
+ "identifier": "SUDOWOODO",
+ "reviewStatus": "candidate",
+ "generatedBy": {
+  "runId": "run-20261109T183927Z"
+ },
+ "record": {
+  "passive": "SUDOWOODO",
+  "label": "production-branch reference; deployment unverified",
+  "sourceSha": "07367c341fe928763da2b565c2eee010433e4fc1",
+  "appliesTo": [
+   {
+    "key": "BONSLEY",
+    "stars": 1,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WOOD_HAMMER",
+    "declaredPassive": "SUDOWOODO",
+    "source": "data/07367c34/catalog-units.json"
+   },
+   {
+    "key": "SUDOWOODO",
+    "stars": 2,
+    "maxPP": 100,
+    "range": 1,
+    "declaredSkill": "WOOD_HAMMER",
+    "declaredPassive": "SUDOWOODO",
+    "source": "data/07367c34/catalog-units.json"
+   }
+  ],
+  "unitEvidence": {
+   "BONSLEY": {
+    "evidence": [
+     "unit-bonsley"
+    ]
+   },
+   "SUDOWOODO": {
+    "evidence": [
+     "unit-sudowoodo"
+    ]
+   }
+  },
+  "kind": "spawn-time 'tree' state plus a once-per-second self attack buff (OnSpawnEffect treeEffect + PeriodicEffect SudowoodoGainAttackEffect)",
+  "summary": "Passive.SUDOWOODO is registered in PassiveEffects (passives.ts:1427) as two effects: treeEffect (an OnSpawnEffect) and SudowoodoGainAttackEffect (a PeriodicEffect, interval 1000 ms). BONSLEY (1 star) and SUDOWOODO (2 stars) are ROCK + FLORA (+ BABY / MONSTER), maxPP 100, range 1, skill WOOD_HAMMER. On spawn the holder gets status.tree = true and is put into the idle state. While status.tree is true: the holder cannot move (canMove), cannot attack (canAttack), toMovingState/toAttackingState return without changing state, triggerSilence does nothing, and addPP ignores negative values. Every 1000 ms, while status.tree is still true, the holder calls addAttack(1 if stars === 1, else 2, self, apBoost 0, crit false, permanent false): requested +1 ATK for BONSLEY and +2 ATK for SUDOWOODO per tick, stackable, no AP scaling. Applied: Big Eater Belt turns a positive amount into floor(x1.25) (1 stays 1, 2 becomes 2 because floor(2.5)), Twist Band is irrelevant for a positive amount, and atk = max(1, atk + value); the change is not permanent (only the in-fight entity, not the board reference). The tree state ends in IdleState.update on the first update where maxPP > 0 and pp >= maxPP: status.tree is set false, after which the holder can move and attack, and the periodic effect no longer adds ATK (the effect stays registered but its tree check fails). PP still rises while it is a tree because positive addPP is allowed: updateEachSecond gives +10 PP per second (weather-adjusted: Rain +3, Drought -3) and handleDamage gives ceil(residualDamage / 10) PP when shouldTargetGainMana; addPP is blocked by status.protect, silence (no effect on a tree since it cannot be silenced), the NO_PP_GAIN effect and resurrecting, and halved by fatigue (shared helper section J). The English translation text says [2,4] ATK per second, whereas the code reads stars === 1 ? 1 : 2; the code values are the ones recorded here. treeEffect is shared with STONJOURNER, WOBBUFFET and GALARIAN_DARMANITAN_ZEN, and SudowoodoGainAttackEffect appears only under SUDOWOODO. No gameplay claims; source reading plus mechanical checks only.",
+  "triggers": [
+   "OnSpawnEffect (simulation.ts:385) when the entity is created: treeEffect sets status.tree and calls toIdleState",
+   "PeriodicEffect updated from PokemonState.update every tick; fires every 1000 ms (first firing after 1000 ms) and acts only if status.tree",
+   "IdleState.update clears status.tree when pp >= maxPP"
+  ],
+  "effects": [
+   {
+    "kind": "state (tree)",
+    "declaredRaw": "entity.status.tree = true; entity.toIdleState()",
+    "scaling": "none",
+    "resolution": "Requested: spawn as a tree. Applied: while tree the entity is in the idle state and canMove / canAttack are false, toMovingState / toAttackingState refuse, triggerSilence is skipped and negative PP changes are ignored. Ends when pp >= maxPP (IdleState.update, checked on each idle update, maxPP 100 for both units); status.tree is not set again by this passive.",
+    "evidence": [
+     "tree-effect",
+     "can-move",
+     "to-moving",
+     "trigger-silence",
+     "add-pp",
+     "idle-update"
+    ]
+   },
+   {
+    "kind": "stat buff (ATK, self, periodic)",
+    "declaredRaw": "addAttack(pokemon.stars === 1 ? 1 : 2, pokemon, 0, false) every 1000 ms while tree",
+    "scaling": "none (apBoost 0 so AP does not scale it; no crit); stars: 1 star -> +1, any other star value -> +2; BONSLEY has 1 star and SUDOWOODO 2",
+    "resolution": "Requested +1 / +2 per tick. Applied: Big Eater Belt makes it floor(value x 1.25) (+1 stays +1, +2 stays +2); Twist Band acts only on negative values; atk = min(1) clamp via max(1, atk + value); permanent flag false so only the fight entity changes. Stacks every tick for as long as the tree state lasts; nothing is removed when the tree state ends.",
+    "evidence": [
+     "periodic-effect",
+     "sudowoodo-effect",
+     "add-attack",
+     "belt-helpers",
+     "periodic-update",
+     "registry"
+    ]
+   },
+   {
+    "kind": "pp gain while a tree (context, generic helpers)",
+    "declaredRaw": "not part of the passive",
+    "scaling": "none",
+    "resolution": "PP reaches maxPP through shared mechanics: updateEachSecond addPP(10 +/- weather) and handleDamage addPP(ceil(residualDamage / 10)); addPP applies fatigue x0.5 for positive values and is blocked by Protect, NO_PP_GAIN and resurrecting. These paths are generic, not Sudowoodo specific, and were only checked for being positive-allowed.",
+    "evidence": [
+     "add-pp",
+     "each-second",
+     "handle-damage-pp"
+    ]
+   }
+  ],
+  "conditions": [
+   "ATK is added only on ticks where status.tree is true",
+   "A holder whose PP is already >= maxPP at its first idle update leaves the tree state immediately",
+   "status.tree can also be cleared elsewhere only for GALARIAN_DARMANITAN_ZEN (transe.ts), not for this passive",
+   "Silence and negative PP changes are ignored only while status.tree is true"
+  ],
+  "resetBehaviour": "Per fight: status.tree is set at spawn and cleared when PP is full; ATK gained is not reverted. Stars decide the per-tick amount only through pokemon.stars at tick time.",
+  "dependsOnUnverifiedGenericCombat": [
+   "Whether updateEachSecond runs for an entity in the idle tree state was not traced beyond the PokemonState method itself",
+   "Targeting of tree units by enemies (they can presumably be targeted) was not traced",
+   "Comet Shard / skydiving interaction mentioned in idle-state.ts comment was not traced"
+  ],
+  "unresolved": [
+   "ALSO_REFERENCED_ELSEWHERE: treeEffect is shared with STONJOURNER, WOBBUFFET and GALARIAN_DARMANITAN_ZEN; the tree reads in idle-state.ts, pokemon-entity.ts, status.ts and simulation.ts apply to all of them; only the parts relevant to SUDOWOODO are described",
+   "The English locale string says [2,4] ATK per second; code gives 1 / 2 by stars; the discrepancy is recorded, not resolved",
+   "No numeric example (final ATK depends on how long the PP bar takes to fill)",
+   "No gameplay evidence; candidate is source reading plus mechanical checks"
+  ],
+  "evidence": [
+   {
+    "id": "unit-bonsley",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12097,
+     12112
+    ],
+    "symbol": "Bonsley",
+    "expect": "passive = Passive.SUDOWOODO",
+    "note": "BONSLEY: 1 star, ROCK + FLORA + BABY, maxPP 100, range 1, skill WOOD_HAMMER"
+   },
+   {
+    "id": "unit-sudowoodo",
+    "file": "app/models/colyseus-models/pokemon.ts",
+    "lines": [
+     12114,
+     12128
+    ],
+    "symbol": "Sudowoodo",
+    "expect": "passive = Passive.SUDOWOODO",
+    "note": "SUDOWOODO: 2 stars, ROCK + FLORA + MONSTER, maxPP 100, range 1, skill WOOD_HAMMER"
+   },
+   {
+    "id": "tree-effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1015,
+     1018
+    ],
+    "symbol": "treeEffect",
+    "expect": "entity.status.tree = true",
+    "note": "OnSpawnEffect: tree = true then toIdleState"
+   },
+   {
+    "id": "sudowoodo-effect",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1138,
+     1146
+    ],
+    "symbol": "SudowoodoGainAttackEffect",
+    "expect": "pokemon.addAttack(pokemon.stars === 1 ? 1 : 2, pokemon, 0, false)",
+    "note": "PeriodicEffect 1000 ms: +1 (1 star) or +2 ATK while status.tree"
+   },
+   {
+    "id": "registry",
+    "file": "app/core/effects/passives.ts",
+    "lines": [
+     1427,
+     1427
+    ],
+    "symbol": "PassiveEffects[Passive.SUDOWOODO]",
+    "expect": "[treeEffect, SudowoodoGainAttackEffect]",
+    "note": "registry entry"
+   },
+   {
+    "id": "periodic-effect",
+    "file": "app/core/effects/effect.ts",
+    "lines": [
+     261,
+     285
+    ],
+    "symbol": "PeriodicEffect",
+    "expect": "this.timer = intervalMs",
+    "note": "timer starts at intervalMs, fires when timer <= 0, then resets"
+   },
+   {
+    "id": "periodic-update",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     895,
+     899
+    ],
+    "symbol": "PokemonState.update",
+    "expect": "effect instanceof PeriodicEffect",
+    "note": "periodic effects updated each tick"
+   },
+   {
+    "id": "add-attack",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     726,
+     750
+    ],
+    "symbol": "PokemonEntity.addAttack",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "apBoost scaling, Big Eater Belt, Twist Band, atk = min(1)(atk + value), permanent only if flag"
+   },
+   {
+    "id": "belt-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "value = roundToNDigits(value * 1.25, nbDigits, \"down\")",
+    "note": "Big Eater Belt x1.25 rounded down for positive values; Twist Band only negative values from enemies"
+   },
+   {
+    "id": "can-move",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     230,
+     248
+    ],
+    "symbol": "PokemonEntity.canMove / canAttack",
+    "expect": "!this.status.tree",
+    "note": "canMove and canAttack both require !status.tree"
+   },
+   {
+    "id": "to-moving",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     484,
+     492
+    ],
+    "symbol": "toMovingState / toAttackingState",
+    "expect": "this.status.tree) return",
+    "note": "state changes refused while tree"
+   },
+   {
+    "id": "add-pp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     508,
+     532
+    ],
+    "symbol": "PokemonEntity.addPP",
+    "expect": "cannot lose PP if tree",
+    "note": "fatigue halves positive gains; Protect, silence on positive, NO_PP_GAIN, resurrecting block positive changes; negative changes ignored while tree"
+   },
+   {
+    "id": "trigger-silence",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     520,
+     521
+    ],
+    "symbol": "Status.triggerSilence",
+    "expect": "if (!this.runeProtect && !this.tree)",
+    "note": "silence is not applied to a tree"
+   },
+   {
+    "id": "idle-update",
+    "file": "app/core/idle-state.ts",
+    "lines": [
+     16,
+     21
+    ],
+    "symbol": "IdleState.update",
+    "expect": "pokemon.status.tree = false",
+    "note": "tree ends when maxPP > 0 and pp >= maxPP"
+   },
+   {
+    "id": "each-second",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     972,
+     980
+    ],
+    "symbol": "PokemonState.updateEachSecond",
+    "expect": "pokemon.addPP(passivePPGain, pokemon, 0, false)",
+    "note": "+10 PP per second, Rain +3, Drought -3"
+   },
+   {
+    "id": "handle-damage-pp",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     730,
+     732
+    ],
+    "symbol": "PokemonState.handleDamage",
+    "expect": "pokemon.addPP(Math.ceil(residualDamage / 10), pokemon, 0, false)",
+    "note": "damage taken gives PP when shouldTargetGainMana"
+   }
+  ]
+ }
+}
