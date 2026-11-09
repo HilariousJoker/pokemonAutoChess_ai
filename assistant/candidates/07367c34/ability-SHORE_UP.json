@@ -63,7 +63,7 @@
     "shore-super"
    ]
   },
-  "summary": "The caster heals itself by a fraction of its own current max HP (0.2 at 1 star, 0.25 at 2 stars, 0.4 at 3 stars, 0.8 at 4 stars and as fallback), plus 0.1 added to the fraction when the simulation weather is SANDSTORM (so 0.3 / 0.35 for the listed 1- and 2-star units), through handleHeal with apBoost 1 and the cast's crit flag. Because requiresTarget is false it can be cast without a target in range. Requested amount = healFactor x maxHP; the applied amount then follows the heal helper (PokemonState.handleHeal): a wounded caster gets 0 healing (under BLOODMOON weather with the player's BLOOD_STONE items a shield of round(0.3 x stones x requested heal) is requested instead via addShield); a caster at hp 0 or with status.protect gets 0 (Rune Protect alone does not block it); otherwise x(1 + AP/100), x critPower only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false), x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP. Overheal on a caster with the GRASS synergy effect adds max HP via addMaxHP(0.4 x overheal). The strategy ignores the returned values. No damage, status, movement or shield of its own.",
+  "summary": "The caster heals itself by a fraction of its own current max HP (0.2 at 1 star, 0.25 at 2 stars, 0.4 at 3 stars, 0.8 at 4 stars and as fallback), plus 0.1 added to the fraction when the simulation weather is SANDSTORM (0.2 + 0.1 is 0.30000000000000004 in floating point, so the request is 300.00000000000006 for maxHP 1000 and is rounded inside handleHeal) (so 0.3 / 0.35 for the listed 1- and 2-star units), through handleHeal with apBoost 1 and the cast's crit flag. Because requiresTarget is false it can be cast without a target in range. Requested amount = healFactor x maxHP; the applied amount then follows the heal helper (PokemonState.handleHeal): a wounded caster gets 0 healing (this wound branch comes BEFORE the alive / protect guard: under BLOODMOON weather and with BLOOD_STONE items in the owner's inventory, addShield(round(0.3 x stones x the RAW request), apBoost 1, the cast's crit) is requested instead; the shield helper then applies the Big Eater Belt, AP, crit and the enraged halving itself and refuses a caster at 0 HP, and Protect does not stop it; executed: raw request 200 and 1 stone -> shield 60, AP 100 or a crit -> 120, enraged -> 30, Belt -> 75, a caster at 0 HP -> 0); a caster at hp 0 or with status.protect gets 0 (Rune Protect alone does not block it); otherwise x(1 + AP/100), x critPower only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false), x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP. Overheal (taken from the rounded heal) on a caster with the GRASS synergy effect requests addMaxHP(0.4 x overheal, itself, apBoost 0, crit false, not permanent); addMaxHP rounds it, applies the Big Eater Belt and Twist Band helpers and raises hp by the same amount, clamped to the new maxHP (executed: hp 990 of 1000, request 200 -> overheal 190 -> request 76, maxHP 1076; with a Belt 95; AP 100 -> overheal 390 -> request 156). The strategy ignores the returned values. No damage, status, movement or shield of its own.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -99,7 +99,7 @@
      "PALOSSAND": "0.25 x max HP (0.35 x max HP in SANDSTORM)"
     },
     "scaling": "requested = (table[stars-1] ?? 0.8, + 0.1 if simulation.weather === SANDSTORM) x pokemon.maxHP; then AP: x(1 + AP/100) because apBoost is 1; then x critPower only if the cast rolled a crit (canCritByDefault false, so this needs ABILITY_CRIT)",
-    "resolution": "applied: 0 if the caster is wounded (status.wound; with BLOODMOON weather and BLOOD_STONE items a shield of round(0.3 x stones x requested heal) is requested instead, see core-mechanics \u00a7J), or at 0 hp, or status.protect (Rune Protect alone blocks neither); otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP (maxHP - hp). The uncapped excess (overheal) adds addMaxHP(0.4 x overheal) if the caster has the GRASS synergy effect (not 40 % of max HP). Requested, applied (healReceived) and overheal are separate amounts; the strategy ignores the returned values.",
+    "resolution": "applied: the wound check comes FIRST: a wounded caster (status.wound) gets 0 healing and, with BLOODMOON weather and BLOOD_STONE items, a requested addShield(round(0.3 x stones x the raw request), apBoost 1, crit) that PokemonEntity.addShield / PokemonState.addShield then scale (Big Eater Belt, AP, crit, enraged x0.5) and refuse at 0 hp (see core-mechanics §J); otherwise 0 at 0 hp or with status.protect (Rune Protect alone blocks neither); otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP (maxHP - hp). The uncapped excess (overheal, from the rounded heal) requests addMaxHP(0.4 x overheal, itself, 0, false, false) if the caster has the GRASS synergy effect (not 40 % of max HP); addMaxHP rounds it, applies Belt and Twist Band and raises hp with maxHP. Requested, applied (healReceived) and overheal are separate amounts; the strategy ignores the returned values.",
     "evidence": [
      "shore-table",
      "shore-sand",
@@ -112,7 +112,11 @@
      "heal-mods",
      "heal-cap",
      "heal-grass",
-     "cast"
+     "cast",
+     "heal-shield-pe",
+     "heal-shield-ps",
+     "pe-addmaxhp",
+     "item-helpers"
     ]
    }
   ],
@@ -132,7 +136,7 @@
     "PALOSSAND": 0.35,
     "SANDYGAST": 0.3
    },
-   "note": "indexed by the casting entity's stars; the 3-star (0.4) and 4-star/fallback (0.8) values are not reachable by the bare factory star counts of the listed units. maxPP 90, range 1 and max HP are in appliesTo / the unit blocks.",
+   "note": "indexed by the casting entity's stars; the 3-star (0.4) and 4-star/fallback (0.8) values are declared in the tables but unused by the bound baseline classes. maxPP 90, range 1 and max HP are in appliesTo / the unit blocks.",
    "evidence": [
     "shore-table",
     "shore-sand",
@@ -158,10 +162,10 @@
    "How the simulation weather is chosen for a fight (only the SANDSTORM comparison in the strategy was read)"
   ],
   "unresolved": [
-   "Nothing consulted beyond core-mechanics \u00a7J, the sibling RECOVER candidate and PokemonState.handleHeal settles the heal helper; addMaxHP / addShield internals (Big Eater Belt, Twist Band helpers) were not traced for the GRASS overheal and BLOOD_STONE shield requests",
+   "Consulted: core-mechanics §J, the sibling RECOVER candidate, PokemonState.handleHeal / addShield, PokemonEntity.handleHeal / addShield / addMaxHP and the two item helpers at the pinned commit (the Blood Moon shield and the Grass overheal requests are traced and executed); the sources of the GRASS synergy effect and of the BLOODMOON weather themselves were not read",
    "Whether the units ever reach a different star count than the bare factory value",
    "Which caster states other than wound/protect/hp 0 block the cast itself (canCast) was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleHeal, addShield, addMaxHP, the Belt and Twist helpers) and the real ShoreUpStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (maxHP 1000, hp 500): requests 200 / 250 / 800 by stars, SANDSTORM 300.00000000000006 and 350, wound + BLOODMOON shield requests and finals, Protect and Rune Protect, the Grass overheal requests and finals."
   ],
   "evidence": [
    {
@@ -405,7 +409,65 @@
     "symbol": "PokemonState.handleHeal",
     "expect": "if (overheal > 0 && pokemon.hasSynergyEffect(Synergy.GRASS)) {",
     "note": "overheal on a unit with the GRASS synergy effect adds 0.4 x overheal max HP"
+   },
+   {
+    "id": "heal-shield-pe",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     498,
+     506
+    ],
+    "symbol": "PokemonEntity.addShield",
+    "expect": "value = applyBigEaterBeltStatBuff(this, value, caster)",
+    "note": "addShield: the Big Eater Belt helper first, then the PokemonState addShield"
+   },
+   {
+    "id": "heal-shield-ps",
+    "file": "app/core/pokemon-state.ts",
+    "lines": [
+     382,
+     420
+    ],
+    "symbol": "PokemonState.addShield",
+    "expect": "if (pokemon.status.enraged && shield > 0) shield *= 0.5",
+    "note": "state addShield: alive check, AP (apBoost), crit, enraged x0.5, rounding; no protect check"
+   },
+   {
+    "id": "pe-addmaxhp",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     577,
+     606
+    ],
+    "symbol": "PokemonEntity.addMaxHP",
+    "expect": "this.maxHP = min(1)(this.maxHP + value)",
+    "note": "addMaxHP: rounds, Belt, Twist Band, then raises maxHP and hp"
+   },
+   {
+    "id": "item-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "function applyBigEaterBeltStatBuff",
+    "note": "Belt x1.25 rounded down for buffs; Twist Band flips a debuff from an enemy"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T200054Z",
+   "reason": "wound branch before the alive/protect guard; Blood Moon shield and Grass overheal are requested helper calls",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

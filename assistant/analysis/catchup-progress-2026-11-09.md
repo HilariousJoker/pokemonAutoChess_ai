@@ -11,7 +11,7 @@
 | 0 | complete | PSYSHOCK, PSYBEAM (canonical cleanup, no reopen; counts unchanged 60 / 221) | `6d6d2014bdcb879b7bbccf255a4ce7716378d641` | lock `run-20261109T193909Z` released; validate, FAST and production suites, probe, automation, inventory, queue checks passed |
 | 1 | complete | RAPID_SPIN, REFLECT, ROCK_HEAD, ROCK_SMASH, ROCK_WRECKER imported (65 / 231 expected) | `355b87e9e0a323972e98ca06eb48a09137c773ea` | lock `run-20261109T194233Z`; ROCK_WRECKER flinch-reduction blocker fixed; REFLECT / ROCK_SMASH / ROCK_WRECKER statusEffects normalised (reopened a second time within the run) |
 | 2 | complete | SAND_TOMB, SCREECH, SEED_FLARE, SHADOW_SNEAK, SHEER_COLD imported (70 / 241 expected; measured below in the final report) | commit 'Checkpoint cycle 2: ...' (see git log) | lock `run-20261109T195151Z`; SAND_TOMB attempts/Cheri Berry, SCREECH no timer, SEED_FLARE clipped disc, SHADOW_SNEAK TRUE guards, SHEER_COLD Math.max(0,x)/9999 requested; all seven checks passed |
-| 3 | not started | – | – | – |
+| 3 | complete | SHORE_UP, SOLAR_BEAM, SPLASH, SUPER_FANG, TAILWIND imported (75 / 251 expected; measured below in the final report) | commit 'Checkpoint cycle 3: ...' (see git log) | lock `run-20261109T200054Z`; SHORE_UP wound-branch order / Blood Moon shield / Grass overheal requests, SOLAR_BEAM actual getCellsBetween walk (diagonal blocker fixed) / burn weather / PP request order, SPLASH base bookkeeping and hooks, SUPER_FANG formula, TAILWIND MELMETAL rounded addAttack with Belt twice; all seven checks passed |
 | 4 | not started | – | – | – |
 
-Next unfinished cycle: 3.
+Next unfinished cycle: 4.

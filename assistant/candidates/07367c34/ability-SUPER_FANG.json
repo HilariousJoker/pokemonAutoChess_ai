@@ -27,7 +27,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target TRUE damage proportional to the target's maximum HP. Requested amount = ceil(fraction x target.maxHP x (2 + AP/100)) with fraction 10 % / 15 % / 25 % / 35 % by the caster's stars (fallback 35 %); the AP is already inside this formula and handleSpecialDamage is called with apBoost = false, so it is not applied twice. The cast crit flag is passed on (crit only with ABILITY_CRIT). TRUE damage skips the defense division but still passes the ceil and floor-of-1 step in handleDamage; shields absorb first. The return value is not used.",
+  "summary": "Single-target TRUE damage proportional to the target's maximum HP. Requested amount = ceil(fraction x target.maxHP x (2 + AP/100)) with fraction 10 % / 15 % / 25 % / 35 % by the caster's stars (fallback 35 %); the AP is already inside this formula and handleSpecialDamage is called with apBoost = false, so it is not applied twice. The cast crit flag is passed on (crit only with ABILITY_CRIT). TRUE damage skips the defense division but still passes the ceil and floor-of-1 step in handleDamage; shields absorb first. The returned takenDamage is unused (section J1). Executed on a target with maxHP 1000: 1 star AP 0 requests 200 (twice the 10 %), AP 100 requests 300 (three times), 2 stars AP 0 requests 300; maxHP 1234 with AP 50 -> ceil(308.5) = 309.",
   "targeting": {
    "who": "the cast target",
    "needsTarget": true,
@@ -67,7 +67,7 @@
      "BIBAREL": 0.15,
      "BIDOOF": 0.1
     },
-    "scaling": "requested = ceil(fraction x target maxHP x (2 + AP/100)); with AP 0 that is twice the fraction of max HP (20 % for 1 star, 30 % for 2 stars). downstream request into handleDamage: handleSpecialDamage adds no AP (apBoost false), doubles it if the caster has DOUBLE_DAMAGE (consumed), multiplies by 1.2 with the strange-steam board effect, and on a crit by 1 + (critPower - 1) x critReductionFactor (Rocky Helmet and Black Augurite do not reduce crits for TRUE damage; the crit counts for the target only when no negation applies). handleDamage then applies no defense division to TRUE damage, but the ceil and floor of 1 still apply (core-mechanics section A), and a shield absorbs first; the shield part counts in the returned takenDamage (section J1), which this ability discards. Protect, skydiving or magic bounce on the target return takenDamage 0; a magic bounce reflects only SPECIAL type damage, so nothing is reflected here, and a Power Lens only retaliates against SPECIAL type.",
+    "scaling": "requested = ceil(fraction x target maxHP x (2 + AP/100)); with AP 0 that is twice the fraction of max HP (20 % for 1 star, 30 % for 2 stars). downstream request into handleDamage: handleSpecialDamage adds no AP (apBoost false), doubles it if the caster has DOUBLE_DAMAGE (consumed), multiplies by 1.2 with the strange-steam board effect, and on a crit by 1 + (critPower - 1) x critReductionFactor (for TRUE damage neither Rocky Helmet nor Black Augurite reduces the crit, so the factor is 1 + (critPower - 1) and the target's crit counter always increments). handleDamage then applies no defense division to TRUE damage, but the ceil and floor of 1 still apply (core-mechanics section A), and a shield absorbs first; the returned takenDamage is unused (section J1). Protect, skydiving or magic bounce on the target return takenDamage 0; a magic bounce reflects only SPECIAL type damage, so nothing is reflected here, and a Power Lens only retaliates against SPECIAL type.",
     "resolution": "requested ceil(fraction x maxHP x (2 + AP/100)) -> downstream request after DOUBLE_DAMAGE / crit factors -> final HP loss after shield absorption, Protect, and the section J1 exceptions (Shiny Charm, Fossil, Cover Band); the strategy uses none of the returned amounts",
     "evidence": [
      "sf-table",
@@ -97,7 +97,7 @@
     "BIBAREL": 0.15,
     "BIDOOF": 0.1
    },
-   "note": "indexed by the casting entity's stars; the 3- and 4-star values (25 %, 35 %) are not reachable at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "note": "indexed by the casting entity's stars; the 3- and 4-star values (25 %, 35 %) are declared in the table but unused by the two bound baseline classes. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "sf-table",
     "unit-bidoof",
@@ -125,7 +125,7 @@
    "Whether other effects change the target's maxHP before the cast (the formula reads maxHP at the moment of the cast)",
    "Whether Bidoof/Bibarel ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real SuperFangStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (target maxHP 1000): requests 200 / 300 / 300 / 309, TRUE with apBoost false, base = max HP (current HP 100 still requests 200), shield first, protect returns 0, crit and DOUBLE_DAMAGE doubling the downstream amount."
   ],
   "ability": "SUPER_FANG",
   "label": "production-branch reference; deployment unverified",
@@ -405,6 +405,20 @@
     "expect": "attackType === AttackType.SPECIAL",
     "note": "Power Lens retaliation requires SPECIAL type"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T200054Z",
+   "reason": "ceil(fraction x target max HP x (2 + AP/100)) with no second AP",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

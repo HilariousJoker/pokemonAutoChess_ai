@@ -16,6 +16,13 @@
    "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
    "probeSection": "FLAME_CHARGE",
    "reviewStatusAfter": "candidate, independent review pending"
+  },
+  {
+   "runId": "run-20261109T200054Z",
+   "reason": "actual getCellsBetween walk, burn weather can raise the tick, PP request after the base spend and before the line",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C3",
+   "reviewStatusAfter": "candidate, independent review pending"
   }
  ],
  "record": {
@@ -71,7 +78,7 @@
     "sb-super"
    ]
   },
-  "summary": "The caster fires a line from its own cell through the cast target to the board edge (supercover cells, endpoints and diagonal crossings included, line end point rounded). Every enemy-team unit on those cells is burned for 3000 ms and then takes SPECIAL damage (raw 25/50/100/200 by caster stars; SUNKERN 1 star -> 25, SUNFLORA 2 stars -> 50). If the simulation weather is ZENITH or the caster has the light status (status.light, set for units in the spotlight by the light effects), the raw damage is multiplied by 1.3 (25 -> 32.5, 50 -> 65, not rounded here) and the caster first requests +20 PP (addPP, apBoost 0, no crit). Requested vs applied: the +20 PP is requested; the applied change is after addPP's rules: fatigue halves positive gains, nothing is gained while the caster is silenced, status.protect (Rune Protect alone does not block it), NO_PP_GAIN or resurrecting, and PP is clamped to 0..2 x maxPP - 1; the PP spend of the cast (super.process) already happened. Damage is requested raw x 1.3 (conditional) x (1 + AP/100) [x crit factor], then the target's special-defense division (ceil, min 1) and shields in handleDamage (takenDamage includes shield damage). The burn is not AP-scaled; it replaces a running burn timer only if longer, is blocked by IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive on the victim, and then deals TRUE damage of 5 % of the victim's max HP per tick (reduced by weather, Assault Vest and water effects; none for WELL_BAKED or Magmarizer). triggerBurn has no protect check, so the burn can land even when protect blocks the damage.",
+  "summary": "The caster fires a line from its own cell toward the cast target and on to the board edge: effectInLine projects the angle to a point 12 cells away and rounds that end point, then Board.getCellsBetween walks from the caster's cell to it, skipping off-board cells. Exactly diagonal steps visit ONLY the diagonal cells: (0,0) toward (2,2) walks (0,0), (1,1), (2,2) and on (3,3), (4,4), (5,5), never the side cells (1,0) or (0,1); an oblique line also visits the cells its horizontal / vertical steps pass through, e.g. (0,0) toward (2,1) walks (0,0), (1,0), (1,1), (2,1), (3,1), (3,2), (4,2), (5,2), (6,3), (7,3) (executed on an 8 x 6 stand-in board). Every enemy-team unit on those cells is burned for 3000 ms and then takes SPECIAL damage (raw 25/50/100/200 by caster stars; SUNKERN 1 star -> 25, SUNFLORA 2 stars -> 50). If the simulation weather is ZENITH or the caster has the light status (status.light, set for units in the spotlight by the light effects), the raw damage is multiplied by 1.3 (25 -> 32.5, 50 -> 65, not rounded here) and the caster first requests +20 PP (addPP, apBoost 0, no crit) - after the base PP spend and before any line effect, even if no enemy is on the line. Requested vs applied: the +20 PP is requested; the applied change is after addPP's rules: fatigue halves positive gains, nothing is gained while the caster is silenced, status.protect (Rune Protect alone does not block it), NO_PP_GAIN or resurrecting, and PP is clamped to 0..2 x maxPP - 1; the PP spend of the cast (super.process) already happened. Damage is requested raw x 1.3 (conditional) x (1 + AP/100) [x crit factor], then the target's special-defense division (ceil, min 1) and shields in handleDamage. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). The burn is not AP-scaled; it replaces a running burn timer only if longer, is blocked by IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive on the victim, and then deals TRUE damage of 5 % of the victim's max HP per tick (weather is not always a reduction: DROUGHT multiplies it by 1.3 and only then do Heat Rocks reduce it, RAIN multiplies it by 0.7; Assault Vest x0.5; SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3; none for WELL_BAKED or Magmarizer; a Cooking Pot holder also gains 10 speed per tick; executed on maxHP 1000: 50 / DROUGHT 65 / one Heat Rock 52 / two 39 / RAIN 35). triggerBurn has no protect check, so the burn can land even when protect blocks the damage.",
   "targeting": {
    "who": "every enemy-team unit on the line (burn and damage); the caster (PP in ZENITH / light)",
    "needsTarget": true,
@@ -83,7 +90,7 @@
    ]
   },
   "geometry": {
-   "shape": "line (supercover) from the caster through the cast target to the board edge (end point 12 cells away along the angle, rounded)",
+   "shape": "line walked by Board.getCellsBetween from the caster's cell toward the cast target to the board edge (end point 12 cells away along the angle, rounded; exactly diagonal steps visit only the diagonal cells, not a full supercover)",
    "evidence": [
     "el-class",
     "el-angle",
@@ -112,7 +119,7 @@
      "SUNFLORA": "50 (65 with ZENITH / light)"
     },
     "scaling": "requested = raw x 1.3 only if ZENITH weather or caster status.light; then x(1 + caster AP/100); x crit factor (1 + (critPower - 1) x the target's crit reduction) only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false); then the target's special-defense division (reducedDamage = damage / (1 + 0.05 x speDef)), ceil, at least 1",
-    "resolution": "applied: handleSpecialDamage is blocked by protect / skydiving / magicBounce on the target; otherwise handleDamage applies shields and the special-defense division; takenDamage includes shield damage; the strategy ignores the returned values. Burn is triggered first for each unit; the occupant is the one read when the line cells were built.",
+    "resolution": "applied: handleSpecialDamage is blocked by protect / skydiving / magicBounce on the target; otherwise handleDamage applies shields and the special-defense division. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Burn is triggered first for each unit; the occupant is the one read when the line cells were built.",
     "evidence": [
      "sb-dmg",
      "sb-light",
@@ -155,10 +162,12 @@
     "apScaled": false,
     "declaredRaw": {
      "durationMs": 3000,
-     "label": "requested duration"
+     "label": "requested duration",
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "checked against the VICTIM (pkm = cell.value): blocked by IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive; applied duration = 3000 after the victim's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects on the victim: GUTS passive +5 attack once, WELL_BAKED +20 defense on first burn, MAGMARIZER +30 speed on first burn, Rawst Berry is eaten. While burning the victim takes TRUE damage of 5 % max HP per tick (weather, Assault Vest and water effects reduce it; zero with Well Baked or Magmarizer).",
+    "resolution": "checked against the VICTIM (pkm = cell.value): blocked by IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive; applied duration = 3000 after the victim's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects on the victim: GUTS passive +5 attack once, WELL_BAKED +20 defense on first burn, MAGMARIZER +30 speed on first burn, Rawst Berry is eaten. While burning the victim takes TRUE damage of 5 % max HP per tick; the weather is not always a reduction (DROUGHT x1.3 first, then Heat Rocks x(1 - 0.2 per rock) only inside DROUGHT; RAIN x0.7), Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, zero with Well Baked or Magmarizer, and a Cooking Pot holder gains 10 speed per tick.",
     "evidence": [
      "sb-burn",
      "burn-fn",
@@ -167,8 +176,11 @@
      "burn-red",
      "burn-extras",
      "burn-tick",
-     "burn-true"
-    ]
+     "burn-true",
+     "burn-weather"
+    ],
+    "combatEffect": "checked against the VICTIM (pkm = cell.value): blocked by IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive; applied duration = 3000 after the victim's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects on the victim: GUTS passive +5 attack once, WELL_BAKED +20 defense on first burn, MAGMARIZER +30 speed on first burn, Rawst Berry is eaten. While burning the victim takes TRUE damage of 5 % max HP per tick; the weather is not always a reduction (DROUGHT x1.3 first, then Heat Rocks x(1 - 0.2 per rock) only inside DROUGHT; RAIN x0.7), Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, zero with Well Baked or Magmarizer, and a Cooking Pot holder gains 10 speed per tick.",
+    "guards": "checked against the VICTIM (pkm = cell.value): blocked by IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive; applied duration = 3000 after the victim's duration reductions; replaces the running burn timer (and burn origin) only if longer. Side effects on the victim: GUTS passive +5 attack once, WELL_BAKED +20 defense on first burn, MAGMARIZER +30 speed on first burn, Rawst Berry is eaten. While burning the victim takes TRUE damage of 5 % max HP per tick; the weather is not always a reduction (DROUGHT x1.3 first, then Heat Rocks x(1 - 0.2 per rock) only inside DROUGHT; RAIN x0.7), Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, zero with Well Baked or Magmarizer, and a Cooking Pot holder gains 10 speed per tick."
    }
   ],
   "buffs": [],
@@ -182,7 +194,7 @@
     "SUNKERN": 25,
     "SUNFLORA": 50
    },
-   "note": "only the damage depends on stars; burn (3000 ms), the 1.3 multiplier and +20 PP are fixed. 3 stars (100) and 4+ (200) are not reachable by the listed units' bare factory stars. maxPP differs: SUNKERN 100, SUNFLORA 80; both range 2.",
+   "note": "only the damage depends on stars; burn (3000 ms), the 1.3 multiplier and +20 PP are fixed. 3 stars (100) and 4+ (200) are declared in the tables but unused by the bound baseline classes. maxPP differs: SUNKERN 100, SUNFLORA 80; both range 2.",
    "evidence": [
     "sb-dmg",
     "unit-sunkern",
@@ -191,7 +203,7 @@
   },
   "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point). The ZENITH / light condition depends on weather and the caster's status, not on position.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP, re-evaluates ZENITH / light, re-applies burn (a longer remaining burn is kept) and recomputes the line.",
-  "rawVsResolved": "Damage: raw 25 (SUNKERN) / 50 (SUNFLORA), x1.3 under ZENITH or light, x(1 + AP/100) [x crit], then special-defense division (ceil, min 1) and shields; takenDamage counts shield damage. PP: requested +20 only under ZENITH / light; applied after silence, protect, NO_PP_GAIN, resurrecting, fatigue and the clamp. Burn: requested 3000 ms; applied after immunity, Rune Protect, WATER_BUBBLE and duration reductions.",
+  "rawVsResolved": "Damage: raw 25 (SUNKERN) / 50 (SUNFLORA), x1.3 under ZENITH or light, x(1 + AP/100) [x crit], then special-defense division (ceil, min 1) and shields; the returned takenDamage is unused (section J1). PP: requested +20 only under ZENITH / light; applied after silence, protect, NO_PP_GAIN, resurrecting, fatigue and the clamp. Burn: requested 3000 ms; applied after immunity, Rune Protect, WATER_BUBBLE and duration reductions.",
   "sourceTables": [
    {
     "id": "solarBeamDamage",
@@ -207,11 +219,11 @@
    "Crit chance value and critPower; only the roll gate was located"
   ],
   "unresolved": [
-   "Consulted: core-mechanics §A/§H/§J, the AURORA_BEAM candidate (effectInLine geometry), the BLAZE_KICK candidate (burn) and the FLAME_CHARGE candidate (damage resolution), plus pokemon-entity.addPP and Status.triggerBurn at the pinned commit",
+   "Consulted (also Status.updateBurn and Board.getCellsBetween / effectInLine, traced and executed in this recheck): core-mechanics §A/§H/§J, the AURORA_BEAM candidate (effectInLine geometry), the BLAZE_KICK candidate (burn) and the FLAME_CHARGE candidate (damage resolution), plus pokemon-entity.addPP and Status.triggerBurn at the pinned commit",
    "Whether other code sets status.light beyond the spotlight cases in Simulation was not enumerated",
-   "Whether the unrounded damage x1.3 is rounded before or only inside handleDamage was not traced beyond the ceil in the special-defense step",
+   "The x1.3 request is passed to handleSpecialDamage unrounded (executed: 25 -> 32.5, 50 -> 65); the rounding is the later ceil in handleDamage's special-defense step (source reading, core-mechanics section A)",
    "Units not listed in appliesTo that might share the identifier are not covered",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (effectInLine, getCellsBetween, addPP, updateBurn, handleSpecialDamage) and the real SolarBeamStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (8 x 6 stand-in board): the visited cells for a diagonal, an oblique and a row line; burn request before damage per enemy, allies and side cells untouched; ZENITH / light x1.3 unrounded with the +20 PP request before the first effect; PP outcomes under fatigue, silence, protect, NO_PP_GAIN and resurrecting; the burn tick under DROUGHT, Heat Rocks, RAIN and the water effects."
   ],
   "evidence": [
    {
@@ -642,7 +654,23 @@
     "symbol": "Status.triggerBurn",
     "expect": "pkm.addSpeed(30, pkm, 0, false)",
     "note": "burn side effects on the victim: GUTS +5 attack, WELL_BAKED +20 defense, MAGMARIZER +30 speed, Rawst Berry eaten"
+   },
+   {
+    "id": "burn-weather",
+    "file": "app/models/colyseus-models/status.ts",
+    "lines": [
+     440,
+     501
+    ],
+    "symbol": "Status.updateBurn",
+    "expect": "burnDamage *= 1.3",
+    "note": "DROUGHT x1.3 then Heat Rocks, RAIN x0.7, Assault Vest, water effects, Well Baked / Magmarizer zero, Cooking Pot speed"
    }
-  ]
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
  }
 }

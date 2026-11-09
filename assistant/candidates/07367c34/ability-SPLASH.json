@@ -28,7 +28,7 @@
     "cast-after"
    ]
   },
-  "summary": "Cast with no effect of its own. SplashStrategy.process only calls super.process (base process: spends maxPP of PP, increments count.ult, broadcasts the default ability animation with target coordinates -1/-1 when there is no target, records the skill in the team's cast list) and then does nothing; the source comment says this is intentional. requiresTarget is false, so the cast can fire from the moving state with no target once pp >= maxPP and canCast. The generic OnAbilityCastEffect hooks in castAbility still run after process. No damage, heal, shield, PP gain, status or stat change is made by the strategy.",
+  "summary": "Cast with no effect of its own. SplashStrategy.process only calls super.process (base process: spends maxPP of PP, increments count.ult, broadcasts the default ability animation with target coordinates -1/-1 when there is no target, records the skill in the team's cast list) and then does nothing; the source comment says this is intentional. requiresTarget is false, so the cast can fire from the moving state with no target once pp >= maxPP and canCast. castAbility returns before anything when canCast is false (no PP is spent); otherwise it rolls the crit (only with ABILITY_CRIT), runs process and then ALWAYS runs the OnAbilityCastEffect hooks with the same target (null from the moving state) and crit flag, so a held item or synergy effect that reacts to ability casts can still act on a SPLASH cast (executed with a stand-in hook: it ran once, after the base bookkeeping). No damage, heal, shield, PP gain, status or stat change is made by the strategy.",
   "targeting": {
    "who": "none; the strategy ignores the target parameter (typed null) and the cast target is null when cast from the moving state",
    "needsTarget": false,
@@ -54,7 +54,7 @@
     "declaredRaw": {
      "note": "no amount is declared in splash.ts"
     },
-    "scaling": "none: nothing is requested, so there is no requested, applied or takenDamage amount, and no AP, crit, stat helper, Big Eater Belt, Twist Band or Rune Protect interaction exists for this strategy",
+    "scaling": "none: nothing is requested, so there is no requested or applied amount of its own, and no AP, crit, stat helper, Big Eater Belt, Twist Band or Rune Protect interaction exists for this strategy",
     "resolution": "The only state changes are the base-process bookkeeping: pp = max(0, pp - maxPP), count.ult + 1, the animation broadcast and the team's cast list entry. This is a spend of the unit's own PP, not a PP gain, so the addPP guards (status.protect) do not apply to it.",
     "evidence": [
      "sp-proc",
@@ -93,7 +93,7 @@
    "Whether the Magikarp and Feebas passives (Passive.MAGIKARP, Passive.FEEBAS) change when or whether SPLASH is cast was not read; they are separate identifiers",
    "Hooks that run on every ability cast (OnAbilityCastEffect) were not enumerated, so a held item or synergy could still produce an effect on a SPLASH cast",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (castAbility, the base AbilityStrategy.process) and the real SplashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (caster PP 120, maxPP 100): PP -> 20 (60 -> 0), count.ult 1, broadcast -1 / -1 without a target and the target's cell with one, the cast-list entry, one hook call after the bookkeeping, HP / shield / ATK / speed / AP / status untouched; canCast false -> nothing happens."
   ],
   "ability": "SPLASH",
   "label": "production-branch reference; deployment unverified",
@@ -307,6 +307,20 @@
     "expect": "does nothing, intentionally",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T200054Z",
+   "reason": "no own effect but base PP spend, bookkeeping and cast hooks still run",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
