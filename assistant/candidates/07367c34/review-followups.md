@@ -230,3 +230,8 @@ Same recorded maintenance transition as above (`candidate_ready` → `in_progres
 
 ## Not in scope of this file
 New queue records, the five already imported abilities (BUG_BUZZ, FOUL_PLAY, LEAF_BLADE, SOAK, TORMENT; see `knowledge/07367c34/reusable-abilities.md`), and any other candidate in the folder. Follow-ups 1, 3, 4 and 6 (and POWDER, entry 1) are corrected in the canonical records; 2, 5, 7 and 8 are repaired at candidate level only; 9–14 are open.
+
+## Run run-20261109T063956Z — self-noted wording issues (pending, not repaired; candidates are candidate_ready)
+- `passive-PICKUP.json`: the evidence `clone-reference` and summary describe the clone at `pokemon-entity.ts:1441–1450` as a "battle-start" recalculation; the enclosing method is `resurrect()` (comment "Recalculate stats as it was at the start of the battle"), so that second pick applies on resurrection, not at every battle start.
+- `passive-TEAL` (`passive-OGERPON_TEAL.json`): one summary sentence ("The branch is skipped if the target hit is irrelevant: the buff happens regardless …") is garbled; intended meaning: the ATK gain happens even if the main hit was blocked by protect.
+- `passive-PARTING_SHOT.json`: the `dark_jump_destination` effect text about target/cell mismatch is a hedged reading of `getFarthestTargetCoordinateAvailablePlace` (selectedCell is only replaced by a strictly farther target's free cell), not verified by a probe.
