@@ -32902,7 +32902,7 @@
       "STARYU": 2000
      },
      "scaling": "none from AP or crit (apBoost not passed). The chance is chance(0.5, caster): effective probability = 0.5^(1 - luck/100) capped at 1, so luck above 0 raises it.",
-     "resolution": "triggerConfusion does nothing if the enemy is already confused, has Rune Protect (status.runeProtect) or IMMUNITY_CONFUSION. Otherwise duration x1.3 in SANDSTORM, then SWIFT_SWIM x0.7 (else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3), then -10% per Odd Keystone of the enemy's player, rounded; confusion = true and confusionCooldown = that value. Persim Berry holders eat the berry (confusion cleared at once), a PSYDUCK-passive target gains +100 AP. updateConfusion clears the flag and the unit's target when the cooldown runs out. The roll happens even when the damage was blocked by protect. Requested duration vs applied: the table value is the request, the stored cooldown is the result after the weather and reductions.",
+     "resolution": "triggerConfusion does nothing if the enemy is already confused, has Rune Protect (status.runeProtect) or IMMUNITY_CONFUSION. Otherwise duration x1.3 in SANDSTORM, then SWIFT_SWIM x0.7 (else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3), then -10% per Odd Keystone of the enemy's player, rounded; confusion = true and confusionCooldown = that value. Persim Berry holders eat the berry (confusion cleared at once), a PSYDUCK-passive target requests addAbilityPower(100, self, 0, false) - a request, not a guaranteed +100 final AP: addAbilityPower first routes the request to addAttack(round(0.2 x value)) instead when the holder carries a Nullify Bandanna, and otherwise rounds it, applies Big Eater Belt and Twist Band and floors AP at -100 (pokemon-entity.ts:621-647). updateConfusion clears the flag and the unit's target when the cooldown runs out. The roll happens even when the damage was blocked by protect. Requested duration vs applied: the table value is the request, the stored cooldown is the result after the weather and reductions.",
      "evidence": [
       "conf-table",
       "chance",
@@ -32913,11 +32913,16 @@
       "upd-conf",
       "upd-call",
       "persim-case",
-      "psyduck-ap"
+      "psyduck-ap",
+      "conf-target-attack",
+      "conf-target-cast",
+      "conf-target-fn",
+      "conf-expiry",
+      "ap-power"
      ],
      "guards": "triggerConfusion does nothing if the enemy is already confused, has Rune Protect (status.runeProtect) or IMMUNITY_CONFUSION; Protect, damage results and takenDamage are not consulted",
      "applicationOrder": "per enemy on the line: damage call first, then an independent chance(0.5, caster) roll (probability 0.5^(1 - luck/100), capped at 1), then triggerConfusion",
-     "combatEffect": "a confused unit's targeting is handled by the CONFUSION record / state code; here: updateConfusion clears the flag when the cooldown runs out. Persim Berry and the PSYDUCK passive react inside triggerConfusion as requests to their helpers (partial passive information only)."
+     "combatEffect": "a confused unit selects its target before the cast / basic-attack decision (attacking-state.ts:33-46 and :92-105): in AttackingState.update an active MERCILESS effect with pp < maxPP takes precedence, otherwise status.confusion calls getTargetWhenConfused (pokemon-state.ts:1302-1340), which draws a luck-adjusted chance(0.5) and, when it is not the bypass outcome, also admits allies and the unit itself among the nearest candidates within range (random pick among ties) - friendly fire is possible but not guaranteed on every action, and a cast uses the target chosen this way; updateConfusion clears the flag and the unit's target on expiry (status.ts:837-844). This is a bounded description, not an imported CONFUSION ability record; here: updateConfusion clears the flag when the cooldown runs out. Persim Berry and the PSYDUCK passive react inside triggerConfusion as requests to their helpers (partial passive information only)."
     }
    ],
    "buffs": [],
@@ -32945,7 +32950,7 @@
    },
    "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point); the enumeration over the ordinary 8x6 board found the cast target's cell on the line in every case. Range 2 only governs when the unit casts; the line itself extends to the board edge.",
    "repeatedCastsAndModes": "No stored state. Each cast rolls every enemy on the line independently; an enemy already confused is not re-confused (no refresh).",
-   "rawVsResolved": "Declared raw: damage 25 / 50 (STARYU / STARMIE) and confusion 2000 / 3000 ms with chance 0.5. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied damage after speDef, minimum 1 and shield. The returned takenDamage is not read by this strategy (section J1). Confusion duration is requested raw (ms, not AP-scaled), then stored after weather, status reductions and Odd Keystones; the stored cooldown (e.g. 2600 ms under sandstorm for a 2000 ms request) is the downstream result. Persim Berry heal / special defense and the PSYDUCK +100 AP are requests whose final results pass their helpers.",
+   "rawVsResolved": "Declared raw: damage 25 / 50 (STARYU / STARMIE) and confusion 2000 / 3000 ms with chance 0.5. Requested damage = raw x (1 + AP/100) x DOUBLE_DAMAGE x steam x crit factor; applied damage after speDef, minimum 1 and shield. The returned takenDamage is not read by this strategy (section J1). Confusion duration is requested raw (ms, not AP-scaled), then stored after weather, status reductions and Odd Keystones; the stored cooldown (e.g. 2600 ms under sandstorm for a 2000 ms request) is the downstream result. Persim Berry heal / special defense and the PSYDUCK addAbilityPower(100, self, 0, false) are requests whose final results pass their helpers (Big Eater Belt and Nullify Bandanna can alter the AP result).",
    "sourceTables": [
     {
      "id": "dmg-tbl",
@@ -33381,6 +33386,61 @@
      "symbol": "Status.triggerConfusion PSYDUCK reaction",
      "expect": "pkm.addAbilityPower(100, pkm, 0, false)",
      "note": "a confused PSYDUCK-passive unit requests +100 AP"
+    },
+    {
+     "id": "conf-target-attack",
+     "file": "app/core/attacking-state.ts",
+     "lines": [
+      33,
+      46
+     ],
+     "symbol": "AttackingState.update target selection (Merciless / confusion)",
+     "expect": "target = this.getTargetWhenConfused(pokemon, board)",
+     "note": "MERCILESS branch first, then confusion selects the target before the cast / basic-attack decision"
+    },
+    {
+     "id": "conf-target-cast",
+     "file": "app/core/attacking-state.ts",
+     "lines": [
+      92,
+      105
+     ],
+     "symbol": "AttackingState.update cast or basic attack",
+     "expect": "castAbility(AbilityStrategies[pokemon.skill], pokemon, board, target)",
+     "note": "the cast or basic attack uses the target selected above"
+    },
+    {
+     "id": "conf-target-fn",
+     "file": "app/core/pokemon-state.ts",
+     "lines": [
+      1302,
+      1340
+     ],
+     "symbol": "PokemonState.getTargetWhenConfused",
+     "expect": "const shouldAlsoTargetAllies = !chanceToBypassConfusion",
+     "note": "a luck-adjusted chance(0.5) decides whether allies and the unit itself are also candidates"
+    },
+    {
+     "id": "conf-expiry",
+     "file": "app/models/colyseus-models/status.ts",
+     "lines": [
+      837,
+      844
+     ],
+     "symbol": "Status.updateConfusion",
+     "expect": "pkm.setTarget(null)",
+     "note": "on expiry the flag and the unit's target are cleared"
+    },
+    {
+     "id": "ap-power",
+     "file": "app/core/pokemon-entity.ts",
+     "lines": [
+      621,
+      647
+     ],
+     "symbol": "PokemonEntity.addAbilityPower",
+     "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false)",
+     "note": "Nullify Bandanna routes the AP request to addAttack; otherwise Belt / Twist helpers and an AP floor apply"
     }
    ],
    "reproduction": {
@@ -33394,7 +33454,8 @@
     "against": "07367c341fe928763da2b565c2eee010433e4fc1",
     "notes": [
      "Strategy file, bound unit class blocks (stars, maxPP, range, skill, passive), source tables and the helper definitions it relies on (effectInLine, Board.getCellsBetween, Status.triggerConfusion, chance, PokemonEntity.handleSpecialDamage, the Persim Berry case) were re-read at the pinned revision and checked against core-mechanics.md section J; the candidate's control flow and arithmetic agree except for the corrections listed here. The candidate file and its repair history stay as a historical draft.",
-     "Preserved: damage followed by independent luck-adjusted confusion rolls, also when the damage call returns zero; Protect does not itself block confusion, Rune Protect and the real guards do; the confusion duration is not AP-scaled. Narrowed: the earlier geometry uncertainty - on the ordinary 8-column x 6-row board the real effectInLine and getCellsBetween reached the cast target's cell for all 2256 ordered pairs of distinct positions (an enumeration, not a proof for arbitrary boards). Described as requests: Persim Berry (heal 50, special defense 10) and the PSYDUCK +100 AP reaction pass their helpers before any final value; this is not complete PSYDUCK passive coverage. Normalised: statusEffects[0].declaredRaw gains unit 'ms (requested)' and the missing guards / applicationOrder / combatEffect are filled in. The universal takenDamage accounting was replaced by a pointer to section J1 because the strategy never reads it. Higher-star entries are described as declared but unused by the bound classes. The earlier source-reading-only evidence statement is replaced by the accurate probe distinction."
+     "Preserved: damage followed by independent luck-adjusted confusion rolls, also when the damage call returns zero; Protect does not itself block confusion, Rune Protect and the real guards do; the confusion duration is not AP-scaled. Narrowed: the earlier geometry uncertainty - on the ordinary 8-column x 6-row board the real effectInLine and getCellsBetween reached the cast target's cell for all 2256 ordered pairs of distinct positions (an enumeration, not a proof for arbitrary boards). Described as requests: Persim Berry (heal 50, special defense 10) and the PSYDUCK +100 AP reaction pass their helpers before any final value; this is not complete PSYDUCK passive coverage. Normalised: statusEffects[0].declaredRaw gains unit 'ms (requested)' and the missing guards / applicationOrder / combatEffect are filled in. The universal takenDamage accounting was replaced by a pointer to section J1 because the strategy never reads it. Higher-star entries are described as declared but unused by the bound classes. The earlier source-reading-only evidence statement is replaced by the accurate probe distinction.",
+     "Cleanup in run run-20261109T193909Z (single-writer maintenance lock, candidate not reopened): the PSYDUCK reaction is stated as a request addAbilityPower(100, self, 0, false) whose final AP depends on the helper (Nullify Bandanna reroutes it to addAttack(round(0.2 x value)); Big Eater Belt / Twist Band / the AP floor apply otherwise); the opaque 'CONFUSION record' pointer is replaced by a bounded source-cited description of confused targeting (attacking-state.ts:33-46 / 92-105, pokemon-state.ts:1302-1340, status.ts:837-844: Merciless precedence, luck-adjusted ally / self admission without guaranteed friendly fire, expiry clears flag and target). This does not import a CONFUSION ability record or the PSYDUCK passive."
     ]
    }
   },
@@ -33448,7 +33509,7 @@
      "cast"
     ]
    },
-   "summary": "Needs a target (inherited requiresTarget = true); the default ability animation is suppressed (preventDefaultAnim true). Requested ppBurn = table[stars-1] x (1 + AP/100) with table 20 / 40 / 80 / 160 (160 fallback), not rounded, i.e. 20 (Psyduck) / 40 (Golduck) at AP 0 and 21 for a 1-star caster with AP 5. ppStolen = min(target.pp, ppBurn) and extraPP = ppBurn - ppStolen are both computed BEFORE any PP is removed and are never recomputed: a tree or resurrecting target that drops the loss, or a Twist Band that reverses it, leaves extraPP and the shield request unchanged. The strategy then (1) asks the target to lose ppStolen PP through addPP(-ppStolen, caster, 0, false), (2) gives the caster a shield of the full ppBurn through addShield(ppBurn, caster, 0, false) - not just the stolen part, and (3) if extraPP > 0, deals extraPP as SPECIAL damage to the target through handleSpecialDamage with the cast's crit flag and apBoost false (AP is already inside ppBurn). Requested, downstream and stored amounts differ: addPP rounds -ppStolen and may be dropped (status.tree, resurrecting) or turned positive (Twist Band on the target; a positive value is then also subject to silence / protect / NO_PP_GAIN); the entity addShield first applies Big Eater Belt (x1.25 with a floor) on the caster, then the state's addShield halves a positive value when the caster is enraged, then applies Math.round (ppBurn 21: 21 plain, 11 enraged because 10.5 rounds up, 26 with a Belt, 13 with a Belt and enraged), and needs the caster alive; addPP applies Protect and fatigue before Twist Band: a negative request is not halved by fatigue, Protect does not block a negative value, and Twist Band flips the rounded request before the positive-gain guards (silence, Protect, NO_PP_GAIN), with fatigue not applied afterwards to the flipped gain; crit applies only to the excess damage and no second AP factor applies to the shield or the excess damage; the excess damage is divided by the target's special defence, rounded up with a minimum of 1 and takes the shield first; a Magic Bounce target blocks it (returned takenDamage 0) and queues a delayed reflection only when the damage is positive and the attacker does not hold Protective Pads.",
+   "summary": "Needs a target (inherited requiresTarget = true); the default ability animation is suppressed (preventDefaultAnim true). Requested ppBurn = table[stars-1] x (1 + AP/100) with table 20 / 40 / 80 / 160 (160 fallback), not rounded, i.e. 20 (Psyduck) / 40 (Golduck) at AP 0 and 21 for a 1-star caster with AP 5. ppStolen = min(target.pp, ppBurn) and extraPP = ppBurn - ppStolen are both computed BEFORE any PP is removed and are never recomputed: a tree or resurrecting target that drops the loss, or a Twist Band that reverses it, leaves extraPP and the shield request unchanged. The strategy then (1) asks the target to lose ppStolen PP through addPP(-ppStolen, caster, 0, false), (2) gives the caster a shield of the full ppBurn through addShield(ppBurn, caster, 0, false) - not just the stolen part, and (3) if extraPP > 0, deals extraPP as SPECIAL damage to the target through handleSpecialDamage with the cast's crit flag and apBoost false (AP is already inside ppBurn). Requested, downstream and stored amounts differ: addPP rounds -ppStolen and may be dropped (status.tree, resurrecting) or turned positive (Twist Band on the target; a positive value is then also subject to silence / protect / NO_PP_GAIN); the entity addShield first applies Big Eater Belt (x1.25 with a floor) on the caster, then the state's addShield halves a positive value when the caster is enraged, then applies Math.round (ppBurn 21: 21 plain, 11 enraged because 10.5 rounds up, 26 with a Belt, 13 with a Belt and enraged), and needs the caster alive; addPP computes the request in this order (pokemon-entity.ts:508-532): value = round(base x (1 + apBoost x caster.AP/100) x crit factor x (fatigue AND base > 0 ? 0.5 : 1)) - fatigue halving and rounding apply only to an originally positive request; then applyTwistBandBuff (a Twist Band holder hit by an enemy turns a negative value positive); then the guards on the RESULTING value: a positive result is dropped by silence, status.protect or NO_PP_GAIN, any result is dropped while resurrecting, and a negative result is dropped by status.tree. So Protect does not block a negative loss, fatigue is not applied to a negative request or to a gain flipped by Twist Band, and a flipped gain faces the positive-gain guards; crit applies only to the excess damage and no second AP factor applies to the shield or the excess damage; the excess damage is divided by the target's special defence, rounded up with a minimum of 1 and takes the shield first; a Magic Bounce target blocks it (returned takenDamage 0) and queues a delayed reflection only when the damage is positive and the attacker does not hold Protective Pads.",
    "targeting": {
     "who": "the cast target (PP loss and leftover damage); the caster itself (shield)",
     "needsTarget": true,
@@ -33487,7 +33548,7 @@
       "PSYDUCK": 20
      },
      "scaling": "requested ppBurn = table[stars-1] x (1 + AP/100), unrounded; ppStolen = min(target.pp, ppBurn). The addPP call then uses apBoost 0 and crit false, so the AP and crit factors are not applied a second time.",
-     "resolution": "addPP(-ppStolen): value = Math.round(-ppStolen x 1 x 1 x 1) (fatigue only halves positive requests, so it does not apply to the negative request); applyTwistBandBuff then flips the rounded value to positive for a Twist Band holder when the caster is an enemy - after the fatigue factor, so the flipped gain is not halved; a negative value is dropped while the target has status.tree or is resurrecting; the final pp = clamp(pp + value, 0, 2 x maxPP - 1). Status.protect does not block a negative value (it blocks positive PP gain; section J3). Applied = the rounded value when not dropped; with a fractional ppBurn the rounding means the target loses the rounded amount while the shield and extraPP use the unrounded number. Twist Band reverses the effect into a PP gain for the target if it is not silenced, protected or under NO_PP_GAIN.",
+     "resolution": "addPP(-ppStolen): value = Math.round(-ppStolen x 1 x 1 x 1) (fatigue only halves positive requests, so it does not apply to the negative request); applyTwistBandBuff then flips the rounded value to positive for a Twist Band holder when the caster is an enemy - fatigue was applied (or not) before it, only to a positive request, so the flipped gain is not halved; the guards then run on the resulting value (resurrecting blocks any result, tree blocks a resulting negative, silence / Protect / NO_PP_GAIN block a resulting positive); a negative value is dropped while the target has status.tree or is resurrecting; the final pp = clamp(pp + value, 0, 2 x maxPP - 1). Status.protect does not block a negative value (it blocks positive PP gain; section J3). Applied = the rounded value when not dropped; with a fractional ppBurn the rounding means the target loses the rounded amount while the shield and extraPP use the unrounded number. Twist Band reverses the effect into a PP gain for the target if it is not silenced, protected or under NO_PP_GAIN.",
      "evidence": [
       "burn",
       "stolen",
@@ -33998,7 +34059,8 @@
     "against": "07367c341fe928763da2b565c2eee010433e4fc1",
     "notes": [
      "Strategy file, bound unit class blocks (stars, maxPP, range, skill, passive), source tables and the helper definitions it relies on (addPP, addShield, the Big Eater Belt and Twist Band helpers, handleSpecialDamage with its Magic Bounce branch, handleDamage) were re-read at the pinned revision and checked against core-mechanics.md section J; the candidate's control flow and arithmetic agree except for the corrections listed here. The candidate file and its repair history stay as a historical draft.",
-     "Corrected / made explicit: ppBurn, ppStolen and extraPP are computed before the PP loss and are not recomputed when tree / resurrecting guards drop the loss or Twist Band reverses it; the shield request remains the full ppBurn. Summary order fixed: Belt multiplication and floor, then enrage halving, then Math.round (1 star, AP 5, ppBurn 21: shield 11 when enraged, 13 with a Belt and enraged). Protect permits the negative PP loss; Twist flips the rounded request before the positive-gain guards and fatigue is not applied afterwards to the flipped gain. No second AP factor applies to the shield or the excess damage; crit applies only to the excess damage. Magic Bounce reflection is qualified (positive SPECIAL damage, attacker without Protective Pads). The universal takenDamage accounting was replaced by a pointer to section J1 because the strategy never reads it. Passive coverage stays separate (the PSYDUCK passive has no record here). Higher-star entries are described as declared but unused by the bound classes. The earlier source-reading-only evidence statement is replaced by the accurate probe distinction."
+     "Corrected / made explicit: ppBurn, ppStolen and extraPP are computed before the PP loss and are not recomputed when tree / resurrecting guards drop the loss or Twist Band reverses it; the shield request remains the full ppBurn. Summary order fixed: Belt multiplication and floor, then enrage halving, then Math.round (1 star, AP 5, ppBurn 21: shield 11 when enraged, 13 with a Belt and enraged). Protect permits the negative PP loss; Twist flips the rounded request before the positive-gain guards and fatigue is not applied afterwards to the flipped gain. No second AP factor applies to the shield or the excess damage; crit applies only to the excess damage. Magic Bounce reflection is qualified (positive SPECIAL damage, attacker without Protective Pads). The universal takenDamage accounting was replaced by a pointer to section J1 because the strategy never reads it. Passive coverage stays separate (the PSYDUCK passive has no record here). Higher-star entries are described as declared but unused by the bound classes. The earlier source-reading-only evidence statement is replaced by the accurate probe distinction.",
+     "Cleanup in run run-20261109T193909Z (single-writer maintenance lock, candidate not reopened): the earlier summary clause 'addPP applies Protect and fatigue before Twist Band' was imprecise and is replaced by the source order (pokemon-entity.ts:508-532): fatigue scaling and rounding of an originally positive request, then Twist Band, then the guards on the resulting value (silence / Protect / NO_PP_GAIN block a resulting positive; resurrecting blocks any result; tree blocks a resulting negative). Formulas, probe expectations and coverage are unchanged; Protect still permits the negative loss and a flipped gain is not fatigue-halved."
     ]
    }
   },
