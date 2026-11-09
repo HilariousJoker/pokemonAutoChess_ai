@@ -65,7 +65,7 @@
     "pp-gate"
    ]
   },
-  "summary": "After spending PP, the strategy takes the living enemies (the target's team) sorted by Chebyshev distance from the CASTER, keeps the first 1/2/3/4 by caster stars (1 for Tentacool, 2 for Tentacruel) and calls triggerPoison(duration, enemy, caster) ONCE on each - one poison stack per selected enemy per cast. The requested duration is round(flat x (2 + AP/100) x critFactor) with flat 1500/3000/4500/9000 ms by stars (so 3000 / 6000 ms at AP 0 for these units) and critFactor 1 + (critPower - 1) x 0.5 only on an ability crit (crit needs the ABILITY_CRIT effect). Inside triggerPoison: the call does nothing if the enemy has IMMUNITY_POISON or Rune Protect; otherwise poisonOrigin = caster, stacks + 1 up to 3 (4 if the caster has VENOMOUS, 5 if the caster has the synergy effect EffectEnum.TOXIC), the duration passes through the enemy's reductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil / Surge Surfer x0.3; then Odd Keystone x(1 - 0.1 n) of the enemy's player), the poison timer is raised only if the new duration is longer than the remaining one (durations do not add), and Guts, Toxic Boost and Pecha Berry reactions can fire. The poison itself deals TRUE damage of round(5% max HP x stacks) every 1000 ms (details in the poison tick, shared with other poison abilities).",
+  "summary": "After spending PP, the strategy takes the living enemies (the target's team) sorted by Chebyshev distance from the CASTER, keeps the first 1/2/3/4 by caster stars (1 for Tentacool, 2 for Tentacruel) and calls triggerPoison(duration, enemy, caster) ONCE on each - one poison stack per selected enemy per cast. The requested duration is round(flat x (2 + AP/100) x critFactor) with flat 1500/3000/4500/9000 ms by stars (so 3000 / 6000 ms at AP 0 for these units) and critFactor 1 + (critPower - 1) x 0.5 only on an ability crit (crit needs the ABILITY_CRIT effect). Inside triggerPoison: the call does nothing if the enemy has IMMUNITY_POISON or Rune Protect; otherwise poisonOrigin = caster, stacks + 1 up to 3 (4 if the caster has VENOMOUS, 5 if the caster has the synergy effect EffectEnum.TOXIC), the duration passes through the enemy's reductions (Swift Swim x0.7, else Hydration x0.5, else Water Veil / Surge Surfer x0.3; then Odd Keystone x(1 - 0.1 n) of the enemy's player), the poison timer is raised only if the new duration is longer than the remaining one (durations do not add), and reactions can fire: GUTS adds +5 ATK once (addAttack request, flag GUTS_PASSIVE), TOXIC_BOOST +10 ATK once, and a PECHA_BERRY holder eats the berry (the berry's own text heals, clears the poison stacks and origin and adds IMMUNITY_POISON; source reading). The poison tick (Status.updatePoison, executed on maxHP 1000) deals TRUE damage of round(5 % max HP x stacks) every 1000 ms, at least 1: RAIN x0.7, Assault Vest x0.5, the TOXIC_BOOST passive x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3; a GLISCOR uses stacks - 2 (1 stack heals 50, 2 stacks nothing); the POISON_GAS field re-applies a stack each tick unless the unit wears Heavy Duty Boots. Executed requests: 1 star 3000 ms (double the flat 1500 at AP 0), 2 stars 6000 ms, AP 100 4500 ms, a crit 4500 ms (half-strength crit factor 1.5), 2 stars with AP 100 and a crit 13500 ms; one triggerPoison per selected enemy.",
   "targeting": {
    "who": "the closest living enemies to the caster, up to 1/2/3/4 by stars (Chebyshev distance from the caster, ties in row-major cell order)",
    "needsTarget": true,
@@ -120,7 +120,7 @@
      }
     },
     "scaling": "requested duration = round(flat x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)); applied duration is that value after the enemy's status-duration reductions (Swift Swim / Hydration / Water Veil / Surge Surfer, Odd Keystone); the stack count is not scaled by AP or crit.",
-    "resolution": "requested duration -> applied duration inside triggerPoison -> poisonCooldown = max(current, applied). Stacks: +1 per call, capped at 3 / 4 (VENOMOUS caster) / 5 (caster with EffectEnum.TOXIC); no call does anything on IMMUNITY_POISON or Rune Protect. Poison damage per tick is a TRUE-damage handleDamage request of min(1)(round(5% max HP x stacks, with the listed reductions)); GLISCOR uses stacks - 2 and may heal instead. takenDamage includes shield damage.",
+    "resolution": "requested duration -> applied duration inside triggerPoison -> poisonCooldown = max(current, applied). Stacks: +1 per call, capped at 3 / 4 (VENOMOUS caster) / 5 (caster with EffectEnum.TOXIC); no call does anything on IMMUNITY_POISON or Rune Protect. Poison damage per tick is a TRUE-damage handleDamage request of min(1)(round(5% max HP x stacks, with the listed reductions)); GLISCOR uses stacks - 2 and may heal instead.. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
     "evidence": [
      "tx-flat",
      "tx-ap",
@@ -152,7 +152,24 @@
      "tx-ap",
      "tx-loop",
      "poison-dur2"
-    ]
+    ],
+    "declaredRaw": {
+     "byStars": {
+      "1": 1500,
+      "2": 3000,
+      "3": 4500,
+      "4": 9000,
+      "fallback": 9000
+     },
+     "unit": "ms (flat, before the 2 + AP/100 term)"
+    },
+    "perUnitRaw": {
+     "TENTACOOL": "1500 ms flat (x2 = 3000 ms requested at AP 0)",
+     "TENTACRUEL": "3000 ms flat (x2 = 6000 ms requested at AP 0)"
+    },
+    "scaling": "requested = round(flat x (2 + AP/100) x critFactor), critFactor 1 + (critPower - 1) x 0.5 only on an ability crit (half strength); the stack count is not scaled",
+    "guards": "IMMUNITY_POISON or Rune Protect on the victim refuses the whole trigger; the victim's duration reductions change the stored duration; the timer only grows (a longer remaining poison is kept) while the stack still rises up to 3 / 4 (VENOMOUS caster) / 5 (caster with EffectEnum.TOXIC)",
+    "combatEffect": "TRUE damage per tick of round(5 % max HP x stacks) with the weather, item and water modifiers listed in the summary; GLISCOR uses stacks - 2 and may heal"
    }
   ],
   "buffs": [],
@@ -170,7 +187,7 @@
     "TENTACOOL": 1500,
     "TENTACRUEL": 3000
    },
-   "note": "Stars select both the flat duration and the number of enemies; 3 and 4 stars (4500/9000 ms, 3/4 enemies) are not reached at the bare factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "note": "Stars select both the flat duration and the number of enemies; the 3-star and 4-star entries (4500 / 9000 ms, 3 / 4 enemies) are declared in the tables but unused by the bound baseline classes. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "tx-flat",
     "tx-count",
@@ -203,11 +220,11 @@
    "The poison tick is read in status.ts (updatePoison) but its interaction with other effects was not traced beyond the listed modifiers"
   ],
   "unresolved": [
-   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: dispatch uses Ability.TOXIC -> ToxicStrategy; EffectEnum.TOXIC is a separate synergy effect that only changes the stack cap and the poison chance on basic attacks. Which Poison-synergy tier the caster actually has in a fight was not examined",
+   "Routing uncertainty NAME_SHARED_WITH_EFFECT resolved by reading: dispatch uses Ability.TOXIC -> ToxicStrategy; EffectEnum.TOXIC is a separate synergy effect that this strategy reads only through the caster's effects set as the 5-stack cap condition; other readers of EffectEnum.TOXIC were not audited here. Which Poison-synergy tier the caster actually has in a fight was not examined",
    "Whether the attacker's cast target is always an enemy-team unit and how it is chosen (target selection state not re-read)",
-   "Positions at cast time depend on movement; no board example was worked",
+   "Positions at cast time depend on movement; board examples were worked only on a stand-in board (probe section CATCHUP_C4), not from live positions",
    "Whether the two units ever reach a different star count than the factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.getClosestEnemies, Status.triggerPoison / updatePoison / applyStatusDurationReductions) and the real ToxicStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): one trigger per selected enemy with the requested durations, the stack caps 3 / 4 / 5, the kept longer timer, HYDRATION-stored duration, IMMUNITY_POISON / Rune Protect refusal, the GUTS / TOXIC_BOOST addAttack requests, the Pecha berry call and the tick values by weather, item and water effect including GLISCOR."
   ],
   "evidence": [
    {
@@ -507,6 +524,20 @@
     "expect": "pokemon.pp >= pokemon.maxPP && pokemon.canCast",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T201212Z",
+   "reason": "one trigger per selected enemy, half-strength crit factor, Ability.TOXIC vs EffectEnum.TOXIC, self-contained poison tick",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

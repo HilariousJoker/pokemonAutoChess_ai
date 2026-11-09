@@ -442,6 +442,35 @@ const ARTIFACT = /(?:\braw|Guards:|Order:|Scaling:|Resolution:|duration|Combat e
   }
   check(`all ${bound} bound keys of the catch-up cycle 3 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 10 && problems.length === 0, problems.join("; "))
 }
+// ---- catch-up cycle 4 (TAIL_WHIP, TICKLE, TOXIC, WATERFALL, YAWN): all ten unit bindings; key corrected facts; missing-value artifacts by pattern ----
+{
+  const clean4 = (r) => !ARTIFACT.test(r.out)
+  const only4 = (r, ability) => [...r.out.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1]).join() === ability
+  const c4 = (r, ability) => r.code === 0 && clean4(r) && lacks(r, "candidate is source reading", "not stored by this strategy") && has(r, "Evidence: source reading, mechanical checks and executed probes", "were NOT executed", `record \`abilities.${ability}\``) && only4(r, ability)
+  const aiScoped = (r, ability) => has(r, `### Source-traced: ${ability} (independent AI source review by Codex recorded; project-owner review pending`, "Not a review of the final imported copy", "not a project-owner review; not gameplay-tested") && lacks(r, `### Reviewed: ${ability}`)
+  for (const [unit, ab, stars, raw, bits] of [
+    ["ALOLAN_RATTATA", "TAIL_WHIP", 1, 20, ["30 % of DEF 5 is -1.5"]], ["ALOLAN_RATICATE", "TAIL_WHIP", 2, 30, ["with a Twist Band each cast instead GAINS"]],
+    ["AIPOM", "TICKLE", 1, 1, ["target.team is the only thing read from the cast target"]], ["AMBIPOM", "TICKLE", 2, 2, ["among four enemies at distance 1 the first two in row-major cell order"]],
+    ["TENTACOOL", "TOXIC", 1, "", ["EffectEnum.TOXIC is a separate synergy effect that this strategy reads only"]], ["TENTACRUEL", "TOXIC", 2, "", ["a GLISCOR uses stacks - 2"]],
+    ["GOLDEEN", "WATERFALL", 1, 50, ["ANY active possession keeps its cooldown"]], ["SEAKING", "WATERFALL", 2, 100, ["removes EVERY board effect registered on the caster's own cell"]],
+    ["SLOWPOKE", "YAWN", 1, 15, ["the AP change still happens when the fatigue is refused"]], ["SLOWBRO", "YAWN", 2, 30, ["a stored number only"]]]) {
+    r = run(unit)
+    check(`${unit}: ${ab} ${stars}★ raw ${raw}; corrected wording present; Codex's AI review scoped to the original draft inspection (not the final copy), not owner-reviewed or gameplay-tested; no missing-value artifact`, c4(r, ab) && aiScoped(r, ab) && has(r, `this unit (${stars}★): **raw ${raw}`, `Unit facts: ${unit} is ${stars}★`.slice(0, 0), ...bits), r.err || r.out.slice(0, 200))
+  }
+  const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
+  let bound = 0; const problems = []
+  for (const n of ["TAIL_WHIP", "TICKLE", "TOXIC", "WATERFALL", "YAWN"]) for (const u of reu.abilities[n].appliesTo) {
+    bound++
+    const o = run(u.key).out
+    const headers = [...o.matchAll(/^### (?:Source-traced|Reviewed): (\w+) /gm)].map((m) => m[1])
+    if (headers.join() !== n) problems.push(`${u.key}: headers ${headers.join()}`)
+    if (!o.includes(`${u.key} is ${u.stars}★, maxPP ${u.maxPP}, range ${u.range}`)) problems.push(`${u.key}: unit facts`)
+    if (!/this unit(?: \(\d★\))?: \*\*raw /.test(o)) problems.push(`${u.key}: no per-unit raw value`)
+    if (ARTIFACT.test(o)) problems.push(`${u.key}: artifact`)
+    if (!/not in the evolution pilot|covered by the 20-unit evolution pilot/.test(o)) problems.push(`${u.key}: evolution coverage not stated separately`)
+  }
+  check(`all ${bound} bound keys of the catch-up cycle 4 abilities show exactly their own ability, unit facts, a per-unit raw value, a separate evolution statement and no missing-value artifact`, bound === 10 && problems.length === 0, problems.join("; "))
+}
 // every effect of every covered unit prints a meaningful value: no "undefined", "[object" or "NaN" anywhere in the lookup output
 {
   const reu = JSON.parse(readFileSync(resolve(HERE, "data/07367c34/reusable-abilities.json"), "utf8"))
@@ -558,9 +587,9 @@ r = run("BEEDRILL", "--review", put("rev-gameplay.json", rvs))
 check("fixture: gameplayTested is shown exactly as recorded (a true flag would be displayed, so the checked-in file must keep it false)", r.code === 0 && has(r, "gameplay-tested") && lacks(r, "not gameplay-tested"), r.err)
 {
   const shipped = rd2("review-status.json")
-  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER", "SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD", "SHORE_UP", "SOLAR_BEAM", "SPLASH", "SUPER_FANG", "TAILWIND"]
+  const five = ["BUG_BUZZ", "FOUL_PLAY", "LEAF_BLADE", "SOAK", "TORMENT", "IRON_DEFENSE", "MACH_PUNCH", "ROCK_SLIDE", "SLASH", "VENOSHOCK", "AERIAL_ACE", "AQUA_TAIL", "CLANGOROUS_SOUL", "CRABHAMMER", "DISCHARGE", "DIVE", "DOUBLE_SHOCK", "DRAGON_TAIL", "FAKE_TEARS", "FIRE_LASH", "KING_SHIELD", "LEECH_SEED", "FLAME_CHARGE", "SLUDGE", "VOLT_SWITCH", "FLOWER_TRICK", "DARKEST_LARIAT", "DRAGON_BREATH", "DRUM_BEATING", "EXPANDING_FORCE", "RAGING_BULL", "ZAP_CANNON", "EXPLOSION", "BLAZE_KICK", "AQUA_STEP", "POWDER", "ICE_BALL", "BITE", "HORN_LEECH", "TELEPORT", "SUCTION_HEAL", "PARABOLIC_CHARGE", "POLLEN_PUFF", "AROMATHERAPY", "MUD_BUBBLE", "ABSORB", "DRAIN_PUNCH", "DREAM_EATER", "NATURAL_GIFT", "PROTECT", "PSYBEAM", "PSYSHOCK", "PSYSTRIKE", "PSYSHIELD_BASH", "RAPID_SPIN", "REFLECT", "ROCK_HEAD", "ROCK_SMASH", "ROCK_WRECKER", "SAND_TOMB", "SCREECH", "SEED_FLARE", "SHADOW_SNEAK", "SHEER_COLD", "SHORE_UP", "SOLAR_BEAM", "SPLASH", "SUPER_FANG", "TAILWIND", "TAIL_WHIP", "TICKLE", "TOXIC", "WATERFALL", "YAWN"]
   check("shipped review-status.json: the imported passives DRUMMER and WATER_SPRING are unreviewed with Codex's scoped AI review, projectOwnerReviewed=false, gameplayTested=false", ["DRUMMER", "WATER_SPRING"].every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#passives.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
-  check("shipped review-status.json: the sixty-nine imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
+  check("shipped review-status.json: the seventy-four imported records are unreviewed with Codex's AI review, projectOwnerReviewed=false, gameplayTested=false", five.every((n) => { const v = shipped.records[`data/07367c34/reusable-abilities.json#abilities.${n}`]; return v?.status === "unreviewed" && v.aiReview?.reviewer === "Codex" && v.aiReview.kind === "independent AI source review" && v.aiReview.projectOwnerReviewed === false && v.aiReview.gameplayTested === false && !("by" in v) }))
 }
 r = run("CHARIZARD", "--catalog", join(dir, "missing.json"))
 check("missing file -> exit 2", r.code === 2)

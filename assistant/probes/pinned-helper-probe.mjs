@@ -1275,6 +1275,149 @@ expect("CATCHUP_C3 SUPER_FANG (real strategy, real handleSpecialDamage / handleD
 const C3TW = C3.tailwind
 expect("CATCHUP_C3 TAILWIND (real strategy, real addSpeed / addAttack and the Belt helper; ally speed 50, ATK 20): every ally including the caster gains speed 5 (1 star) / 10 (2 stars) and enemies are untouched; a Big Eater Belt holder gets the value x1.25 rounded down first (5 -> 6, 10 -> 12); AP 100 or a crit doubles it and the speed is NOT rounded by the adder (AP 50: 5 x 1.5 = 7.5 -> speed 57.5); speed clamps at 300 (295 + 10 -> 300)", [C3TW.star1, C3TW.star2.ally.speed, C3TW.ap50.ally.speed, C3TW.belt.belt.speed, C3TW.beltStar2.belt.speed, C3TW.ap100.ally.speed, C3TW.crit.ally.speed, C3TW.apCritBelt.belt.speed, C3TW.clampHigh.fast.speed], [{ caster: { speed: 55, atk: 20 }, ally: { speed: 55, atk: 20 }, foe: { speed: 50, atk: 20 } }, 60, 57.5, 56, 62, 60, 60, 68, 300])
 expect("CATCHUP_C3 TAILWIND MELMETAL delegation (real addSpeed -> addAttack): the Belt and Twist helpers run inside addSpeed on the raw value (5 -> 6 with a Belt), half of that goes to addAttack(value x 0.5, caster, apBoost 1, crit), which applies the caster's AP and crit and ROUNDS (Math.round), then runs the Belt and Twist helpers again: AP 0, no crit, no Belt: 1 star 5 -> 2.5 -> 3 ATK (23), 2 stars 10 -> 5 (25); with a Belt 1 star 5 -> 6 -> 3 -> 3 (23), 2 stars 10 -> 12 -> 6 -> 7 (27); AP 100 with a crit at 2 stars: 5 x 2 x 2 = 20 (ATK 40); the speed of the MELMETAL ally never changes (50)", [C3TW.melmetal.mel, C3TW.melmetalStar2.mel, C3TW.melmetalBelt.mel, C3TW.melmetalBeltStar2.mel, C3TW.melmetalApCrit.mel], [{ speed: 50, atk: 23 }, { speed: 50, atk: 25 }, { speed: 50, atk: 23 }, { speed: 50, atk: 27 }, { speed: 50, atk: 40 }])
+// 32. CATCHUP_C4 (catch-up cycle 4): the real TAIL_WHIP / TICKLE / TOXIC / WATERFALL / YAWN strategy text with the real addDefense / addAttack / addAbilityPower / addShield / resetCooldown,
+// Board.getClosestEnemies / clearBoardEffect, Status.triggerPoison / updatePoison / triggerFatigue / clearNegativeStatus and the Belt / Twist helpers, run against STAND-IN units and boards.
+// Requests = arguments received; returns = what a helper hands back; final = stored fields. Not a fight.
+const AB4 = "app/core/abilities/"
+const StatEntSrc = `${helpers}\nclass SE {\n${js(`class _ {\n${[cut(PE, 319, 321, "resetCooldown("), cut(PE, 621, 647, "addAbilityPower("), cut(PE, 674, 698, "addDefense("), cut(PE, 726, 750, "addAttack(")].join("\n")}\n}`).replace(/^class _ \{\n/, "").replace(/\n\}\s*$/, "")}\n}`
+const SE = build({ Item: enums(), min, max, clamp, roundToNDigits }, StatEntSrc, "SE")
+const mkSE = (name, team, x, y, o = {}) => Object.assign(new SE(), { name, team, positionX: x, positionY: y, hp: o.hp ?? 100, maxHP: 100, items: new Set(o.items ?? []), effects: new Set(o.effects ?? []), ap: o.ap ?? 0, critPower: 2, atk: o.atk ?? 20, def: o.def ?? 10, speDef: 10, speed: o.speed ?? 50, stars: o.stars ?? 1, id: name, skill: "X", pp: 0, maxPP: 100, count: { ult: 0 }, broadcastAbility() {}, isGhostOpponent: true, passive: "NONE", targetEntityId: o.targetEntityId ?? "", status: {}, simulation: { blueAbilitiesCast: [], redAbilitiesCast: [] } })
+// ---- TAIL_WHIP: share of the CURRENT DEF, real addDefense
+const TailWhipX = stratReal(`${AB4}tail-whip.ts`, "TailWhipStrategy")
+const tailWhip = ({ stars = 1, ap = 0, crit = false, def = 10, items = [], casts = 1 }) => {
+  const c = mkSE("caster", BLUE_Z, 0, 0, { stars, ap }), t = mkSE("target", RED_Z, 1, 0, { def, items }); const seq = []
+  const real = t.addDefense.bind(t); t.addDefense = (...a) => { seq.push(a[0]); return real(...a) }
+  for (let i = 0; i < casts; i++) new TailWhipX().process(c, {}, t, crit)
+  return { requests: seq, def: t.def }
+}
+// ---- TICKLE / TOXIC share getClosestEnemies: real text on a stand-in board (cells array row-major, 8 columns x 6 rows)
+const getClosestEnemiesX = build({ distanceC }, js(`class G {\n${cut(BD, 792, 807, "getClosestEnemies(")}\n}`), "G").prototype.getClosestEnemies
+const mkBoard4 = (units) => { const b = { cells: new Array(48).fill(undefined), columns: 8 }; b.getClosestEnemies = getClosestEnemiesX.bind(b); for (const u of units) b.cells[8 * u.positionY + u.positionX] = u; return b }
+const TickleX = stratReal(`${AB4}tickle.ts`, "TickleStrategy")
+const tickle = ({ stars = 1, ap = 0, crit = false, enemies, caster = [3, 3], castTargetTeam = RED_Z, extraUnits = [], targetName }) => {
+  const c = mkSE("caster", BLUE_Z, caster[0], caster[1], { stars, ap })
+  const es = enemies.map((e) => mkSE(e.name, e.team ?? RED_Z, e.x, e.y, e)); const others = extraUnits.map((e) => mkSE(e.name, e.team, e.x, e.y, e))
+  const b = mkBoard4([c, ...es, ...others])
+  const target = [...es, ...others, c].find((u) => u.name === (targetName ?? es[0].name))
+  new TickleX().process(c, b, target, crit)
+  return Object.fromEntries([...es, ...others, c].map((u) => [u.name, [u.atk, u.def]]))
+}
+// ---- TOXIC: real strategy, real triggerPoison / applyStatusDurationReductions / updatePoison
+const PoisonSrc = `class PX {\n${cut(ST, 572, 615, "triggerPoison(")}\n${cut(ST, 617, 688, "updatePoison(")}\n${cut(ST, 1282, 1305, "private applyStatusDurationReductions(").replace("private ", "")}\n}`
+const PX = build({ Passive: enums(), Weather: enums(), Item: enums(), EffectEnum: enums(), AttackType: enums(), min, max, count }, js(PoisonSrc), "PX")
+const mkPoisonUnit = (name, team, x, y, o = {}) => {
+  const u = mkSE(name, team, x, y, o); u.passive = o.passive ?? "NONE"; u.player = o.player ?? null; u.hp = 500; u.maxHP = 1000; u.log = []
+  u.simulation = { ...u.simulation, weather: o.weather ?? "NONE" }
+  u.status = Object.assign(new PX(), { runeProtect: !!o.runeProtect, poisonStacks: o.stacks ?? 0, poisonCooldown: o.poisonCooldown ?? 0, poisonDamageCooldown: 0, poisonOrigin: null, burn: false })
+  u.eatBerry = (b) => { u.log.push(["eatBerry", b]); u.status.poisonStacks = 0 }
+  u.handleHeal = (...a) => u.log.push(["heal", a[0]]); u.handleDamage = (o2) => u.log.push(["damage", o2.damage, o2.attackType])
+  return u
+}
+const ToxicX = stratReal(`${AB4}toxic.ts`, "ToxicStrategy")
+const toxic = ({ stars = 1, ap = 0, crit = false, enemies, effects = [], caster = [3, 3] }) => {
+  const c = mkSE("caster", BLUE_Z, caster[0], caster[1], { stars, ap, effects })
+  const es = enemies.map((e) => mkPoisonUnit(e.name, RED_Z, e.x, e.y, e)); const calls = []
+  for (const e of es) { const real = e.status.triggerPoison.bind(e.status); e.status.triggerPoison = (d, p, o) => { calls.push([e.name, d, o === c]); return real(d, p, o) } }
+  const b = mkBoard4([c, ...es]); new ToxicX().process(c, b, es[0], crit)
+  return { calls, state: Object.fromEntries(es.map((e) => [e.name, { stacks: e.status.poisonStacks, cooldown: e.status.poisonCooldown, atk: e.atk, effects: [...e.effects], log: e.log, immune: e.effects.has("IMMUNITY_POISON") }])) }
+}
+const poisonTick = ({ stacks = 1, weather = "NONE", items = [], effects = [], passive = "NONE", maxHP = 1000 }) => {
+  const u = mkPoisonUnit("v", RED_Z, 0, 0, { passive, weather, items, effects, stacks }); u.maxHP = maxHP; u.status.poisonCooldown = 5000; u.status.poisonOrigin = "O"
+  u.status.updatePoison(1000, u, {})
+  return u.log
+}
+// ---- WATERFALL: shield -> clearNegativeStatus -> clearBoardEffect on the own cell
+const ClearSrc = `class CW {\n${cut(ST, 122, 146, "clearNegativeStatus(")}\n}`
+const CW = build({}, js(ClearSrc), "CW")
+const clearBoardX = build({ Transfer: enums(), logger: { debug() {} } }, js(`class B {\n${cut(BD, 656, 692, "clearBoardEffect(")}\n}`), "B").prototype.clearBoardEffect
+const WaterfallX = stratReal(`${AB4}waterfall.ts`, "WaterfallStrategy")
+const waterfall = ({ stars = 1, ap = 0, crit = false, hp = 500, status = {}, items = [], cellEffects = [], otherCellEffects = [], entityEffects = [], enraged = false, possessedFlag = false }) => {
+  const u = mkHU({ hp, maxHP: 1000, items, status: { enraged }, name: "caster" })
+  Object.assign(u, { stars, ap, count: { ult: 0 }, broadcastAbility() {}, team: BLUE_Z, skill: "WATERFALL", positionX: 2, positionY: 1, effects: new Set([...entityEffects, ...cellEffects]) })
+  u.simulation = { ...u.simulation, blueAbilitiesCast: [], redAbilitiesCast: [], id: "s", room: { broadcast() {}, state: { time: 1 } } }
+  u.status = Object.assign(new CW(), { protect: false, runeProtect: false, silence: false, fatigue: false, resurrecting: false, tree: false, wound: false, burn: true, enraged, woundCooldown: 0, burnCooldown: 4000, silenceCooldown: 4000, fatigueCooldown: 4000, poisonCooldown: 4000, freezeCooldown: 4000, sleepCooldown: 4000, confusionCooldown: 4000, paralysisCooldown: 4000, charmCooldown: 4000, flinchCooldown: 4000, armorReductionCooldown: 4000, lockedCooldown: 4000, blindCooldown: 4000, curse: true, curseCooldown: 3000, possessed: possessedFlag, possessedCooldown: 5000, poison: true, poisonStacks: 3, paralysis: true, ...status })
+  const board = { columns: 8, boardEffects: Array.from({ length: 48 }, () => new Set()), getEntityOnCell: (x, y) => (x === 2 && y === 1 ? u : undefined) }
+  board.boardEffects[8 * 1 + 2] = new Set(cellEffects); board.boardEffects[8 * 1 + 3] = new Set(otherCellEffects)
+  board.clearBoardEffect = clearBoardX.bind(board)
+  const order = []
+  for (const [obj, m, label] of [[u, "addShield", "shield"], [u.status, "clearNegativeStatus", "clearNegativeStatus"], [board, "clearBoardEffect", "clearBoardEffect"]]) { const real = obj[m].bind(obj); obj[m] = (...a) => { order.push(label); return real(...a) } }
+  new WaterfallX().process(u, board, null, crit)
+  const s = u.status
+  return { order, shield: u.shield, hp: u.hp, cooldowns: [s.burnCooldown, s.silenceCooldown, s.fatigueCooldown, s.poisonCooldown, s.freezeCooldown, s.sleepCooldown, s.confusionCooldown, s.woundCooldown, s.paralysisCooldown, s.charmCooldown, s.flinchCooldown, s.armorReductionCooldown, s.lockedCooldown, s.blindCooldown], curse: s.curse, curseCooldown: s.curseCooldown, possessedCooldown: s.possessedCooldown, flagsStillSet: { burn: s.burn, poison: s.poison, paralysis: s.paralysis, poisonStacks: s.poisonStacks }, cellEffects: [...board.boardEffects[8 * 1 + 2]], otherCellEffects: [...board.boardEffects[8 * 1 + 3]], entityEffects: [...u.effects] }
+}
+// ---- YAWN: opponents targeting the caster, fatigue then AP change, shield, cooldown reset
+const FatigueSrc = `class FX {\n${cut(ST, 547, 562, "triggerFatigue(")}\n${cut(ST, 1282, 1305, "private applyStatusDurationReductions(").replace("private ", "")}\n}`
+const FX = build({ Passive: enums(), Weather: enums(), Item: enums(), EffectEnum: enums(), count }, js(FatigueSrc), "FX")
+const YawnX = stratReal(`${AB4}yawn.ts`, "YawnStrategy")
+const mkOpp = (name, o = {}) => {
+  const u = mkSE(name, RED_Z, 4, 3, o); u.ap = o.oppAp ?? 0; u.status = Object.assign(new FX(), { runeProtect: !!o.runeProtect, fatigue: false, fatigueCooldown: o.fatigueCooldown ?? 0 }); u.player = o.player ?? null; u.targetEntityId = o.target === false ? "someone else" : "caster"
+  return u
+}
+const yawn = ({ stars = 1, ap = 0, crit = false, speed = 35, opps, enraged = false, items = [], paralysed = false }) => {
+  const c = mkHU({ hp: 500, maxHP: 1000, items, status: { enraged }, name: "caster" })
+  Object.assign(c, { stars, ap, count: { ult: 0 }, broadcastAbility() {}, team: BLUE_Z, skill: "YAWN", id: "caster", speed, cooldown: 777, resetCooldown: SE.prototype.resetCooldown, effects: new Set() })
+  c.simulation = { ...c.simulation, blueAbilitiesCast: [], redAbilitiesCast: [] }
+  const os = opps.map((o) => mkOpp(o.name, o)); const order = []
+  for (const o of os) { const f = o.status.triggerFatigue.bind(o.status), g = o.addAbilityPower.bind(o); o.status.triggerFatigue = (...a) => { order.push([o.name, "fatigue", a[0]]); return f(...a) }; o.addAbilityPower = (...a) => { order.push([o.name, "ap", a[0], a[2], a[3]]); return g(...a) } }
+  const bd = { cells: [c, ...os] }
+  new YawnX().process(c, bd, null, crit)
+  return { order, opps: Object.fromEntries(os.map((o) => [o.name, { ap: o.ap, atk: o.atk, fatigue: o.status.fatigue, fatigueCooldown: o.status.fatigueCooldown }])), shield: c.shield, cooldown: c.cooldown, speed: c.speed, pp: c.pp }
+}
+out.CATCHUP_C4 = {
+  tailWhip: { star1: tailWhip({}), star2: tailWhip({ stars: 2 }), half: tailWhip({ stars: 2, def: 5 }), tiny: tailWhip({ def: 2 }), tinyAp: tailWhip({ def: 2, ap: 100 }), ap100: tailWhip({ ap: 100 }), crit: tailWhip({ crit: true }), twist: tailWhip({ items: ["TWIST_BAND"] }), belt: tailWhip({ items: ["BIG_EATER_BELT"] }), repeat: tailWhip({ def: 100, casts: 3 }), repeatTwist: tailWhip({ def: 100, casts: 2, items: ["TWIST_BAND"] }), floor: tailWhip({ stars: 5, ap: 300, def: 10 }), fallback: tailWhip({ stars: 5, def: 10 }) },
+  tickle: {
+    star1: tickle({ enemies: [{ name: "far", x: 7, y: 5 }, { name: "near", x: 4, y: 3 }, { name: "mid", x: 5, y: 3 }] }),
+    star2: tickle({ stars: 2, enemies: [{ name: "far", x: 7, y: 5 }, { name: "near", x: 4, y: 3 }, { name: "mid", x: 5, y: 3 }] }),
+    star5: tickle({ stars: 5, enemies: [1, 2, 3, 4, 5, 6].map((i) => ({ name: `e${i}`, x: i, y: 0 })) }),
+    ties: tickle({ stars: 2, enemies: [{ name: "right", x: 4, y: 3 }, { name: "below", x: 3, y: 4 }, { name: "above", x: 3, y: 2 }, { name: "left", x: 2, y: 3 }] }),
+    chebyshev: tickle({ stars: 2, enemies: [{ name: "diag2", x: 5, y: 5 }, { name: "line3", x: 6, y: 3 }, { name: "knight", x: 5, y: 4 }] }),
+    dead: tickle({ enemies: [{ name: "deadNear", x: 4, y: 3, hp: 0 }, { name: "aliveFar", x: 7, y: 3 }] }),
+    allyIgnored: tickle({ stars: 2, enemies: [{ name: "e1", x: 6, y: 3 }], extraUnits: [{ name: "allyNear", team: BLUE_Z, x: 4, y: 3 }] }),
+    targetNotNearest: tickle({ enemies: [{ name: "castTarget", x: 7, y: 5 }, { name: "nearest", x: 4, y: 3 }], targetName: "castTarget" }),
+    sameTeamTarget: tickle({ stars: 1, enemies: [{ name: "enemy", x: 4, y: 3 }], extraUnits: [{ name: "allyTarget", team: BLUE_Z, x: 5, y: 3 }], targetName: "allyTarget" }),
+    ap100: tickle({ ap: 100, enemies: [{ name: "e", x: 4, y: 3 }] }), crit: tickle({ crit: true, enemies: [{ name: "e", x: 4, y: 3 }] }), floors: tickle({ enemies: [{ name: "e", x: 4, y: 3, atk: 2, def: 1 }] }), twist: tickle({ enemies: [{ name: "e", x: 4, y: 3, items: ["TWIST_BAND"] }] }), belt: tickle({ enemies: [{ name: "e", x: 4, y: 3, items: ["BIG_EATER_BELT"] }] })
+  },
+  toxic: {
+    star1: toxic({ enemies: [{ name: "a", x: 4, y: 3 }, { name: "b", x: 5, y: 3 }] }), star2: toxic({ stars: 2, enemies: [{ name: "a", x: 4, y: 3 }, { name: "b", x: 5, y: 3 }, { name: "c", x: 6, y: 3 }] }),
+    ap100: toxic({ ap: 100, enemies: [{ name: "a", x: 4, y: 3 }] }), crit: toxic({ crit: true, enemies: [{ name: "a", x: 4, y: 3 }] }), apCrit: toxic({ ap: 100, crit: true, stars: 2, enemies: [{ name: "a", x: 4, y: 3 }] }),
+    stackCap: toxic({ enemies: [{ name: "a", x: 4, y: 3, stacks: 3 }] }), venomous: toxic({ effects: ["VENOMOUS"], enemies: [{ name: "a", x: 4, y: 3, stacks: 3 }] }), toxicEffect: toxic({ effects: ["TOXIC"], enemies: [{ name: "a", x: 4, y: 3, stacks: 4 }, { name: "x", x: 5, y: 3, stacks: 0 }], stars: 2 }),
+    keepsLonger: toxic({ enemies: [{ name: "a", x: 4, y: 3, poisonCooldown: 9000, stacks: 1 }] }), hydration: toxic({ enemies: [{ name: "a", x: 4, y: 3, effects: ["HYDRATION"] }] }), immune: toxic({ enemies: [{ name: "a", x: 4, y: 3, effects: ["IMMUNITY_POISON"] }] }), rune: toxic({ enemies: [{ name: "a", x: 4, y: 3, runeProtect: true }] }),
+    guts: toxic({ enemies: [{ name: "a", x: 4, y: 3, passive: "GUTS" }] }), toxicBoost: toxic({ enemies: [{ name: "a", x: 4, y: 3, passive: "TOXIC_BOOST" }] }), pecha: toxic({ enemies: [{ name: "a", x: 4, y: 3, items: ["PECHA_BERRY"], stacks: 0 }] }),
+    tick: { one: poisonTick({}), three: poisonTick({ stacks: 3 }), rain: poisonTick({ weather: "RAIN" }), vest: poisonTick({ items: ["ASSAULT_VEST"] }), toxicBoost: poisonTick({ passive: "TOXIC_BOOST" }), swiftSwim: poisonTick({ effects: ["SWIFT_SWIM"] }), hydration: poisonTick({ effects: ["HYDRATION"] }), waterVeil: poisonTick({ effects: ["WATER_VEIL"] }), gliscor1: poisonTick({ passive: "GLISCOR", stacks: 1 }), gliscor2: poisonTick({ passive: "GLISCOR", stacks: 2 }), gliscor3: poisonTick({ passive: "GLISCOR", stacks: 3 }), tiny: poisonTick({ maxHP: 10 }) }
+  },
+  waterfall: {
+    star1: waterfall({}), star2: waterfall({ stars: 2 }), ap100: waterfall({ ap: 100 }), crit: waterfall({ crit: true }), belt: waterfall({ items: ["BIG_EATER_BELT"] }), enraged: waterfall({ enraged: true }), dead: waterfall({ hp: 0 }),
+    cell: waterfall({ cellEffects: ["POISON_GAS", "HEAL_FIELD"], otherCellEffects: ["POISON_GAS"], entityEffects: ["VENOMOUS"] }), possessed: waterfall({ possessedFlag: true }), notPossessed: waterfall({ possessedFlag: false })
+  },
+  yawn: {
+    star1: yawn({ opps: [{ name: "t1" }, { name: "t2" }, { name: "notTargeting", target: false }] }), star2: yawn({ stars: 2, opps: [{ name: "t1" }] }),
+    rune: yawn({ opps: [{ name: "r", runeProtect: true }] }), twist: yawn({ opps: [{ name: "w", items: ["TWIST_BAND"] }] }), belt: yawn({ opps: [{ name: "b", items: ["BIG_EATER_BELT"] }] }),
+    nullify: yawn({ opps: [{ name: "n", items: ["NULLIFY_BANDANNA"] }] }), nullifyTwist: yawn({ opps: [{ name: "nt", items: ["NULLIFY_BANDANNA", "TWIST_BAND"] }] }), floor: yawn({ opps: [{ name: "f", oppAp: -90 }] }), hydration: yawn({ opps: [{ name: "h", effects: ["HYDRATION"] }] }), longer: yawn({ opps: [{ name: "l", fatigueCooldown: 9000 }] }),
+    shieldAp: yawn({ ap: 100, opps: [] }), shieldCrit: yawn({ crit: true, opps: [] }), shieldBelt: yawn({ items: ["BIG_EATER_BELT"], opps: [] }), shieldEnraged: yawn({ enraged: true, opps: [] }), fastCaster: yawn({ speed: 100, opps: [] }), noOpponents: yawn({ opps: [] })
+  }
+}
+const C4 = out.CATCHUP_C4
+
+const C4TW = C4.tailWhip
+expect("CATCHUP_C4 TAIL_WHIP (real strategy and real addDefense; target DEF 10 unless stated): the request is -(percent / 100) x the target's CURRENT DEF (1 star 20 % -> -2, 2 stars 30 % -> -3, the fallback 50 % -> -5), handed to addDefense(request, caster, apBoost 1, crit) which scales by AP and crit and then Math.round: 30 % of DEF 5 is -1.5 and Math.round(-1.5) = -1 (DEF 4, not 3); 20 % of DEF 2 is -0.4 which rounds to 0 (no change), while AP 100 makes it -0.8 -> -1 (DEF 1); AP 100 or a crit doubles the rounded loss (DEF 6); a Big Eater Belt on the enemy changes nothing; a Twist Band holder GAINS the same amount (DEF 12); DEF floors at 0 (50 % with AP 300 on DEF 10 -> 0)", [C4TW.star1.requests, C4TW.star1.def, C4TW.star2.requests, C4TW.half.requests, C4TW.half.def, C4TW.tiny.def, C4TW.tinyAp.def, C4TW.ap100.def, C4TW.crit.def, C4TW.belt.def, C4TW.twist.def, C4TW.fallback.requests, C4TW.floor.def], [[-2], 8, [-3], [-1.5], 4, 2, 1, 6, 6, 8, 12, [-5], 0])
+expect("CATCHUP_C4 TAIL_WHIP repeated casts (DEF 100, 1 star, three casts): each request is a share of the REMAINING DEF, so the losses shrink - requests -20, -16, -12.8 (rounded to -13) and DEF 100 -> 80 -> 64 -> 51; this holds only without a Twist Band: a Twist Band holder turns each request into a GAIN of the current share, so the DEF grows (100 -> 120 -> 144, requests -20, -24)", [C4TW.repeat.requests, C4TW.repeat.def, C4TW.repeatTwist.requests, C4TW.repeatTwist.def], [[-20, -16, -12.8], 51, [-20, -24], 144])
+const C4TK = C4.tickle
+const hit = (v) => Object.entries(v).filter(([k, x]) => x[0] !== 20 || x[1] !== 10).map(([k]) => k).sort()
+expect("CATCHUP_C4 TICKLE selection (real strategy and real Board.getClosestEnemies on an 8 x 6 stand-in board, caster at (3,3)): the closest LIVING units of the CAST TARGET's team by Chebyshev distance from the CASTER's cell, count 1 / 2 / 3 / 5 by the caster's stars; 1 star hits only the nearest, 2 stars the two nearest, 5 stars five of six; the cast target itself is not hit when another enemy is nearer; allies and dead units (hp 0) are skipped; Chebyshev, not Manhattan: (5,5) and (5,4) [distance 2] are chosen before (6,3) [distance 3]; ties keep the board's row-major order: of four enemies at distance 1 the two first in cell order (above, then left) are hit, not right / below", [hit(C4TK.star1), hit(C4TK.star2), hit(C4TK.star5), hit(C4TK.targetNotNearest), hit(C4TK.allyIgnored), hit(C4TK.dead), hit(C4TK.chebyshev), hit(C4TK.ties)], [["near"], ["mid", "near"], ["e1", "e2", "e3", "e4", "e5"], ["nearest"], ["e1"], ["aliveFar"], ["diag2", "knight"], ["above", "left"]])
+expect("CATCHUP_C4 TICKLE amounts (real addAttack / addDefense; enemy ATK 20, DEF 10): ATK -3 and DEF -3 are two separate requests (17 / 7); AP 100 or a crit doubles each rounded request (14 / 4); the floors differ - ATK stops at 1 (ATK 2 -> 1) and DEF at 0 (DEF 1 -> 0); a Twist Band holder gains instead (23 / 13); a Big Eater Belt on the enemy changes nothing; the selection uses target.team, so with a same-team cast target (executed with a stand-in) the nearest unit of THAT team - here the caster itself at distance 0 - is hit instead (the enemy is not): the enemy-team description holds for an ordinary enemy cast target only", [C4TK.star1.near, C4TK.ap100.e, C4TK.crit.e, C4TK.floors.e, C4TK.twist.e, C4TK.belt.e, C4TK.sameTeamTarget.caster, C4TK.sameTeamTarget.enemy], [[17, 7], [14, 4], [14, 4], [1, 0], [23, 13], [17, 7], [17, 7], [20, 10]])
+const C4TX = C4.toxic
+expect("CATCHUP_C4 TOXIC requests (real strategy; closest enemies as for TICKLE): ONE triggerPoison per selected enemy per cast (1 star 1 enemy, 2 stars 2 of 3), duration = round(flat x (2 + AP/100) x critFactor): 1 star 3000 (double the flat 1500 at AP 0), 2 stars 6000, AP 100 4500, a crit 4500 (the crit factor is HALF-strength: 1 + (critPower - 1) x 0.5 = 1.5), 2 stars with AP 100 and a crit 13500", [C4TX.star1.calls, C4TX.star2.calls.map((c) => c[1]), C4TX.ap100.calls[0][1], C4TX.crit.calls[0][1], C4TX.apCrit.calls[0][1]], [[["a", 3000, true]], [6000, 6000], 4500, 4500, 13500])
+expect("CATCHUP_C4 TOXIC inside triggerPoison (real text, stand-in unit): +1 stack per call capped at 3 (VENOMOUS caster 4, caster with the synergy effect EffectEnum.TOXIC 5; a second selected enemy starts at 1); a longer remaining poison timer is kept (9000) while the stack still rises; the enemy's reductions change the STORED duration (HYDRATION 1500); IMMUNITY_POISON or Rune Protect refuses the whole trigger (0 stacks, no timer); GUTS adds ATK +5 once and TOXIC_BOOST +10 once as addAttack requests; a PECHA_BERRY holder requests eatBerry (the berry's own text clears stacks and adds IMMUNITY_POISON: source reading, the stand-in only records the call)", [C4TX.stackCap.state.a.stacks, C4TX.venomous.state.a.stacks, [C4TX.toxicEffect.state.a.stacks, C4TX.toxicEffect.state.x.stacks], [C4TX.keepsLonger.state.a.cooldown, C4TX.keepsLonger.state.a.stacks], C4TX.hydration.state.a.cooldown, [C4TX.immune.state.a.stacks, C4TX.immune.state.a.cooldown], [C4TX.rune.state.a.stacks, C4TX.rune.state.a.cooldown], C4TX.guts.state.a.atk, C4TX.toxicBoost.state.a.atk, C4TX.pecha.state.a.log], [3, 4, [5, 1], [9000, 2], 1500, [0, 0], [0, 0], 25, 30, [["eatBerry", "PECHA_BERRY"]]])
+const C4TT = C4TX.tick
+expect("CATCHUP_C4 TOXIC poison tick (real Status.updatePoison, maxHP 1000): TRUE damage of round(5 % x max HP x stacks) per tick = 50 per stack (150 at 3 stacks); RAIN x0.7 = 35, Assault Vest x0.5 = 25, TOXIC_BOOST passive x0.5 = 25, SWIFT_SWIM x0.7 = 35, HYDRATION x0.5 = 25, WATER_VEIL x0.3 = 15; a GLISCOR uses stacks - 2: 1 stack HEALS 50 (handleHeal request), 2 stacks nothing, 3 stacks 50 damage; a damage request is at least 1 (maxHP 10 -> 1)", [C4TT.one, C4TT.three, C4TT.rain, C4TT.vest, C4TT.toxicBoost, C4TT.swiftSwim, C4TT.hydration, C4TT.waterVeil, C4TT.gliscor1, C4TT.gliscor2, C4TT.gliscor3, C4TT.tiny], [[["damage", 50, "TRUE"]], [["damage", 150, "TRUE"]], [["damage", 35, "TRUE"]], [["damage", 25, "TRUE"]], [["damage", 25, "TRUE"]], [["damage", 35, "TRUE"]], [["damage", 25, "TRUE"]], [["damage", 15, "TRUE"]], [["heal", 50]], [], [["damage", 50, "TRUE"]], [["damage", 1, "TRUE"]]])
+const C4WF = C4.waterfall
+expect("CATCHUP_C4 WATERFALL order and shield (real strategy, real addShield, real clearNegativeStatus and clearBoardEffect on stand-ins): the order is shield, clearNegativeStatus, clearBoardEffect (own cell); the shield request 50 / 100 by stars goes through addShield: AP 100 or a crit doubles it, a Big Eater Belt gives 62 (62.5 rounded down first), enraged halves it (25), a caster at 0 HP gets 0", [C4WF.star1.order, C4WF.star1.shield, C4WF.star2.shield, C4WF.ap100.shield, C4WF.crit.shield, C4WF.belt.shield, C4WF.enraged.shield, C4WF.dead.shield], [["shield", "clearNegativeStatus", "clearBoardEffect"], 50, 100, 100, 100, 62, 25, 0])
+expect("CATCHUP_C4 WATERFALL cleansing (real Status.clearNegativeStatus): the 14 listed cooldowns are zeroed at once but the boolean flags are NOT touched (burn, poison, paralysis stay true and the poison stacks stay 3 until each status's own update sees its cooldown run out); the curse flag is cleared while a running curse cooldown gets +2000 (3000 -> 5000) instead of being zeroed; with an active possession the caster passes itself as the origin, so origin.team === entity.team always holds and ANY active possession keeps its cooldown (5000) while without possession it is 0", [C4WF.star1.cooldowns, C4WF.star1.flagsStillSet, C4WF.star1.curse, C4WF.star1.curseCooldown, C4WF.possessed.possessedCooldown, C4WF.notPossessed.possessedCooldown], [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], { burn: true, poison: true, paralysis: true, poisonStacks: 3 }, false, 5000, 5000, 0])
+expect("CATCHUP_C4 WATERFALL board effects (real Board.clearBoardEffect without a specific effect): EVERY board effect registered on the caster's own cell is deleted from the cell and from the occupant's effects set - harmful and helpful alike (POISON_GAS and HEAL_FIELD both gone) - while an effect on another cell (POISON_GAS at (3,1)) and the caster's own unrelated effect (VENOMOUS) stay; this is separate from the status cleansing above", [C4WF.cell.cellEffects, C4WF.cell.otherCellEffects, C4WF.cell.entityEffects], [[], ["POISON_GAS"], ["VENOMOUS"]])
+const C4YW = C4.yawn
+expect("CATCHUP_C4 YAWN loop (real strategy, real triggerFatigue and addAbilityPower on stand-in units): every enemy whose targetEntityId equals the caster's id (not the one targeting someone else) gets, in this order, triggerFatigue(3000) and then addAbilityPower(-20, caster, apBoost 0, crit false): AP -20, fatigue 3000 ms; the AP change happens even when fatigue is refused (Rune Protect: fatigue false, AP still -20); the stored fatigue duration follows the enemy's reductions (HYDRATION 1500) and a longer remaining fatigue is kept (9000); a Big Eater Belt on the enemy changes nothing; a Twist Band holder GAINS AP (+20); AP floors at -100 (-90 -> -100)", [C4YW.star1.order, C4YW.star1.opps.notTargeting, C4YW.rune.opps.r, C4YW.hydration.opps.h.fatigueCooldown, C4YW.longer.opps.l.fatigueCooldown, C4YW.belt.opps.b.ap, C4YW.twist.opps.w.ap, C4YW.floor.opps.f.ap], [[["t1", "fatigue", 3000], ["t1", "ap", -20, 0, false], ["t2", "fatigue", 3000], ["t2", "ap", -20, 0, false]], { ap: 0, atk: 20, fatigue: false, fatigueCooldown: 0 }, { ap: -20, atk: 20, fatigue: false, fatigueCooldown: 0 }, 1500, 9000, -20, 20, -100])
+expect("CATCHUP_C4 YAWN Nullify Bandanna (real addAbilityPower -> addAttack): a holder takes no AP change; round(0.2 x -20) = -4 is routed to addAttack(-4, caster, 0, false), so ATK 20 -> 16; a holder that ALSO wears a Twist Band has that -4 flipped by addAttack's Twist helper and GAINS 4 ATK (24)", [C4YW.nullify.opps.n, C4YW.nullifyTwist.opps.nt], [{ ap: 0, atk: 16, fatigue: true, fatigueCooldown: 3000 }, { ap: 0, atk: 24, fatigue: true, fatigueCooldown: 3000 }])
+expect("CATCHUP_C4 YAWN shield and cooldown (real addShield / resetCooldown on a stand-in caster): the shield request 15 (1 star) / 30 (2 stars) is made even with no opponent targeting the caster; AP 100 or a crit doubles it (30), a Big Eater Belt gives 18 (18.75 rounded down), enraged halves it (7.5 rounds to 8); resetCooldown(1000) STORES cooldown = round(1000 / (0.4 + speed x 0.007)) overwriting the running value (777): speed 35 -> 1550, speed 100 -> 909 - a stored number only (AttackingState.update stores the same formula just before casting, with the speed halved when paralysed, and onEnter sets it to 0; how the unit's next action changes in a fight was not simulated)", [C4YW.noOpponents.shield, C4YW.star2.shield, C4YW.shieldAp.shield, C4YW.shieldCrit.shield, C4YW.shieldBelt.shield, C4YW.shieldEnraged.shield, C4YW.noOpponents.cooldown, C4YW.fastCaster.cooldown], [15, 30, 30, 30, 18, 8, 1550, 909])
 // ---------------------------------------------------------------------------------------------------------------------------------
 console.log(JSON.stringify(out, null, 1))
 const failed = expectations.filter((x) => !x.ok)

@@ -62,7 +62,7 @@
     "yw-super"
    ]
   },
-  "summary": "Without needing a target: every enemy that currently has the caster as its target gets a 3000 ms fatigue request (halves its positive PP gains) and an AP change of -20 (request; Twist Band flips it, Nullify Bandanna turns it into -4 ATK, AP is clamped at -100). Then the caster gains a shield (raw 15/30/60/120 by stars: 15 Slowpoke, 30 Slowbro) and its attack cooldown is reset to round(1000 / (0.4 + speed x 0.007)) ms. The AP and fatigue parts are not damage and have no AP/crit scaling.",
+  "summary": "Without needing a target: every enemy that currently has the caster as its target gets a 3000 ms fatigue request (halves its positive PP gains) and an AP change of -20 (request; Twist Band flips it, Nullify Bandanna turns it into -4 ATK, AP is clamped at -100). Then the caster gains a shield (raw 15/30/60/120 by stars: 15 Slowpoke, 30 Slowbro) and resetCooldown(1000) stores round(1000 / (0.4 + speed x 0.007)) ms in the caster's cooldown field (speed 35 -> 1550, speed 100 -> 909), a stored number only: AttackingState.update already stores the same formula just before casting, and how the stored value changes the unit's next action in a fight was not simulated. The two parts run per enemy in this order: fatigue first, then the AP change, and the AP change still happens when the fatigue is refused (Rune Protect refuses only the fatigue); a Nullify Bandanna holder takes addAttack(round(0.2 x -20) = -4) instead and a holder that also wears a Twist Band GAINS 4 ATK (executed: ATK 20 -> 16, with a Twist Band 24; a Twist Band alone turns -20 AP into +20; AP -90 floors at -100). The AP and fatigue parts are not damage and have no AP/crit scaling.",
   "targeting": {
    "who": "debuffs: every enemy-team unit on the board whose targetEntityId equals the caster's id at cast time (no range, hp or adjacency test); shield and cooldown: the caster",
    "needsTarget": false,
@@ -118,10 +118,40 @@
      "label": "requested base (raw literal)"
     },
     "scaling": "cooldown = Math.round(1000 / (0.4 + speed x 0.007)) using the caster's speed at that moment (e.g. speed 35 gives round(1000 / 0.645) = 1550 ms; the speed values 35 are base stats from the unit blocks, current speed may differ)",
-    "resolution": "applied = the new value of the caster's attack cooldown, set unconditionally after the shield; whatever cooldown was running is overwritten (it can lengthen or shorten it).",
+    "resolution": "applied = the stored value of the caster's cooldown field, set unconditionally after the shield and overwriting the running value; AttackingState.update stores the same formula (speed halved while paralysed; YAWN's call uses the unhalved speed) just before casting and onEnter sets the field to 0, so what the stored number does to the unit's next action in a real fight was not simulated.",
     "evidence": [
      "yw-cd",
-     "reset-cd"
+     "reset-cd",
+     "attack-cd",
+     "attack-enter"
+    ]
+   },
+   {
+    "kind": "stat (AP debuff, enemies)",
+    "stat": "AP",
+    "target": "each enemy currently targeting the caster",
+    "direction": "reduction (negative request)",
+    "declaredRaw": {
+     "value": -20,
+     "label": "requested AP change (raw)",
+     "apBoost": 0,
+     "crit": false
+    },
+    "perUnitRaw": {
+     "SLOWBRO": -20,
+     "SLOWPOKE": -20
+    },
+    "scaling": "addAbilityPower(-20, caster, apBoost 0, crit false): a NULLIFY_BANDANNA holder is checked first and takes addAttack(round(0.2 x -20) = -4, caster, 0, false) instead (a Twist Band on the same holder flips that to +4 ATK; ATK floors at 1); otherwise value = Math.round(-20 x 1 x 1) = -20, the Big Eater Belt does nothing for an enemy, a Twist Band holder is flipped to +20, and ap = min(-100)(ap + value)",
+    "resolution": "happens right after triggerFatigue for the same enemy and does not depend on whether the fatigue was applied; not reverted by the strategy (no expiry command); not permanent (the board pokemon is untouched)",
+    "evidence": [
+     "yw-ap",
+     "ap-null",
+     "ap-round",
+     "ap-belt",
+     "ap-twist",
+     "ap-clamp",
+     "twist-fn",
+     "yw-filter"
     ]
    }
   ],
@@ -131,7 +161,7 @@
     "target": "each enemy currently targeting the caster",
     "durationMsRequested": 3000,
     "scaling": "apBoost defaults to false in triggerFatigue, so AP does not lengthen it; applyStatusDurationReductions may shorten it; the result is Math.round-ed and only replaces the remaining fatigueCooldown if longer (an existing longer fatigue is kept). The flag is set whenever the request passes the Rune Protect check.",
-    "guards": "Rune Protect (status.runeProtect) cancels the whole request; there is no other immunity check in the function. Effect found by searching status.fatigue in app/core: addPP halves a positive PP gain of a fatigued unit (Math.round of baseValue x AP factor x 0.5, then the guards for silence, protect, NO_PP_GAIN and resurrecting still apply; a negative PP change is not halved). Fatigue does not stop the unit from casting, attacking or moving as far as this search shows.",
+    "guards": "Rune Protect (status.runeProtect) cancels only this fatigue request - the AP change that follows still happens; there is no other immunity check in the function. Effect found by searching status.fatigue in app/core: addPP halves a positive PP gain of a fatigued unit (Math.round of baseValue x AP factor x 0.5, then the guards for silence, protect, NO_PP_GAIN and resurrecting still apply; a negative PP change is not halved). Fatigue does not stop the unit from casting, attacking or moving as far as this search shows.",
     "evidence": [
      "yw-fatigue",
      "fat-rune",
@@ -139,7 +169,8 @@
      "fat-cd",
      "fat-pp",
      "fat-pp-guards"
-    ]
+    ],
+    "combatEffect": "see the structured effect fields"
    }
   ],
   "buffs": [
@@ -148,7 +179,7 @@
     "target": "each enemy currently targeting the caster",
     "kind": "debuff",
     "requested": -20,
-    "scaling": "addAbilityPower(-20, caster, apBoost 0, crit false). Requested -20; Math.round leaves it -20 (no AP/crit factor). Big Eater Belt does not scale it (negative value from an enemy of the holder). A Twist Band holder has it flipped to +20 (negative value from another team). A Nullify Bandanna holder receives round(0.2 x -20) = -4 via addAttack instead and no AP change (further helpers inside addAttack, such as Twist Band flipping that -4, were not traced). The final ap is clamped to at least -100.",
+    "scaling": "addAbilityPower(-20, caster, apBoost 0, crit false). Requested -20; Math.round leaves it -20 (no AP/crit factor). Big Eater Belt does not scale it (negative value from an enemy of the holder). A Twist Band holder has it flipped to +20 (negative value from another team). A Nullify Bandanna holder receives round(0.2 x -20) = -4 via addAttack(-4, caster, 0, false) instead and no AP change: addAttack rounds, skips the Big Eater Belt for an enemy, and a Twist Band on the same holder flips it to +4 ATK; ATK floors at 1 (executed: ATK 20 -> 16, with a Twist Band 24). The final ap is clamped to at least -100.",
     "resolution": "applied = change in the victim's ap after those helpers and the -100 clamp; not permanent (the board pokemon is not updated; permanent defaults false). The AP change is not reverted by the strategy: no expiry command exists, so it lasts for the rest of the fight as far as this strategy goes.",
     "evidence": [
      "yw-ap",
@@ -173,7 +204,7 @@
     "SLOWBRO": 30,
     "SLOWPOKE": 15
    },
-   "note": "Only the shield depends on stars; the 3-star (60) and 4-star (120, also the ?? fallback) columns are not reachable by the bare factory star counts of the listed units. Fatigue duration (3000 ms) and the AP change (-20) are fixed.",
+   "note": "Only the shield depends on stars; the 3-star (60) and 4-star (120, also the ?? fallback) columns are declared in the tables but unused by the bound baseline classes. Fatigue duration (3000 ms) and the AP change (-20) are fixed.",
    "evidence": [
     "yw-table",
     "unit-slowbro",
@@ -196,16 +227,16 @@
   "dependsOnUnverifiedGenericCombat": [
    "How units choose and keep their target (targetEntityId is only read here; setTarget was read, the targeting logic was not), so which enemies count as 'targeting me' in a real fight is unverified",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
-   "Contents of applyStatusDurationReductions were not read for this record",
+   "applyStatusDurationReductions was read and executed in this recheck (HYDRATION halves the stored fatigue, a longer remaining fatigue is kept)",
    "Item effects on the caster's current speed (the cooldown input) were not traced"
   ],
   "unresolved": [
    "Routing: no routing uncertainties were listed for YAWN in the queue; the ability name does not collide with a passive or effect according to the queue record",
    "Passive.SLOWPOKE (declared by Slowpoke) is not referenced by that name in app/core (searched app/core and effects/passives.ts); what, if anything, it does is outside this record",
    "The filter does not test hp > 0 or targettability; whether a dead or untargettable unit can still sit in board.cells with the caster as its target was not traced",
-   "The Nullify Bandanna branch routes -4 into addAttack; the helpers inside addAttack (Twist Band, Big Eater Belt) were not traced for that case",
+   "The Nullify Bandanna branch routes -4 into addAttack; the helpers inside addAttack (Twist Band, Big Eater Belt) were traced and executed in this recheck (see the AP debuff effect)",
    "Whether the two units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFatigue, applyStatusDurationReductions, addAbilityPower, addAttack, addShield, resetCooldown) and the real YawnStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the per-enemy order fatigue then AP, the not-targeting enemy untouched, the Rune Protect case, Twist Band, Big Eater Belt, Nullify Bandanna (with and without Twist Band), the -100 floor, the shield values and the stored cooldown for two speeds."
   ],
   "evidence": [
    {
@@ -592,7 +623,43 @@
     "symbol": "applyTwistBandBuff",
     "expect": "function applyTwistBandBuff",
     "note": "plain function: negative value from environment or another team is multiplied by -1 for a Twist Band holder"
+   },
+   {
+    "id": "attack-cd",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     22,
+     24
+    ],
+    "symbol": "AttackingState.update",
+    "expect": "pokemon.resetCooldown(1000, speed)",
+    "note": "the attack loop stores the cooldown (speed halved when paralysed) right before casting"
+   },
+   {
+    "id": "attack-enter",
+    "file": "app/core/attacking-state.ts",
+    "lines": [
+     115,
+     118
+    ],
+    "symbol": "AttackingState.onEnter",
+    "expect": "pokemon.cooldown = 0",
+    "note": "entering the attacking state sets the stored cooldown to 0"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261109T201212Z",
+   "reason": "structured AP-change effect still applies when fatigue is refused, Nullify/Twist routing, stored cooldown reset",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
