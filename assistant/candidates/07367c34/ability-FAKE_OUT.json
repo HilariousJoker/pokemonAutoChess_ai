@@ -62,7 +62,7 @@
     "fo-super"
    ]
   },
-  "summary": "Single-target SPECIAL damage on the cast target, raw 40/80/150/300 by caster stars (Purrloin 40, Liepard 80). Before the damage, if the caster's AP is >= 0 the target gets a 3000 ms flinch (reduced by status-duration reductions, blocked by Rune Protect). After the damage the caster loses 30 AP (floor -100). AP scales the damage; crit applies only with ability crit.",
+  "summary": "Single target, in this order: (1) the check caster AP >= 0 (AP 0 qualifies), then triggerFlinch(3000, target) - the TARGET supplies the duration reductions and Rune Protect refuses it; (2) SPECIAL damage 40 / 80 / 150 / 300 (AP and crit scale it); (3) the caster's own addAbilityPower(-30, self, apBoost 0, crit false). The self loss is a REQUEST through own-team helpers (a Big Eater Belt amplifies it: -30 becomes -38; a Twist Band does not reverse a self loss; floor -100), runs even when the damage was blocked, and lowers AP so later casts may fail the threshold (executed: -30 then -60 with one flinch call). A Nullify Bandanna conversion is a direct-call helper path (canCast normally prevents such a cast).",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -114,7 +114,7 @@
      "LIEPARD": 80
     },
     "scaling": "requested = table value by caster stars. AP: x(1 + AP/100) using the caster's AP at call time (before this cast's -30 AP); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
-    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields and takenDamage are resolved in handleDamage and not read by this strategy (return value unused). A flinched target's shield takes only half of the hit (the flinch was applied just before). Blocked completely if the target is protected, skydiving or has magicBounce.",
+    "resolution": "Requested = raw table value; applied = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, minimum 1) in handleDamage; shields are resolved in handleDamage and the returned takenDamage is unused (section J1). A flinched target's shield takes only half of the hit (the flinch was applied just before). Blocked completely if the target is protected, skydiving or has magicBounce.",
     "evidence": [
      "fo-dmg",
      "fo-hit",
@@ -141,18 +141,49 @@
      "beb",
      "twist"
     ]
+   },
+   {
+    "kind": "stat (AP loss, self)",
+    "stat": "AP",
+    "target": "the caster",
+    "direction": "reduction (negative request)",
+    "declaredRaw": {
+     "value": -30,
+     "label": "requested self AP change",
+     "apBoost": 0,
+     "crit": false
+    },
+    "perUnitRaw": {
+     "PURRLOIN": -30,
+     "LIEPARD": -30
+    },
+    "scaling": "addAbilityPower(-30, self, 0, false): Nullify Bandanna is checked first (direct-call path only: canCast blocks such a cast); otherwise Math.round(-30), then the recipient's helpers: a Big Eater Belt amplifies a negative value from the own team (-30 -> -38, rounded down toward -infinity), a Twist Band does NOT reverse a self loss, then ap = min(-100)(ap + value)",
+    "resolution": "made after the damage call whatever its result (a protected target still costs 30 AP); AP below 0 skips the flinch of later casts but not their damage or the loss (executed: AP 0 -> -30 -> -60). A Nullify holder's direct call routes addAttack(round(0.2 x -30) = -6), -8 with a Belt.",
+    "evidence": [
+     "ap-self",
+     "item-helpers"
+    ]
    }
   ],
   "statusEffects": [
    {
     "status": "FLINCH",
-    "target": "cast target",
-    "durationMs": 3000,
-    "condition": "caster ap >= 0",
+    "target": "the cast target",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "fixed 3000 ms, not AP-scaled; stored = round(3000 x the TARGET's duration reductions)",
+    "guards": "only attempted when the caster's AP >= 0 at cast time (checked before the call); refused by the target's Rune Protect; reductions read the target (executed: target HYDRATION 1500, caster HYDRATION 3000); a longer remaining flinch is kept",
+    "combatEffect": "while flinched and shielded the target's shield takes the flinch split (see the shared handleDamage flinch branch); other consumers of status.flinch were not searched",
     "evidence": [
      "fo-flinch",
      "flinch-trig"
-    ]
+    ],
+    "perUnitRaw": {
+     "PURRLOIN": 3000,
+     "LIEPARD": 3000
+    }
    }
   ],
   "buffs": [],
@@ -166,7 +197,7 @@
     "PURRLOIN": 40,
     "LIEPARD": 80
    },
-   "note": "indexed by the casting entity's stars; the 150, 300 (fallback) entries are not reachable by these two units' star counts. Flinch duration and AP loss do not depend on stars. maxPP 90 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (150 / 300, fallback 300) are declared in the tables but unused by the bound baseline classes. Flinch duration and AP loss do not depend on stars. maxPP 90 and range 1 for both.",
    "evidence": [
     "fo-dmg",
     "unit-purrloin",
@@ -175,7 +206,7 @@
   },
   "positionalConditions": "None beyond needing a target (requiresTarget true). The only condition is the caster's AP sign for the flinch.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast permanently-for-the-fight lowers AP by 30 (floor -100); once AP is negative the flinch is skipped on later casts while damage still happens (damage is then reduced by the negative AP: x(1 + AP/100)).",
-  "rawVsResolved": "Raw: damage 40/80, flinch 3000 ms, AP -30. Requested = raw; applied damage = requested x (1 + casterAP/100) [x crit], then SPE_DEF division (ceil, min 1). Applied flinch = 3000 after duration reductions, or none (Rune Protect / AP < 0). Applied AP change = -30 (-38 with Big Eater Belt; Nullify Bandana converts it to -6 attack). takenDamage (includes shield damage) is not read here.",
+  "rawVsResolved": "Raw: damage 40/80, flinch 3000 ms, AP -30. Requested = raw; applied damage = requested x (1 + casterAP/100) [x crit], then SPE_DEF division (ceil, min 1). Applied flinch = 3000 after duration reductions, or none (Rune Protect / AP < 0). Applied AP change = -30 (-38 with Big Eater Belt; Nullify Bandana converts it to -6 attack). The returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "fakeOutDamage",
@@ -193,7 +224,8 @@
   ],
   "unresolved": [
    "How the target is chosen before the cast was not read.",
-   "Whether other code paths consume status.flinch (e.g. attack or cast prevention) was not exhaustively searched; only the shield-halving in handleDamage was confirmed."
+   "Whether other code paths consume status.flinch (e.g. attack or cast prevention) was not exhaustively searched; only the shield-halving in handleDamage was confirmed.",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFlinch, applyStatusDurationReductions, handleSpecialDamage, addAbilityPower, canCast) and the real FakeOutStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the AP >= 0 gate, the flinch with target-supplied reductions and Rune Protect, the damage values, the self AP request with Belt / Twist / floor, the blocked-hit case, the second cast and the Nullify helper path with the castAbility refusal."
   ],
   "evidence": [
    {
@@ -481,7 +513,43 @@
     "symbol": "PokemonState.handleDamage",
     "expect": "damageOnShield = Math.ceil(reducedDamage * 0.5)",
     "note": "the only combat effect of flinch read here: a flinched target's shield absorbs only half of each hit, the other half goes to HP. Other flinch consumers were not searched beyond pokemon-state/pokemon-entity/attacking-state/moving-state"
+   },
+   {
+    "id": "ap-self",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     621,
+     647
+    ],
+    "symbol": "PokemonEntity.addAbilityPower",
+    "expect": "this.addAttack(Math.round(0.2 * value), caster, 0, false)",
+    "note": "addAbilityPower: Nullify check first, then rounding, Belt, Twist Band and the -100 floor"
+   },
+   {
+    "id": "item-helpers",
+    "file": "app/core/pokemon-entity.ts",
+    "lines": [
+     1839,
+     1867
+    ],
+    "symbol": "applyBigEaterBeltStatBuff / applyTwistBandBuff",
+    "expect": "function applyBigEaterBeltStatBuff",
+    "note": "Belt amplifies buffs and own-team losses; Twist Band flips only another team's debuff"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T011535Z",
+   "reason": "AP check before target-reduced flinch; self AP loss is a Belt-amplified request",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

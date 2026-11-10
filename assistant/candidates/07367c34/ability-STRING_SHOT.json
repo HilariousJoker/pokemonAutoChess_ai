@@ -101,7 +101,7 @@
     "ss-class"
    ]
   },
-  "summary": "Paralyses the cast target for a fixed 5000 ms (before status modifiers), then deals a flat star-indexed amount of special damage (10/20/50). Single target, no movement.",
+  "summary": "Single target. The paralysis ATTEMPT triggerParalysis(5000, target, caster) comes BEFORE SPECIAL damage 10 / 20 / 50 / 100 (fallback 100). There is no AP duration multiplier (AP scales only the damage). The victim's Rune Protect or IMMUNITY_PARALYSIS refuses it; STORM weather (x1.3, Electric Quartz x0.8 each), the victim's duration reductions and a Cheri Berry reaction apply, and a longer remaining paralysis is kept - so a fixed 5000 request does not guarantee a lasting five-second status. The damage lands whether or not the paralysis applied. No movement.",
   "targeting": {
    "who": "the cast target passed to process (the unit's current attack target); no retargeting or area",
    "needsTarget": true,
@@ -159,9 +159,8 @@
     "status": "paralysis",
     "target": "the cast target",
     "declaredRaw": {
-     "ms": 5000,
-     "unit": "ms",
-     "byStars": "not star-indexed: one fixed value for all stars"
+     "duration": 5000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "ARIADOS": 5000,
@@ -170,7 +169,7 @@
      "METAPOD": 5000,
      "SPINARAK": 5000
     },
-    "scaling": "none from AP (triggerParalysis apBoost defaults to false and is not passed); not crit-scaled",
+    "scaling": "none from AP or crit (apBoost is not passed); one fixed request for every star count; stored = round(5000 x STORM 1.3 x (1 - 0.2 per Electric Quartz) x the victim's reductions)",
     "applicationOrder": "paralysis is applied BEFORE the damage call in the source",
     "guards": "not applied if runeProtect or IMMUNITY_PARALYSIS; storm weather x1.3 (Electric Quartz lowers it); aquatic/Odd Keystone reductions via applyStatusDurationReductions; a new paralysis only replaces the remaining time if it is longer",
     "combatEffect": "while paralysed the target's speed counts as half in the attack interval and in move speed, and it cannot dodge basic attacks. Other uses of status.paralysis by some abilities (e.g. bug-buzz, force-palm, zing-zap) and passives were seen in a search but not read here.",
@@ -205,7 +204,7 @@
     "METAPOD": 20,
     "SPINARAK": 10
    },
-   "note": "damage is indexed by the casting entity's stars; the 4-star column (100) is not reachable by the bare factory star counts of the five units (2,3,1,2,1). The paralysis length does not depend on stars. Whether other mechanics raise a star count was not examined.",
+   "note": "damage is indexed by the casting entity's stars; the 4-star column (100) are declared in the tables but unused by the bound baseline classes (bare stars 2, 3, 1, 2, 1). The paralysis length does not depend on stars. Whether other mechanics raise a star count was not examined.",
    "evidence": [
     "ss-dmg-table",
     "ss-para",
@@ -237,7 +236,8 @@
   "unresolved": [
    "Whether any item or synergy effect changes STRING_SHOT beyond the generic path read",
    "Target selection before the cast was not read",
-   "Passives and abilities elsewhere that react to a paralysed target were not read, so the full consequence of the paralysis is not established"
+   "Passives and abilities elsewhere that react to a paralysed target were not read, so the full consequence of the paralysis is not established",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerParalysis, applyStatusDurationReductions, handleSpecialDamage) and the real StringShotStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order paralysis then damage, the damage by stars, no AP duration scaling, STORM / Electric Quartz / HYDRATION, both refusals, the kept longer timer, the Cheri request and the protected-target case."
   ],
   "evidence": [
    {
@@ -581,6 +581,20 @@
     "expect": "skill = Ability.STRING_SHOT",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T011535Z",
+   "reason": "fixed paralysis request with victim reductions; status shape normalised",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

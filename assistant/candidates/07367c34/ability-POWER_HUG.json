@@ -62,7 +62,7 @@
     "ph-super"
    ]
   },
-  "summary": "Single-target. In this order on the cast target: (1) triggerLocked, (2) triggerParalysis, (3) SPECIAL damage (raw 40/80/160/320 by caster stars). Lock and paralysis both request 3000/3000/6000/10000 ms by stars (10000 fallback). The statuses are applied before and independently of the damage, so a damage block (protect / skydiving / magicBounce) does not stop them; each status has its own guard (lock: skydiving, Rune Protect, IMMUNITY_LOCKED, already locked, ccCooldown; paralysis: Rune Protect, IMMUNITY_PARALYSIS). Lock forces range 1 and prevents the target moving or being moved; paralysis halves its attack speed.",
+  "summary": "Single target, in order: a lock ATTEMPT, a paralysis ATTEMPT, then SPECIAL damage 40 / 80 / 160 / 320. Both statuses request 3000 / 3000 / 6000 / 10000 ms (fallback 10000) and neither depends on the damage. Lock is refused by an existing lock, skydiving, Rune Protect, IMMUNITY_LOCKED or ccCooldown, halved by an enraged target, sets range 1 and may force the moving state; paralysis has its own guards, weather and berry rules and can apply when the lock is refused. Lock makes canBeMoved false, but moveTo with forcedDisplacement false bypasses that check, so no claim that no ability can reposition a locked unit is made. Paralysis halves the speed input to cooldown / movement formulas, not necessarily the literal attack rate.",
   "targeting": {
    "who": "the cast target only",
    "needsTarget": true,
@@ -100,7 +100,7 @@
      "BEWEAR": 80
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x (1 + (critPower - 1) x critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the target has protect / skydiving / magicBounce (see core-mechanics §A/§J). No heal, PP or shield is requested by this ability.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; the returned takenDamage is unused (core-mechanics section J1). No heal, PP or shield is requested by this ability.",
     "evidence": [
      "ph-table",
      "ph-hit",
@@ -152,7 +152,7 @@
      "label": "requested duration"
     },
     "scaling": "none from AP or crit: the duration is the flat table value and no apBoost exists on triggerLocked.",
-    "resolution": "applied only if the target is not already locked, not skydiving, has no Rune Protect and lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0 (an existing lock is not refreshed or extended). Applied duration = requested /2 if the target is enraged, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. On application a target with range != 1 is sent back to the moving state and its range is set to 1; a locked unit cannot move (canMove) or be moved (canBeMoved) and cannot dodge basic attacks. When the timer ends the range is restored from baseRange (Wide Lens, Long Wand for Fairy) and ccCooldown is set to at least CC_COOLDOWN. Casting is not blocked by lock (canCast does not read it).",
+    "resolution": "applied only if the target is not already locked, not skydiving, has no Rune Protect and lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0 (an existing lock is not refreshed or extended). Applied duration = requested /2 if the target is enraged, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. On application a target with range != 1 is sent back to the moving state and its range is set to 1; a locked unit has canMove / canBeMoved false and cannot dodge basic attacks; moveTo with forcedDisplacement false bypasses the canBeMoved check (executed: forced displacement is refused, an unforced swap goes through), so repositioning by other code is not ruled out. When the timer ends the range is restored from baseRange (Wide Lens, Long Wand for Fairy) and ccCooldown is set to at least CC_COOLDOWN. Casting is not blocked by lock (canCast does not read it).",
     "evidence": [
      "ph-lock",
      "lock-fn",
@@ -165,7 +165,9 @@
      "lock-canmove",
      "lock-canbemoved",
      "lock-dodge"
-    ]
+    ],
+    "combatEffect": "applied only if the target is not already locked, not skydiving, has no Rune Protect and lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0 (an existing lock is not refreshed or extended). Applied duration = requested /2 if the target is enraged, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. On application a target with range != 1 is sent back to the moving state and its range is set to 1; a locked unit has canMove / canBeMoved false and cannot dodge basic attacks; moveTo with forcedDisplacement false bypasses the canBeMoved check (executed: forced displacement is refused, an unforced swap goes through), so repositioning by other code is not ruled out. When the timer ends the range is restored from baseRange (Wide Lens, Long Wand for Fairy) and ccCooldown is set to at least CC_COOLDOWN. Casting is not blocked by lock (canCast does not read it).",
+    "guards": "applied only if the target is not already locked, not skydiving, has no Rune Protect and lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0 (an existing lock is not refreshed or extended). Applied duration = requested /2 if the target is enraged, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. On application a target with range != 1 is sent back to the moving state and its range is set to 1; a locked unit has canMove / canBeMoved false and cannot dodge basic attacks; moveTo with forcedDisplacement false bypasses the canBeMoved check (executed: forced displacement is refused, an unforced swap goes through), so repositioning by other code is not ruled out. When the timer ends the range is restored from baseRange (Wide Lens, Long Wand for Fairy) and ccCooldown is set to at least CC_COOLDOWN. Casting is not blocked by lock (canCast does not read it)."
    },
    {
     "status": "PARALYSIS",
@@ -201,7 +203,7 @@
      "label": "requested duration"
     },
     "scaling": "none from stars beyond the table, AP or crit: the apBoost argument of triggerParalysis is left at its default false.",
-    "resolution": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the unit's attack cooldown uses half its speed. Unlike lock, paralysis is not refused while skydiving, and has no ccCooldown guard.",
+    "resolution": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the speed input to the attack cooldown formula is halved (executed: speed 50 stores 1333 normally and 1739 with speed 25) - a changed formula input, not a literal halving of the attack rate; movement formulas read it as well. Unlike lock, paralysis is not refused while skydiving, and has no ccCooldown guard; it still applies when the lock is refused (executed).",
     "evidence": [
      "ph-para",
      "para-fn",
@@ -212,7 +214,9 @@
      "para-set",
      "para-berry",
      "para-speed"
-    ]
+    ],
+    "combatEffect": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the speed input to the attack cooldown formula is halved (executed: speed 50 stores 1333 normally and 1739 with speed 25) - a changed formula input, not a literal halving of the attack rate; movement formulas read it as well. Unlike lock, paralysis is not refused while skydiving, and has no ccCooldown guard; it still applies when the lock is refused (executed).",
+    "guards": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the speed input to the attack cooldown formula is halved (executed: speed 50 stores 1333 normally and 1739 with speed 25) - a changed formula input, not a literal halving of the attack rate; movement formulas read it as well. Unlike lock, paralysis is not refused while skydiving, and has no ccCooldown guard; it still applies when the lock is refused (executed)."
    }
   ],
   "buffs": [],
@@ -230,7 +234,7 @@
     "STUFFUL": 3000,
     "BEWEAR": 3000
    },
-   "note": "indexed by the casting entity's stars (1 and 2 for the listed units, bare factory values); the 3-star (160 damage, 6000 ms) and 4-star (320 damage, 10000 ms) columns are not reachable by the bare factory star counts. Whether other mechanics raise an entity's star count was not examined. The status duration is the same for 1 and 2 stars (3000).",
+   "note": "indexed by the casting entity's stars (1 and 2 for the listed units, bare factory values); the 3-star (160 damage, 6000 ms) and 4-star (320 damage, 10000 ms) columns are declared in the tables but unused by the bound baseline classes. Whether other mechanics raise an entity's star count was not examined. The status duration is the same for 1 and 2 stars (3000).",
    "evidence": [
     "ph-table",
     "ph-lock",
@@ -241,7 +245,7 @@
   },
   "positionalConditions": "None read in the strategy: requiresTarget true, the target is whatever the cast supplies. Range 1 for both units.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. A target already locked is not re-locked and the lock timer is not extended; after a lock ends ccCooldown blocks a new lock. A longer paralysis replaces a shorter remaining one; a shorter one does not.",
-  "rawVsResolved": "Requested: damage 40/80 (1/2 stars), lock 3000 ms and paralysis 3000 ms on the target. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied lock/paralysis durations are adjusted on the target (enraged, storm, reductions) and may be refused by the guards listed; durations are the requested value, not a guaranteed result.",
+  "rawVsResolved": "Requested: damage 40 / 80 (1 / 2 stars), lock 3000 ms and paralysis 3000 ms on the target. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1 (the returned takenDamage is unused, section J1). Applied lock / paralysis durations are adjusted on the target (enraged, storm, reductions) and either may be refused by its guards; durations are requests, not a guaranteed result.",
   "sourceTables": [
    {
     "id": "damage",
@@ -273,10 +277,10 @@
    "Other readers of status.locked (moving-state dark jump, battle UI) beyond canMove / canBeMoved / dodge were only listed by search, not read in full"
   ],
   "unresolved": [
-   "Whether the statuses applied before the damage change the damage itself: handleSpecialDamage does not read lock or paralysis, but handleDamage branches were not read exhaustively",
+   "handleSpecialDamage does not read lock or paralysis (executed: the damage values are unchanged by them); handleDamage branches beyond the lines read were not exhaustively checked",
    "How a locked target with a different current range retargets (toMovingState) was not followed",
    "Whether the two units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerLocked, triggerParalysis, applyStatusDurationReductions, moveTo / canBeMoved, resetCooldown, handleSpecialDamage) and the real PowerHugStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order lock, paralysis, damage, the durations by stars, every lock and paralysis guard, enrage / HYDRATION / STORM / Electric Quartz / Cheri, the range change with the moving-state call, the forced versus unforced moveTo, the paralysed cooldown input and the protected-target case."
   ],
   "evidence": [
    {
@@ -730,6 +734,20 @@
     "expect": "skill = Ability.POWER_HUG",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T011535Z",
+   "reason": "separate lock and paralysis attempts; movement and paralysis wording qualified",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

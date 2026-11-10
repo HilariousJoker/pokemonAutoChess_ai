@@ -62,7 +62,7 @@
     "bu-super"
    ]
   },
-  "summary": "Deals SPECIAL damage to the cast target (raw 50/100/200/400 by the caster's stars; 50 for 1-star Sizzlipede, 100 for 2-star Centiskorch), then applies BURN to the CASTER ITSELF (not the target) for a requested 3000 ms with the caster as burn origin. The self-burn call comes after the damage call, so the damage is not affected by it. The burn deals 5% of the caster's own max HP per second as TRUE damage unless the caster has Well Baked, a Magmarizer, or immunity/rune protection prevents the burn.",
+  "summary": "Single-target SPECIAL damage 50 / 100 / 200 / 400 FIRST, THEN triggerBurn(3000, caster, caster): the burn victim and the origin are both the CASTER (never the target), and it happens even when the damage returned 0. The caster's own guards apply (IMMUNITY_BURN, Rune Protect, WATER_BUBBLE passive), its duration reductions change the stored time and a longer running burn is kept. First-burn helper REQUESTS (WELL_BAKED +20 DEF, Magmarizer +30 speed, GUTS +5 ATK) and a Rawst Berry reaction are not guaranteed final gains. The tick is TRUE damage of 5 % of the caster's max HP: DROUGHT x1.3 before any Heat Rocks, RAIN x0.7, Assault Vest, water and item modifiers apply. Passive coverage is not complete.",
   "targeting": {
    "who": "damage: the cast target only; burn: the caster only",
    "needsTarget": true,
@@ -100,7 +100,7 @@
      "SIZZLIPEDE": 50
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT (the last three read in the record BLAZE_KICK that cites the same function).",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The caster's own burn is applied after this call and does not change the damage.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). The caster's own burn is applied after this call and does not change the damage.",
     "evidence": [
      "bu-table",
      "bu-hit",
@@ -126,14 +126,16 @@
     "apScaled": false,
     "declaredRaw": {
      "durationMs": 3000,
-     "label": "requested duration"
+     "label": "requested duration",
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "CENTISKORCH": 3000,
      "SIZZLIPEDE": 3000
     },
     "scaling": "none from stars, AP or crit",
-    "resolution": "applied to the caster only if it lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the caster's own duration reductions; replaces the running burn timer (and origin) only if longer than the remaining time, so a longer existing burn is left alone. While burning the caster takes TRUE damage of 5% of its own max HP each second (x1.3 in DROUGHT, x0.7 in RAIN, x0.5 with Assault Vest, reduced by SWIFT_SWIM / HYDRATION / WATER_VEIL / SURGE_SURFER; zero with the WELL_BAKED passive or a Magmarizer). Helper exceptions on the caster: WELL_BAKED gains +20 defense and a MAGMARIZER +30 speed on the first burn only (not if already burning); a Rawst Berry is eaten as soon as the burn is applied. The burn ends when its timer expires (healBurn).",
+    "resolution": "applied to the caster only if it lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the caster's own duration reductions; replaces the running burn timer (and origin) only if longer than the remaining time, so a longer existing burn is left alone. While burning the caster takes TRUE damage of 5% of its own max HP each second (DROUGHT x1.3 first and only then Heat Rocks x(1 - 0.2 per rock), RAIN x0.7, Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, a Cooking Pot holder gains addSpeed(10) per tick; zero with the WELL_BAKED passive or a Magmarizer; executed on maxHP 1000: 50 / DROUGHT 65 / one Heat Rock 52 / RAIN 35). Helper exceptions on the caster: WELL_BAKED requests addDefense(20) and a MAGMARIZER holder addSpeed(30) on the first burn only (not if already burning), the GUTS passive requests addAttack(5), and a Rawst Berry holder requests eatBerry as soon as the burn is applied; these are helper requests, not guaranteed final gains, and no complete passive coverage is claimed (executed). The burn ends when its timer expires (healBurn).",
     "evidence": [
      "bu-burn",
      "burn-trig",
@@ -148,7 +150,9 @@
      "burn-true",
      "burn-zero",
      "burn-heal"
-    ]
+    ],
+    "combatEffect": "applied to the caster only if it lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the caster's own duration reductions; replaces the running burn timer (and origin) only if longer than the remaining time, so a longer existing burn is left alone. While burning the caster takes TRUE damage of 5% of its own max HP each second (DROUGHT x1.3 first and only then Heat Rocks x(1 - 0.2 per rock), RAIN x0.7, Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, a Cooking Pot holder gains addSpeed(10) per tick; zero with the WELL_BAKED passive or a Magmarizer; executed on maxHP 1000: 50 / DROUGHT 65 / one Heat Rock 52 / RAIN 35). Helper exceptions on the caster: WELL_BAKED requests addDefense(20) and a MAGMARIZER holder addSpeed(30) on the first burn only (not if already burning), the GUTS passive requests addAttack(5), and a Rawst Berry holder requests eatBerry as soon as the burn is applied; these are helper requests, not guaranteed final gains, and no complete passive coverage is claimed (executed). The burn ends when its timer expires (healBurn).",
+    "guards": "applied to the caster only if it lacks IMMUNITY_BURN, rune protect and the WATER_BUBBLE passive; applied duration = requested after the caster's own duration reductions; replaces the running burn timer (and origin) only if longer than the remaining time, so a longer existing burn is left alone. While burning the caster takes TRUE damage of 5% of its own max HP each second (DROUGHT x1.3 first and only then Heat Rocks x(1 - 0.2 per rock), RAIN x0.7, Assault Vest x0.5, SWIFT_SWIM x0.7 / HYDRATION x0.5 / WATER_VEIL or SURGE_SURFER x0.3, a Cooking Pot holder gains addSpeed(10) per tick; zero with the WELL_BAKED passive or a Magmarizer; executed on maxHP 1000: 50 / DROUGHT 65 / one Heat Rock 52 / RAIN 35). Helper exceptions on the caster: WELL_BAKED requests addDefense(20) and a MAGMARIZER holder addSpeed(30) on the first burn only (not if already burning), the GUTS passive requests addAttack(5), and a Rawst Berry holder requests eatBerry as soon as the burn is applied; these are helper requests, not guaranteed final gains, and no complete passive coverage is claimed (executed). The burn ends when its timer expires (healBurn)."
    }
   ],
   "buffs": [],
@@ -162,7 +166,7 @@
     "CENTISKORCH": 100,
     "SIZZLIPEDE": 50
    },
-   "note": "Damage is indexed by the casting entity's stars; the 3-star (200) and 4-star (400, also the ?? fallback) values are not reachable by the bare factory star counts of these two units. Burn duration does not depend on stars.",
+   "note": "Damage is indexed by the casting entity's stars; the 3-star (200) and 4-star (400, also the ?? fallback) values are declared in the tables but unused by the bound baseline classes. Burn duration does not depend on stars.",
    "evidence": [
     "bu-table",
     "unit-centiskorch",
@@ -171,7 +175,7 @@
   },
   "positionalConditions": "None read: the ability needs a target (requiresTarget true) but no cell condition appears in the strategy.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP (90) of PP. A repeat cast while the caster still burns only extends the burn if the new 3000 ms exceeds the remaining time; Well Baked / Magmarizer first-burn bonuses do not repeat while already burning.",
-  "rawVsResolved": "Requested: damage 50 (Sizzlipede) / 100 (Centiskorch); burn 3000 ms on the caster. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 when the target is protected. Applied burn duration = requested after the caster's reductions, kept only if longer than the running timer; burn tick damage is separate TRUE damage to the caster and 0 for Well Baked / Magmarizer.",
+  "rawVsResolved": "Requested: damage 50 (Sizzlipede) / 100 (Centiskorch); burn 3000 ms on the caster. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Applied burn duration = requested after the caster's reductions, kept only if longer than the running timer; burn tick damage is separate TRUE damage to the caster and 0 for Well Baked / Magmarizer.",
   "sourceTables": [
    {
     "id": "damage",
@@ -186,12 +190,12 @@
    "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
    "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read",
-   "Status.applyStatusDurationReductions (the exact reductions to the caster's burn duration) was not read; Rawst Berry's eatBerry effect beyond the call was not read"
+   "Rawst Berry's eatBerry effect beyond the call was not read (applyStatusDurationReductions was read and executed in this recheck)"
   ],
   "unresolved": [
    "Whether the self-burn on the caster is intended is not asserted; recorded as written (triggerBurn(3000, pokemon, pokemon))",
    "Whether the two units ever reach 3 or 4 stars (200/400 damage) was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, triggerBurn, applyStatusDurationReductions, updateBurn) and the real BurnUpStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the order damage then self-burn, the caster-only target and origin, the blocked-hit case, every guard, HYDRATION and the kept longer timer, the first-burn requests, the Rawst request and the tick values by weather, Heat Rocks, items and water effects."
   ],
   "evidence": [
    {
@@ -579,6 +583,20 @@
     "expect": "skill = Ability.BURN_UP",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T011535Z",
+   "reason": "caster is burn victim and origin; real tick order",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
