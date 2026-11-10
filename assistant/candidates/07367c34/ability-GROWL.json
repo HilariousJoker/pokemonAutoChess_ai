@@ -89,7 +89,7 @@
     "pp-gate"
    ]
   },
-  "summary": "No damage: every enemy in the 8 cells around the caster is flinched for 3000 ms and loses attack (raw 3/5/7/14 by caster stars, scaled by the caster's AP and crit).",
+  "summary": "No damage. Every enemy-team entity in the caster's eight adjacent cells (centred on the CASTER, clipped at board edges: a corner caster has three) gets, in this order, triggerFlinch(3000, victim, caster) and addAttack(-3 / -5 / -7 / -14, caster, apBoost 1, crit). Each victim's flinch guard (Rune Protect) and duration reductions are independent of the stat change, so an enemy can be hit by one and not the other. The whole AP / crit-scaled negative request is rounded once, then the recipient's helpers run: an enemy Twist Band holder gains the amount, a Belt does not amplify it and ATK floors at 1. Not every enemy is promised to lose ATK.",
   "targeting": {
    "who": "enemy units in the cells adjacent to the caster (not adjacent to the cast target)",
    "needsTarget": true,
@@ -128,7 +128,7 @@
      "MIGHTYENA": 5,
      "POOCHYENA": 3
     },
-    "scaling": "apBoost 1: round(-raw x (1 + AP/100) x critPower if the cast crit). Crit needs ABILITY_CRIT because canCritByDefault is false.",
+    "scaling": "apBoost 1: Math.round(-raw x (1 + AP/100) x (crit ? critPower : 1)) in one rounding (executed: raw 3, AP 10, critPower 1.5, crit -> round(-4.95) = -5). Crit needs ABILITY_CRIT because canCritByDefault is false.",
     "resolution": "requested = -raw. applied = the rounded scaled value, then Big Eater Belt is not applied (enemy-sourced negative value), a Twist Band holder turns it into a BUFF of the same size, and ATK is floored at 1. Not permanent. No SPE_DEF, shield or damage step is involved.",
     "evidence": [
      "gr-table",
@@ -146,8 +146,8 @@
     "status": "flinch",
     "target": "each adjacent enemy",
     "declaredRaw": {
-     "value": 3000,
-     "unit": "ms"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "before the ATK debuff for the same enemy",
@@ -177,7 +177,7 @@
     "MIGHTYENA": 5,
     "POOCHYENA": 3
    },
-   "note": "indexed by the casting entity's stars; the 4-star value (14, also the fallback) is not reachable by the four units' bare star counts. maxPP and range are in appliesTo.",
+   "note": "indexed by the casting entity's stars; the 4-star entry (14, also the fallback) are declared in the tables but unused by the bound baseline classes. maxPP and range are in appliesTo.",
    "evidence": [
     "gr-table"
    ]
@@ -201,7 +201,8 @@
   ],
   "unresolved": [
    "Whether any item or synergy effect changes GROWL beyond Twist Band and the duration reductions listed",
-   "Units not listed in appliesTo that might share the identifier are not covered"
+   "Units not listed in appliesTo that might share the identifier are not covered",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.getAdjacentCells, triggerFlinch, applyStatusDurationReductions, addAttack, the Belt / Twist helpers) and the real GrowlStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (8 x 6 stand-in board): the centred, edge-clipped adjacent area with team filtering, the per-victim order flinch then ATK, the one-rounding case, Twist, Belt, the floor, the Rune Protect refusal with the ATK loss still applied, and HYDRATION."
   ],
   "evidence": [
    {
@@ -490,6 +491,20 @@
     "expect": "specialDamage *= 1 + (attacker.critPower - 1) * critReductionFactor",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012215Z",
+   "reason": "caster-centred edge-clipped area, independent flinch and ATK steps",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

@@ -76,7 +76,7 @@
     "rt-super"
    ]
   },
-  "summary": "Single-target: deals SPECIAL damage (raw 30/60/120 by stars here; table 30/60/120/240) to the cast target and then lowers its Speed by a requested 10/20/40 (table 10/20/40/80). The speed change is unconditional (not skipped when the damage is blocked or kills) and has no timer in this strategy, so it lasts as long as nothing else restores it, and repeated casts stack until the Speed floor of 0. The requested -10/-20/-40 is not necessarily the applied change: Twist Band turns it into a gain, a MELMETAL victim loses half of it from Attack instead, and the Speed result is clamped to 0..300.",
+  "summary": "Single target: SPECIAL damage 30 / 60 / 120 / 240 FIRST, then addSpeed(-10 / -20 / -40 / -80, caster, apBoost 0, crit false), so the debuff does NOT scale with the damage's AP or crit. addSpeed runs the recipient's Belt / Twist helpers (an enemy Twist Band holder GAINS the amount; an enemy Belt does not amplify it), then clamps 0..300; a MELMETAL victim keeps its speed and takes half through addAttack with a second helper pass. At 1 star (speed 50): Twist gains 10, MELMETAL loses 5 ATK, MELMETAL + Twist + Belt gains 6 ATK. Not every victim loses speed; the strategy installs no restore timer and the change does not depend on the damage landing.",
   "targeting": {
    "who": "the cast target only",
    "needsTarget": true,
@@ -115,7 +115,7 @@
      "RELICANTH": 120
     },
     "scaling": "requested = table[stars-1]; handleSpecialDamage then x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so crit needs ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce; the returned values are not used by the strategy.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; the returned values are not used by the strategy (core-mechanics section J1).",
     "evidence": [
      "rt-damage",
      "rt-hit",
@@ -185,7 +185,7 @@
     "OMASTAR": 20,
     "RELICANTH": 40
    },
-   "note": "Damage and speed reduction are both indexed by the casting entity's stars; the 4-star values (240 / 80, also the ?? fallbacks) are not reachable by the bare factory star counts of these units. maxPP is 90 for Omanyte / Omastar and 100 for Relicanth; range 2 / 2 / 1.",
+   "note": "Damage and speed reduction are both indexed by the casting entity's stars; the 4-star entries (240 / 80, also the ?? fallbacks) are declared in the tables but unused by the bound baseline classes. maxPP is 90 for Omanyte / Omastar and 100 for Relicanth; range 2 / 2 / 1.",
    "evidence": [
     "rt-damage",
     "rt-debuff",
@@ -196,7 +196,7 @@
   },
   "positionalConditions": "None: no positional or geometric condition in the strategy; the cast target is chosen by the generic targeting code before the strategy runs.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP; every cast deals damage again and lowers Speed again (cumulative, floored at 0 Speed). Nothing in the strategy restores the Speed later.",
-  "rawVsResolved": "Requested: damage 30 / 60 / 120 and speed -10 / -20 / -40 (Omanyte / Omastar / Relicanth). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied speed change = requested after Twist Band (sign flip) and the 0..300 clamp (or, for MELMETAL, a half-sized Attack change after a second helper pass); Big Eater Belt does not scale an enemy's negative value; AP and crit do not change it.",
+  "rawVsResolved": "Requested: damage 30 / 60 / 120 and speed -10 / -20 / -40 (Omanyte / Omastar / Relicanth). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1 (the returned takenDamage is unused, section J1). Applied speed change = requested after Twist Band (sign flip) and the 0..300 clamp (or, for MELMETAL, a half-sized Attack change after a second helper pass); Big Eater Belt does not scale an enemy's negative value; AP and crit do not change it.",
   "sourceTables": [
    {
     "id": "damage",
@@ -222,8 +222,8 @@
   "unresolved": [
    "How the simulation's attack-speed calculation uses the stored speed value (the effect of -10 / -20 / -40 on attack timing) was not traced here; only the stat change is described",
    "Whether the three units ever reach a different star count than the bare factory value",
-   "Isolated numeric cases for the speed clamp and the MELMETAL branch come from reading addSpeed / addAttack, not from a probe",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addSpeed, addAttack, the Belt / Twist helpers, handleSpecialDamage) and the real RockTombStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target, speed 50): the table values and speed results (40 / 30 / 10 / 0), no scaling by AP 100 with a crit, the Twist gain, the enemy Belt, the clamp, stacking, the MELMETAL cases (ATK 15; with Twist + Belt ATK 26) and the protected-target case.",
+   ""
   ],
   "evidence": [
    {
@@ -589,6 +589,20 @@
     "expect": "export const MAX_SPEED = 300",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012215Z",
+   "reason": "debuff unscaled by AP/crit, one-star Twist and MELMETAL numbers",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

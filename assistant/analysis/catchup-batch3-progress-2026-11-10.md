@@ -10,8 +10,8 @@
 |---|---|---|---|---|
 | 0 | complete | QUIVER_DANCE / HAPPY_HOUR single-rounding scaling wording; empty unused `assistant/0` removed (counts unchanged 100 / 334) | `9d564d88154f716b7a6e03ce0c463eb1eb3280f1` | lock `run-20261110T010523Z` released; probe section 38 with non-integer AP / crit products; all checks passed |
 | 1 | complete | MAGIC_BOUNCE, RECOVER, SLACK_OFF, SOFT_BOILED, AURORA_VEIL imported (105 / 347 expected; measured in the final report) | `ce020c7ad97367600cc13c92fb0c70d64439603d` | lock `run-20261110T010810Z`; applier numeral helper extended past ninety-nine and one re-apply after a tooling error (candidate files refreshed to the final content); all seven checks passed |
-| 2 | complete | DYNAMIC_PUNCH, FAKE_OUT, POWER_HUG, STRING_SHOT, BURN_UP imported (110 / 360 expected; measured in the final report) | commit 'Checkpoint batch3 cycle 2' (see git log) | lock `run-20261110T011535Z`; status entries normalised; all seven checks passed |
-| 3 | not started | – | – | – |
+| 2 | complete | DYNAMIC_PUNCH, FAKE_OUT, POWER_HUG, STRING_SHOT, BURN_UP imported (110 / 360 expected; measured in the final report) | `a618a0271490f6c632cd09db1ae8c3c23aced6dc` | lock `run-20261110T011535Z`; status entries normalised; all seven checks passed |
+| 3 | complete | MUD_SHOT, ROCK_TOMB, SLASHING_CLAW, COIL, GROWL imported (115 / 374 expected; measured in the final report) | commit 'Checkpoint batch3 cycle 3' (see git log) | lock `run-20261110T012215Z`; probe sections renamed CATCHUP_D1-D3 to avoid reusing the earlier C1-C3 names (cycle 1 and 2 records updated); all seven checks passed |
 | 4 | not started | – | – | – |
 
-Next unfinished cycle: 3.
+Next unfinished cycle: 4.

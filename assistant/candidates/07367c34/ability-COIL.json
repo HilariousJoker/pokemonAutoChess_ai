@@ -62,7 +62,7 @@
     "co-super"
    ]
   },
-  "summary": "Applies LOCKED (requested 3000 ms) and then PARALYSIS (requested 3000 ms) to the cast target, then raises the caster's own ATK and DEF each by a raw 3/5/10/20 by stars (3 for 1-star Ekans, 5 for 2-star Arbok) through addAttack / addDefense with apBoost 1. No damage is dealt. The locked status is refused if the target is already locked, skydiving, rune-protected, IMMUNITY_LOCKED, or inside the post-CC cooldown, but the paralysis and the self buffs are not conditioned on it.",
+  "summary": "No damage. In order: triggerLocked(3000, target), triggerParalysis(3000, target, caster), then self addAttack and addDefense of 3 / 5 / 10 / 20 (fallback 20) with apBoost 1 and the cast crit. The statuses are independent ATTEMPTS: the lock is refused by an existing lock, skydiving, Rune Protect, IMMUNITY_LOCKED or ccCooldown (halved when enraged); paralysis has its own guards and weather / berry rules; the self buffs still happen whatever the statuses did. Each self request is Math.round(raw x (1 + AP/100) x (crit ? critPower : 1)) in one rounding, THEN the Belt / Twist helpers and the stat floor (executed: raw 3, AP 10, critPower 1.5, crit -> round(4.95) = 5). No status is guaranteed.",
   "targeting": {
    "who": "status: the cast target only; buffs: the caster",
    "needsTarget": true,
@@ -96,7 +96,11 @@
      "co-para",
      "co-addatk",
      "co-adddef"
-    ]
+    ],
+    "perUnitRaw": {
+     "EKANS": 3,
+     "ARBOK": 5
+    }
    }
   ],
   "statusEffects": [
@@ -107,8 +111,8 @@
     "probability": 1,
     "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "ARBOK": 3000,
@@ -116,7 +120,7 @@
     },
     "scaling": "none from stars, AP or crit",
     "applicationOrder": "first, before the paralysis and the self buffs",
-    "resolution": "applied only if the target is not already locked (no stacking, no refresh), is not skydiving, has no runeProtect, lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0; applied duration = requested (halved if the target is enraged) after the target's duration reductions, rounded, and SETS the lock timer. While locked the target cannot move (canMove), cannot be forcibly moved (canBeMoved), cannot dodge basic attacks, and its range is forced to 1 (sent to the moving state first if it was not 1). When the lock ends the range is recomputed from baseRange (+ Wide Lens / Long Wand) and ccCooldown is set to at least 1500 ms, during which a new lock is refused.",
+    "resolution": "applied only if the target is not already locked (no stacking, no refresh), is not skydiving, has no runeProtect, lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0; applied duration = requested (halved if the target is enraged) after the target's duration reductions, rounded, and SETS the lock timer. While locked the target has canMove / canBeMoved false and cannot dodge basic attacks (moveTo with forcedDisplacement false bypasses the canBeMoved check, so repositioning by other code is not ruled out), and its range is forced to 1 (sent to the moving state first if it was not 1). When the lock ends the range is recomputed from baseRange (+ Wide Lens / Long Wand) and ccCooldown is set to at least 1500 ms, during which a new lock is refused.",
     "evidence": [
      "co-lock",
      "lock-trig",
@@ -132,7 +136,9 @@
      "lock-moved",
      "lock-dodge",
      "reductions"
-    ]
+    ],
+    "combatEffect": "applied only if the target is not already locked (no stacking, no refresh), is not skydiving, has no runeProtect, lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0; applied duration = requested (halved if the target is enraged) after the target's duration reductions, rounded, and SETS the lock timer. While locked the target has canMove / canBeMoved false and cannot dodge basic attacks (moveTo with forcedDisplacement false bypasses the canBeMoved check, so repositioning by other code is not ruled out), and its range is forced to 1 (sent to the moving state first if it was not 1). When the lock ends the range is recomputed from baseRange (+ Wide Lens / Long Wand) and ccCooldown is set to at least 1500 ms, during which a new lock is refused.",
+    "guards": "applied only if the target is not already locked (no stacking, no refresh), is not skydiving, has no runeProtect, lacks IMMUNITY_LOCKED, and its ccCooldown is <= 0; applied duration = requested (halved if the target is enraged) after the target's duration reductions, rounded, and SETS the lock timer. While locked the target has canMove / canBeMoved false and cannot dodge basic attacks (moveTo with forcedDisplacement false bypasses the canBeMoved check, so repositioning by other code is not ruled out), and its range is forced to 1 (sent to the moving state first if it was not 1). When the lock ends the range is recomputed from baseRange (+ Wide Lens / Long Wand) and ccCooldown is set to at least 1500 ms, during which a new lock is refused."
    },
    {
     "status": "PARALYSIS",
@@ -141,8 +147,8 @@
     "probability": 1,
     "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "ARBOK": 3000,
@@ -165,7 +171,9 @@
      "para-move",
      "para-dodge",
      "reductions"
-    ]
+    ],
+    "combatEffect": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ of the target's player); then the target's duration reductions; the timer keeps the larger of the existing remaining time and the new request (rounded); a CHERI_BERRY holder eats the berry after a successful application. A paralysed target uses half speed for attacks and movement and cannot dodge basic attacks. It is independent of whether the lock was accepted.",
+    "guards": "not applied with runeProtect or IMMUNITY_PARALYSIS; STORM weather multiplies the duration by 1.3, then by (1 - 0.2 x ELECTRIC_QUARTZ of the target's player); then the target's duration reductions; the timer keeps the larger of the existing remaining time and the new request (rounded); a CHERI_BERRY holder eats the berry after a successful application. A paralysed target uses half speed for attacks and movement and cannot dodge basic attacks. It is independent of whether the lock was accepted."
    }
   ],
   "buffs": [
@@ -186,7 +194,7 @@
      "ARBOK": 5,
      "EKANS": 3
     },
-    "scaling": "addAttack(value, caster = itself, apBoost 1, crit): value = round(value x (1 + AP/100) x critPower if the cast crit); then Big Eater Belt (x1.25 rounded down on a positive value, since it is a buff on a unit holding the belt); then Twist Band does nothing for a positive value; atk = max(1, atk + value). Not permanent (permanent default false).",
+    "scaling": "addAttack(value, caster = itself, apBoost 1, crit): value = Math.round(value x (1 + AP/100) x (crit ? critPower : 1)) in one step (executed: raw 3, AP 10, critPower 1.5, crit -> 5); then Big Eater Belt (x1.25 rounded down on a positive value, since it is a buff on a unit holding the belt); then Twist Band does nothing for a positive value; atk = max(1, atk + value). Not permanent (permanent default false).",
     "resolution": "applied change = the value after those steps; the helper is applied each cast, so repeat casts stack. canCritByDefault is false, so crit needs ABILITY_CRIT.",
     "evidence": [
      "co-atk",
@@ -232,7 +240,7 @@
     "ARBOK": 5,
     "EKANS": 3
    },
-   "note": "ATK and DEF buffs are indexed by the caster's stars; the 3- and 4-star values (10, 20, also the ?? fallback) are not reachable by these units' bare factory star counts. Status durations do not depend on stars.",
+   "note": "ATK and DEF buffs are indexed by the caster's stars; the 3-star and 4-star entries (10 / 20, also the ?? fallback) are declared in the tables but unused by the bound baseline classes. Status durations do not depend on stars.",
    "evidence": [
     "co-atk",
     "co-def",
@@ -269,7 +277,7 @@
   ],
   "unresolved": [
    "Whether the two units ever reach 3 or 4 stars (buff 10 / 20) was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerLocked, triggerParalysis, applyStatusDurationReductions, addAttack, addDefense) and the real CoilStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the order lock, paralysis, ATK, DEF with no damage, the buff values by stars, the one-rounding case, the Belt case and every independent refusal with the self buffs still applied."
   ],
   "evidence": [
    {
@@ -745,6 +753,20 @@
     "expect": "skill = Ability.COIL",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012215Z",
+   "reason": "independent status attempts, one-rounding self buffs",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

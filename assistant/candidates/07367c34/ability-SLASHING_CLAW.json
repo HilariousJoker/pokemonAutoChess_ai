@@ -75,7 +75,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target SPECIAL damage (15/30/60/120 raw by the caster's stars; 2-star Kabutops and Weavile, 1-star Sneasel use 30, 30 and 15). If the target is already wounded when the cast starts, the raw amount is first multiplied by 1.3 and rounded up (Math.ceil: 30 -> 39, 15 -> 20); that raw amount then goes through handleSpecialDamage (AP scaling, crit, defenses). After the damage call the target is wounded for a requested 5000 ms, whether or not the hit did any damage; a wound stops the target receiving HP heals. The 1.3 bonus therefore never applies to the cast that first wounds the target, only to later casts or hits while the wound lasts.",
+  "summary": "Single target SPECIAL damage 15 / 30 / 60 / 120. If the target's wound FLAG was already true when the cast starts, the raw amount becomes ceil(raw x 1.3) (30 -> 39, 15 -> 20) before handleSpecialDamage; only the flag is tested, so a flag left true with cooldown 0 after a cleanse still boosts it and a cooldown alone does not. AFTER the damage, triggerWound(5000, target, caster) is attempted on the original target whether or not the hit landed; the first application never boosts its own hit. Rune Protect refuses it, BLOODMOON multiplies the duration x1.3 and the victim's reductions apply. Wound blocks HP healing but may route the shared Blood Moon shield replacement.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -117,7 +117,7 @@
      "WEAVILE": 39
     },
     "scaling": "conditional multiplier on the raw amount: x1.3 with Math.ceil when target.status.wound is true at cast time (checked before the damage and before this cast's own triggerWound). Then AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crits (canCritByDefault is false, so needs ABILITY_CRIT).",
-    "resolution": "requested amount (ceil(raw x 1.3) if the target was wounded) -> AP/crit -> PokemonState.handleDamage, which applies defenses (SPE_DEF division, minimum 1), shield and the other steps in core-mechanics §A/§H; the applied HP loss and the takenDamage returned (shield part included) can be lower than the requested amount. Blocked entirely by protect / skydiving / magicBounce (takenDamage 0; magicBounce also reflects damage to the caster). The wound is still requested in that case because it is not conditional on the damage result. The ability does not read takenDamage.",
+    "resolution": "requested amount (ceil(raw x 1.3) if the target's wound flag was true) -> AP/crit -> PokemonState.handleDamage, which applies defenses (SPE_DEF division, minimum 1), shield and the other steps in core-mechanics §A/§H; the applied HP loss can be lower than the requested amount. Blocked entirely by protect / skydiving / magicBounce (no damage; magicBounce also reflects damage to the caster). The wound is still requested in that case because it is not conditional on the damage result. The returned takenDamage is unused (core-mechanics section J1).",
     "evidence": [
      "claw-dmg",
      "claw-wound-check",
@@ -135,10 +135,10 @@
      "duration": 5000,
      "unit": "ms (requested)"
     },
-    "scaling": "none from AP or crit",
-    "applicationOrder": "after the damage call; unconditional on damage dealt or takenDamage",
+    "scaling": "none from AP or crit; stored cooldown = victim reductions(requested 5000 x BLOODMOON 1.3), not rounded; the flag is set whenever Rune Protect does not refuse the call",
+    "applicationOrder": "after the damage call on the original target; unconditional on the damage result",
     "guards": "not applied if runeProtect; duration x1.3 under the Blood Moon weather (before reductions); then applyStatusDurationReductions (Swift Swim 0.7, Hydration 0.5, Water Veil / Surge Surfer 0.3, Odd Keystone -10% each); a new wound replaces the remaining time (and woundOrigin) only if its duration is longer than the remaining cooldown",
-    "combatEffect": "while wounded the target's handleHeal returns healReceived 0 (the Blood Moon + Blood Stone branch may add a shield instead); wound also makes this strategy's own next cast on that target deal ceil(raw x 1.3). Other wound readers in app/core and app/models (Bloodmoon Blood Stone lifesteal, status copy and the refresh passive) were not traced further.",
+    "combatEffect": "while the wound FLAG is set the target's handleHeal returns healReceived 0 (the Blood Moon + Blood Stone branch may request the shared shield replacement instead; executed: shield 30 for a 100 request); the flag can stay true with cooldown 0 after a cleanse until the wound update clears it; wound also makes this strategy's own next cast on that target deal ceil(raw x 1.3). Other wound readers in app/core and app/models (Bloodmoon Blood Stone lifesteal, status copy and the refresh passive) were not traced further.",
     "evidence": [
      "claw-wound",
      "wound-trig",
@@ -161,7 +161,7 @@
     "SNEASEL": 15,
     "WEAVILE": 30
    },
-   "note": "indexed by the casting entity's stars; 60 (3 stars) and 120 (4 stars, also the fallback) are not reachable by the three units' bare star counts (1, 2, 2). maxPP is 80 for Kabutops and 40 for Sneasel/Weavile; range 1 for all.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (60 / 120, fallback 120) are declared in the tables but unused by the bound baseline classes (bare stars 1, 2, 2). maxPP is 80 for Kabutops and 40 for Sneasel/Weavile; range 1 for all.",
    "evidence": [
     "claw-dmg",
     "unit-kabutops",
@@ -171,7 +171,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true). The only conditional branch is the target's wound state at cast time.",
   "repeatedCastsAndModes": "No stored state, no modes. Cast N on a target that is not wounded deals the base amount and wounds it for 5000 ms; a later cast while the wound lasts (including a wound from another source) deals ceil(raw x 1.3) and extends the wound only if longer than the time remaining.",
-  "rawVsResolved": "Declared raw: 15/30/60/120 by stars (30 Kabutops, 15 Sneasel, 30 Weavile). Requested: that, or ceil(raw x 1.3) (39 / 20 / 39) if the target was already wounded at cast time. Applied: requested x (1 + AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps; takenDamage includes shield damage. Wound is requested for 5000 ms (before Blood Moon and duration reductions).",
+  "rawVsResolved": "Declared raw: 15 / 30 / 60 / 120 by stars (30 Kabutops, 15 Sneasel, 30 Weavile). Requested: that, or ceil(raw x 1.3) (39 / 20 / 39) if the target's wound flag was already true at cast time. Applied: requested x (1 + AP/100) [x crit factor], then SPE_DEF division and the other handleDamage steps (the returned takenDamage is unused, section J1). Wound is requested for 5000 ms (before Blood Moon and duration reductions).",
   "sourceTables": [
    {
     "id": "clawDamage",
@@ -192,7 +192,7 @@
    "Other sources of wound on the target (other abilities, items, synergies, passives) were found by search but their timing relative to this cast was not traced",
    "Whether any item or synergy changes SLASHING_CLAW beyond what is listed",
    "Whether the Blood Moon weather is present in a given fight (deployment unverified)",
-   "No pinned-helper probe was run for this record; the damage and heal paths were read, not executed"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerWound, applyStatusDurationReductions, handleSpecialDamage, handleHeal) and the real SlashingClawStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the flag-only boost (39 / 20, flag with cooldown 0, cooldown without flag), the wound after the damage, Rune Protect, BLOODMOON and HYDRATION durations, the kept longer timer, the blocked-hit case and the wounded handleHeal with and without the Blood Moon shield."
   ],
   "evidence": [
    {
@@ -415,6 +415,20 @@
     "expect": "return { healReceived: 0, overheal: 0 }",
     "note": "a wounded unit receives no HP heal (Blood Moon + Blood Stone branch can add a shield)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012215Z",
+   "reason": "boost tests only the wound flag; wound after the hit",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
