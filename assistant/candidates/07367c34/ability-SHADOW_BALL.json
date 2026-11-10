@@ -54,7 +54,7 @@
     "base"
    ]
   },
-  "summary": "Single-target special hit plus a board-wide enemy debuff. The caster deals 30/60/100/200 SPECIAL damage (by caster stars, fallback 200) to the cast target through handleSpecialDamage (AP, DOUBLE_DAMAGE, strange steam and crit scaling, then handleDamage). Afterwards EVERY enemy on the board, not only the target, loses 2 special defense (addSpecialDefense(-2, caster, apBoost 0, crit false), floored at 0 and subject to Twist Band). The debuff is not conditional on the damage landing: it applies even when the target blocked the damage with protect, skydiving or magicBounce.",
+  "summary": "Single-target SPECIAL damage 30 / 60 / 100 / 200 (fallback 200) FIRST, then board.forEach gives EVERY opposing board entity (the target included) addSpecialDefense(-2, caster, apBoost 0, crit false). The debuff is not AP / crit scaled and comes after the hit, so the hit sees the old SPE_DEF (executed: 10 -> 8 afterwards). An enemy Twist Band holder gains 2, ordinary SPE_DEF floors at 0 and an enemy Belt does not amplify the negative value. Blocked damage (protect, skydiving, magicBounce) does not cancel the loop. The returned takenDamage is unused (section J1).",
   "targeting": {
    "who": "damage: the cast target; special defense loss: every enemy (team different from the caster) on the whole board",
    "needsTarget": true,
@@ -96,7 +96,7 @@
      "DUSKULL": 30
     },
     "scaling": "REQUESTED amount is the table value by caster stars. Applied before defence: damage + damage x AP/100 (apBoost defaults true), x2 and the effect consumed when the caster has DOUBLE_DAMAGE, x1.2 with the strange steam board effect on target or caster, and when the cast crit: x(1 + (critPower - 1) x reduction), where the factor is 1 minus 0.1 per Black Augurite owned by the target's player, and 0 for a Rocky Helmet target.",
-    "resolution": "The scaled amount is handed to PokemonState.handleDamage (defence, shields, minimum of 1 and takenDamage: see core-mechanics section A; body not re-read here). The whole hit is skipped (returns death false, takenDamage 0) when the target has protect, skydiving or magicBounce; magicBounce additionally reflects a SPECIAL hit back to the caster after 500 ms unless the caster holds Protective Pads, using the target's stars table [0.5,1,2,4] and AP.",
+    "resolution": "The scaled amount is handed to PokemonState.handleDamage (defence, shields, minimum of 1: see core-mechanics section A); the returned takenDamage is unused (section J1). The whole hit is skipped (returns death false, takenDamage 0) when the target has protect, skydiving or magicBounce; magicBounce additionally reflects a SPECIAL hit back to the caster after 500 ms unless the caster holds Protective Pads, using the target's stars table [0.5,1,2,4] and AP.",
     "evidence": [
      "dmg-table",
      "dmg-call",
@@ -153,7 +153,7 @@
   },
   "positionalConditions": "Needs a cast target (requiresTarget true, range 2). The debuff has no positional limit and covers the whole board.",
   "repeatedCastsAndModes": "No stored state. Each cast lowers every enemy's special defense by another 2 down to 0 (permanent false, so only on the simulation copy).",
-  "rawVsResolved": "Requested damage: 30 / 60 / 100 (200 fallback) by caster stars; applied before defence: x(1 + AP/100), DOUBLE_DAMAGE x2, strange steam x1.2, crit factor; takenDamage after PokemonState.handleDamage (defence, shields, minimum of 1) may be much lower and is a separate number. Requested special defense change: -2 on each enemy; applied: reversed to +2 by Twist Band, floored at 0, unaffected by AP or crit.",
+  "rawVsResolved": "Requested damage: 30 / 60 / 100 (200 fallback) by caster stars; applied before defence: x(1 + AP/100), DOUBLE_DAMAGE x2, strange steam x1.2, crit factor; the final HP / shield loss after PokemonState.handleDamage (defence, shields, minimum of 1) is a separate number and the returned takenDamage is unused (section J1). Requested special defense change: -2 on each enemy; applied: reversed to +2 by Twist Band, floored at 0, unaffected by AP or crit and not reduced by an enemy Belt.",
   "sourceTables": [
    {
     "id": "damageTable",
@@ -174,7 +174,7 @@
    "Debuff is unconditional on the damage landing (protect/skydiving/magicBounce only block the damage); not confirmed in a real fight",
    "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
    "No routing uncertainty is recorded for this identifier in the queue",
-   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, addSpecialDefense, the Belt / Twist helpers) and the real ShadowBallStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in board, enemy SPE_DEF 10): the damage-before-debuff order with the old SPE_DEF seen by the hit, the board-wide -2 on every enemy including the target (ally untouched), no AP / crit scaling, the Twist gain, the Belt case, the floor and the protected-target case."
   ],
   "evidence": [
    {
@@ -430,6 +430,20 @@
     "expect": "for (let y = 0; y < this.rows; y++) { for (let x = 0; x < this.columns; x++) { callback(x, y, this.cells[this.columns * y + x])",
     "note": "row-major scan of all cells"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012829Z",
+   "reason": "board-wide enemy SPE_DEF debuff after the hit, unscaled, survives blocked damage",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

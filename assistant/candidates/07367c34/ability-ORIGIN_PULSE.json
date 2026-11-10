@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "SPECIAL damage to every enemy unit standing in the same board row as the cast target (any distance, including the target itself): 100 raw at 3 stars (Kyogre), 120 raw at 4 stars (Primal Kyogre). The row is the target's positionY at the moment of the cast; each hit is resolved independently with the same crit flag. No status, heal or shield.",
+  "summary": "SPECIAL damage to opposing board entities whose row equals target.positionY: 50 / 75 / 100 / 120 / 150 by the caster's stars (KYOGRE 100, PRIMAL_KYOGRE 120; fallback 150). board.forEach visits the cells row-major and the source REREADS target.positionY inside EACH comparison instead of capturing a cast-time row; a controlled first-hit callback that changes the field changes the later comparisons (executed demonstration of the mutable field, not proof of a specific live movement). Each hit is resolved separately with the same cast crit flag; no HP or range filter is added. The target itself is hit when it is in the matched row. No status, heal or shield.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target) defines the row; all enemies of the caster's team in that row are hit",
    "needsTarget": true,
@@ -99,7 +99,7 @@
      "PRIMAL_KYOGRE": 120
     },
     "scaling": "AP: damage x (1 + AP/100) per target (apBoost defaults to true); a cast crit multiplies by critPower reduced by each target's critReductionFactor (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "requested amount per target = raw x AP x crit factor; applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved if the target has armor reduction active, ceil, minimum 1, shield first; takenDamage is not used by this ability. A target with protect / skydiving / magicBounce takes 0 (magicBounce may reflect SPECIAL damage unless the caster holds Protective Pads); a dead or resurrecting target takes 0.",
+    "resolution": "requested amount per target = raw x AP x crit factor; applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved if the target has armor reduction active, ceil, minimum 1, shield first; the returned takenDamage is unused (core-mechanics section J1). A target with protect / skydiving / magicBounce takes 0 (magicBounce may reflect SPECIAL damage unless the caster holds Protective Pads); a dead or resurrecting target takes 0.",
     "evidence": [
      "op-dmg",
      "op-loop",
@@ -128,7 +128,7 @@
     "KYOGRE": 100,
     "PRIMAL_KYOGRE": 120
    },
-   "note": "indexed by the caster's stars; the table has five entries (50, 75, 100, 120, 150): 1, 2 and 5 star values are not reachable by the two listed units. maxPP 100 and range 3 for both.",
+   "note": "indexed by the caster's stars; the table has five entries (50, 75, 100, 120, 150): the 1-star, 2-star and 5-star entries are declared in the tables but unused by the bound baseline classes. maxPP 100 and range 3 for both.",
    "evidence": [
     "op-dmg",
     "unit-kyogre",
@@ -148,7 +148,7 @@
    }
   ],
   "dependsOnUnverifiedGenericCombat": [
-   "Shield, Cover Band, Fossil and resurrection branches of handleDamage were not traced here (takenDamage is unused by ORIGIN_PULSE); consulted core-mechanics.md section A and the speDef step only",
+   "Shield, Cover Band, Fossil and resurrection branches of handleDamage were not traced here (the returned takenDamage is unused); consulted core-mechanics.md section A and the speDef step only",
    "When the cast fires in a real fight (PP gain, targeting before the cast, silence): only the pp >= maxPP && canCast gate was read",
    "Crit resolution: only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read"
   ],
@@ -156,7 +156,7 @@
    "The PRIMAL and RAIN_OR_STORM passives were not traced; a search for Passive.PRIMAL and Passive.RAIN_OR_STORM in app/core and app/models/colyseus-models found only the class declarations, so no effect wired to them there was found, but other lookup paths (weather, effect maps keyed otherwise) were not searched",
    "Whether units killed earlier in the same forEach pass are still visited cannot matter here (each target is independent) and was not examined",
    "No other unit sharing the identifier exists in the queue; units not listed are not covered",
-   "Mechanical checks only; no probe was run and no fight observed"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.forEach order, handleSpecialDamage) and the real OriginPulseStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (row-major stand-in board): the row match by target.positionY, the star table, per-hit AP / crit resolution, the untouched same-row ally and other rows, and the mutable-field demonstration (a controlled first-hit callback changes the compared row)."
   ],
   "evidence": [
    {
@@ -401,6 +401,20 @@
     "expect": "pokemon.hp <= 0 || pokemon.status.resurrecting",
     "note": "dead or resurrecting: takenDamage 0"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012829Z",
+   "reason": "target.positionY reread in every comparison (mutable-field demonstration)",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

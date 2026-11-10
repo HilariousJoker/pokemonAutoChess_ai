@@ -76,7 +76,7 @@
     "ws-super"
    ]
   },
-  "summary": "The caster first gives itself a shield and then deals SPECIAL damage to the cast target; both requested amounts are round(caster maxHP x 0.2) for 1-3 stars (0.5 for 4 stars or as the fallback), so for these units the requested shield and the requested damage are equal. The shield is applied before the damage. The in-source comment says '[20,SP]%' but the code only uses the 0.2/0.5 table; the AP factor enters later, in addShield and in handleSpecialDamage.",
+  "summary": "The caster adds a shield of Math.round(maxHP x 0.2) (x 0.5 at 4 stars / fallback) with addShield(amount, self, apBoost 1, crit) FIRST, then recomputes the same expression as the SPECIAL damage request on the cast target. Equal initial requests do not give equal finals: Belt, AP, crit, enrage and the alive gate shape the shield while defenses, shields and guards shape the damage (executed: AP 100 gives shield 400 and damage 400; a Belt changes only the shield, 250 vs 200). No movement is coded despite the source comment, and the '[20,SP]%' wording is not a separate scaling. A blocked hit still leaves the shield. A direct-process probe on a dead caster does not prove the cast gate allows it.",
   "targeting": {
    "who": "shield: the caster itself; damage: the cast target (the unit the caster is attacking when the cast fires)",
    "needsTarget": true,
@@ -148,7 +148,7 @@
      "PRINPLUP": 0.2
     },
     "scaling": "requested = round(maxHP x fraction), the same figure as the requested shield, computed from the same maxHP (the shield call does not change maxHP, so the two values are equal). handleSpecialDamage: x (1 + AP/100) because apBoost defaults to true; x critPower (reduced by Rocky Helmet / Black Augurite on the target) only if the cast crit; also the DOUBLE_DAMAGE and steam-board multipliers recorded for AQUA_TAIL apply since it is the same function. Big Eater Belt does not touch damage.",
-    "resolution": "applied (the figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first. takenDamage reported = shield damage + HP damage (HP part capped at current hp); it is 0 if the target has protect / skydiving / magicBounce (blocked entirely, magic bounce may reflect). The requested, applied and takenDamage amounts are three different numbers.",
+    "resolution": "applied (the figure handed to PokemonState.handleDamage) = requested after those multipliers. handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1, and the target's shield absorbs first; it returns 0 if the target has protect / skydiving / magicBounce (blocked entirely, magic bounce may reflect). The requested, applied and returned amounts are different numbers and the returned takenDamage is unused (core-mechanics section J1).",
     "evidence": [
      "ws-table",
      "ws-damage",
@@ -182,7 +182,7 @@
     "PIPLUP": 0.2,
     "PRINPLUP": 0.2
    },
-   "note": "The table is indexed by the casting entity's stars: 1-3 stars give 0.2, only 4 stars (and the ?? fallback) give 0.5, which is not reachable at the bare factory star counts of these units. The listed units differ in the result only through their own maxHP (base hp 60 / 130 / 240 in the unit blocks, before any later modification). Whether other mechanics raise a star count or change maxHP was not examined.",
+   "note": "The table is indexed by the casting entity's stars: 1-3 stars give 0.2, only 4 stars (and the ?? fallback) give 0.5, which is declared in the tables but unused by the bound baseline classes. The listed units differ in the result only through their own maxHP (base hp 60 / 130 / 240 in the unit blocks, before any later modification). Whether other mechanics raise a star count or change maxHP was not examined.",
    "evidence": [
     "ws-table",
     "unit-piplup",
@@ -192,7 +192,7 @@
   },
   "positionalConditions": "None in the strategy itself.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP (floor 0), adds a new shield on top of any existing one (shields stack by addition) and deals its damage again. Because the amounts are fractions of the current maxHP, a later change to maxHP changes the next cast.",
-  "rawVsResolved": "Requested: shield and damage are each round(maxHP x 0.2) at 1-3 stars (a fraction, not a flat table). Applied shield = requested after Big Eater Belt, AP, crit, enraged halving and rounding. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by the target's SPE_DEF with a minimum of 1; takenDamage includes shield damage. The comment's '[20,SP]%' is not a separate scaling in the code. Final values additionally depend on untraced item and field effects.",
+  "rawVsResolved": "Requested: shield and damage are each round(maxHP x 0.2) at 1-3 stars (a fraction, not a flat table). Applied shield = requested after Big Eater Belt, AP, crit, enraged halving and rounding. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then reduced by the target's SPE_DEF with a minimum of 1 (the returned takenDamage is unused, section J1). The comment's '[20,SP]%' is not a separate scaling in the code. Final values additionally depend on untraced item and field effects.",
   "sourceTables": [
    {
     "id": "percent",
@@ -211,11 +211,11 @@
   ],
   "unresolved": [
    "Order of the two effects within a cast is shield first, then damage: if the damage kills the target or triggers an on-death effect, effects keyed to that were not traced",
-   "Whether the caster's shield is still applied when the damage is blocked: it is (addShield is not conditioned on the damage result and runs first)",
+   "A blocked hit still leaves the caster's shield (executed: addShield runs first and is not conditioned on the damage result); a caster at 0 HP in a direct process call gets no shield (alive gate) but a damage request is still made - not proof that a dead unit can cast",
    "How maxHP of these units changes during a fight or through items/synergies (the requested amounts follow the current maxHP) was not traced",
    "Whether the three units ever reach a different star count than the bare factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addShield, handleSpecialDamage, the Belt helper) and the real WaveSplashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster maxHP 1000 / 333): the order shield then damage, equal 200 / 67 requests, the 0.5 fraction, AP / crit doubling of both, the Belt affecting only the shield, the blocked-hit case, unchanged positions and the dead-caster direct-call case."
   ],
   "evidence": [
    {
@@ -570,6 +570,20 @@
     "expect": "skill = Ability.WAVE_SPLASH",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012829Z",
+   "reason": "equal initial requests but unequal finals; no movement coded",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

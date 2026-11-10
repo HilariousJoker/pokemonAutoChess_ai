@@ -64,7 +64,7 @@
     "syn-dark"
    ]
   },
-  "summary": "Single-target SPECIAL damage on the cast target: raw 25/50/100/200 by caster stars, doubled when the caster's current HP is below 50% of its max HP at cast time (so 50 for Scraggy and 100 for Scrafty when low). AP scales it, crit applies only with ability crit. No status or movement.",
+  "summary": "Single target SPECIAL damage 25 / 50 / 100 / 200 (fallback 200), doubled when the CASTER's hp / maxHP < 0.5 STRICTLY at cast time: 499 of 1000 doubles, exactly 50 % does not (executed). The target's HP is not used and `<=` is not the rule. AP and crit apply normally inside handleSpecialDamage; no status or movement is added.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -100,7 +100,7 @@
      "SCRAFTY": 50
     },
     "scaling": "requested = table value, or twice that when the caster is below 50% HP at cast time (strict <). AP: x(1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false).",
-    "resolution": "Requested amount is the (possibly doubled) raw value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, minimum 1, among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce. The takenDamage return value is not read by this strategy.",
+    "resolution": "Requested amount is the (possibly doubled) raw value; applied damage is intermediate: handleDamage divides by (1 + 0.05 x SPE_DEF), ceil, minimum 1, among other steps. Blocked completely (no damage) if the target is protected, skydiving or has magicBounce. The returned takenDamage is unused (core-mechanics section J1).",
     "evidence": [
      "as-dmg",
      "as-half",
@@ -131,7 +131,7 @@
     "SCRAGGY": 50,
     "SCRAFTY": 100
    },
-   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). maxPP 80 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 3-star and 4-star entries (100 / 200, fallback 200) are declared in the tables but unused by the bound baseline classes. maxPP 80 and range 1 for both.",
    "evidence": [
     "as-dmg",
     "as-half",
@@ -141,7 +141,7 @@
   },
   "positionalConditions": "None beyond needing a target (the unit must be in range of it to cast, since requiresTarget is true). The only condition is the caster's HP fraction, not any board position.",
   "repeatedCastsAndModes": "No stored state, no modes. The HP check is made fresh at every cast.",
-  "rawVsResolved": "Declared raw: 25/50 (SCRAGGY/SCRAFTY), 50/100 below 50% HP. Requested = raw (doubled or not); applied = requested x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage. Shield handling and takenDamage are in handleDamage and are not read by this strategy.",
+  "rawVsResolved": "Declared raw: 25/50 (SCRAGGY/SCRAFTY), 50/100 below 50% HP (strict). Requested = raw (doubled or not); applied = requested x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage; shield handling is in handleDamage and the returned takenDamage is unused (section J1).",
   "sourceTables": [
    {
     "id": "assuranceDamage",
@@ -163,7 +163,7 @@
    "Whether the maxHP used in the 50% check includes later max-HP changes: the code reads pokemon.maxHP at cast time, which was not traced further",
    "Consulted: handleSpecialDamage (block, AP, crit), handleDamage SPECIAL defence step and minimum, sibling AIR_SLASH record",
    "Whether the two units ever reach a different star count than the factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real AssuranceStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_D4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster and target): hp 499 / 1000 doubles, exactly 500 / 1000 and 250 / 500 do not, 501 and full HP do not, the star table, the AP doubling of the doubled request."
   ],
   "evidence": [
    {
@@ -397,6 +397,20 @@
     "expect": "export const ARMOR_FACTOR = 0.05",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_D4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T012829Z",
+   "reason": "strict caster hp/maxHP < 0.5",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_D4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
