@@ -55,7 +55,7 @@
     "base"
    ]
   },
-  "summary": "Self cleanse, self heal, then self sleep. In this order the caster (1) calls clearNegativeStatus on itself (zeroes the cooldowns of the negative statuses; flags such as wound or burn are switched off later by their update methods), (2) heals itself for maxHP x 0.3 (0.6 fallback star) through handleHeal with apBoost 1 and the cast crit, and (3) triggerSleep(3000 ms) on itself. Because the cleanse only zeroes cooldowns, a wound or burn flag set before the cast is still seen by handleHeal during the same call: a wounded caster heals 0 and a burning caster heals at half. The sleep then makes the caster unable to move or attack until it runs out, unless triggerSleep is refused: VIGOROTH has IMMUNITY_SLEEP (set by its passive on spawn), so it heals and cleanses but does not fall asleep. SLAKING enters a 3000 ms rage when its sleep ends. No target is used.",
+  "summary": "Self only, three steps in order: clearNegativeStatus(self, self), then handleHeal(maxHP x 0.3 (0.6 at 4 stars / fallback), self, apBoost 1, crit), then triggerSleep(3000, self). The cleanse zeroes COOLDOWNS only, so a wound or burn flag is still set during the heal: wound blocks HP healing (under BLOODMOON with BLOOD_STONE it requests the shield replacement instead) and burn halves an otherwise permitted heal. The sleep is an ATTEMPT: refused if already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP or ccCooldown; otherwise weather, enrage and duration reductions change the stored time and a Chesto Berry reaction can follow. VIGOROTH's spawn immunity and SLAKING's wake rage are cited only as scoped hooks; those passives are not imported here.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -156,16 +156,35 @@
   "statusEffects": [
    {
     "status": "sleep (self)",
-    "duration": "requested 3000 ms; refused for VIGOROTH (IMMUNITY_SLEEP)",
+    "target": "the caster",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "requested 3000 ms, no AP or crit scaling; stored = round(3000 x weather (NIGHT 1.3, ZENITH 0.7) x enrage 0.5 x the caster's duration reductions)",
+    "guards": "refused when already asleep, Rune Protect, skydiving, IMMUNITY_SLEEP or ccCooldown > 0 (executed); a CHESTO_BERRY holder requests eatBerry after it starts; the cleanse zeroed sleepCooldown first but not the sleep flag, so an existing sleep stays refused",
+    "combatEffect": "the unit cannot move or attack while asleep; VIGOROTH's spawn immunity and SLAKING's wake rage are scoped hooks only",
     "evidence": [
      "sleep-call",
      "sleep",
      "vig"
-    ]
+    ],
+    "perUnitRaw": {
+     "SLAKING": 3000,
+     "SLAKOTH": 3000,
+     "VIGOROTH": 3000
+    }
    },
    {
-    "status": "all negative statuses (self)",
-    "duration": "cooldowns zeroed; flags clear on the next update; curse cooldown extended by 2000 ms",
+    "status": "clearNegativeStatus (self)",
+    "target": "the caster",
+    "declaredRaw": {
+     "duration": 0,
+     "unit": "ms (cooldowns zeroed at once)"
+    },
+    "scaling": "none",
+    "guards": "no Rune Protect or immunity check; boolean flags (wound, burn, ...) are NOT cleared here, only cooldowns; the curse cooldown gets +2000 ms instead of being zeroed",
+    "combatEffect": "wound and burn flags stay set during the following heal (executed: burn halves it, wound blocks it)",
     "evidence": [
      "clear",
      "clear-curse"
@@ -214,7 +233,7 @@
    "SLAKING passive (rage after waking) is a separate record, only the line in updateSleep is cited",
    "Whether the ability can crit (canCritByDefault false) depends on the generic gate that was not traced",
    "No routing uncertainty is recorded for this identifier in the queue",
-   "No gameplay evidence: no probe or match was run; this is source reading plus mechanical checks"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (clearNegativeStatus, handleHeal, triggerSleep, applyStatusDurationReductions) and the real SlackOffStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (maxHP 1000, hp 500): the call order, heal 300 / 600, the burn and wound flags surviving the cleanse (with the Blood Moon shield 90), every sleep refusal, NIGHT / ZENITH / enrage / HYDRATION durations and the Chesto request."
   ],
   "evidence": [
    {
@@ -569,6 +588,20 @@
     "expect": "!(this.status.sleep && this.passive !== Passive.COMATOSE)",
     "note": "asleep: cannot attack"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T010810Z",
+   "reason": "cleanse leaves wound/burn flags during the heal; sleep is a guarded attempt",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

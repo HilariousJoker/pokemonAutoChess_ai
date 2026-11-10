@@ -75,7 +75,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Team shield and cleanse. Every unit on the board that is on the caster's team, the caster included, gains a shield of 20/40/80 raw by the caster's stars (Happiny 20, Chansey 40, Blissey 80), scaled by the caster's AP (apBoost 1) and crit, and has its negative-status cooldowns cleared. No damage and no heal. The shield amount is changed for a receiver holding Big Eater Belt (x1.25, rounded down, before AP) and halved for an enraged receiver; it is not added to a unit with hp <= 0.",
+  "summary": "Team shield and cleanse. For every non-null same-team board entity, the caster included, in this order: a broadcast, addShield(shield, caster, apBoost 1, crit) with shield 20 / 40 / 80 / 160 (fallback 160), then clearNegativeStatus(recipient, caster). The recipient's Big Eater Belt applies BEFORE the caster's AP and crit, then recipient enrage, rounding and the alive gate; shields are not heals, so Protect and wound do not block them. The cleanse zeroes cooldowns, not most flags. The loop has no HP filter: a unit at 0 HP gets no shield but is still cleansed. No damage or heal.",
   "targeting": {
    "who": "all units of the caster's team on the board, including the caster",
    "needsTarget": false,
@@ -125,15 +125,15 @@
   ],
   "statusEffects": [
    {
-    "status": "clearNegativeStatus",
+    "status": "clearNegativeStatus (cooldowns)",
     "target": "each unit of the caster's team (the caster included)",
     "declaredRaw": {
-     "duration": "not applicable"
+     "duration": 0,
+     "unit": "ms (cooldowns zeroed at once)"
     },
     "scaling": "none",
-    "applicationOrder": "for each unit, right after its shield (shield first, then clear)",
-    "guards": "curse: the flag is cleared and, if a curse cooldown is still running, 2000 ms is ADDED to curseCooldown rather than cleared; possessed is not cleared when the possessing origin (the caster) is on the receiver's team; the call passes the caster as origin",
-    "combatEffect": "sets burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor-reduction, locked and blind cooldowns to 0. The method itself changes cooldowns, not the boolean flags: the example of wound was traced to its update function, which clears the flag on the next update once the cooldown is 0; the other statuses' update functions were not each traced.",
+    "guards": "no immunity or Rune Protect check; the boolean flags (burn, wound, ...) stay set until each status updates; the curse cooldown gets +2000 ms; the possession check compares the recipient's team with the supplied caster's team, so it is not a judgement about whether a possession is beneficial (executed: an active possession cooldown is kept)",
+    "combatEffect": "cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blind are set to 0",
     "evidence": [
      "soft-clear",
      "clear-neg",
@@ -178,7 +178,7 @@
     "CHANSEY": 40,
     "BLISSEY": 80
    },
-   "note": "indexed by the casting entity's stars; the 4-star value 160 (also the fallback) is not reachable by the three units' star counts (1, 2, 3). maxPP is 120 and range 1 for all.",
+   "note": "indexed by the casting entity's stars; the 4-star entry (160, also the fallback) are declared in the tables but unused by the bound baseline classes (bare stars 1, 2, 3). maxPP is 120 and range 1 for all.",
    "evidence": [
     "soft-shield",
     "unit-happiny",
@@ -206,10 +206,10 @@
   ],
   "unresolved": [
    "The routing queue record lists no routing uncertainties; Happiny, Chansey and Blissey are the only units listed for this identifier",
-   "Twist Band was not traced for this ability: addShield calls only applyBigEaterBeltStatBuff (read); whether any other held-item effect touches shields was not searched",
-   "The per-ally broadcastAbility calls are animation only and were not traced",
+   "addShield applies only the Big Eater Belt helper (no Twist Band step; executed); other held-item effects that react to shields were not searched",
+   "The per-ally broadcastAbility calls are animation only (executed: one call per same-team unit plus the default one)",
    "Whether any item or synergy changes SOFT_BOILED beyond what is listed",
-   "No pinned-helper probe was run for this record; the shield and clear paths were read, not executed"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addShield, clearNegativeStatus, the Belt helper, Board.forEach) and the real SoftBoiledStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in board): the per-unit order, the shield values with Belt / AP / crit / enrage, the alive gate, Protect and wound, and the cooldown-only cleanse with the possession keep."
   ],
   "evidence": [
    {
@@ -421,6 +421,20 @@
     "expect": "this.wound = false",
     "note": "example: with the cooldown at 0, the next update ends the status flag"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T010810Z",
+   "reason": "recipient Belt before caster AP/crit; shields are not heals",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

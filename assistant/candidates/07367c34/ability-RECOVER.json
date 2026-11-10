@@ -77,7 +77,7 @@
     "rec-super"
    ]
   },
-  "summary": "The caster heals itself by a percentage of its own current max HP (25 % at 1 and 2 stars, 50 % at 3 stars, 100 % fallback for 4+) through handleHeal with apBoost 1 and the cast's crit flag. Because requiresTarget is false it can be cast without a target in range. The requested amount is scaled by AP (x(1 + AP/100)) and, only if the cast rolled a crit (needs ABILITY_CRIT because canCritByDefault is false), by critPower; the applied amount is then changed by the heal helper's own rules (a wounded or protected caster receives nothing, x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP). No damage, status, movement or shield.",
+  "summary": "The caster heals itself by 25 / 25 / 50 / 100 percent of its CURRENT max HP (fallback 100) through handleHeal(request, self, apBoost 1, crit); it needs no target. handleHeal checks wound FIRST: a wounded caster heals 0 but, under BLOODMOON weather with BLOOD_STONE items, requests addShield(round(0.3 x stones x the raw request), apBoost 1, crit) instead (the shield helpers then apply Belt, AP, crit, enrage, alive gate; Protect does not stop it). Otherwise, at hp > 0 and without Protect: AP, crit, x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH, rounded, capped at missing HP; overheal with the GRASS effect requests addMaxHP(0.4 x overheal). No damage, status or movement.",
   "targeting": {
    "who": "the caster only",
    "needsTarget": false,
@@ -113,7 +113,7 @@
      "PALDEA_WOOPER": "25 % of max HP"
     },
     "scaling": "requested = percent/100 x pokemon.maxHP; then AP: x(1 + AP/100) because apBoost is 1; then x critPower only if the cast rolled a crit (canCritByDefault false, so this needs ABILITY_CRIT)",
-    "resolution": "applied: the caster gets 0 if it is wounded (status.wound; with BLOODMOON weather and the player's BLOOD_STONE items a shield of round(0.3 x stones x requested heal) is requested instead), or at 0 hp, or protected; otherwise x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH weather, rounded, capped at missing HP (maxHP - hp). The uncapped excess (overheal) adds 0.4 x overheal max HP if the caster has the GRASS synergy effect. Requested, applied (healReceived) and overheal are separate amounts; the strategy ignores the returned values.",
+    "resolution": "applied: the wound check comes FIRST: a wounded caster (status.wound) gets 0 healing and, with BLOODMOON weather and BLOOD_STONE items, a requested addShield(round(0.3 x stones x the raw request), apBoost 1, crit) that the shield helpers scale (Big Eater Belt, AP, crit, enraged x0.5) and refuse at 0 hp (Protect does not stop it; see core-mechanics section J); otherwise 0 at 0 hp or with status.protect (Rune Protect alone blocks nothing); then x1.3 BUFF_HEAL_RECEIVED, x0.5 burn, x0.5 enraged, x1.2 ZENITH, rounded, capped at missing HP. The uncapped excess (overheal, from the rounded heal) requests addMaxHP(0.4 x overheal, itself, 0, false, false) if the caster has the GRASS synergy effect. Requested, applied (healReceived) and overheal are separate amounts; the strategy ignores the returned values.",
     "evidence": [
      "rec-table",
      "rec-heal",
@@ -143,7 +143,7 @@
     "CORSOLA": 25,
     "PALDEA_WOOPER": 25
    },
-   "note": "indexed by the casting entity's stars; 1 and 2 stars heal the same 25 %; the 4-star value (100 %, also the fallback) is not reachable by the bare factory star counts. maxPP, range and max HP are in appliesTo / the unit blocks.",
+   "note": "indexed by the casting entity's stars; 1 and 2 stars heal the same 25 %; the 4-star entry (100 %, also the fallback) are declared in the tables but unused by the bound baseline classes. maxPP, range and max HP are in appliesTo / the unit blocks.",
    "evidence": [
     "rec-table",
     "unit-corsola",
@@ -153,7 +153,7 @@
   },
   "positionalConditions": "None: the strategy reads no coordinates.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and heals once; healing is capped by missing HP, so a cast at full HP produces only overheal.",
-  "rawVsResolved": "Requested: 25 % (1 and 2 stars) or 50 % (3 stars) of the caster's current max HP, x(1 + AP/100) [x critPower if the cast crit]. Applied: after the heal helper's reductions and multipliers and the cap at missing HP; the applied amount can be 0 (wound, protect) and never exceeds missing HP.",
+  "rawVsResolved": "Requested: 25 % (1 and 2 stars), 50 % (3 stars) or 100 % (4 stars / fallback) of the caster's current max HP, x(1 + AP/100) [x critPower if the cast crit] inside handleHeal. Applied: after the wound branch, the heal helper's reductions and multipliers and the cap at missing HP; the applied amount can be 0 (wound, protect) and never exceeds missing HP; a wounded caster may instead get a requested Blood Moon shield.",
   "sourceTables": [
    {
     "id": "recoverHealPercent",
@@ -166,13 +166,13 @@
    "maxHP value at cast time (stat changes, items, synergies were not traced)",
    "When the cast fires in a real fight (PP gain, silence); only the pp >= maxPP && canCast gate was read",
    "Crit chance value and critPower; only the roll gate was located",
-   "addMaxHP behaviour for the GRASS overheal bonus was not read"
+   "Which stat changes fold into maxHP before the cast (addMaxHP, addShield and the Belt / Twist helpers were read and executed in this recheck)"
   ],
   "unresolved": [
    "Passives declared by the listed units (see appliesTo) are not covered by this record",
    "Whether the units ever reach a different star count than the bare factory value",
    "Which caster states other than wound/protect/hp 0 block the cast itself (canCast) was not examined",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleHeal, addShield, addMaxHP, the Belt / Twist helpers) and the real RecoverStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (maxHP 1000, hp 500): requests 250 / 500 / 1000, AP / crit, protect, Rune Protect, burn, ZENITH, the wound branch with the Blood Moon shield request, and the Grass overheal request."
   ],
   "evidence": [
    {
@@ -417,6 +417,20 @@
     "expect": "if (overheal > 0 && pokemon.hasSynergyEffect(Synergy.GRASS)) {",
     "note": "overheal on a unit with the GRASS synergy effect adds 0.4 x overheal max HP"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T010810Z",
+   "reason": "wound branch precedes alive/Protect and can request the Blood Moon shield",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

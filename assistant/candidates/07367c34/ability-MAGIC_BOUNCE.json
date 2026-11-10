@@ -28,7 +28,7 @@
     "mb-super"
    ]
   },
-  "summary": "Needs no target. The cast itself only spends PP and gives the caster the magicBounce status for 5000 ms (the cooldown is only ever raised, never shortened). While the status is set, any handleSpecialDamage call against the holder is blocked completely: no damage, takenDamage 0, no death, spellBlockedCount incremented. If the blocked hit was of attack type SPECIAL with damage > 0 and the attacker does not hold Protective Pads, a bounce is queued 500 ms later: the attacker takes round(factor x incoming damage x (1 + holder AP/100) x holder critPower if the bounce crits) as SPECIAL damage, factor 0.5 / 1 / 2 / 4 by the holder's stars (Natu 1 star: 0.5, Xatu 2 stars: 1). The bounce is flagged isRetaliation so two bouncing units cannot loop. The cast deals no damage by itself.",
+  "summary": "Needs no target. The cast spends PP and sets magicBounce with a requested 5000 ms (a longer existing timer is kept). While it is set, handleSpecialDamage blocks EVERY attack type entering it (returned takenDamage 0, spellBlockedCount +1), but only SPECIAL damage > 0 from an attacker without Protective Pads queues a bounce 500 ms later. The delayed command calls attacker.handleDamage DIRECTLY with isRetaliation true (handleSpecialDamage is not called again) for round(factor [0.5, 1, 2, 4] x the captured raw incoming damage x (1 + holder AP/100) x (bounceCrit ? holder critPower : 1)); stars, AP and critPower are read when the callback runs. bounceCrit is the incoming crit OR a holder ABILITY_CRIT roll, so an incoming crit forces it. Callback lifecycle and death handling are not verified.",
   "targeting": {
    "who": "the caster only (self status); the bounce later targets the attacker whose special damage was blocked",
    "needsTarget": false,
@@ -94,8 +94,8 @@
      "NATU": 0.5,
      "XATU": 1
     },
-    "scaling": "requested = round(factor[holder stars] x blocked damage x (1 + holder AP/100) x (bounce crit ? holder critPower : 1)). The blocked damage is the damage argument of handleSpecialDamage as passed in (it may itself already be scaled by the original attacker or ability). Bounce crit = the incoming crit flag, or the holder has ABILITY_CRIT and wins a critChance roll. Applied: the attacker's handleDamage resolves it as SPECIAL damage (special defense, shields, minimum 1, takenDamage including shield damage) per core-mechanics section A; this record did not re-trace those steps.",
-    "resolution": "requires attackType SPECIAL, damage > 0, a non-null attacker and no PROTECTIVE_PADS on the attacker; otherwise the hit is blocked with no bounce. Executed by a DelayedCommand after 500 ms with isRetaliation true, so the attacker's own reflect/bounce does not answer it. The holder is the attacker of record.",
+    "scaling": "requested = round(factor[holder stars] x the raw incoming damage captured at the block x (1 + holder AP/100 read at callback time) x (bounceCrit ? holder critPower : 1)). bounceCrit = the incoming crit flag OR (the holder has ABILITY_CRIT AND wins a critChance roll), so an incoming crit forces it without holder ABILITY_CRIT (executed: raw 100, 1 star, critPower 2: 50 plain, 100 with an incoming crit, 50 with ABILITY_CRIT and no successful roll; 2 stars 100, 5 stars 400; stars 1 -> 2 and AP 0 -> 100 changed after queueing give 200). The captured damage is the unscaled argument of handleSpecialDamage (the block precedes its AP step).",
+    "resolution": "requires attackType SPECIAL, damage > 0, a non-null attacker and no PROTECTIVE_PADS on the attacker; otherwise the hit is blocked with no bounce (executed: TRUE, PHYSICAL, zero damage and Pads queue nothing). A DelayedCommand with delay 500 calls attacker.handleDamage directly with attackType SPECIAL, attacker = holder and isRetaliation true; it does NOT call handleSpecialDamage again, so an attacker's own magicBounce does not block it. The attacker's handleDamage then applies its shared steps (core-mechanics section A); the returned takenDamage is unused (core-mechanics section J1). Whether the callback can fire after a death or the end of the fight was not verified.",
     "evidence": [
      "hsd-cond",
      "hsd-pads",
@@ -110,15 +110,35 @@
   ],
   "statusEffects": [
    {
-    "effect": "magicBounce on the caster for 5000 ms (extended only, never shortened)",
+    "status": "magicBounce",
+    "target": "the caster",
+    "declaredRaw": {
+     "duration": 5000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "fixed 5000 ms, not scaled by AP, crit or stars",
+    "guards": "no immunity or Rune Protect guard in triggerMagicBounce; the timer is raised only if 5000 exceeds the current one (executed: 10000 kept, 2000 replaced)",
+    "combatEffect": "blocks every handleSpecialDamage call (all attack types) and queues a bounce for SPECIAL hits as described in the damage-reflect effect",
     "evidence": [
      "mb-trigger",
      "trig-fn",
      "trig-cd"
-    ]
+    ],
+    "perUnitRaw": {
+     "NATU": 5000,
+     "XATU": 5000
+    }
    },
    {
-    "effect": "magicBounce is removed early when the holder is hit by BRICK_BREAK, RAGING_BULL or SHADOW_FORCE (they clear flag and cooldown); FOCUS_PUNCH does not eject a holder",
+    "status": "magicBounce (early removal)",
+    "target": "the holder",
+    "declaredRaw": {
+     "duration": 0,
+     "unit": "ms (flag and cooldown cleared by other abilities)"
+    },
+    "scaling": "none",
+    "guards": "BRICK_BREAK, RAGING_BULL and SHADOW_FORCE clear the flag and cooldown; FOCUS_PUNCH does not eject a holder",
+    "combatEffect": "the holder loses the block and bounce when cleared",
     "evidence": [
      "brick",
      "bull",
@@ -139,7 +159,7 @@
     "NATU": 0.5,
     "XATU": 1
    },
-   "note": "the cast and its 5000 ms duration are identical at every star count; only the bounce factor depends on the holder's stars (0.5 / 1 / 2 / 4, fallback 4). 3 and 4 stars are not reached at these units' factory star counts; whether other mechanics change a star count was not examined.",
+   "note": "the cast and its 5000 ms duration are identical at every star count; only the bounce factor depends on the holder's stars (0.5 / 1 / 2 / 4, fallback 4). The 3-star and 4-star entries are declared in the tables but unused by the bound baseline classes; whether other mechanics change a star count was not examined.",
    "evidence": [
     "hsd-table",
     "unit-natu",
@@ -167,11 +187,11 @@
   ],
   "unresolved": [
    "Which abilities and effects call handleSpecialDamage on the holder with a non-SPECIAL attack type (e.g. TRUE damage): the block applies to all of them but the bounce only to SPECIAL; the callers were not enumerated",
-   "Whether a blocked hit's damage passed in has already included the original attacker's AP: handleSpecialDamage scales by attacker.ap only in the non-blocked branch, so the bounce uses the unscaled argument (read from the code, not tested)",
-   "The queued 500 ms DelayedCommand may fire after the holder or attacker has died or the fight ended; not traced",
+   "The blocked damage is the unscaled argument of handleSpecialDamage (the block precedes its AP step; executed). Which callers pass non-SPECIAL types was not enumerated",
+   "The queued 500 ms DelayedCommand may fire after the holder or attacker has died or the fight ended; the callback lifecycle was not verified (direct attacker.handleDamage; no entry guard is acquired)",
    "Whether the three Natu/Xatu star counts ever differ from the factory values",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage (block and bounce branch), DelayedCommand, triggerMagicBounce) and the real MagicBounceStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_C1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in holder and attacker): the status request and kept timer, the block for every attack type, the queue conditions, the 500 ms delay, the direct handleDamage call with isRetaliation, the amount table and the callback-time reads."
   ],
   "ability": "MAGIC_BOUNCE",
   "label": "production-branch reference; deployment unverified",
@@ -561,6 +581,20 @@
     "expect": "skill = Ability.MAGIC_BOUNCE",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_C1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261110T010810Z",
+   "reason": "direct handleDamage bounce, incoming-crit-forced bounceCrit, callback-time reads",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_C1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
