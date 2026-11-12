@@ -62,7 +62,7 @@
     "cast-crit"
    ]
   },
-  "summary": "A single-target cast on the cast target: super.process spends maxPP and broadcasts, then handleSpecialDamage requests SPECIAL damage (raw 50 / 100 / 200 / 400 by stars: Trubbish 50, Garbodor 100) with the cast's crit flag, and, independently of that call's result, triggerPoison is called once on the same target with the caster as origin. The poison call adds one stack (cap 3, 4 with VENOMOUS, 5 with TOXIC on the caster) and a duration of raw 2000 / 4000 / 8000 / 16000 ms (Trubbish 2000, Garbodor 4000) x (1 + AP/100), x critPower if the cast crit, then the target's duration reductions; the timer is replaced only if longer. The strategy ignores the value returned by handleSpecialDamage, so the poison is applied even if the damage was blocked by protect / skydiving / Magic Bounce or killed the target; it is not applied if the target has IMMUNITY_POISON or Rune Protect (checked inside triggerPoison). The poison then ticks about every 1000 ms (requests, see statusEffects).",
+  "summary": "Single target. SPECIAL 50 / 100 / 200 / 400 by caster stars (fallback 400) FIRST, then ONE poison trigger on the original target whatever the damage returned (blocked or killing hits do not skip it). Requested duration = round(base 2000 / 4000 / 8000 / 16000 * (1+casterAP/100) * (crit ? critPower : 1)); one requested stack. The recipient's reductions and longer-timer rule, the guarded stack caps 3 / 4 (VENOMOUS) / 5 (TOXIC) and the poison reactions apply. Not the TOXIC or SLUDGE formulas.",
   "targeting": {
    "who": "the cast target only (single enemy)",
    "needsTarget": true,
@@ -122,37 +122,22 @@
     "status": "poison",
     "target": "the cast target",
     "declaredRaw": {
-     "requestedStacks": 1,
-     "baseDurationMsByStars": {
+     "byStars": {
       "1": 2000,
       "2": 4000,
       "3": 8000,
-      "4": 16000,
-      "fallback": 16000
+      "4": 16000
      },
-     "durationMsByStars": {
-      "1": 2000,
-      "2": 4000,
-      "3": 8000,
-      "4": 16000,
-      "fallback": 16000
-     }
+     "fallback": 16000,
+     "label": "base poison duration (ms) before AP / crit; one stack requested"
     },
     "perUnitRaw": {
-     "TRUBBISH": {
-      "stars": 1,
-      "requestedStacks": 1,
-      "durationMsRaw": 2000
-     },
-     "GARBODOR": {
-      "stars": 2,
-      "requestedStacks": 1,
-      "durationMsRaw": 4000
-     }
+     "TRUBBISH": 2000,
+     "GARBODOR": 4000
     },
-    "scaling": "requested duration = Math.round(raw x (1 + AP/100) x (critPower if the cast crit)); unlike the damage, the crit factor here is the caster's full critPower (no Rocky Helmet / Black Augurite reduction). The stack count (1) is not scaled by AP or crit.",
+    "scaling": "requested duration = round(base*(1+casterAP/100)*(crit ? critPower : 1)): AP 100 -> 4000 (1 star), crit (critPower 2) -> 4000, AP 100 + crit -> 8000 (executed). The crit factor is the caster's full critPower (no Rocky Helmet / Black Augurite reduction); the single requested stack is not scaled.",
     "applicationOrder": "after the damage call, in the same process() invocation; one triggerPoison call whatever the damage call returned",
-    "guards": "A call does nothing (no stack, no origin update, no passive or berry reaction) if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect. When it applies: poisonOrigin = the caster; stacks + 1 up to maxStacks 3 (4 with VENOMOUS, 5 with TOXIC on the origin); the duration passes through the TARGET's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE in the target player's items, rounded) and the timer is replaced only if longer; a target with the GUTS passive gains +5 attack once and with TOXIC_BOOST +10 once; a PECHA_BERRY holder eats the berry in the same call (eatBerry: heal, poisonOrigin = null, poisonStacks = 0, poisonDamageCooldown = 0, IMMUNITY_POISON added, berry removed), so it ends with 0 stacks although the timer set by this call remains. A target already at the cap gains no stack but its origin changes to the caster and a longer duration still replaces the timer. The call is made even when the target died from the damage (not guarded in the strategy). Same status code as the SLUDGE candidate.",
+    "guards": "A call does nothing (no stack, no origin update, no passive or berry reaction) if the target has EffectEnum.IMMUNITY_POISON or its status has runeProtect. When it applies: poisonOrigin = the caster; stacks + 1 up to maxStacks 3 (4 with VENOMOUS, 5 with TOXIC on the origin); the duration passes through the TARGET's applyStatusDurationReductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then -10 % per ODD_KEYSTONE in the target player's items, rounded) and the timer is replaced only if longer; (executed: IMMUNITY_POISON and Rune Protect leave 0 stacks; HYDRATION stores 1000; a longer 9000 timer is kept and the stack still rises to 2) a target with the GUTS passive gains +5 attack once and with TOXIC_BOOST +10 once; a PECHA_BERRY holder eats the berry in the same call (eatBerry: heal, poisonOrigin = null, poisonStacks = 0, poisonDamageCooldown = 0, IMMUNITY_POISON added, berry removed), so it ends with 0 stacks although the timer set by this call remains. A target already at the cap gains no stack but its origin changes to the caster and a longer duration still replaces the timer. The call is made even when the target died from the damage (not guarded in the strategy). Same status code as the SLUDGE candidate.",
     "combatEffect": "while poisonStacks > 0 the status ticks every 1000 ms (poisonDamageCooldown): poisonDamage = maxHP x 0.05 x stacks (GLISCOR: stacks - 2), x0.7 in RAIN, x0.5 with ASSAULT_VEST, x0.5 with the TOXIC_BOOST passive, then x0.7 SWIFT_SWIM, else x0.5 HYDRATION, else x0.3 WATER_VEIL / SURGE_SURFER, then Math.round. Negative: pkm.handleHeal(round(-x), pkm, 0, false), a heal REQUEST on the poisoned unit; zero: no call; positive: pkm.handleDamage with TRUE damage (min 1), attacker = poisonOrigin or null. These are handler requests, not guaranteed HP changes. When poisonCooldown runs out the stacks and origin are cleared and the GUTS / TOXIC_BOOST attack bonuses are removed.",
     "evidence": [
      "basedur",
@@ -199,7 +184,7 @@
     "TRUBBISH": 2000,
     "GARBODOR": 4000
    },
-   "note": "Both tables are indexed by the casting entity's stars; the 3-star (200 / 8000 ms) and 4-star (400 / 16000 ms) entries are not reachable by the listed units' bare star counts (1 and 2). Whether other mechanics raise an entity's star count was not examined.",
+   "note": "Both tables are indexed by the casting entity's stars; the 3-star (200 / 8000 ms) and 4-star (400 / 16000 ms) entries are declared in the tables but unused by the bound baseline classes (Trubbish 1, Garbodor 2). Whether other mechanics raise an entity's star count was not examined.",
    "evidence": [
     "damage",
     "basedur",
@@ -209,7 +194,7 @@
   },
   "positionalConditions": "None in the strategy; the caster must be able to cast (pp >= maxPP and canCast) and have a target (requiresTarget is true).",
   "repeatedCastsAndModes": "No stored state or modes. Each cast adds one stack up to the cap, makes the caster the poison origin, and refreshes the duration only if longer.",
-  "rawVsResolved": "Requested damage: raw 50 (Trubbish) / 100 (Garbodor) SPECIAL. Applied damage: raw x (1 + AP/100) [x crit factor on crit], then divided by (1 + ARMOR_FACTOR x speDef), reduced by the non-TRUE flat reductions, floored at 1 after Math.ceil; reported takenDamage includes shield damage and is discarded by the strategy. Requested poison: 1 stack, duration raw 2000 / 4000 ms x (1 + AP/100) [x full critPower on crit] -> applied: +1 stack within the cap, duration after the target's reductions, none against IMMUNITY_POISON or Rune Protect. Each tick is a handler request, not a guaranteed HP change.",
+  "rawVsResolved": "Requested damage: raw 50 (Trubbish) / 100 (Garbodor) SPECIAL. Applied: raw x (1 + AP/100) [x crit], then SPE_DEF division, ceil, at least 1. Requested poison: one stack, duration round(base*(1+casterAP/100)*(crit ? critPower : 1)); stored after the target's reductions and only if the guards pass, capped at 3 / 4 / 5 stacks. The poison does not depend on the damage result (Protected: damage 0, still poisoned). Ticks are handler requests, not guaranteed HP changes.",
   "sourceTables": [
    {
     "id": "gunkDamage",
@@ -222,7 +207,7 @@
     "id": "gunkDuration",
     "file": "app/core/abilities/gunk-shot.ts",
     "pattern": "const baseDuration = \\[([^\\]]+)\\]",
-    "recordPath": "statusEffects.0.declaredRaw.durationMsByStars"
+    "recordPath": "statusEffects.0.declaredRaw.byStars"
    }
   ],
   "numericExamples": [],
@@ -237,7 +222,7 @@
    "Whether Cover Band redirection in handleDamage moves the damage to an ally while the poison still lands on the original target (the strategy applies poison to the original target regardless) was not traced",
    "The poison tick damage depends on the target's maxHP, weather and items; only the formula was read, no gameplay evidence",
    "Whether the two units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerPoison, handleSpecialDamage) and the real GunkShotStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): damage then ONE poison trigger (requests 50 / 100 / 200 / 400 then 2000 / 4000 / 8000 / 16000), the duration formula with AP and crit, one stack, caps 3 / 4 / 5, the Protected case, HYDRATION, the longer-timer rule, the immunity and Rune refusals, the Guts bonus and the Pecha berry."
   ],
   "evidence": [
    {
@@ -746,6 +731,20 @@
     "expect": "this.removeItem(berry, true)",
     "note": "the eaten berry is removed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T193417Z",
+   "reason": "one poison trigger regardless of damage; round(base*(1+AP)*(crit?critPower:1)) duration",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

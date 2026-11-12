@@ -8,10 +8,10 @@
 
 | Cycle | Status | Records | Checkpoint commit | Notes |
 |---|---|---|---|---|
-| 0 | complete | STRING_SHOT (Quartz (1 - 0.2n) only in STORM; damage attempted independently), DYNAMIC_PUNCH (same wording), SLACK_OFF (curse +2000 only when curse true and cooldown > 0); counts unchanged 120 / 386 | commit 'Checkpoint batch4 cycle 0' (see git log) | lock `run-20261112T193010Z` released; probe section 43; all checks passed; no historical validation timestamps altered |
-| 1 | not started | – | – | – |
+| 0 | complete | STRING_SHOT (Quartz (1 - 0.2n) only in STORM; damage attempted independently), DYNAMIC_PUNCH (same wording), SLACK_OFF (curse +2000 only when curse true and cooldown > 0); counts unchanged 120 / 386 | `8f4de7ec5e9d4b8c18766cb55fb9eab49695fe37` | lock `run-20261112T193010Z` released; probe section 43; all checks passed; no historical validation timestamps altered |
+| 1 | complete | HYPNOSIS, PLAY_ROUGH, FIRE_FANG, THUNDER_FANG, GUNK_SHOT imported (13 keys; abilities 125 / keys 399 incl. cycle 0 unchanged baseline 120 / 386) | (this commit; see git log 'Checkpoint batch4 cycle 1') | lock `run-20261112T193417Z` released; probe section 44 (CATCHUP_E1); queue sync preceded the per-record queue validate, so the shared record checks ran through validate-abilities.mjs (130 records) instead; GUNK_SHOT sourceTables path switched to statusEffects.0.declaredRaw.byStars |
 | 2 | not started | – | – | – |
 | 3 | not started | – | – | – |
 | 4 | not started | – | – | – |
 
-Next unfinished cycle: 1.
+Next unfinished cycle: 2.

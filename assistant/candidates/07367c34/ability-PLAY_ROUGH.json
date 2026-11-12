@@ -90,7 +90,7 @@
     "cast-crit"
    ]
   },
-  "summary": "Single-target special damage (30/60/120/240 raw by the caster's stars) plus a 2500 ms charm on the target. The charm is applied first (the call precedes the damage) and does not depend on the damage dealing anything.",
+  "summary": "Single target. A 2500 ms charm is ATTEMPTED on the target BEFORE the SPECIAL hit 30 / 60 / 120 / 240 by caster stars (fallback 240); the damage attempt is independent of the charm. The charm duration has no AP / crit scaling. It is refused by an existing charm or Rune Protect and changed by MISTY (x1.3) and the victim's reductions; on application the target is set to the caster as charm origin, and on expiry the flag and origin clear and the target is cleared to force retargeting.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -127,7 +127,7 @@
      "MAWILE": 120
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); the cast's crit flag multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit, which requires EffectEnum.ABILITY_CRIT because canCritByDefault is false",
-    "resolution": "requested amount = raw x AP factor [x crit]; the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) gives the applied amount in handleDamage; takenDamage (not used by this strategy) would count HP removed plus shield damage; blocked entirely by protect / skydiving / magicBounce (takenDamage 0; the charm was already applied before this call and is not blocked by them)",
+    "resolution": "requested amount = raw x AP factor [x crit]; the target's SPE_DEF division (ceil, min 1) and shields give the applied amount in handleDamage; blocked entirely by protect / skydiving / magicBounce (damage 0, executed). The charm attempt precedes this call and is independent of it: a Protected target is still charmed (executed). The returned takenDamage is not read by this strategy.",
     "evidence": [
      "pr-dmg",
      "pr-hit",
@@ -148,13 +148,13 @@
     "status": "charm",
     "target": "the target",
     "declaredRaw": {
-     "value": 2500,
+     "duration": 2500,
      "unit": "ms"
     },
-    "scaling": "apBoost false is passed, so the duration does not scale with AP or crit",
+    "scaling": "none from AP or crit: apBoost false is passed (executed: AP 100 plus crit still requests 2500).",
     "applicationOrder": "before the damage (the triggerCharm call precedes handleSpecialDamage)",
-    "guards": "not applied if the target is already charmed (the existing charm and origin are kept) or has runeProtect; MISTY weather multiplies the duration by 1.3; applyStatusDurationReductions then applies SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 and ODD_KEYSTONE -10% per stone; the target's target is set to the caster",
-    "combatEffect": "while charm is set, AttackingState does not reach its attack/cast branch (it only switches to moving when a target is in sight) and MovingState walks the unit toward charmOrigin when it is more than 1 cell away, with no attack or cast branch taken. Damage from the origin (the caster) that results in takenDamage > 0 shortens the remaining charm by 500 ms per damage instance, so the Play Rough hit itself can already shorten the charm by 500 ms if it deals damage. When the charm ends the target is cleared to force retargeting. Other uses of status.charm outside app/core and app/models were not searched.",
+    "guards": "Refused if the target is already charmed (existing timer and origin kept: 900 stays 900, no new origin, executed) or has Rune Protect (executed). MISTY multiplies the duration by 1.3 (3250 executed); applyStatusDurationReductions then applies the victim's SWIFT_SWIM x0.7 / HYDRATION x0.5 (1250 executed) / WATER_VEIL or SURGE_SURFER x0.3 / Odd Keystone reductions. On application the target's target is set to the caster (charmOrigin). Nothing else is claimed about other status helpers' guards.",
+    "combatEffect": "while charm is set, AttackingState does not reach its attack/cast branch (it only switches to moving when a target is in sight) and MovingState walks the unit toward charmOrigin when it is more than 1 cell away, with no attack or cast branch taken. Damage from the origin (the caster) that results in takenDamage > 0 shortens the remaining charm by 500 ms per damage instance, so the Play Rough hit itself can already shorten the charm by 500 ms when it passes the damage guards (source reading, pokemon-entity.ts:1217-1219; the stand-in did not model it). When the charm ends the target is cleared to force retargeting. Other uses of status.charm outside app/core and app/models were not searched.",
     "evidence": [
      "pr-charm",
      "charm-trig",
@@ -182,7 +182,7 @@
     "AZUMARILL": 120,
     "MAWILE": 120
    },
-   "note": "indexed by the casting entity's stars; the 4-star value (240, also the fallback) is not reachable by the four units' bare star counts (1, 2, 3). The charm duration (2500 ms) does not vary with stars.",
+   "note": "indexed by the casting entity's stars; the 4-star value (240, also the fallback) is declared in the tables but unused by the bound baseline classes (Azurill 1, Marill 2, Azumarill 3, Mawile 3). The charm duration (2500 ms) does not vary with stars.",
    "evidence": [
     "pr-dmg",
     "unit-azumarill",
@@ -193,7 +193,7 @@
   },
   "positionalConditions": "None read beyond needing a target (the unit must have a target at range to reach the cast gate).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast repeats the charm attempt (ignored while the target is still charmed) and the damage.",
-  "rawVsResolved": "Declared raw: damage 30/60/120 (1/2/3 stars) and charm 2500 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; applied damage after the SPE_DEF division (ceil, at least 1) and untraced later modifiers. Charm: requested 2500 ms, applied after the MISTY multiplier and duration reductions, then shortened by 500 ms per qualifying hit from the caster.",
+  "rawVsResolved": "Declared raw: damage 30 / 60 / 120 / 240 (fallback 240) and a charm request of 2500 ms. Requested damage = raw x (1 + AP/100) [x crit factor]; applied after SPE_DEF and the shared steps. Charm: requested 2500, stored after MISTY and the victim's reductions (3250 / 1250 executed); unchanged by AP or crit.",
   "sourceTables": [
    {
     "id": "playRoughDamage",
@@ -211,7 +211,8 @@
   "unresolved": [
    "Whether any item or synergy effect changes PLAY_ROUGH beyond what is listed",
    "Other readers of status.charm outside app/core and app/models were not searched",
-   "No other unit sharing the identifier exists in the queue; Mawile (range 1, maxPP 80) shares the strategy but is a different unit than the Marill line"
+   "No other unit sharing the identifier exists in the queue; Mawile (range 1, maxPP 80) shares the strategy but is a different unit than the Marill line",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerCharm, updateCharm, handleSpecialDamage) and the real PlayRoughStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order charm then damage (requests 2500 / 30, 60, 240), no AP / crit duration scaling, MISTY / HYDRATION durations, the existing-charm and Rune Protect refusals, the Protected-target case, the origin target on application and the expiry clearing."
   ],
   "evidence": [
    {
@@ -555,6 +556,20 @@
     "expect": "abilityStrategy.canCritByDefault",
     "note": "crit is rolled only if the caster has EffectEnum.ABILITY_CRIT or the strategy sets canCritByDefault"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T193417Z",
+   "reason": "charm 2500 attempt before SPECIAL, no AP/crit duration scaling, guards and origin targeting",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

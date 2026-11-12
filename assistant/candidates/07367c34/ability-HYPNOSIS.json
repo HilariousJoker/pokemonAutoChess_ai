@@ -63,11 +63,11 @@
     "hy-super"
    ]
   },
-  "summary": "Puts the farthest targettable enemy to sleep. The target is not the unit's normal attack target: PokemonState.getFarthestTarget(caster, board) picks the targettable enemy with the greatest Manhattan distance from the caster (ties go to the first unit in the row-major scan). If there is none, nothing happens except that PP is spent. The requested sleep is round(flat x (2 + AP/100) x crit factor), flat 1000 ms at 1 star and 1750 ms at 2 stars (3000 / 6000 for 3 / 4 stars), i.e. 2000 ms for Hoothoot and 3500 ms for Noctowl at 0 AP and no crit. Status.triggerSleep then applies guards and duration changes; a sleeping unit cannot move or attack (except with the COMATOSE passive) and cannot dodge attacks. There is no damage.",
+  "summary": "Target-free. The farthest occupant that isTargettableBy(caster) (Manhattan distance, first row-major tie; normally an enemy, but MERCILESS can admit another same-team unit at HP <= 10, so no enemy-only guarantee) gets one sleep attempt of round(flat*(2+AP/100)*(crit?1+(critPower-1)*0.5:1)), flat 1000 / 1750 / 3000 / 6000 (fallback 1000): 2000 ms Hoothoot, 3500 Noctowl at AP 0. No application-chance roll. With no candidate the cast still spends PP and its bookkeeping and nothing else happens. No damage.",
   "targeting": {
-   "who": "one unit: the farthest targettable enemy by Manhattan distance, chosen independently of the caster's current target",
+   "who": "one unit: the farthest isTargettableBy occupant by Manhattan distance, chosen independently of the caster's current target",
    "needsTarget": false,
-   "note": "requiresTarget is false, so the cast does not need a target in range. getFarthestTarget is evaluated before super.process; isTargettableBy(caster) excludes untargettable units and own-team units. Distance starts at 0 and the comparison is strict, so only a unit at distance >= 1 can be chosen and the first of equal-distance units in the scan wins.",
+   "note": "requiresTarget is false, so the cast needs no target in range. getFarthestTarget is evaluated before super.process; isTargettableBy(caster) excludes untargettable units and, except for the MERCILESS exception (a same-team unit at HP <= 10 is admitted when the caster has MERCILESS), own-team units, so the chosen unit is not guaranteed to be an enemy (executed). Distance starts at 0 and the comparison is strict, so only a unit at distance >= 1 can be chosen and the first of equal-distance units in the row-major scan wins (executed). With no candidate the cast still spends maxPP and increments the cast count; no sleep is requested.",
    "evidence": [
     "hy-far",
     "far-fn",
@@ -91,12 +91,12 @@
   "effects": [
    {
     "kind": "statusApplication",
-    "target": "the farthest targettable enemy",
+    "target": "the farthest isTargettableBy occupant",
     "declaredRaw": {
      "description": "triggerSleep(round(flat x (2 + AP/100) x crit factor)); no damage, no stat change"
     },
     "scaling": "see statusEffects.0: AP and crit scale the requested duration only",
-    "resolution": "no HP, shield or stat change; the whole effect is the sleep request in statusEffects.0, subject to Status.triggerSleep guards. Nothing happens (except PP spent) when getFarthestTarget returns nothing.",
+    "resolution": "no HP, shield or stat change; the whole effect is the sleep attempt in statusEffects.0, subject to the triggerSleep guards. No application-chance roll exists. With no candidate PP and the cast bookkeeping are still spent and nothing else happens.",
     "evidence": [
      "hy-far",
      "hy-if",
@@ -107,9 +107,7 @@
   "statusEffects": [
    {
     "status": "SLEEP",
-    "target": "the farthest targettable enemy",
-    "durationMs": null,
-    "probability": 1,
+    "target": "the farthest isTargettableBy occupant (normally an enemy; MERCILESS can admit a same-team unit at HP <= 10)",
     "apScaled": true,
     "declaredRaw": {
      "byStars": {
@@ -119,14 +117,14 @@
       "4": 6000
      },
      "fallback": 1000,
-     "label": "flat duration (ms) before the AP / crit factors"
+     "label": "flat duration (ms) before the (2 + AP/100) and crit factors"
     },
     "perUnitRaw": {
      "HOOTHOOT": 1000,
      "NOCTOWL": 1750
     },
-    "scaling": "requested = round(flat x (2 + AP/100) x (crit ? 1 + (critPower - 1) x 0.5 : 1)). At AP 0 and no crit: Hoothoot 2000 ms, Noctowl 3500 ms. A crit needs ABILITY_CRIT (canCritByDefault false). The AP is the caster's. triggerSleep is called with no origin and applies no further AP scaling.",
-    "resolution": "Requested vs applied. Applied only if the target is not already asleep, has no rune protect, is not skydiving, has no IMMUNITY_SLEEP effect and its ccCooldown is 0 (CC_COOLDOWN 1500 ms is set when a sleep, and also a freeze, ends). Applied duration = round(requested x 1.3 at night or x0.7 at zenith, /2 if the target is enraged, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone in the victim's player's items)). A Chesto Berry holder eats it as soon as the sleep is applied (the berry's own effect is not traced here). Becoming enraged halves the remaining sleep time; sleep ends when the timer runs out. While asleep the unit cannot move or attack and cannot dodge; a unit with the COMATOSE passive is not prevented from moving or attacking and keeps its sleep flag renewed by updateSleep (not covered by this record).",
+    "scaling": "requested = round(flat*(2+AP/100)*(crit ? 1+(critPower-1)*0.5 : 1)); AP is the caster's (AP 0: x2, AP 100: x3). Executed: 2000 / 3500 at AP 0; AP 100 -> 3000 (Hoothoot); crit with critPower 2 -> 3000, with critPower 3 -> 4000. A crit needs ABILITY_CRIT (canCritByDefault false). triggerSleep is called with no origin and adds no further AP scaling.",
+    "resolution": "Stored duration = round(requested, x1.3 at NIGHT, x0.7 at ZENITH (2600 / 1400 executed), halved while enraged (1000), then the victim reductions: SWIFT_SWIM x0.7, else HYDRATION x0.5 (1000 executed), else WATER_VEIL / SURGE_SURFER x0.3, then x(1 - 0.1 per Odd Keystone)). A Chesto Berry holder eats the berry after application (its own effect is not traced). Becoming enraged halves the remaining time; sleep ends when the timer runs out. While asleep the unit cannot move or attack and cannot dodge; a COMATOSE unit is not covered here.",
     "evidence": [
      "hy-sleep",
      "hy-table",
@@ -146,7 +144,9 @@
      "rage-sleep",
      "sleep-nomove",
      "sleep-nododge"
-    ]
+    ],
+    "guards": "Refused if the target is already asleep (an existing sleep keeps its timer: 400 stays 400), has Rune Protect, is skydiving, has IMMUNITY_SLEEP, or has ccCooldown > 0 (all executed). There is no application-chance roll (none consumed, executed).",
+    "combatEffect": "Stored duration = round(requested, x1.3 at NIGHT, x0.7 at ZENITH (2600 / 1400 executed), halved while enraged (1000), then the victim reductions: SWIFT_SWIM x0.7, else HYDRATION x0.5 (1000 executed), else WATER_VEIL / SURGE_SURFER x0.3, then x(1 - 0.1 per Odd Keystone)). A Chesto Berry holder eats the berry after application (its own effect is not traced). Becoming enraged halves the remaining time; sleep ends when the timer runs out. While asleep the unit cannot move or attack and cannot dodge; a COMATOSE unit is not covered here."
    }
   ],
   "buffs": [],
@@ -169,7 +169,7 @@
   },
   "positionalConditions": "The target depends on the caster's position (Manhattan distance); the cast is not limited by range. With no targettable enemy on the board nothing is applied.",
   "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP. Re-casting on a unit that is still asleep does not extend the sleep (the guard rejects it) and the unit is then protected by ccCooldown for CC_COOLDOWN after waking; the farthest unit is re-evaluated each cast, so a different enemy may be picked.",
-  "rawVsResolved": "Requested: sleep round(flat x (2 + AP/100) x crit factor) = 2000 ms (Hoothoot) / 3500 ms (Noctowl) at 0 AP and no crit. Applied = requested after weather, enrage, water-ability and Odd Keystone changes, and only if the guards pass; nothing happens without a targettable enemy.",
+  "rawVsResolved": "Requested: sleep round(flat*(2+AP/100)*crit factor) = 2000 ms (Hoothoot) / 3500 ms (Noctowl) at AP 0 and no crit. Stored = requested after weather, enrage, water and Odd Keystone changes, and only if the guards pass; no application roll. No candidate: nothing happens except PP and bookkeeping.",
   "sourceTables": [
    {
     "id": "sleep",
@@ -187,9 +187,9 @@
    "The Chesto Berry effect (eatBerry) and the COMATOSE passive's renewal of sleep were not traced"
   ],
   "unresolved": [
-   "The Merciless exception inside isTargettableBy (low-HP units) can make an own-team unit targettable; whether that can ever happen for the listed units was not examined",
+   "MERCILESS can admit another same-team unit at HP <= 10 (executed), so the target is not guaranteed to be an enemy; whether the listed units reach that in a fight was not examined",
    "Whether the listed units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerSleep, getFarthestTarget, isTargettableBy) and the real HypnosisStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in board): Manhattan farthest, the first row-major tie, untargettable and same-team skipping, the MERCILESS case (HP 10 admitted, HP 50 not), no-target PP spend, no roll consumed, the duration formula, weather / enrage / HYDRATION and the Rune / immunity / ccCooldown / existing-sleep refusals."
   ],
   "evidence": [
    {
@@ -599,6 +599,20 @@
     "expect": "export const CC_COOLDOWN = 1500",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T193417Z",
+   "reason": "farthest isTargettableBy occupant (MERCILESS), no-target PP spend, no chance roll",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

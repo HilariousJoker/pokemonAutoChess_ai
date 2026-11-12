@@ -73,7 +73,7 @@
     "base-pp"
    ]
   },
-  "summary": "Needs a target. After the PP spend the strategy first requests 3000 ms of paralysis on the target (not AP-scaled), then deals one special hit to the same target of raw 30/60/120/240 by caster stars (AP-scaled, crit possible via the passed crit flag). The paralysis is requested before the damage and does not depend on it: a target that blocks the damage (protect / skydiving / magicBounce) is still paralysed unless Rune Protect or IMMUNITY_PARALYSIS stops it.",
+  "summary": "Needs a target. After the PP spend a paralysis of 3000 ms is ATTEMPTED on the target BEFORE the SPECIAL hit 30 / 60 / 120 / 240 by caster stars. No AP / crit duration scaling. The recipient's guards, STORM weather (ELECTRIC_QUARTZ lowers the stored time by a linear (1-0.2n) factor ONLY in STORM), reductions, the longer-timer rule and berries apply; a Cheri Berry holder can clear an accepted application. The damage attempt is independent (a Protected target is still paralysed).",
   "targeting": {
    "who": "the single target passed to the cast",
    "needsTarget": true,
@@ -111,7 +111,7 @@
      "MANECTRIC": 60
     },
     "scaling": "requested = raw table value by the caster's stars. handleSpecialDamage with apBoost true: x(1 + caster AP/100); DOUBLE_DAMAGE x2 and strange-steam x1.2 where present; x(1 + (critPower - 1) x reduction) when the crit flag is true (reduction 0 against a Rocky Helmet, -0.1 per Black Augurite of the target's player, floor 0). No rounding before the defence step.",
-    "resolution": "requested (raw table) -> applied (after AP / crit / multipliers) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; takenDamage = shield damage + min(residual, current HP), rounded (the return value is unused by this strategy). Blocked by protect / skydiving / magicBounce (takenDamage 0; a magic bounce may reflect damage to the caster unless it holds Protective Pads). Dead or resurrecting targets take nothing.",
+    "resolution": "requested (raw table) -> applied (after AP / crit / multipliers) -> PokemonState.handleDamage: attacker-side multipliers, SPE_DEF division, min-1 floor (core-mechanics section A), shield first then HP; The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Blocked by protect / skydiving / magicBounce (takenDamage 0; a magic bounce may reflect damage to the caster unless it holds Protective Pads). Dead or resurrecting targets take nothing.",
     "evidence": [
      "table",
      "dmg",
@@ -133,12 +133,12 @@
     "status": "paralysis",
     "target": "the target",
     "declaredRaw": {
-     "duration_ms": 3000,
+     "duration": 3000,
      "unit": "ms (requested)"
     },
-    "scaling": "none from AP (apBoost defaults to false, so the 3000 ms is not AP-scaled) and none from crit. Modified by STORM weather (x1.3, then x(1 - 0.2 per ELECTRIC_QUARTZ of the target's player)) and by the target's duration reductions (SWIFT_SWIM x0.7, else HYDRATION x0.5, else WATER_VEIL / SURGE_SURFER x0.3, then x(1 - 0.1 per ODD_KEYSTONE)), with rounding inside the reduction helper.",
+    "scaling": "none from AP or crit (executed: AP 100 + crit still requests 3000). Stored duration: STORM x1.3 then x(1 - 0.2 per ELECTRIC_QUARTZ of the target's player), linear in the quartz count and only in STORM (executed: 3900 / 3120 / 2340 / 1560 for 0..3 quartz; 3000 outside STORM with two quartz); then the victim reductions (SWIFT_SWIM x0.7, else HYDRATION x0.5 (1500 executed), else WATER_VEIL / SURGE_SURFER x0.3, then Odd Keystone).",
     "applicationOrder": "first, before the damage",
-    "guards": "not applied when the status has runeProtect or the target has IMMUNITY_PARALYSIS (the refusal does not cancel the damage request). The timer is replaced only when the new reduced duration is longer than the remaining paralysisCooldown. A CHERI_BERRY holder eats the berry after a successful application. No protect check inside triggerParalysis.",
+    "guards": "Refused by Rune Protect or IMMUNITY_PARALYSIS (executed); the refusal does not cancel the damage request. The timer is replaced only when the new stored duration is longer than the remaining time (9000 kept). A CHERI_BERRY holder eats the berry after an accepted application: the paralysis flag is cleared at once (false, cooldown 0), IMMUNITY_PARALYSIS is added and attack +10 (executed) while the damage is still dealt. No protect check inside triggerParalysis.",
     "effectInCombat": "paralysed units use half speed for the attack cooldown and for movement speed, and cannot dodge; the status ends when updateParalysis runs the timer out",
     "evidence": [
      "para",
@@ -154,7 +154,8 @@
      "para-atk",
      "para-move",
      "para-dodge"
-    ]
+    ],
+    "combatEffect": "see the structured effect fields"
    }
   ],
   "buffs": [],
@@ -170,7 +171,7 @@
     "ELECTRIKE": 30,
     "MANECTRIC": 60
    },
-   "note": "indexed by the casting entity's stars; the 3000 ms paralysis does not vary with stars. 240 is not reached at the factory star counts of these units. Whether other mechanics change an entity's star count was not examined.",
+   "note": "indexed by the casting entity's stars; the 240 (fallback) entry is declared in the tables but unused by the bound baseline classes (Electrike 1, Manectric 2, Arctozolt 3). The 3000 ms paralysis does not vary with stars.",
    "evidence": [
     "table",
     "unit-arctozolt",
@@ -180,7 +181,7 @@
   },
   "positionalConditions": "None in the strategy beyond having a target; the cast range follows the unit's range, which this record does not interpret.",
   "repeatedCastsAndModes": "No stored state or modes. Repeated casts re-request 3000 ms; the paralysis timer only grows when the new request exceeds the remaining time.",
-  "rawVsResolved": "Declared raw: special damage 30/60/120 for the listed units' stars; paralysis 3000 ms (requested). Requested damage = raw; applied = raw x (1 + AP/100) x crit factor etc.; takenDamage (unused here) = what handleDamage reports after SPE_DEF, the min-1 floor, shield and HP cap. Paralysis: requested 3000 ms; applied duration = after storm weather and the target's duration reductions; effective timer = the larger of the old remainder and the new value.",
+  "rawVsResolved": "Declared raw: SPECIAL 30 / 60 / 120 / 240 (fallback 240); paralysis request 3000 ms before the hit. Requested damage = raw x (1 + AP/100) [x crit]; applied after SPE_DEF and shared steps. Paralysis: requested 3000, stored after STORM / Quartz (linear, STORM only) and reductions; effective timer = the larger of the old remainder and the new value; a Cheri holder can clear it.",
   "sourceTables": [
    {
     "id": "damage",
@@ -201,7 +202,7 @@
    "Whether STORM weather can be active in the fight modes this reference covers was not examined",
    "Whether the three units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerParalysis, the Cheri Berry case text, handleSpecialDamage) and the real ThunderFangStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order paralysis then damage (3000 / 30, 120), no AP / crit duration scaling, Quartz 3900 / 3120 / 2340 / 1560 in STORM and 3000 outside, the guards, HYDRATION 1500, the longer-timer rule, the Cheri clearing (flag false, IMMUNITY_PARALYSIS, +10 attack) and the Protected target."
   ],
   "evidence": [
    {
@@ -567,6 +568,20 @@
     "expect": "!target.status.paralysis &&",
     "note": "a paralysed target cannot dodge"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T193417Z",
+   "reason": "paralysis before SPECIAL, Quartz linear and STORM-only, Cheri clears an accepted application",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

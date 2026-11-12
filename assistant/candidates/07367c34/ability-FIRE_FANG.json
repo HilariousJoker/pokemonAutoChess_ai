@@ -62,7 +62,7 @@
     "ff-super"
    ]
   },
-  "summary": "Single-target SPECIAL damage on the cast target, raw 30/60/120/240 by caster stars (Growlithe 30, Arcanine 60), AP-scaled, followed by a 2000 ms burn on the same target (origin = caster). Crit applies only with ability crit. No movement.",
+  "summary": "Single target. SPECIAL damage 30 / 60 / 120 / 240 by caster stars (fallback 240) FIRST, then ONE burn attempt of 2000 ms on the TARGET (not the caster, origin = caster). A zero-damage or blocked hit does not skip the burn. The burn reuses the burn guards (IMMUNITY_BURN, Rune Protect, WATER_BUBBLE), duration reductions, longer-timer rule, weather and the request-based side reactions (Guts, Well Baked, Magmarizer, Rawst). No AP / crit duration multiplier.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -113,9 +113,10 @@
     "kind": "status",
     "status": "BURN",
     "declaredRaw": {
-     "durationMs": 2000
+     "duration": 2000,
+     "unit": "ms"
     },
-    "scaling": "Requested duration 2000 ms, not AP-scaled. Applied duration = 2000 after the target's duration reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone x(1-0.1 per stone)); it replaces the burn timer and origin only if longer than the remaining burn time. Not applied with IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive.",
+    "scaling": "Requested duration 2000 ms on the TARGET, not AP- or crit-scaled. Stored duration = 2000 after the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone); it replaces the burn timer and origin only if longer than the remaining burn time. Not applied with IMMUNITY_BURN, Rune Protect or the WATER_BUBBLE passive. The caster is not burned.",
     "resolution": "While burning the target takes TRUE damage each 1000 ms tick equal to round(5% of its max HP) with weather / item / effect multipliers (Drought x1.3 less Heat Rock, Rain x0.7, Assault Vest x0.5, duration-reduction effects as above); no tick damage with the Well Baked passive or Magmarizer. The burn is applied after the damage call and even when that damage was blocked; side effects on the burned unit (Guts, Well Baked, Magmarizer, Rawst Berry) are listed in the evidence note.",
     "evidence": [
      "ff-burn",
@@ -132,8 +133,14 @@
   "statusEffects": [
    {
     "status": "BURN",
-    "target": "cast target",
-    "durationMs": 2000,
+    "target": "the TARGET (never the caster)",
+    "declaredRaw": {
+     "duration": 2000,
+     "unit": "ms"
+    },
+    "scaling": "none from AP or crit (executed: AP 100 + crit still stores 2000).",
+    "guards": "IMMUNITY_BURN, Rune Protect and WATER_BUBBLE refuse (executed). HYDRATION halves the stored time (1000); the timer and origin are replaced only if the new time exceeds the remaining burn (9000 kept, 500 replaced).",
+    "combatEffect": "Burn ticks as a TRUE-damage stream not part of the cast damage; side reactions on application are requests: Well Baked addDefense(20), Magmarizer addSpeed(30), Guts addAttack(5), a Rawst holder eats the berry (all executed in the stand-in).",
     "evidence": [
      "ff-burn",
      "burn-set"
@@ -151,7 +158,7 @@
     "GROWLITHE": 30,
     "ARCANINE": 60
    },
-   "note": "indexed by the casting entity's stars; the 120 and 240 (fallback) entries are not reachable by these two units' star counts. Burn duration does not depend on stars. maxPP 80 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 120 and 240 (fallback) entries are declared in the tables but unused by the bound baseline classes (Growlithe 1, Arcanine 2). The burn duration does not depend on stars. maxPP 80 and range 1 for both.",
    "evidence": [
     "ff-dmg",
     "unit-growlithe",
@@ -160,7 +167,7 @@
   },
   "positionalConditions": "None beyond needing a target (requiresTarget true).",
   "repeatedCastsAndModes": "No stored state or modes. Recasting on a burning target only extends the burn if the new 2000 ms (after reductions) exceeds the remaining time.",
-  "rawVsResolved": "Raw: damage 30/60, burn 2000 ms. Requested = raw; applied damage = requested x (1 + AP/100) [x crit], then SPE_DEF division (ceil, at least 1). Applied burn = 2000 after target-side reductions or none (immunity / Rune Protect / Water Bubble); the burn tick damage is a separate TRUE-damage stream not part of the cast damage. takenDamage is not read here.",
+  "rawVsResolved": "Raw: damage 30 / 60 / 120 / 240, burn request 2000 ms on the target. Requested damage = raw x (1 + AP/100) [x crit]; applied after SPE_DEF (ceil, at least 1). Burn: requested 2000, stored after target-side reductions or none; the burn tick damage is a separate TRUE stream. The burn attempt does not depend on the damage result (Protected target: damage 0, burn 2000).",
   "sourceTables": [
    {
     "id": "fireFangDamage",
@@ -177,7 +184,8 @@
    "Whether other code reacts to a target being burnt (synergies, items) beyond Status.triggerBurn / updateBurn"
   ],
   "unresolved": [
-   "How the target is chosen before the cast was not read."
+   "How the target is chosen before the cast was not read.",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerBurn, handleSpecialDamage) and the real FireFangStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E1); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): damage then one burn attempt (requests 30 / 60 then 2000), the burn on the target and not the caster, the Protected case (damage 0, burn applied), no AP / crit duration scaling, the guards, HYDRATION 1000, longer-timer rule, and the Well Baked / Magmarizer / Guts / Rawst reactions."
   ],
   "evidence": [
    {
@@ -455,6 +463,20 @@
     "expect": "reducedDamage = min(1)(Math.ceil(reducedDamage))",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E1",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T193417Z",
+   "reason": "burn attempt on the target after SPECIAL, independent of the damage result",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E1",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
