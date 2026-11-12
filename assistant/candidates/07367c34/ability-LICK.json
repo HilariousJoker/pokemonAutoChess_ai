@@ -27,11 +27,11 @@
     "lk-super"
    ]
   },
-  "summary": "On the cast target only: requests confusion for 3000 ms, then paralysis for 3000 ms (neither scaled by AP, both subject to their trigger guards), then deals SPECIAL damage (raw 30/60/120/240 by the caster's stars, AP-scaled because apBoost is passed as true). The statuses are applied before the damage, so a Persim / Cheri Berry holder eats the berry before the hit lands. No displacement, no shield, no buff.",
+  "summary": "Target only. Three independent attempts in this order: confusion 3000 ms, paralysis 3000 ms (both with the caster as origin, no AP / crit duration scaling, each with its own guards), then SPECIAL 30 / 60 / 120 / 240 by caster stars (fallback 240). Berry reactions fire inside the status calls, so a Persim or Cheri holder eats the berry before the hit lands. A confused unit picks its attack target with getTargetWhenConfused (one luck-adjusted chance(0.5) roll), not a fixed 50% friendly-fire rule.",
   "targeting": {
    "who": "the cast target only",
    "needsTarget": true,
-   "note": "No area, no secondary targets. The same unit receives the two status requests and the damage.",
+   "note": "No area, no secondary targets. The same unit receives the two status requests and the damage. Once confused, the target's own attack-target choice goes through getTargetWhenConfused: ONE chance(0.5, luck) roll decides the branch (success: only isTargettableBy enemies in the nearest tier within range + 1; failure: same-team units become candidates and the confused unit itself is appended); MERCILESS can also admit a same-team unit at HP <= 10 (executed).",
    "evidence": [
     "lk-conf",
     "lk-para",
@@ -64,7 +64,7 @@
      "LICKITUNG": 30
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage is called with apBoost = true (explicit sixth argument, also its default): x (1 + AP/100); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "requested vs applied vs taken: applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The damage is not conditional on either status having been applied (the statuses are requests with their own guards).",
+    "resolution": "requested amount = raw x AP factor [x crit]; applied after the target's SPE_DEF division (ceil, min 1) and shields; blocked entirely by protect / skydiving / magicBounce (damage 0, executed). The damage is not conditional on either status having been applied (a Protected target ends confused and paralysed, executed). The returned takenDamage is not read by this strategy.",
     "evidence": [
      "lk-table",
      "lk-hit",
@@ -86,19 +86,16 @@
    {
     "status": "CONFUSION",
     "target": "the cast target",
-    "durationMs": 3000,
-    "probability": 1,
-    "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "LICKILICKY": 3000,
      "LICKITUNG": 3000
     },
-    "scaling": "none from stars, AP or crit: the apBoost argument of triggerConfusion is left at its default false",
-    "resolution": "applied only if the target is not already confused, has no Rune Protect and lacks IMMUNITY_CONFUSION (an already running confusion is not refreshed or extended); applied duration = requested x1.3 in SANDSTORM, then the target's reductions (Swift Swim x0.7, Hydration x0.5, Water Veil / Surge Surfer x0.3, Odd Keystone -10% each), rounded. A Persim Berry holder eats the berry on application; a Psyduck-passive target gains 100 AP. A confused attacker selects its attack target through getTargetWhenConfused; when the timer ends the target is cleared.",
+    "scaling": "none from stars, AP or crit (the apBoost argument of triggerConfusion is left at its default false; executed: AP 100 + crit still requests 3000).",
+    "resolution": "see guards and combatEffect",
     "evidence": [
      "lk-conf",
      "conf-fn",
@@ -109,24 +106,23 @@
      "conf-berry",
      "conf-atk",
      "conf-end"
-    ]
+    ],
+    "guards": "Refused if the target is already confused (the running timer is kept: 500 stays 500), has Rune Protect, or has IMMUNITY_CONFUSION (all executed). Attempted independently of the paralysis and of the damage.",
+    "combatEffect": "Stored duration = requested x1.3 in SANDSTORM (3900), then the target's reductions (HYDRATION 1500, Swift Swim x0.7, Water Veil / Surge Surfer x0.3, Odd Keystone), rounded. A Persim Berry holder eats the berry right after the application (before the paralysis and the damage): confusion cleared, IMMUNITY_CONFUSION, SPE_DEF +10 (executed); a Psyduck-passive target gains 100 AP. A confused attacker selects its target through getTargetWhenConfused; when the timer ends the target is cleared."
    },
    {
     "status": "PARALYSIS",
     "target": "the cast target",
-    "durationMs": 3000,
-    "probability": 1,
-    "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "LICKILICKY": 3000,
      "LICKITUNG": 3000
     },
-    "scaling": "none from stars, AP or crit: the apBoost argument of triggerParalysis is left at its default false",
-    "resolution": "applied unless the target has Rune Protect or IMMUNITY_PARALYSIS; applied duration = requested x1.3 in a STORM (with a further -20% per Electric Quartz on the target's player), then the target's reductions, rounded; the timer is replaced only if the new duration exceeds the remaining one. A Cheri Berry holder eats the berry on application. While paralysed, the unit's attack cooldown uses half its speed.",
+    "scaling": "none from stars, AP or crit (apBoost left at false).",
+    "resolution": "see guards and combatEffect",
     "evidence": [
      "lk-para",
      "para-fn",
@@ -137,7 +133,9 @@
      "para-set",
      "para-berry",
      "para-speed"
-    ]
+    ],
+    "guards": "Refused by Rune Protect or IMMUNITY_PARALYSIS (executed); independent of the confusion and of the damage. The timer is replaced only if the new stored duration is longer (9000 kept).",
+    "combatEffect": "Stored duration = requested x1.3 in STORM, then x(1 - 0.2 per Electric Quartz) (2340 with two quartz, executed), then the target's reductions (HYDRATION 1500), rounded. A Cheri Berry holder eats the berry after the application, which clears the paralysis before the damage (executed). While paralysed the speed INPUT of the attack-cooldown formula is halved (see ICE_HAMMER)."
    }
   ],
   "buffs": [],
@@ -151,7 +149,7 @@
     "LICKILICKY": 60,
     "LICKITUNG": 30
    },
-   "note": "Only the damage is indexed by the casting entity's stars; both status durations are fixed at 3000 ms. The 3-star (120) and 4-star (240, also the ?? fallback) values are not reachable by the bare factory star counts of the listed units. Whether other mechanics raise an entity's star count was not examined.",
+   "note": "Only the damage is indexed by the casting entity's stars; both status durations are fixed at 3000 ms. The 3-star (120) and 4-star (240, also the ?? fallback) values are declared in the tables but unused by the bound baseline classes (Lickitung 1, Lickilicky 2). Whether other mechanics raise an entity's star count was not examined.",
    "evidence": [
     "lk-table",
     "unit-lickilicky",
@@ -160,7 +158,7 @@
   },
   "positionalConditions": "None: the ability does not read coordinates.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Re-casting on a target that is still confused leaves the running confusion untouched (not refreshed); on a target that is still paralysed the timer is lengthened only if 3000 ms (after modifiers) exceeds the remaining time. The damage applies every cast.",
-  "rawVsResolved": "Requested: confusion 3000 ms, paralysis 3000 ms, damage 30 (Lickitung 1 star) / 60 (Lickilicky 2 stars). Applied durations = requested after weather and the target's duration reductions, or nothing if a guard refuses; applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. No stat helper (Big Eater Belt / Twist Band) is involved because no stat is changed.",
+  "rawVsResolved": "Requested: confusion 3000 ms, paralysis 3000 ms, damage 30 (Lickitung) / 60 (Lickilicky). Stored durations = requested after weather and the target's reductions, or nothing if a guard refuses (3900 / 2340 / 1500 executed); damage = requested x (1 + AP/100) x optional crit, then SPE_DEF division and minimum 1. No stat helper is involved.",
   "sourceTables": [
    {
     "id": "damage",
@@ -174,13 +172,13 @@
   "dependsOnUnverifiedGenericCombat": [
    "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
-   "getTargetWhenConfused (how a confused unit picks a target) was not read",
+   "The attacking state's use of getTargetWhenConfused beyond the cited call site (attacking-state.ts:46) was not traced; the function text itself was read and executed",
    "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) and Pokemon.eatBerry effects were not read"
   ],
   "unresolved": [
-   "Whether the three-way ordering (confusion, paralysis, damage) matters for a target that dies from the damage: the statuses are written before the damage in the source and the result of handleSpecialDamage is not used",
+   "The order confusion, paralysis, damage is executed; the statuses are written before the damage and the returned damage result is unused, so a target that dies from the hit still received both attempts (stand-in, not a fight)",
    "Whether the two units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerConfusion, triggerParalysis, the Persim / Cheri case text, getTargetWhenConfused, handleSpecialDamage) and the real LickStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order confusion, paralysis, damage, no AP / crit duration scaling, SANDSTORM / STORM / HYDRATION durations, the guards and independence, the Persim-before-paralysis and Cheri-before-damage ordering, the Protected case, and the confused target selection with controlled rolls."
   ],
   "ability": "LICK",
   "label": "production-branch reference; deployment unverified",
@@ -658,6 +656,20 @@
     "expect": "const speed = pokemon.status.paralysis ? pokemon.speed / 2 : pokemon.speed",
     "note": "a paralysed unit attacks at half speed"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T195249Z",
+   "reason": "independent confusion/paralysis/damage attempts; accurate confusion targeting",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

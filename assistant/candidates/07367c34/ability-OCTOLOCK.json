@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target SPECIAL damage (30 raw at 1 star, 60 at 2 stars), then the same duration is requested for two statuses on the target: LOCKED and armor reduction (halves the target's def and speDef while active). Order: damage, then LOCKED, then armor reduction. Both durations are 3000 ms for 1 and 2 stars (6000 at 3 stars, 10000 for 4 or more; not reachable by the two listed units). Because the damage is dealt first, the halving from this cast does not affect this cast's damage, only an armor reduction already active on the target does. LOCKED and armor reduction are independent: a refused LOCKED (already locked, skydiving, runeProtect, IMMUNITY_LOCKED, or CC cooldown) does not stop the armor reduction, and runeProtect blocks both.",
+  "summary": "SPECIAL 30 / 60 / 90 / 180 (fallback 180) FIRST, then locked and armorReduction on the original target with the same requested duration 3000 / 3000 / 6000 / 10000 (no AP / crit scaling). The target supplies the reductions. The two statuses refuse independently: skydiving, ccCooldown, IMMUNITY_LOCKED or an existing lock refuse only the lock, Rune Protect refuses both. A new armor reduction cannot change this cast's damage; one already active does halve the target's SPE_DEF in the hit.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -96,7 +96,7 @@
      "GRAPPLOCT": 60
     },
     "scaling": "AP: damage x (1 + AP/100) (apBoost defaults to true); a cast crit multiplies by critPower reduced by the target's critReductionFactor (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "requested amount = raw x AP x crit factor; applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved (Math.round) if the target already had armor reduction before this cast, ceil, minimum 1, shield first; takenDamage is not used by this ability. Blocked (0) by protect / skydiving / magicBounce (magicBounce may reflect SPECIAL damage unless the caster holds Protective Pads) and for a dead or resurrecting target. Statuses below are still requested after a blocked hit.",
+    "resolution": "requested amount = raw x AP x crit factor; applied: handleDamage divides by (1 + 0.05 x speDef) with speDef halved (Math.round) if the target ALREADY had armor reduction before this cast, ceil, minimum 1, shield first; the returned takenDamage is not used by this ability. Blocked (0) by protect / skydiving / magicBounce. Both statuses are still requested after a blocked hit (executed).",
     "evidence": [
      "oc-dmg",
      "oc-hit",
@@ -121,15 +121,15 @@
       "1": 3000,
       "2": 3000,
       "3": 6000,
-      "4": 10000,
-      "fallback": 10000
+      "4": 10000
      },
+     "fallback": 10000,
      "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "after the damage, before armor reduction",
-    "guards": "refused when the target is already locked (no stacking), skydiving, has runeProtect, has the IMMUNITY_LOCKED effect, or has ccCooldown > 0; an enraged target gets half the duration; then applyStatusDurationReductions (SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3, Odd Keystone -10% per stone); the cooldown is set to the rounded result",
-    "combatEffect": "target range forced to 1 (a retarget is forced if it was not 1); a locked unit cannot move (canMove) and cannot be moved by effects (canBeMoved); cannot dodge a basic attack (dodge roll skipped in handleAttack); the dark-type jump in MovingState is disabled. When LOCKED ends the range is restored and a CC cooldown begins during which LOCKED is refused. Whether the target can still attack or cast while locked: canAttack and canCast do not test locked.",
+    "guards": "Refused when the target is already locked (existing timer kept: 800), skydiving, has Rune Protect, has IMMUNITY_LOCKED, or has ccCooldown > 0 (all executed); an enraged target gets half the duration (1500); then the target's reductions (HYDRATION 1500, Swift Swim x0.7, Water Veil / Surge Surfer x0.3, Odd Keystone); the cooldown is the rounded result. Refusal does not stop the armor reduction.",
+    "combatEffect": "On application the target's range is forced to 1 (a retarget when it was not 1: executed with range 3). Locked is one term in the canMove and canBeMoved getters (pokemon-entity.ts:235, 261), in the dodge guard (pokemon-state.ts:107) and the dark-type jump condition (moving-state.ts:87); only the locked term was read, not the other conditions at those sites, and canAttack / canCast do not test locked. When it ends the range is restored and ccCooldown refuses a new lock for its duration.",
     "evidence": [
      "oc-dur",
      "oc-lock",
@@ -154,15 +154,15 @@
       "1": 3000,
       "2": 3000,
       "3": 6000,
-      "4": 10000,
-      "fallback": 10000
+      "4": 10000
      },
+     "fallback": 10000,
      "unit": "ms (requested)"
     },
     "scaling": "none from AP or crit",
     "applicationOrder": "after LOCKED",
-    "guards": "not applied with runeProtect; the duration passes through applyStatusDurationReductions; a new value replaces the remaining time only if longer",
-    "combatEffect": "while active, PokemonState.handleDamage uses round(def / 2) and round(speDef / 2) when computing damage taken by the target (also seen in the Power Lens retaliation computation); it does not change the stored stat values.",
+    "guards": "Refused only by Rune Protect (executed: it refuses both statuses); not stopped by a refused lock or a Protected hit. The duration passes through the target's reductions (HYDRATION 1500; enraged does NOT halve it: 3000); a new value replaces the remaining time only if longer (9000 kept).",
+    "combatEffect": "While active, handleDamage uses round(def / 2) and round(speDef / 2) for damage the target takes. Executed: this cast's own hit is computed before the new reduction (SPE_DEF 20 -> 15 returned), while a reduction already active halves SPE_DEF in the same hit (SPE_DEF 10 -> 20 returned). Stored stat values are unchanged.",
     "evidence": [
      "oc-armor",
      "armor-trig",
@@ -186,7 +186,7 @@
     "CLOBBOPUS": 3000,
     "GRAPPLOCT": 3000
    },
-   "note": "indexed by the caster's stars; the 3 and 4 star values (90 / 180 damage, 6000 / 10000 ms) are not reachable by the two listed units. maxPP 65 and range 1 for both.",
+   "note": "indexed by the caster's stars; the 3-star and 4-star entries (damage 90 / 180, duration 6000 / 10000) are declared in the tables but unused by the bound baseline classes (Clobbopus 1, Grapploct 2). maxPP 65 and range 1 for both.",
    "evidence": [
     "oc-dmg",
     "oc-dur",
@@ -196,7 +196,7 @@
   },
   "positionalConditions": "None read beyond needing a target (range 1 for both units).",
   "repeatedCastsAndModes": "No stored state, no modes. A second cast during LOCKED does not re-lock (no stacking) but still applies damage and can lengthen armor reduction; after LOCKED ends the CC cooldown refuses a new lock for its duration.",
-  "rawVsResolved": "Declared raw: damage 30 / 60, duration 3000 ms for both statuses (1 and 2 stars). Damage dealt = raw x (1 + AP/100) [x crit factor], then speDef division (ceil, at least 1). Durations are requested values: enraged halves LOCKED only; applyStatusDurationReductions then shortens both; the lock may be refused entirely.",
+  "rawVsResolved": "Declared raw: damage 30 / 60 / 90 / 180, duration 3000 / 3000 / 6000 / 10000 for both statuses. Damage = raw x (1 + AP/100) [x crit], then SPE_DEF division (halved SPE_DEF only if an armor reduction was already active), ceil, at least 1. Durations are requested values: enraged halves the lock only; the target's reductions shorten both; the lock may be refused while the armor reduction applies.",
   "sourceTables": [
    {
     "id": "octolockDamage",
@@ -222,7 +222,7 @@
    "How a locked unit's basic attacks or casts behave beyond canMove / canBeMoved / dodge / dark jump was not traced further",
    "Whether passives or items change LOCKED or armorReduction beyond those listed (a passive resets lockedCooldown at app/core/effects/passives.ts:1682, not read in detail)",
    "No other unit sharing the identifier exists in the queue; units not listed are not covered",
-   "Mechanical checks only; no probe was run and no fight observed"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerLocked, triggerArmorReduction, handleSpecialDamage) and the real OctolockStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the order damage, locked, armorReduction, the star durations, independent refusals, enrage / HYDRATION effects, the range forcing, and the damage with and without an armor reduction already active."
   ],
   "evidence": [
    {
@@ -588,6 +588,20 @@
     "expect": "!pokemon.status.locked",
     "note": "dark-type jump disabled while locked"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T195249Z",
+   "reason": "damage first, independent refusals, armor reduction timing, guarded movement",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

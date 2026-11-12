@@ -62,7 +62,7 @@
     "ih-super"
    ]
   },
-  "summary": "Single target, three steps in this order: (1) request a 3000 ms freeze on the cast target; (2) request a 3000 ms paralysis on the CASTER itself (a drawback: the caster's attack cooldown speed is halved while paralysed); (3) deal SPECIAL damage to the target (raw 50 at 1 star, 100 at 2 stars; 200 / 400 for 3 / 4 stars exist in the table). The freeze is a request subject to Status.triggerFreeze guards and duration changes; the paralysis likewise to Status.triggerParalysis; neither duration scales with AP or crit. The damage is not conditioned on either status having been applied; it is dealt after them (so the target is already frozen when the damage lands if the freeze was applied).",
+  "summary": "Three steps in order: (1) freeze 3000 ms attempted on the TARGET (origin caster); (2) paralysis 3000 ms attempted on the CASTER itself; (3) SPECIAL 50 / 100 / 200 / 400 on the target. The two statuses refuse independently and neither depends on the damage; no AP / crit duration scaling. Freeze guards differ from the paralysis ones (existing freeze, skydiving, Rune Protect, immunity, ccCooldown, weather, enrage, Aspear versus Rune Protect, immunity, weather, reductions, Cheri). Paralysis halves the speed input of the attack formula, not the attack rate.",
   "targeting": {
    "who": "the cast target (freeze and damage) and the caster itself (paralysis)",
    "needsTarget": true,
@@ -103,7 +103,7 @@
      "CRABRAWLER": 50
     },
     "scaling": "requested = table[stars-1]. handleSpecialDamage then: x (1 + AP/100) (apBoost is passed explicitly as true, same as the default); x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite. Not conditioned on the freeze or the paralysis.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce. The returned takenDamage / death is not used by this ability.",
+    "resolution": "applied = requested after AP / crit / multipliers; handleDamage then divides by (1 + ARMOR_FACTOR x SPE_DEF), rounds up with a minimum of 1 and lets the shield absorb first; 0 with protect / skydiving / magicBounce (executed). The returned takenDamage is not used by this ability. The damage is not conditioned on either status (executed).",
     "evidence": [
      "ih-table",
      "ih-hit",
@@ -125,19 +125,16 @@
    {
     "status": "FREEZE",
     "target": "the cast target",
-    "durationMs": 3000,
-    "probability": 1,
-    "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "CRABOMINABLE": 3000,
      "CRABRAWLER": 3000
     },
-    "scaling": "none from stars, AP or crit",
-    "resolution": "Requested vs applied. Applied only if the target is not already frozen, has no rune protect, is not skydiving, has no IMMUNITY_FREEZE and its ccCooldown is 0. Applied duration = round(requested x 1.3 in snow (then x(1 - 0.2 per Icy Rock in the victim's player's items) when present) or x0.7 in drought, /2 if the target is enraged, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone)). Side effects when applied: an Aspear Berry holder eats it, an EISCUE_NOICE target (and EISCUE_NOICE caster) transforms to ice face. Frozen units cannot move or attack and cannot dodge; when the freeze ends, ccCooldown (1500 ms) blocks a new freeze or sleep.",
+    "scaling": "none from stars, AP or crit (executed: AP 100 + crit still requests 3000).",
+    "resolution": "see guards and combatEffect",
     "evidence": [
      "ih-freeze",
      "frz-guard",
@@ -151,24 +148,23 @@
      "frz-nododge",
      "frz-end",
      "cc-cd"
-    ]
+    ],
+    "guards": "Recipient = the TARGET, origin = the caster. Refused if the target is already frozen (existing timer kept: 700), has Rune Protect, is skydiving, has IMMUNITY_FREEZE, or ccCooldown > 0 (all executed). Independent of the caster's paralysis and of the damage (a Protected target is still frozen, damage 0).",
+    "combatEffect": "Stored duration: SNOW x1.3 then x(1 - 0.2 per Icy Rock) (3900 / 2340 with two rocks), DROUGHT x0.7 (2100), enraged target /2, then the victim's reductions (HYDRATION 1500). On application an Aspear Berry holder eats the berry, and an EISCUE_NOICE target or origin transforms to Ice Face (transformToIceFace, shield 50) - executed. Frozen units cannot move or attack and cannot dodge; when the freeze ends ccCooldown (1500 ms) blocks a new freeze or sleep."
    },
    {
     "status": "PARALYSIS",
     "target": "the caster itself (self-inflicted)",
-    "durationMs": 3000,
-    "probability": 1,
-    "apScaled": false,
     "declaredRaw": {
-     "durationMs": 3000,
-     "label": "requested duration"
+     "duration": 3000,
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "CRABOMINABLE": 3000,
      "CRABRAWLER": 3000
     },
-    "scaling": "none from stars, AP or crit (apBoost not passed, so false; origin is the caster itself)",
-    "resolution": "Requested vs applied. Applied unless the caster has rune protect or IMMUNITY_PARALYSIS (there is no ccCooldown or already-paralysed guard; the flag is set first). Applied duration = round(requested x 1.3 in a storm (then x(1 - 0.2 per Electric Quartz in the caster's player's items)), then the water-ability and Odd Keystone reductions); the stored timer is replaced only if the new duration is longer than the remaining one. A Cheri Berry holder eats it. While paralysed the unit attack-cooldown speed is speed / 2; the flag is cleared when the timer runs out. Paralysis effects elsewhere (movement, other abilities) were not enumerated.",
+    "scaling": "none from stars, AP or crit (apBoost left false; origin is the caster itself).",
+    "resolution": "see guards and combatEffect",
     "evidence": [
      "ih-para",
      "par-guard",
@@ -180,7 +176,9 @@
      "red-odd",
      "par-speed",
      "par-heal"
-    ]
+    ],
+    "guards": "Recipient = the CASTER. Refused only by Rune Protect or IMMUNITY_PARALYSIS (executed); there is no ccCooldown or already-paralysed guard (ccCooldown 300 still paralyses; an existing 700 timer becomes 3000 because the new value is longer). Independent of the freeze: the freeze can be refused while the paralysis still applies, and vice versa.",
+    "combatEffect": "Stored duration: STORM x1.3 then x(1 - 0.2 per Electric Quartz) (3120 with one quartz, executed), then the caster's reductions (HYDRATION 1500). A Cheri Berry holder eats the berry after the application and clears it (executed). While paralysed the speed INPUT of the attack-cooldown formula round(1000 / (0.4 + speed x 0.007)) is halved: speed 100 gives 909 ms normally and 1333 ms paralysed (x1.47), speed 50 gives 1333 and 1739 (x1.30) - NOT a literal half attack rate; movement speed uses speed / 2 in 0.5 + speed / 100. The flag clears when the timer runs out."
    }
   ],
   "buffs": [],
@@ -194,7 +192,7 @@
     "CRABOMINABLE": 100,
     "CRABRAWLER": 50
    },
-   "note": "Only the damage is indexed by the casting entity's stars (four values; ?? 400 fallback). The listed units are catalog stars 2 and 1. Freeze and paralysis durations are fixed at 3000 ms. Whether other mechanics change an entity's star count was not examined.",
+   "note": "Only the damage is indexed by the casting entity's stars (four values; ?? 400 fallback); the 3-star and 4-star entries are declared in the tables but unused by the bound baseline classes (Crabrawler 1, Crabominable 2). Freeze and paralysis durations are fixed at 3000 ms. Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "ih-table",
     "unit-crabominable",
@@ -203,7 +201,7 @@
   },
   "positionalConditions": "None in this strategy; range comes from the unit (1).",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP. Because the freeze is rejected on an already frozen target or during its ccCooldown window, a second cast on the same target may deal damage without freezing it; the caster's paralysis timer is only extended, never shortened.",
-  "rawVsResolved": "Requested: freeze 3000 ms on the target, paralysis 3000 ms on the caster, damage 50 / 100 (1 / 2 stars). Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage. Applied freeze / paralysis durations = requested after weather, enrage (freeze only), water-ability, Odd Keystone and the item reductions listed, and only if the guards pass; the freeze can be rejected while the paralysis is still applied, and vice versa.",
+  "rawVsResolved": "Requested: freeze 3000 ms on the target, paralysis 3000 ms on the caster, damage 50 / 100 (1 / 2 stars). Damage = requested x (1 + AP/100) x optional crit, then SPE_DEF division and minimum 1. Stored freeze / paralysis durations = requested after the weather, enrage (freeze only), reductions and items listed, and only if each status's own guards pass (executed values 3900 / 2340 / 2100 / 1500 for the freeze, 3120 / 1500 for the paralysis).",
   "sourceTables": [
    {
     "id": "damage",
@@ -218,14 +216,14 @@
    "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate was read",
    "Crit resolution - only the ABILITY_CRIT / canCritByDefault gate was located",
    "Later handleDamage branches (Shiny Charm, Fossil shield, Cover Band, death handling) were not read for this record",
-   "eatBerry (Aspear / Cheri Berry) and transformToIceFace were not read"
+   "The Aspear and Cheri berry effects were run from their pinned case text on a stand-in (heal and the stat grants were not examined); transformToIceFace was run from its pinned text"
   ],
   "unresolved": [
    "Passive BERRY_EATER (declared by both units) is a separate mechanism not traced here; a Cheri Berry eaten after the self-paralysis may interact with it",
    "Other consumers of status.paralysis (movement, abilities such as Bug Buzz / Zing Zap / Force Palm that read it on targets) were not enumerated for the self-paralysis",
    "Whether a frozen target that takes the damage is affected by any damage-triggered thaw was not traced (no thaw on damage was seen in the cited lines)",
    "Whether the listed units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerFreeze, triggerParalysis, transformToIceFace, the Aspear / Cheri case text, resetCooldown) and the real IceHammerStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): recipients and origins of both statuses, the order freeze, paralysis, damage, no AP / crit duration scaling, every freeze guard and weather case, the caster paralysis guards and Quartz, the Aspear / Cheri reactions, the Eiscue Noice transformations and the halved-speed cooldown numbers."
   ],
   "evidence": [
    {
@@ -701,6 +699,20 @@
     "expect": "export const CC_COOLDOWN = 1500",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T195249Z",
+   "reason": "target freeze vs caster paralysis, differing guards, halved speed input",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

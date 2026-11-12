@@ -150,7 +150,7 @@
     "hb-super"
    ]
   },
-  "summary": "Deals SPECIAL damage to the cast target (raw 20/40/80/160 by the caster's stars) and then flinches it for 5000 ms. If the target currently has any shield the damage is doubled. A caster whose passive is EISCUE_ICE_FACE (the Eiscue unit in its Ice Face form) first adds its whole current shield to the damage and removes that shield, which triggers the shield-depleted effect and breaks the form into Noice when the shield was above zero; Eiscue Noice has no such conversion.",
+  "summary": "SPECIAL damage to the target, base 20 / 40 / 80 / 160 (fallback 160). An Ice Face Eiscue first adds its current shield and removes it with addShield(-shield, self, 0, false), depleting it and running OnShieldDepleted (transformToNoice); then, if the target has shield > 0, the whole raw sum doubles (3 stars, shield 50 vs a shielded target requests 260). The damage argument is a snapshot, unchanged by the form change. Flinch 5000 ms follows AFTER the damage, so a new flinch cannot split this hit.",
   "targeting": {
    "who": "the cast target chosen before the cast (the strategy never changes it); requiresTarget is true so the caster must have a target",
    "needsTarget": true,
@@ -190,8 +190,8 @@
      "GALARIAN_DARUMAKA": 20,
      "WOOLOO": 20
     },
-    "scaling": "AP: damage x (1 + AP/100) (apBoost true by default); the cast's crit flag multiplies by critPower only if the cast crit (canCritByDefault is false, so it needs ABILITY_CRIT). Two raw modifiers applied before that: x2 if the target has shield > 0; for a caster with passive EISCUE_ICE_FACE, + its current shield first (so the doubling covers the added shield).",
-    "resolution": "then the target's SPE_DEF division and later untraced modifiers; blocked entirely by protect / skydiving / magicBounce. If the target is flinched later hits on its shield only reduce the shield by half, see statusEffects.",
+    "scaling": "AP: x(1 + AP/100) (apBoost true); a cast crit multiplies by critPower (needs ABILITY_CRIT). Raw modifiers before that, in order: for a caster with passive EISCUE_ICE_FACE, + its current shield and the shield is removed (addShield(-shield, self, 0, false): a Big Eater Belt turns -50 into -63 and -100 into -125, which only overshoots; shield ends 0, the overshoot is not extra damage); then x2 if the target has shield > 0, covering the added shield. Executed: 130 without a target shield, 260 with one; an Eiscue Noice caster has no conversion (160, shield 50 kept); an Ice Face caster with shield 0 requests addShield(-0) (no hook).",
+    "resolution": "then the target's SPE_DEF division and later modifiers; blocked entirely by protect / skydiving / magicBounce (damage 0, executed). A flinch already active at the hit splits the target's shield (shield 100 -> 20, HP -80); the flinch applied by this cast comes after and cannot split this hit (shield 100 -> 0, HP -60). The returned takenDamage is not read.",
     "evidence": [
      "hb-table",
      "hb-iceface",
@@ -209,11 +209,11 @@
     "status": "flinch",
     "target": "the cast target",
     "declaredRaw": {
-     "value": 5000,
+     "duration": 5000,
      "unit": "ms"
     },
     "scaling": "none from AP or crit (no apBoost argument); applied after the damage call",
-    "guards": "not applied if the target has runeProtect; duration passes applyStatusDurationReductions (not read in detail); a new flinch only replaces the remaining time if it is longer",
+    "guards": "Refused by Rune Protect (executed); the duration passes applyStatusDurationReductions; a new flinch replaces the remaining time only if longer (9000 kept). Applied after the damage whatever its result (a Protected target is still flinched).",
     "combatEffect": "read in pokemon-state: while flinched, a shielded unit takes only half of reduced damage on the shield and the other half passes to HP. Other uses of flinch (status.ts hasNegativeStatus list, transferNegativeStatus, pokemon-entity flinch chance at line 1048) were located but not analysed.",
     "evidence": [
      "hb-flinch",
@@ -263,7 +263,7 @@
     "GALARIAN_DARUMAKA": 20,
     "WOOLOO": 20
    },
-   "note": "indexed by the casting entity's stars; the 4-star column (160) is not reachable by any of the eight units' bare factory star counts (1, 2 or 3). Whether other mechanics raise an entity's star count was not examined.",
+   "note": "indexed by the casting entity's stars; the 4-star column (160) is declared in the tables but unused by the bound baseline classes (Darumaka / Wooloo 1, Darmanitan / Dubwool 2, Eiscue 3). Whether other mechanics raise an entity's star count was not examined.",
    "evidence": [
     "hb-table",
     "unit-darmanitan",
@@ -278,7 +278,7 @@
   },
   "positionalConditions": "None in the strategy. The cast needs a target (requiresTarget true).",
   "repeatedCastsAndModes": "No stored state in the strategy. Eiscue (Ice Face) changes form into Noice after a cast that consumes shield; the next casts as Noice use the plain star table with no shield conversion until the form is restored by other code. Two flinches on the same target extend only if the new duration is longer.",
-  "rawVsResolved": "Declared raw: damage 20/40/80 (1/2/3 stars), x2 against a shielded target, plus caster shield for Ice Face Eiscue; flinch 5000 ms. The damage dealt is the (doubled) raw x (1 + AP/100), then the SPE_DEF division and untraced modifiers; the flinch length is the raw value after status duration reductions.",
+  "rawVsResolved": "Declared raw: damage 20 / 40 / 80 / 160, x2 against a shielded target, plus the caster's current shield for an Ice Face Eiscue (summed before the doubling); flinch 5000 ms. The damage argument is the snapshot sum; the dealt amount is that x (1 + AP/100) [x crit] after SPE_DEF and shields. The shield-removal overshoot (Belt) is not extra damage.",
   "sourceTables": [
    {
     "id": "damage",
@@ -298,11 +298,11 @@
   ],
   "unresolved": [
    "Passives DARMANITAN, GALARIAN_DARMANITAN (zen-mode transformations) and FUR_COAT are not investigated; whether they change the cast or the unit's stats during a fight is unknown",
-   "Eiscue's return to Ice Face by freeze-related effects was not read in detail; only the start-of-fight SNOW transformation was cited",
-   "Whether applyBigEaterBeltStatBuff alters the negative addShield value used to remove the shield was not read",
-   "Whether the 'shield' compared on the target includes shields that a flinch or later effects alter between the check and the damage call (the check happens first, once)",
+   "Only the OnShieldDepleted -> transformToNoice hook of the Ice Face passive was traced; other Eiscue passive hooks (including return to Ice Face) were not",
+   "The Big Eater Belt applies to the negative addShield value because the caster is the same unit (executed: -50 becomes -63, -100 becomes -125); only the shield clamp and the OnShieldDepleted hook follow",
+   "The target-shield check happens once, before the damage call, and the flinch of this cast comes after (executed: a new flinch cannot split this hit; an already active flinch does)",
    "Whether Eiscue Noice or the other listed units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addShield + the Big Eater Belt helper, transformToNoice, triggerFlinch, handleSpecialDamage) and the real HeadbuttStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units): the damage sums and doubling, the Ice Face shield removal and its hook, the Belt values, the snapshot surviving the form change, the Noice and no-shield cases, and the flinch order against an active or new flinch."
   ],
   "evidence": [
    {
@@ -701,6 +701,20 @@
     "expect": "[Passive.FUR_COAT]: [FurCoatEffect]",
     "note": "Wooloo / Dubwool passive is not covered"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T195249Z",
+   "reason": "Ice Face shield removal, Belt, OnShieldDepleted hook, snapshot damage, flinch order",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

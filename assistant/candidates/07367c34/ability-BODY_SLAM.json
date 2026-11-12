@@ -60,7 +60,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target special damage whose requested amount is a star-indexed fraction (0.3 / 0.3 / 0.5 / 0.8) of the CASTER's current maxHP, multiplied by (1 + AP/100) and rounded inside the strategy. The hit is then sent with apBoost = false, so AP is applied once (in the strategy), not twice; crit still multiplies in handleSpecialDamage when the cast crits. No status, movement or heal. The passive GLUTTON raises maxHP (berry, dish, cooking), which therefore raises this damage.",
+  "summary": "Single-target SPECIAL. The strategy requests round(fraction x the CASTER's current maxHP x (1 + AP/100)) with fraction 0.3 / 0.3 / 0.5 / 0.8 (fallback 0.8) and passes apBoost = false, so AP applies once (in the strategy) while a downstream crit still applies. No paralysis or any other status, movement or heal. maxHP is the current value at cast time; this record does not account for every source that changes it.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -95,8 +95,8 @@
      "MUNCHLAX": 0.3,
      "SNORLAX": 0.3
     },
-    "scaling": "requested = round(fraction x caster.maxHP x (1 + AP/100)) in the strategy; handleSpecialDamage gets apBoost = false so it adds no second AP factor; a crit multiplies by critPower (reduced by the target's critReductionFactor) only if the cast crit (canCritByDefault is false, so crit needs ABILITY_CRIT). maxHP is the entity's current value (after addMaxHP changes and GLUTTON growth), not the catalog base. Illustration on the catalog base stats only (AP 0, no crit): Munchlax 0.3 x 120 = 36, Snorlax 0.3 x 300 = 90 requested - not measured values.",
-    "resolution": "requested amount = the rounded fraction of maxHP; applied change = after the optional crit factor, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps; the returned takenDamage is discarded. Blocked (0) by protect / skydiving / magicBounce; a dead or resurrecting target takes nothing.",
+    "scaling": "requested = round(fraction x caster.maxHP x (1 + AP/100)) in the strategy; handleSpecialDamage gets apBoost = false so it adds no second AP factor (executed: AP 100 requests 600, not 1200); a downstream crit still multiplies by critPower (executed: 300 -> 600, AP 100 + crit -> 1200; needs ABILITY_CRIT because canCritByDefault is false). maxHP is the entity's current value, not the catalog base. Executed: maxHP 1000 -> 300 / 300 / 500 / 800 by stars, maxHP 333 at AP 50 -> round(149.85) = 150, maxHP 120 -> 36.",
+    "resolution": "requested amount = the rounded fraction of maxHP; applied change = after the optional crit factor, then PokemonState.handleDamage divides by (1 + 0.05 x SPE_DEF) (ceil, minimum 1), applies shields and other steps; blocked (0) by protect / skydiving / magicBounce (executed); a dead or resurrecting target takes nothing. The returned takenDamage is not read. No status is requested (executed: caster and target status unchanged).",
     "evidence": [
      "bs-mult",
      "bs-dmg",
@@ -126,7 +126,7 @@
     "MUNCHLAX": 0.3,
     "SNORLAX": 0.3
    },
-   "note": "indexed by the casting entity's stars; the 0.5 and 0.8 entries are not reachable by the two units' bare star counts (1, 2). maxPP is 100 and range 1 for both.",
+   "note": "indexed by the casting entity's stars; the 0.5 and 0.8 entries are declared in the tables but unused by the bound baseline classes (Munchlax 1, Snorlax 2). maxPP is 100 and range 1 for both.",
    "evidence": [
     "bs-mult",
     "unit-munchlax",
@@ -134,8 +134,8 @@
    ]
   },
   "positionalConditions": "None read beyond needing a target.",
-  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes from the caster's maxHP at that moment, so damage can grow between casts as GLUTTON raises maxHP.",
-  "rawVsResolved": "Declared raw: fraction 0.3 of the caster's maxHP for both units. Requested amount = round(fraction x maxHP x (1 + AP/100)). Applied: x crit factor on crit, then SPE_DEF division (ceil, min 1) and shields in handleDamage. takenDamage is not consumed.",
+  "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes from the caster's current maxHP at that moment, so the request follows later maxHP changes; which sources change maxHP in a fight (including the GLUTTON passive) was not accounted for completely.",
+  "rawVsResolved": "Declared raw: fraction 0.3 of the caster's maxHP for both units (0.5 / 0.8 declared for 3 / 4 stars). Requested = round(fraction x maxHP x (1 + AP/100)); applied: x crit factor on a crit, then SPE_DEF division (ceil, min 1) and shields in handleDamage.",
   "sourceTables": [
    {
     "id": "bodySlamFractions",
@@ -152,9 +152,9 @@
    "Every source that changes the caster's maxHP in a fight (only the addMaxHP helper and the three GLUTTON growth sites were cited)"
   ],
   "unresolved": [
-   "Exactly how the GLUTTON growth in the pick phase (applyStat on the board pokemon, dish and cooking increments) maps onto the in-fight entity's maxHP at spawn was not traced beyond the cited sites",
+   "No complete GLUTTON account is given: how maxHP growth (pick phase, dish, cooking) reaches the in-fight entity was not traced beyond the cited sites",
    "Whether any item or synergy effect changes BODY_SLAM beyond what is listed",
-   "Verified only by reading source and the shared mechanical checks, not in a fight"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage) and the real BodySlamStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E2); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster with set maxHP, target HP 5000): the fraction table, the round formula, apBoost false (AP once), the downstream crit, the Protected case and the unchanged statuses."
   ],
   "evidence": [
    {
@@ -410,6 +410,20 @@
     "expect": "skill = Ability.BODY_SLAM",
     "note": "unit class block: skill / passive / stars / stats"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E2",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T195249Z",
+   "reason": "apBoost false AP once, downstream crit, no status",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E2",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
