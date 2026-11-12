@@ -62,11 +62,11 @@
     "as-super"
    ]
   },
-  "summary": "Deals SPECIAL damage (raw 25/50/100/200 by stars) to every enemy-team unit on a straight line from the caster through the cast target, extended to the board edge, and silences each unit hit for a base 3000 ms. There is no roll: every enemy on the line is silenced, whether or not the damage was blocked or dealt.",
+  "summary": "SPECIAL 25 / 50 / 100 / 200 (fallback 200) and then ONE silence attempt of 3000 ms on each OPPOSING occupant along the actual effectInLine / getCellsBetween walk from the caster toward the target and on to a rounded 12-unit endpoint, interleaved cell by cell (damage then silence per unit). No application roll, but Rune Protect or the tree flag can refuse the silence, and weather / reductions change its stored duration. Allies on the line and off-line units are skipped.",
   "targeting": {
    "who": "every enemy-team entity on the cells of the supercover line from the caster's cell toward the cast target and on to a point 12 cells away along the same angle (clipped to the board); the caster's own cell is filtered out as same-team",
    "needsTarget": true,
-   "note": "The target only fixes the line's angle: it is hit only if its cell lies on the computed line (the rounding of the 12-cell end point could in principle miss it; effectInLine has no fall-back that touches the original target). Enemies behind the target are hit too. Allies are skipped.",
+   "note": "The target only fixes the line's angle (the walk is the real getCellsBetween supercover, diagonal crossings included). Executed: the walk reaches the target's own cell for all 2256 ordered distinct position pairs of the ordinary 8 x 6 board (an enumeration of that board, not a proof for other boards), enemies behind the target are hit too, allies and off-line enemies are skipped. effectInLine itself has no fallback that touches the original target.",
    "evidence": [
     "as-line",
     "as-filter",
@@ -106,7 +106,7 @@
      "LUCARIO": 50
     },
     "scaling": "requested = table[stars-1] per enemy hit, no falloff along the line. handleSpecialDamage: x(1 + AP/100) (apBoost defaults to true); x critPower (reduced by the hit unit's critReductionFactor) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT).",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. The return value is not read by the strategy.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; 0 when the unit has protect / skydiving / magicBounce. The return value is not read by the strategy.",
     "evidence": [
      "as-table",
      "as-hit",
@@ -127,10 +127,11 @@
     "status": "silence",
     "target": "each enemy-team unit on the line",
     "declaredRaw": {
-     "durationMs": 3000
+     "duration": 3000,
+     "unit": "ms"
     },
     "scaling": "none by AP or crit: the duration is the literal 3000 (requested). Applied: Rune Protect or a tree target prevents it; MURKY weather x1.3; SWIFT_SWIM x0.7, HYDRATION x0.5, WATER_VEIL / SURGE_SURFER x0.3 (first matching); ODD_KEYSTONE on the hit unit's player multiplies by (1 - 0.1 x stones); the timer only replaces a shorter remaining silence.",
-    "resolution": "Silenced units have canCast false. Silence is requested even when the damage was blocked by protect / skydiving / magicBounce (those only stop the damage call). Silence ends when its timer runs out (updateSilence).",
+    "resolution": "Silenced units have canCast false. The silence is requested even when the damage was blocked by protect / skydiving / magicBounce (those only stop the damage call; executed). Silence ends when its timer runs out (updateSilence).",
     "evidence": [
      "as-silence",
      "sil-fn",
@@ -142,7 +143,15 @@
   ],
   "statusEffects": [
    {
-    "effect": "silence 3000 ms (requested) on every enemy hit, unconditional",
+    "status": "silence",
+    "target": "each opposing occupant on the line, right after its own damage call",
+    "declaredRaw": {
+     "duration": 3000,
+     "unit": "ms (requested)"
+    },
+    "scaling": "none: the duration is the literal 3000 (no AP / crit / star scaling).",
+    "guards": "No application roll: every opposing occupant is attempted. Refused by Rune Protect or the tree flag (executed); a Protected unit takes 0 damage but is still silenced.",
+    "combatEffect": "Stored duration: x1.3 in MURKY (3900), then the victim's reductions (HYDRATION 1500), Odd Keystone; the timer replaces a shorter remaining silence only (9000 kept). Silenced units have canCast false; silence ends when its timer runs out (updateSilence).",
     "evidence": [
      "as-silence",
      "sil-fn",
@@ -161,7 +170,7 @@
     "RIOLU": 25,
     "LUCARIO": 50
    },
-   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are not reachable by the two units' bare star counts (1, 2). Silence duration does not depend on stars.",
+   "note": "indexed by the casting entity's stars; the 100 and 200 (fallback) entries are declared in the tables but unused by the bound baseline classes (Riolu 1, Lucario 2). Silence duration does not depend on stars.",
    "evidence": [
     "as-table",
     "unit-riolu",
@@ -170,7 +179,7 @@
   },
   "positionalConditions": "Which enemies are hit depends on the caster and target coordinates (angle rounding of the line end point); needs a target within the unit's range 2 to cast, because requiresTarget is true.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the line; a new silence only extends the timer if longer.",
-  "rawVsResolved": "Declared raw: damage 25/50 (RIOLU/LUCARIO) per enemy on the line, silence 3000 ms. Requested = raw; applied damage = raw x (1 + AP/100) [x crit factor], then SPE_DEF division (ceil, at least 1) in handleDamage; applied silence = 3000 after MURKY / duration reductions / ODD_KEYSTONE, unless Rune Protect or tree stops it.",
+  "rawVsResolved": "Declared raw: damage 25 / 50 (Riolu / Lucario) per opposing occupant on the line, silence 3000 ms. Requested = raw; applied damage = raw x (1 + AP/100) [x crit], then SPE_DEF division (ceil, at least 1); stored silence = 3000 after MURKY / reductions / Odd Keystone unless Rune Protect or the tree flag refuses it.",
   "sourceTables": [
    {
     "id": "auraSphereDamage",
@@ -188,13 +197,13 @@
    "Board.getEntityOnCell / isOnBoard and what `cells` holds for dead units were not read for the line's cell values (getCellsBetween reads this.cells directly)"
   ],
   "unresolved": [
-   "Whether the cast target is always on the computed line (effectInLine has no fallback to touch it; angle rounding was not exercised)",
+   "The executed enumeration reaches the target's cell for every ordered distinct pair of the ordinary 8 x 6 board; other board sizes were not enumerated",
    "What the `tree` flag in triggerSilence refers to (a status field; its setters were not searched)",
    "Whether a unit killed by the damage still receives the silence call (the callback calls triggerSilence right after handleSpecialDamage regardless of death; the effect on a dead entity was not traced)",
    "Consulted: effectInLine / getCellsBetween and the sibling AURORA_BEAM record, Status.triggerSilence / updateSilence / applyStatusDurationReductions, PokemonEntity.canCast, handleSpecialDamage and handleDamage",
    "Whether the two units ever reach a different star count than the factory value",
    "No routing uncertainties were queued for this record",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (effectInLine, getCellsBetween, triggerSilence, handleSpecialDamage) and the real AuraSphereStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (real Board walk, stand-in units): the damage-then-silence interleaving along the walk, ally and off-line skipping, the diagonal case, the target-cell enumeration, and the Rune / tree / MURKY / HYDRATION / longer-timer / Protected cases."
   ],
   "evidence": [
    {
@@ -571,6 +580,20 @@
     "expect": "!this.status.silence &&",
     "note": "a silenced unit cannot cast (canCast false); this is how silence matters for abilities"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T201703Z",
+   "reason": "actual line walk, interleaved damage and silence, normalised status",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

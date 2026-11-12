@@ -76,7 +76,7 @@
     "ab-super"
    ]
   },
-  "summary": "Deals SPECIAL damage (raw 20/40/80/160 by stars) to every enemy-team unit standing in the 3x3 block of cells centred on the cast target (the target's own cell included). No status is applied and nothing is moved or buffed.",
+  "summary": "SPECIAL 20 / 40 / 80 / 160 (fallback 160) to every OPPOSING occupant of the clipped 3x3 block centred on the cast TARGET, the centre included (Board.getAdjacentCells(target x, y, true)), visited row-major, with the cast crit flag. Not caster-centred and not a radius disc; same-team units in the block are skipped. No freeze or any other status, no movement, no buff.",
   "targeting": {
    "who": "every enemy-team entity on the target's cell and its up to eight neighbouring cells; same-team units and empty cells are skipped",
    "needsTarget": true,
@@ -89,7 +89,7 @@
    ]
   },
   "geometry": {
-   "shape": "3x3 square (Chebyshev radius 1) centred on the cast target, centre included, clipped to the board",
+   "shape": "3x3 square (Chebyshev radius 1) centred on the cast target, centre included, clipped to the board, via getAdjacentCells(target x, y, true) (executed: a corner target covers its 4 on-board cells; a caster-adjacent enemy outside the block and units two cells from the target are not hit)",
    "evidence": [
     "ab-cells",
     "adj",
@@ -117,7 +117,7 @@
      "SWINUB": 20
     },
     "scaling": "requested = table[stars-1] per enemy hit, no falloff with distance from the target. handleSpecialDamage: x (1 + AP/100) (apBoost defaults to true); x critPower (reduced by Rocky Helmet / Black Augurite on the hit unit) only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); x2 once with a DOUBLE_DAMAGE effect; x1.2 with STRANGE_STEAM_BOARD_EFFECT.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker/field/weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 when the unit has protect / skydiving / magicBounce. See knowledge/07367c34/core-mechanics.md section A.",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; 0 when the unit has protect / skydiving / magicBounce. See knowledge/07367c34/core-mechanics.md section A. The returned takenDamage is not read by this ability.",
     "evidence": [
      "ab-table",
      "ab-hit",
@@ -150,7 +150,7 @@
     "PILOSWINE": 40,
     "SWINUB": 20
    },
-   "note": "Damage is indexed by the casting entity's stars; the 4-star value (160, also the ?? fallback) is not reachable by the bare factory star counts. Whether other mechanics raise an entity's star count was not examined.",
+   "note": "Damage is indexed by the casting entity's stars; the 4-star value (160, also the ?? fallback) is declared in the tables but unused by the bound baseline classes (Swinub 1, Piloswine 2, Mamoswine 3). Whether other mechanics raise an entity's star count was not examined.",
    "evidence": [
     "ab-table",
     "unit-swinub",
@@ -160,7 +160,7 @@
   },
   "positionalConditions": "Which enemies are hit depends on the cast target's coordinates: neighbours on the board edge are clipped, and only units of the other team on those cells are hit.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP and recomputes the 3x3 block from the current target position.",
-  "rawVsResolved": "Requested: damage 20/40/80 (1/2/3 stars) per enemy in the 3x3 block. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage and is 0 for protected units. Big Eater Belt and Twist Band only change the caster's own stat changes and do not touch this damage.",
+  "rawVsResolved": "Requested: damage 20 / 40 / 80 (1 / 2 / 3 stars) per opposing occupant of the block. Applied = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; 0 for protected units. Big Eater Belt and Twist Band only change the caster's own stat changes and do not touch this damage. The returned values are not read.",
   "sourceTables": [
    {
     "id": "damage",
@@ -180,7 +180,7 @@
   "unresolved": [
    "Which unit is chosen as the cast target in a real fight (targeting by range 1 is not examined)",
    "Whether a unit that dies from an earlier hit in the same cast changes later cells (cell values are read from the board when the cells are collected)",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.getAdjacentCells(..., true), handleSpecialDamage) and the real IcicleCrashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (real Board, stand-in units): the target-centred 3x3 block with the centre, the row-major order, ally / outside / caster-adjacent exclusions, a corner target, the star table, the crit flag passed through and no status applied."
   ],
   "evidence": [
    {
@@ -480,6 +480,20 @@
     "expect": "return x >= 0 && x < this.columns && y >= 0 && y < this.rows",
     "note": "bounds check"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T201703Z",
+   "reason": "target-centred 3x3 with centre, no freeze",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

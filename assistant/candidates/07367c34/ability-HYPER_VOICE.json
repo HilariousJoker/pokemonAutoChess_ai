@@ -62,11 +62,11 @@
     "hv-super"
    ]
   },
-  "summary": "Row attack. Every unit of the opposing team (any unit whose team differs from the caster's) that stands on the same board row as the cast target takes SPECIAL damage (raw 25 at 1 star, 50 at 2 stars; 100 / 200 for 3 / 4 stars exist in the table). Each damaged unit independently rolls a 30% (luck-adjusted) chance to be confused for a base 1000 ms (1 star) / 2000 ms (2 stars) (3000 / 6000 ms for 3 / 4 stars). The confusion roll and trigger happen whether or not the damage was blocked or dealt anything, and the confusion duration does not scale with AP or crit (apBoost is not passed). The scan is by team inequality only: there is no targettable or distance check in the strategy.",
+  "summary": "Opposing occupants whose row equals target.positionY at each comparison (Board.forEach visits row-major and the source REREADS target.positionY inside every comparison, as in ORIGIN_PULSE) take SPECIAL 25 / 50 / 100 / 200 (fallback 200). After each hit an independent chance(0.3, caster) roll (luck-adjusted: 0.3^(1 - luck/100)) may attempt confusion 1000 / 2000 / 3000 / 6000 on that unit; blocked damage does not skip the roll, and a success still faces the guards and reactions. No HP, range or targettability filter.",
   "targeting": {
-   "who": "all units of the other team standing on the row (positionY) of the cast target, including the target",
+   "who": "every opposing occupant whose row equals target.positionY at that loop comparison, including the target itself when it stands there",
    "needsTarget": true,
-   "note": "The row is the target's positionY at the moment of the cast; the whole row is scanned from x = 0 up (Board.forEach is row-major), whatever the caster's range or position. The condition is pokemon.team != tg.team, so it also reaches units of any team other than the caster's. Untargettable or otherwise special units on the row were not examined.",
+   "note": "The source reads target.positionY inside EACH comparison of the row-major Board.forEach, not a cast-time row; a controlled first-hit callback that moves the field from 2 to 3 makes the later row-2 units skipped and the row-3 units hit (executed demonstration of the mutable field, not proof of a specific live movement). Team inequality is the only filter (no isTargettableBy, HP or range check): an untargettable unit and a dead unit on the row are still hit and rolled (executed).",
    "evidence": [
     "hv-loop",
     "hv-row",
@@ -76,7 +76,7 @@
    ]
   },
   "geometry": {
-   "shape": "one full board row (y = target.positionY), all columns",
+   "shape": "one board row (y = target.positionY compared in each loop step), all columns, scanned row-major",
    "evidence": [
     "hv-loop",
     "hv-row",
@@ -103,7 +103,7 @@
      "SWABLU": 25
     },
     "scaling": "requested = table[stars-1] for each unit. handleSpecialDamage then: x (1 + AP/100) (apBoost default true); x2 once with DOUBLE_DAMAGE (the effect is deleted after the first use, so only the first unit hit in the scan gets it); x1.2 with STRANGE_STEAM_BOARD_EFFECT; x critPower only if the cast crit (canCritByDefault false, so only with ABILITY_CRIT), reduced by Rocky Helmet / Black Augurite on that victim.",
-    "resolution": "applied per unit = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage, 0 with protect / skydiving / magicBounce (a blocked unit still rolls for confusion). The returned takenDamage / death is not used.",
+    "resolution": "applied per unit = requested after those multipliers; PokemonState.handleDamage then divides by (1 + ARMOR_FACTOR x speDef), rounds up with a minimum of 1 and lets the shield absorb first; 0 with protect / skydiving / magicBounce (a blocked unit still rolls for confusion). The returned takenDamage is not read by this ability.",
     "evidence": [
      "hv-dmg",
      "hv-hit",
@@ -123,10 +123,7 @@
   "statusEffects": [
    {
     "status": "CONFUSION",
-    "target": "each opposing unit hit on the row, independently",
-    "durationMs": null,
-    "probability": 0.3,
-    "apScaled": false,
+    "target": "each opposing unit hit in the loop, rolled independently",
     "declaredRaw": {
      "byStars": {
       "1": 1000,
@@ -135,13 +132,13 @@
       "4": 6000
      },
      "fallback": 6000,
-     "label": "requested duration (ms)"
+     "unit": "ms (requested)"
     },
     "perUnitRaw": {
      "ALTARIA": 2000,
      "SWABLU": 1000
     },
-    "scaling": "probability = chance(0.3, caster) = 0.3^(1 - caster.luck/100) (capped at 1), rolled separately for every unit on the row; duration does not scale with AP or crit.",
+    "scaling": "the attempt chance is chance(0.3, caster) = 0.3^(1 - luck/100), rolled separately after each unit's damage call (executed: a roll of 0.5 fails at luck 0 and succeeds at luck 50); the duration has no AP / crit scaling.",
     "resolution": "Requested vs applied. Applied only if the target is not already confused, has no rune protect and no IMMUNITY_CONFUSION effect (skydiving is not checked for confusion). Applied duration = round(requested x 1.3 in a sandstorm, then x0.7 SWIFT_SWIM / x0.5 HYDRATION / x0.3 WATER_VEIL or SURGE_SURFER, then x(1 - 0.1 per Odd Keystone in the victim's player's items)). An already confused unit keeps its running timer (no refresh). A confused unit picks its attack target through getTargetWhenConfused (attacking-state); the movement-side use and getTargetWhenConfused itself were not traced here.",
     "evidence": [
      "hv-conf",
@@ -156,7 +153,9 @@
      "red-water",
      "red-odd",
      "conf-atk"
-    ]
+    ],
+    "guards": "A success still goes through triggerConfusion: refused by Rune Protect or IMMUNITY_CONFUSION, an already confused unit keeps its running timer (500 kept), and the reactions follow (a Persim holder eats the berry and ends unconfused). Blocked damage (Protected target) does not skip the roll (executed).",
+    "combatEffect": "Stored duration: x1.3 in SANDSTORM (1300), then the victim's reductions. A confused unit picks its attack target through getTargetWhenConfused (luck-adjusted one-roll branch, self-candidate, MERCILESS; executed in the LICK probe section)."
    }
   ],
   "buffs": [],
@@ -170,7 +169,7 @@
     "ALTARIA": 50,
     "SWABLU": 25
    },
-   "note": "Damage and confusion duration are indexed by the casting entity's stars (four values each; ?? fallback 200 / 6000). The listed units are catalog stars 2 and 1, so 50 / 2000 ms and 25 / 1000 ms. Whether other mechanics change an entity's star count was not examined.",
+   "note": "Damage and confusion duration are indexed by the casting entity's stars (four values each; ?? fallback 200 / 6000); the 3-star and 4-star entries are declared in the tables but unused by the bound baseline classes (Swablu 1, Altaria 2). Whether other mechanics change an entity's star count was not examined.",
    "evidence": [
     "hv-dmg",
     "hv-conf",
@@ -178,9 +177,9 @@
     "unit-swablu"
    ]
   },
-  "positionalConditions": "The affected set depends only on the target's row; the caster's own position and its range do not matter once the cast fires. Units of the caster's team on the row are not touched.",
+  "positionalConditions": "The affected set depends on the target's row field as read at each comparison; the caster's own position and range do not matter once the cast fires. Units of the caster's team on the row are not touched.",
   "repeatedCastsAndModes": "No stored state. Each cast spends maxPP of PP and re-rolls every confusion roll; an already confused unit is not refreshed.",
-  "rawVsResolved": "Requested per unit: damage 25 / 50 and a 30% chance of confusion for 1000 / 2000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage (first unit only) / steam multipliers, then SPE_DEF division and minimum 1, shields first. Applied confusion duration = requested after the sandstorm bonus and the victim's duration reductions, and only if the victim can be confused.",
+  "rawVsResolved": "Requested per unit: damage 25 / 50 and a 30% (luck-adjusted) chance of a confusion attempt of 1000 / 2000 ms. Applied damage = requested x (1 + AP/100) x optional crit / double-damage (first unit only) / steam multipliers, then SPE_DEF division and minimum 1, shields first. Stored confusion = requested after SANDSTORM and the victim's reductions, only if the roll succeeds and the guards pass.",
   "sourceTables": [
    {
     "id": "damage",
@@ -205,10 +204,10 @@
   ],
   "unresolved": [
    "Whether dead, untargettable or otherwise special units can still occupy a cell on the row when the loop runs was not examined; the strategy itself has no such filter",
-   "Whether a unit killed by the damage still receives the confusion roll (the strategy does not read the damage result) was not traced",
+   "A unit killed by an earlier hit or already dead on the row still receives its damage call and its roll (executed: no filter in the strategy); the effect of a confusion trigger on a dead entity was not traced",
    "getTargetWhenConfused and the confusion use in board.ts movement were not read; only the attacking-state branch is cited",
    "Whether the listed units ever reach a different star count than the bare factory value",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (Board.forEach row-major order, the real chance(), triggerConfusion, handleSpecialDamage) and the real HyperVoiceStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (row-major stand-in board, controlled rolls): the per-comparison row reread (a controlled first-hit callback), per-hit independent rolls and luck, durations by stars, the blocked-damage roll, the guards and reactions, the absent HP / targettability filter, and the DOUBLE_DAMAGE first-hit-only effect."
   ],
   "evidence": [
    {
@@ -618,6 +617,20 @@
     "expect": "} else if (pokemon.status.confusion) {",
     "note": "a confused unit picks its attack target via getTargetWhenConfused"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T201703Z",
+   "reason": "row field reread per comparison; independent luck-adjusted confusion rolls",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

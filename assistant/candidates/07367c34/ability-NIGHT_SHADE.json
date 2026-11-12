@@ -61,7 +61,7 @@
     "pp-gate"
    ]
   },
-  "summary": "Single-target TRUE damage based on the target's MAX HP. Requested amount = ceil(F x target.maxHP x (2 + AP/100)) with F = 0.125 / 0.165 / 0.25 / 0.35 by caster stars (Misdreavus 1 star = 0.125, Mismagius 2 stars = 0.165). The ability passes apBoost = false to handleSpecialDamage, so the AP term in the formula is the only AP scaling: AP appears once inside the requested amount (the second F term of the description). Crit multiplies the amount (critPower, not reduced by Rocky Helmet or Black Augurite because the type is TRUE) only if the cast crits. The target's defenses are not applied (TRUE), the item and effect reductions in handleDamage are skipped for TRUE, and the result is at least 1; shields on the target absorb the damage first (takenDamage includes the shield part).",
+  "summary": "Single target. Requests ceil(F x TARGET maxHP x (2 + casterAP/100)), F 0.125 / 0.165 / 0.25 / 0.35 (fallback 0.35), as TRUE damage with apBoost false: AP 0 doubles the fraction, AP 100 triples it (1 star, maxHP 1000, AP 100 requests 375). A downstream crit still applies; the target's defences are ignored. Shields absorb first and Protect, skydiving and magicBounce still block it (no reflection for TRUE). The returned value is unused; no universal HP-plus-shield accounting is claimed.",
   "targeting": {
    "who": "the cast target passed to the strategy (the caster's current target)",
    "needsTarget": true,
@@ -96,8 +96,8 @@
      "MISDREAVUS": 0.125,
      "MISMAGIUS": 0.165
     },
-    "scaling": "requested = ceil(F x target.maxHP x (2 + AP/100)), AP = caster.ap at the cast; at AP 0 this is ceil(2 F x maxHP). apBoost is false, so handleSpecialDamage adds no further AP term. Cast crit multiplies by 1 + (critPower - 1) x critReductionFactor; the Rocky Helmet negation and Black Augurite reduction are explicitly skipped for TRUE (critReductionFactor stays 1). Illustration only (arithmetic, not a fight): target maxHP 500, Misdreavus, AP 0 -> 62.5 x 2 = 125; AP 100 -> ceil(62.5 x 3) = 188.",
-    "resolution": "applied change: handleSpecialDamage returns takenDamage 0 for a target with protect, skydiving or magicBounce (magicBounce reflection only for SPECIAL, so none for TRUE); otherwise handleDamage runs: a dead or resurrecting target gives 0; an enraged attacker doubles the damage; for TRUE the defense division is skipped and the item/effect reductions (Poke Doll, Guts/Sturdy/Defiant/Coaching, Wonder Guard) are inside the non-TRUE guard; ceil with minimum 1; the shield is consumed first and the returned takenDamage (rounded) is the shield part plus min(residual, current HP). The three amounts therefore differ: requested (formula above), applied to defences (equal to requested for TRUE, x2 if the attacker is enraged, other attacker-side multipliers in handleDamage not enumerated) and takenDamage (shield + HP actually lost, capped by current HP). Big Eater Belt / Twist Band helpers are not involved (no stat change).",
+    "scaling": "requested = ceil(F x target.maxHP x (2 + casterAP/100)) with the TARGET's current maxHP and the caster's AP at the cast; at AP 0 this is ceil(2 F x maxHP). apBoost is false, so handleSpecialDamage adds no further AP term (executed: 1 star, maxHP 1000: 250 at AP 0, 375 at AP 100; 2 stars: 330 / 495; 3 stars 500; fallback 700; maxHP 333: 84; AP -100: 125). A cast crit still multiplies by critPower (250 -> 500, AP 100 + crit -> 750; Rocky Helmet does not reduce it for TRUE, executed).",
+    "resolution": "handleSpecialDamage returns 0 for a target with protect, skydiving or magicBounce (executed; the magicBounce reflection exists only for SPECIAL, so none for TRUE). Otherwise handleDamage runs: a dead or resurrecting target gives 0; an enraged attacker doubles the damage (executed: 500); the defence division is skipped for TRUE (SPE_DEF 100 still 250); ceil with minimum 1; the shield is consumed first (executed: shield 100 -> shield loss 100, HP loss 150; shield 1000 -> HP loss 0). The requested amount, the amount applied to defences and any HP or shield actually lost are different numbers; the returned value is not read by this strategy and no general HP-plus-shield accounting is claimed.",
     "evidence": [
      "ns-pct",
      "ns-flat",
@@ -130,7 +130,7 @@
     "MISDREAVUS": 0.125,
     "MISMAGIUS": 0.165
    },
-   "note": "indexed by the caster's stars; 3 and 4 star fractions (0.25, 0.35, fallback 0.35) are not reachable by the two listed units. maxPP 100 and range 3 for both.",
+   "note": "indexed by the caster's stars; the 3-star and 4-star fractions (0.25, 0.35, fallback 0.35) are declared in the tables but unused by the bound baseline classes (Misdreavus 1, Mismagius 2). maxPP 100 and range 3 for both.",
    "evidence": [
     "ns-pct",
     "unit-misdreavus",
@@ -139,7 +139,7 @@
   },
   "positionalConditions": "None read beyond needing a target (range 3 for both units).",
   "repeatedCastsAndModes": "No stored state, no modes. Each cast recomputes from the target's current maxHP.",
-  "rawVsResolved": "Declared: fraction 0.125 (1 star) / 0.165 (2 stars) of target max HP, labelled raw. Requested amount = ceil(fraction x maxHP x (2 + AP/100)). Applied: TRUE damage, no defence division, at least 1, x2 for an enraged attacker, crit multiplier if the cast crits, then shield first; takenDamage reports shield part + HP lost. The English description writes the fraction twice with the second marked as AP-scaled; that is how the source's factor (2 + AP/100) reads, and nothing in the source adds a second AP scaling (apBoost false).",
+  "rawVsResolved": "Declared: fraction 0.125 (1 star) / 0.165 (2 stars) of the target's max HP. Requested = ceil(fraction x maxHP x (2 + AP/100)). Applied: TRUE damage with no defence division, at least 1, x2 for an enraged attacker, the crit multiplier if the cast crits, then the shield first. The description writes the fraction twice with the second marked AP-scaled; that is how the source's factor (2 + AP/100) reads, and nothing adds a second AP scaling (apBoost false).",
   "sourceTables": [
    {
     "id": "nightShadeFraction",
@@ -156,9 +156,9 @@
   ],
   "unresolved": [
    "Whether the factor (2 + AP/100) matches the intended design is not decided here; the English description (two terms, the second marked AP-scaled) agrees with how the code reads, and the code is what is recorded",
-   "Resurrection paths, Shiny Charm, Fossil and Cover Band branches of handleDamage were not enumerated for TRUE damage; they would change the returned takenDamage",
+   "Resurrection paths, Shiny Charm, Fossil and Cover Band branches of handleDamage were not enumerated for TRUE damage",
    "No other unit sharing the identifier exists in the queue; units not listed are not covered",
-   "Mechanical checks only; no probe was run and no fight observed"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (handleSpecialDamage, handleDamage) and the real NightShadeStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target, maxHP 1000): the ceil formula by stars and AP, apBoost false with TRUE type, the downstream crit, the ignored SPE_DEF, the enraged doubling, the Protect / magicBounce blocks, and the shield cases."
   ],
   "evidence": [
    {
@@ -436,6 +436,20 @@
     "expect": "\"NIGHT_SHADE\": \"Deal [12.5,16.5,25,35,ND=1]% + [12.5,16.5,25,35,SP,ND=1]% of target's max HP as TRUE.\"",
     "note": "English description shows the fraction twice (second term marked SP = AP-scaled); recorded as text only"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T201703Z",
+   "reason": "ceil(F*targetMaxHP*(2+AP/100)) TRUE with apBoost false; no universal HP+shield claim",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

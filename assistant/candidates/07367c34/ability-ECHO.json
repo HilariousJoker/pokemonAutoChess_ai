@@ -61,7 +61,7 @@
     "echo-class"
    ]
   },
-  "summary": "Cast without a target. The base process first adds 1 to the caster's count.ult (the number of casts so far, this one included). ECHO then hits every enemy occupant in a circular area around the caster (centre excluded) with SPECIAL damage of count.ult x (3/6/9/12 by stars), so damage and radius both grow with each cast: radius is 2 + count.ult (floored, plus 0.5, strict squared-distance test). Example for the first cast (count.ult 1): radius 3, per-enemy raw damage 6 (Chingling) or 9 (Chimecho); the second cast: radius 4 and 12 / 18.",
+  "summary": "Target-free. The base process increments count.ult BEFORE the strategy reads it: radius 2 + count.ult and damage count.ult x [3, 6, 9, 12] (fallback 12). A 2-star caster's first cast has range 3 and raw 6, the second range 4 and raw 12 (3 stars: 9 / 18). count.ult is generic cast history (any earlier cast raises it). Hits every opposing occupant of the clipped radius disc dx^2 + dy^2 < (floor(range) + 0.5)^2, the centre excluded; team inequality is the only filter.",
   "targeting": {
    "who": "every occupant of cells in the radius whose team differs from the caster's",
    "needsTarget": false,
@@ -74,7 +74,7 @@
    ]
   },
   "geometry": {
-   "shape": "disc: cells with dx^2 + dy^2 < (floor(radius) + 0.5)^2 on the board, centre excluded; radius = 2 + count.ult (3 on the first cast, growing by 1 per cast)",
+   "shape": "clipped disc: cells with dx^2 + dy^2 < (floor(radius) + 0.5)^2 on the board (Board.getCellsInRadius), centre excluded; radius = 2 + count.ult (executed on the real Board: range 3 reaches distance^2 9 and 10 but not 13 or 18; range 4 reaches 16 and 18, the bound being 20.25)",
    "evidence": [
     "echo-range",
     "echo-area",
@@ -102,7 +102,7 @@
      "CHINGLING": 6
     },
     "scaling": "requested amount = count.ult x table value (table is per cast; count.ult is read after this cast incremented it). Then AP: x (1 + AP/100) (apBoost default true); the cast's crit flag multiplies by critPower only if the cast crit (canCritByDefault false, so needs ABILITY_CRIT); the crit flag is shared by all targets of the cast.",
-    "resolution": "applied: per target division by (1 + ARMOR_FACTOR x SPE_DEF), shields and other untraced modifiers; takenDamage includes shield damage; minimum 1 after ceil. Blocked per target by protect / skydiving / magicBounce (magicBounce reflects SPECIAL damage to the caster unless Protective Pads). No falloff with distance.",
+    "resolution": "applied: per target division by (1 + ARMOR_FACTOR x SPE_DEF), shields and other untraced modifiers; minimum 1 after ceil. Blocked per target by protect / skydiving / magicBounce (magicBounce reflects SPECIAL damage to the caster unless Protective Pads). No falloff with distance. The returned takenDamage is not read by this ability.",
     "evidence": [
      "echo-dmg",
      "echo-hit",
@@ -130,7 +130,7 @@
     "CHIMECHO": 9,
     "CHINGLING": 6
    },
-   "note": "table value per unit at its factory stars, multiplied by count.ult at cast time. 1-star and 4-star columns are not reachable from the bare factory stars of the listed units. Whether other mechanics raise star counts was not examined.",
+   "note": "table value per unit at its factory stars, multiplied by count.ult at cast time. The 1-star and 4-star columns are declared in the tables but unused by the bound baseline classes (Chingling 2, Chimecho 3). Whether other mechanics raise star counts was not examined.",
    "evidence": [
     "echo-dmg",
     "unit-chimecho",
@@ -138,8 +138,8 @@
    ]
   },
   "positionalConditions": "The radius is centred on the caster's cell at the moment of the cast; only the caster's position and the board occupants matter. Cells off the board are skipped.",
-  "repeatedCastsAndModes": "State kept: count.ult, a uint8 counter on the entity, incremented by every cast (any ability, since the increment is in the base process) and reset to 0 only in the VOLT_SURGE revive path found; it is not reset for ECHO. Its starting value for a fight-created entity is the Count default 0 (entity construction not traced). The uint8 type would wrap after 255 casts (not reachable in practice, not verified).",
-  "rawVsResolved": "Requested: count.ult x 6 (Chingling) or x 9 (Chimecho) per enemy, e.g. 6 / 9 on the first cast and 12 / 18 on the second. Applied per target: x (1 + AP/100), crit factor if the cast crit, SPE_DEF division, minimum 1; takenDamage reported by handleDamage includes shield damage.",
+  "repeatedCastsAndModes": "State kept: count.ult, a uint8 counter on the entity, incremented by every cast (any ability, since the increment is in the base process; executed: one earlier base cast makes the first Echo already range 4) and reset to 0 only in the VOLT_SURGE revive path found; it is not reset for ECHO. Its starting value for a fight-created entity is the Count default 0 (entity construction not traced). The uint8 type would wrap after 255 casts (a practical limit not verified).",
+  "rawVsResolved": "Requested: count.ult x 6 (Chingling) or x 9 (Chimecho) per opposing occupant, e.g. 6 / 9 on the first cast and 12 / 18 on the second (executed). Applied per target: x (1 + AP/100), crit factor if the cast crit, SPE_DEF division, minimum 1. The returned values are not read.",
   "sourceTables": [
    {
     "id": "damage",
@@ -157,11 +157,11 @@
    "Whether untargettable occupants exist on the board during a cast"
   ],
   "unresolved": [
-   "No routing uncertainty was recorded for this identifier in the queue",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (AbilityStrategy.process, Board.getCellsInRadius, handleSpecialDamage) and the real EchoStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (real Board and base process, stand-in units): the pre-incremented count, ranges 3 / 4 and raw 6 / 12 (9 / 18), the disc membership with the centre excluded, the count as generic cast history, the untargettable occupant being hit, and the no-enemy case.",
    "The passives CHINGLING and CHIMECHO were not investigated (only the CHINGLING stack effect was located and not claimed to alter ECHO)",
    "Whether other effects (items, synergies) change count.ult; only the base increment and the VOLT_SURGE reset were found by searching for 'count.ult' in app/core and app/models, and some uses (items.ts 995 and 1035, passives.ts 1269, synergies.ts 564, pokemon-state.ts 128) were located but not read",
    "Whether other mechanics raise the listed units' star counts",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (AbilityStrategy.process, Board.getCellsInRadius, handleSpecialDamage) and the real EchoStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E4); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (real Board and base process, stand-in units): the pre-incremented count, ranges 3 / 4 and raw 6 / 12 (9 / 18), the disc membership with the centre excluded, the count as generic cast history, the untargettable occupant being hit, and the no-enemy case."
   ],
   "evidence": [
    {
@@ -406,6 +406,20 @@
     "expect": "Passive.CHINGLING",
     "note": "Chingling's passive adds a stack on each ally cast; not part of this record (stacks drive its evolution, not the ECHO formula as read)"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E4",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T201703Z",
+   "reason": "count.ult incremented before radius and damage; actual clipped disc",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E4",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
