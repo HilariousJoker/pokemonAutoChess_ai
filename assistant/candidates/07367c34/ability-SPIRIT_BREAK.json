@@ -56,7 +56,7 @@
     "dispatch-attack"
    ]
   },
-  "summary": "Single-target special damage (20 raw at 1 star, 40 at 2, 80 at 3) followed by a -20 requested ability-power change on the same target. The AP change is applied whether or not the damage was blocked or killed the target; it is scaled by the caster's AP, can be turned into an Attack loss by Nullify Bandanna or into a buff by Twist Band, and AP cannot drop below -100.",
+  "summary": "Single target. SPECIAL 20 / 40 / 80 / 160 (fallback 160) first, then a -20 AP request via addAbilityPower(-20, caster, apBoost 1, cast crit) on the same target, whatever the damage returned (blocked or killing hits do not cancel it). Ordinary path (as MYSTICAL_FIRE): round(-20 x (1 + caster AP/100) x (crit ? critPower : 1)) BEFORE the recipient helpers; Twist Band reverses it, AP floors at -100. A Nullify Bandanna target is routed FIRST to addAttack(-4, apBoost 0, crit false), unaffected by the caster's AP and crit.",
   "targeting": {
    "who": "the single current target",
    "needsTarget": true,
@@ -86,7 +86,7 @@
      }
     },
     "scaling": "requested amount: AP: damage x (1 + AP/100) (6th argument apBoost = true); crit multiplier only if the cast crit (needs ABILITY_CRIT: canCritByDefault is false)",
-    "resolution": "applied amount: then the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (no damage; the AP debuff below is still applied). takenDamage (which includes shield damage) is not used by this ability",
+    "resolution": "applied amount: the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), ceil, min 1) and later handleDamage modifiers; blocked entirely by protect / skydiving / magicBounce (damage 0, executed; the AP debuff below is still applied). The returned takenDamage is not read by this ability.",
     "evidence": [
      "sb-dmg",
      "special",
@@ -110,8 +110,8 @@
      "value": -20,
      "note": "requested amount, a constant independent of stars"
     },
-    "scaling": "requested -20 x (1 + caster AP / 100) x (critPower if the cast crit), rounded (apBoost 1): a caster with AP makes the debuff larger, and a crit (needs ABILITY_CRIT) larger again",
-    "resolution": "applied amount: Big Eater Belt does not apply to this enemy debuff (helper only affects positive values or same-team negatives); TWIST_BAND on the target flips it into a gain of the same size; NULLIFY_BANDANNA on the target replaces it by an Attack change of round(0.2 x -20) = -4 (the AP scaling, helpers and the clamp are skipped); otherwise target AP = max(-100, AP + value). Applied after the damage call regardless of its result, so a protected or just-killed target still receives it",
+    "scaling": "requested -20 x (1 + caster AP/100) x (critPower if the cast crit), rounded before the recipient helpers (executed: AP 100 -> -40, crit with AP 100 -> -80, a caster with AP -50 -> -10); a Big Eater Belt on the enemy changes nothing.",
+    "resolution": "Nullify Bandanna on the TARGET is checked FIRST and converts the RAW -20 to addAttack(round(0.2 x -20) = -4, caster, apBoost 0, crit false): the caster's AP and crit do not scale it (AP 0 and AP 100 + crit both lose 4 ATK; AP stays 0; Nullify + Twist gains 4 ATK), and the AP clamp is skipped. Otherwise TWIST_BAND on the target flips the rounded value into a gain of the same size (+80 executed) and target AP = max(-100, AP + value). The call follows the damage whatever it returned (a Protected or magicBounce target returns 0 and still gets -20; a kill returns 5 and still gets -20).",
     "evidence": [
      "sb-ap",
      "addap-nullify",
@@ -137,7 +137,7 @@
     "MORGREM": 40,
     "GRIMMSNARL": 80
    },
-   "note": "damage is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 160 and the fallback 160 are not reached by these units' bare star counts (1, 2, 3). The -20 AP change has no star dependence. maxPP is 70 and range 1 for all three.",
+   "note": "damage is indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry and the fallback (160) are declared in the tables but unused by the bound baseline classes (Impidimp 1, Morgrem 2, Grimmsnarl 3). The -20 AP change has no star dependence. maxPP is 70 and range 1 for all three.",
    "evidence": [
     "sb-dmg",
     "unit-impidimp",
@@ -147,7 +147,7 @@
   },
   "positionalConditions": "None beyond needing a target in the caster's range.",
   "repeatedCastsAndModes": "No state is kept on the caster: each cast deals damage and applies another -20 (scaled) AP change to the target, so repeated casts on the same target stack until the -100 AP floor. No modes.",
-  "rawVsResolved": "Requested (raw) damage: 20 (IMPIDIMP, 1 star) / 40 (MORGREM, 2 stars) / 80 (GRIMMSNARL, 3 stars). Applied damage = raw x (1 + AP/100) [x crit factor], then the SPE_DEF division (ceil, at least 1) and later handleDamage modifiers; takenDamage is not used. Requested AP change: -20; applied AP change = round(-20 x (1 + caster AP/100) [x critPower]) unless Twist Band (sign flipped), Nullify Bandanna (Attack -4 instead) or the -100 AP floor changes it.",
+  "rawVsResolved": "Requested damage 20 / 40 / 80: applied = raw x (1 + AP/100) [x crit], then SPE_DEF division (ceil, at least 1) and shields. Requested AP change -20: stored = round(-20 x (1 + caster AP/100) [x critPower]) then Twist Band / the -100 floor; a Nullify target instead loses 4 ATK. The returned takenDamage is not read.",
   "sourceTables": [
    {
     "id": "spiritBreakDamage",
@@ -165,7 +165,8 @@
   "unresolved": [
    "Effect of a lower target AP on the target's own abilities and healing was not traced (the AP stat is only changed here; its consumers are other records)",
    "Whether any other item or synergy effect changes SPIRIT_BREAK beyond the Nullify Bandanna, Twist Band and Big Eater Belt paths listed",
-   "Consulted: addAbilityPower, applyBigEaterBeltStatBuff and applyTwistBandBuff in app/core/pokemon-entity.ts, handleSpecialDamage, PokemonState.handleDamage and core-mechanics.md sections A, B, H, I. Queue record lists no routing uncertainties and no dependencies."
+   "Consulted: addAbilityPower, applyBigEaterBeltStatBuff and applyTwistBandBuff in app/core/pokemon-entity.ts, handleSpecialDamage, PokemonState.handleDamage and core-mechanics.md sections A, B, H, I. Queue record lists no routing uncertainties and no dependencies.",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAbilityPower, the Belt / Twist helpers, addAttack, handleSpecialDamage) and the real SpiritBreakStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target AP 0): the damage-then-AP order, the AP rounding with caster AP and crit before the recipient helpers, the Twist reversal, the -100 floor, the Belt no-op, the Nullify routing to addAttack(-4) unscaled by the caster, and the blocked / killed cases."
   ],
   "evidence": [
    {
@@ -427,6 +428,20 @@
      "unit-grimmsnarl"
     ]
    }
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T200753Z",
+   "reason": "MYSTICAL_FIRE-style AP debuff routing (Nullify first), damage then AP request",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

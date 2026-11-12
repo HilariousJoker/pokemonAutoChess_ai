@@ -58,11 +58,11 @@
     "conf-impl"
    ]
   },
-  "summary": "Two-branch single-target cast on the current target. Branch A (target NOT currently confused): the target is silenced and confused for the same requested duration, 3000 / 5000 / 7000 / 10000 ms by caster stars (3000 for BALTOY, 5000 for CLAYDOL); no damage in this branch. Branch B (target ALREADY confused at cast time): no status is applied and the target takes requested special damage 75 / 150 / 300 / 500 by caster stars (75 BALTOY, 150 CLAYDOL) through handleSpecialDamage with the cast's crit flag, so it is scaled by the caster's AP (apBoost default true), a crit factor when the cast crit, and then reduced by the target's special defense in PokemonState.handleDamage. The statuses are applied via triggerSilence / triggerConfusion without AP or crit scaling of the duration (apBoost is not passed, so false). Applied status durations are modified: both are blocked by Rune Protect; silence is also blocked by the tree status and is x1.3 in MURKY weather, confusion is also blocked when the target has the IMMUNITY_CONFUSION effect (Persim Berry) and is x1.3 in SANDSTORM weather; both then pass the Swift Swim / Hydration / Water Veil / Surge Surfer reduction and Odd Keystone reduction. A confused unit retargets in the attacking state (50% chance it may pick allies too). Confusion ending clears the target.",
+  "summary": "The ABILITY CONFUSION (not the confusion status). Branch chosen once by the target's confusion FLAG at cast time: flag already true -> ONLY SPECIAL 75 / 150 / 300 / 500 (fallback 500), no status attempts, even for a stale flag with cooldown 0; flag false -> a silence attempt then a confusion attempt with the same requested duration 3000 / 5000 / 7000 / 10000 (no AP / crit scaling) and NO damage, even if both refuse or a Persim berry clears the confusion at once. Guards are independent. A confused unit targets via getTargetWhenConfused (luck-adjusted one-roll branch, self-candidate, MERCILESS).",
   "targeting": {
    "who": "the cast target only (single target)",
    "needsTarget": true,
-   "note": "requiresTarget is the default true, so the caster needs a target in range (range 2) to start the cast. The branch is chosen by target.status.confusion read at cast time.",
+   "note": "requiresTarget is the default true, so the caster needs a target in range (range 2) to start the cast. The branch is chosen by target.status.confusion read at cast time (the flag, not the cooldown) and is not reevaluated after the status calls or their berry reactions.",
    "evidence": [
     "conf-impl",
     "base"
@@ -121,7 +121,7 @@
      "CLAYDOL": 5000
     },
     "scaling": "none: triggerConfusion(confusionDuration, target, pokemon) is called without apBoost (default false), so the origin's AP does not lengthen it.",
-    "resolution": "applied duration: only applied if the target is not already confused (always true in this branch), has no Rune Protect and no IMMUNITY_CONFUSION effect; x1.3 in SANDSTORM weather; then the Swift Swim / Hydration / Water Veil / Surge Surfer and Odd Keystone reductions; Math.round. A Persim Berry holder eats it on being confused (clears the confusion at once, grants IMMUNITY_CONFUSION, heals 50 and +10 special defense). A PSYDUCK-passive target gains 100 AP when confused.",
+    "resolution": "applied duration: only if the target's confusion flag is false, it has no Rune Protect and no IMMUNITY_CONFUSION effect; x1.3 in SANDSTORM; then the victim's reductions; Math.round. A Persim Berry holder eats the berry on application (confusion cleared at once, IMMUNITY_CONFUSION, heal and SPE_DEF +10). A PSYDUCK-passive target gains 100 AP when confused.",
     "evidence": [
      "conf-impl",
      "trigger-confusion",
@@ -147,7 +147,7 @@
      "CLAYDOL": 150
     },
     "scaling": "requested amount: handleSpecialDamage(damage, board, AttackType.SPECIAL, pokemon, crit) with apBoost default true gives damage x(1 + AP/100); crit applies when the cast crit (needs ABILITY_CRIT: canCritByDefault is false), reduced to no crit bonus if the target holds Rocky Helmet and lowered by Black Augurite stones of the target's player; DOUBLE_DAMAGE on the caster doubles it once and is consumed; STRANGE_STEAM_BOARD_EFFECT x1.2.",
-    "resolution": "applied: skipped entirely (spellBlockedCount++, takenDamage 0) if the target is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit back at the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage resolves special defense, shield absorption and the minimum of 1 (shared reference core-mechanics \u00a7A); takenDamage reported by handleDamage includes shield damage. A Power Lens holder on the target reflects the blocked portion back to the caster.",
+    "resolution": "applied: skipped entirely (spellBlockedCount++, damage 0, executed) if the target is protected, skydiving or has magicBounce (a magicBounce target reflects a special hit back at the caster unless the caster holds Protective Pads). Otherwise PokemonState.handleDamage resolves special defense, shield absorption and the minimum of 1 (core-mechanics section A). The returned takenDamage is not read by this ability. A Power Lens holder on the target reflects the blocked portion back to the caster.",
     "evidence": [
      "conf-impl",
      "special-damage",
@@ -158,32 +158,56 @@
   "statusEffects": [
    {
     "status": "silence",
-    "who": "the cast target when not already confused",
-    "declaredRawDurationMs": {
-     "BALTOY": 3000,
-     "CLAYDOL": 5000
-    },
-    "combatEffect": "canCast is false while silenced, and addPP ignores positive PP gains while silenced",
+    "combatEffect": "Stored duration: x1.3 in MURKY (3900), then the victim's reductions (HYDRATION 1500), Odd Keystone. canCast is false while silenced and addPP ignores positive PP gains while silenced.",
     "evidence": [
      "trigger-silence",
      "cancast",
      "addpp-silence"
-    ]
-   },
-   {
-    "status": "confusion",
-    "who": "the cast target when not already confused",
-    "declaredRawDurationMs": {
+    ],
+    "target": "the cast target, only when its confusion flag is false at cast time",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 7000,
+      "4": 10000
+     },
+     "fallback": 10000,
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
      "BALTOY": 3000,
      "CLAYDOL": 5000
     },
-    "combatEffect": "in the attacking state a confused unit picks its target with getTargetWhenConfused (nearest candidates within distance range+1, allies also eligible when a 50% roll fails); when its position equals its target's, board orientation is random; when confusion expires the unit's target is cleared",
+    "scaling": "none from stars beyond the table, AP or crit (triggerSilence receives the table value unchanged).",
+    "guards": "Refused by Rune Protect or the tree flag (executed); attempted before the confusion and independent of it. The timer is replaced only when longer (9000 kept)."
+   },
+   {
+    "status": "confusion",
+    "combatEffect": "Stored duration: x1.3 in SANDSTORM (3900), then the victim's reductions. A Persim Berry holder eats the berry right after application (confusion cleared at once, IMMUNITY_CONFUSION; the damage branch is NOT taken afterwards); a PSYDUCK-passive target gains 100 AP. A confused attacker selects its target through getTargetWhenConfused: ONE chance(0.5, luck) roll (success: only isTargettableBy enemies in the nearest tier within range + 1; failure: same-team units and the unit itself join the pool), MERCILESS also admits a same-team unit at HP <= 10 (executed in the LICK probe section). When the timer ends the target is cleared.",
     "evidence": [
      "attack-confused",
      "get-confused",
      "orientation",
      "trigger-confusion"
-    ]
+    ],
+    "target": "the cast target, only when its confusion flag is false at cast time",
+    "declaredRaw": {
+     "byStars": {
+      "1": 3000,
+      "2": 5000,
+      "3": 7000,
+      "4": 10000
+     },
+     "fallback": 10000,
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
+     "BALTOY": 3000,
+     "CLAYDOL": 5000
+    },
+    "scaling": "none from stars beyond the table, AP or crit (apBoost left false: executed AP 100 + crit still 3000).",
+    "guards": "Refused by Rune Protect or IMMUNITY_CONFUSION (executed); independent of the silence, so both can refuse and nothing happens (no damage in this branch)."
    }
   ],
   "buffs": [],
@@ -201,7 +225,7 @@
     "BALTOY": 75,
     "CLAYDOL": 150
    },
-   "note": "both tables are indexed by the caster's stars (stars-1); the 3-star and 4-star entries (7000/10000 ms, 300/500 damage) and the fallback are not reached by the two listed units.",
+   "note": "both tables are indexed by the caster's stars (stars-1); the 3-star and 4-star entries (7000 / 10000 ms, 300 / 500 damage) and the fallback are declared in the tables but unused by the bound baseline classes (Baltoy 1, Claydol 2).",
    "evidence": [
     "conf-impl",
     "unit-baltoy",
@@ -209,8 +233,8 @@
    ]
   },
   "positionalConditions": "None positional. The branch depends on whether the target is confused at cast time.",
-  "repeatedCastsAndModes": "No stored state in the strategy. Because a confused target takes the damage branch, a second cast on the same target while confusion lasts deals damage instead of refreshing the status; once confusion has expired the status branch runs again. Silence from the first cast may still be active in the damage branch (it is not re-applied there).",
-  "rawVsResolved": "Requested: silence and confusion 3000 ms (BALTOY) / 5000 ms (CLAYDOL), or damage 75 / 150. Applied duration = requested after Murky (silence) or Sandstorm (confusion) weather, Rune Protect / tree / IMMUNITY_CONFUSION blocks, status-duration reductions and Odd Keystone. Applied damage = requested x (1+AP/100) x crit factor, then special-defense reduction, shield absorption and minimum 1 inside handleDamage; takenDamage includes shield damage; blocked entirely by protect / skydiving / magicBounce. Neither branch heals or buffs.",
+  "repeatedCastsAndModes": "No stored state in the strategy. While the target's confusion flag is true a cast deals damage instead of refreshing the status; once the flag clears the status branch runs again (a stale flag with cooldown 0 still takes the damage branch). Silence from an earlier cast may still be active in the damage branch (it is not re-applied there).",
+  "rawVsResolved": "Requested: silence and confusion 3000 ms (Baltoy) / 5000 ms (Claydol) with no damage, or damage 75 / 150 (flag already true). Stored duration = requested after MURKY (silence) or SANDSTORM (confusion), Rune Protect / tree / IMMUNITY_CONFUSION refusals, the victim's reductions and Odd Keystone. Damage = requested x (1 + AP/100) x crit factor, then SPE_DEF reduction, shield absorption and minimum 1; blocked entirely by protect / skydiving / magicBounce. Neither branch heals or buffs.",
   "sourceTables": [
    {
     "id": "confDuration",
@@ -231,11 +255,11 @@
   "dependsOnUnverifiedGenericCombat": [
    "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate was read)",
    "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
-   "Remaining body of getTargetWhenConfused after candidate collection (final pick among candidates) was not read"
+   "The final pick among getTargetWhenConfused candidates (pickRandomIn) was executed with controlled rolls in the LICK probe section; the attacking state's wider use of it was not traced"
   ],
   "unresolved": [
    "Whether other items or synergies change CONFUSION beyond what is listed",
-   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (triggerSilence, triggerConfusion, handleSpecialDamage) and the real ConfusionStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in target): the flag-based branch (including a stale flag), the silence-then-confusion order with no damage, independent refusals, the Persim case, durations by weather / reductions, no AP / crit scaling, and the damage branch with AP / crit and a Protected target."
   ],
   "evidence": [
    {
@@ -425,6 +449,20 @@
     "expect": "skill = Ability.CONFUSION",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T200753Z",
+   "reason": "ability vs status; one flag-based branch, no damage in the status branch",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

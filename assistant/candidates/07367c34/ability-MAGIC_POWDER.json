@@ -72,7 +72,7 @@
     "mp-impl"
    ]
   },
-  "summary": "Self shield plus silence of adjacent enemies. The caster gains a shield of 15 / 30 / 60 / 120 (requested, by caster stars) scaled by its AP and by crit, and every enemy-team entity in the up-to-8 cells adjacent to the caster is silenced for 2000 / 3000 / 4000 / 8000 ms (requested, by caster stars). The silence duration is not AP- or crit-scaled. No damage is dealt. A silenced unit cannot cast and gains no positive PP. The cast target itself is not used: the effect is centred on the caster, but requiresTarget is the default true, so the caster still needs a target in range to start the cast.",
+  "summary": "Caster shield FIRST: addShield(15 / 30 / 60 / 120, caster, apBoost 1, cast crit). Then ONE silence attempt of 2000 / 3000 / 4000 / 8000 ms (no AP / crit scaling, caster as origin) on each opposing occupant of the caster's adjacent cells (up to 8, centre excluded). The cast inherits requiresTarget = true but ignores the target (a target 2 cells away is not silenced). The silence is not guaranteed: Rune Protect and the tree flag refuse it, MURKY and the victim's reductions change it. No damage.",
   "targeting": {
    "who": "the caster (shield); enemy-team entities in the cells adjacent to the caster (silence)",
    "needsTarget": true,
@@ -84,7 +84,7 @@
   },
   "geometry": {
    "shape": "the 8 cells around the caster (centre excluded), clipped to the board",
-   "detail": "board.getAdjacentCells(x, y) with includesCenter = false; only cells with an entity whose team differs from the caster's are affected",
+   "detail": "board.getAdjacentCells(x, y) with includesCenter = false (executed on the real Board: a corner caster has only its 3 on-board neighbours); only cells with an entity whose team differs from the caster's are asked",
    "evidence": [
     "mp-impl",
     "adjacent"
@@ -109,7 +109,7 @@
      "HATTERENE": 60
     },
     "scaling": "requested amount: addShield(shield, pokemon, 1, crit): apBoost 1 gives x(1 + AP/100); the crit multiplier applies when the cast crit (needs ABILITY_CRIT, canCritByDefault is false)",
-    "resolution": "applied amount: PokemonEntity.addShield first runs applyBigEaterBeltStatBuff (x1.25 rounded down, only when the caster holds Big Eater Belt and the value is positive), then PokemonState.addShield: nothing if the caster is at 0 hp, x0.5 if the caster is enraged, Math.round, added to the existing shield. Order is Big Eater Belt, then AP, crit, enraged",
+    "resolution": "applied amount: PokemonEntity.addShield first runs the Big Eater Belt helper (x1.25 rounded down for a holder: 15 -> 18), then PokemonState.addShield: nothing if the caster is at 0 HP, then AP, crit, x0.5 if the caster is enraged (15 -> 8), Math.round, added to the existing shield (executed: AP 100 -> 30, crit -> 30, both -> 60).",
     "evidence": [
      "mp-impl",
      "entity-addshield",
@@ -148,18 +148,30 @@
   "statusEffects": [
    {
     "status": "silence",
-    "who": "adjacent enemy-team entities",
-    "declaredRawDurationMs": {
-     "HATENNA": 2000,
-     "HATTREM": 3000,
-     "HATTERENE": 4000
-    },
-    "combatEffect": "canCast is false while silenced (and while holding Nullify Bandanna), and addPP ignores positive PP gains while silenced",
+    "combatEffect": "Stored duration: x1.3 in MURKY (2600), then the victim's reductions (HYDRATION 1000), Odd Keystone; the silence flag is set and the timer / origin are replaced only if the new value is longer (9000 kept). canCast is false while silenced (and while holding Nullify Bandanna) and addPP ignores positive PP gains while silenced.",
     "evidence": [
      "trigger-silence",
      "cancast",
      "addpp-silence"
-    ]
+    ],
+    "target": "opposing occupants of the 8 cells adjacent to the caster (same-team units, the caster and farther units are not asked)",
+    "declaredRaw": {
+     "byStars": {
+      "1": 2000,
+      "2": 3000,
+      "3": 4000,
+      "4": 8000
+     },
+     "fallback": 8000,
+     "unit": "ms (requested)"
+    },
+    "perUnitRaw": {
+     "HATENNA": 2000,
+     "HATTREM": 3000,
+     "HATTERENE": 4000
+    },
+    "scaling": "none: the duration is passed to triggerSilence unchanged (no AP / crit scaling; the caster is the origin).",
+    "guards": "Refused by Rune Protect or the tree flag (executed: the refused neighbour keeps silence false while the other neighbour is silenced). No application roll, so no guaranteed silence either: the status exists only for neighbours that pass the guards."
    }
   ],
   "buffs": [],
@@ -193,7 +205,7 @@
     "HATTREM": 3000,
     "HATTERENE": 4000
    },
-   "note": "both tables are indexed by the caster's stars (stars-1); the 4-star entries (120 / 8000) and fallbacks are not reached by the listed units.",
+   "note": "both tables are indexed by the caster's stars (stars-1); the 4-star entries (120 / 8000) and the fallbacks are declared in the tables but unused by the bound baseline classes (Hatenna 1, Hattrem 2, Hatterene 3).",
    "evidence": [
     "mp-impl",
     "unit-hatenna",
@@ -203,7 +215,7 @@
   },
   "positionalConditions": "The silence only reaches enemy-team entities standing in one of the up to 8 cells adjacent to the caster at cast time; the shield is applied regardless of neighbours.",
   "repeatedCastsAndModes": "No stored state or modes. Shields stack additively on repeated casts; a new silence only replaces the cooldown if longer.",
-  "rawVsResolved": "Requested shield 15 / 30 / 60 and silence 2000 / 3000 / 4000 ms. Applied shield = Big Eater Belt x1.25 (round down) if held, then x(1 + AP/100), x crit factor, x0.5 if enraged, rounded. Applied silence = requested ms after the Murky weather, status-duration reductions and Odd Keystone; rune protection or tree status blocks it. No damage and no takenDamage involved.",
+  "rawVsResolved": "Requested shield 15 / 30 / 60 and silence 2000 / 3000 / 4000 ms. Stored shield = Belt (x1.25 down) if held, x(1 + AP/100), x crit factor, x0.5 if enraged, rounded; nothing at 0 HP. Stored silence = requested after MURKY, the victim's reductions and Odd Keystone, and only for neighbours that pass Rune Protect / tree. No damage and no takenDamage involved.",
   "sourceTables": [
    {
     "id": "mpShield",
@@ -230,7 +242,8 @@
   "unresolved": [
    "Whether non-enemy, non-allied entity teams can occupy adjacent cells (the check is only team !== caster team)",
    "Whether any other item or synergy changes MAGIC_POWDER beyond what is listed",
-   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only"
+   "Queue record lists no routing uncertainties; no gameplay evidence: source reading plus mechanical checks only",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addShield, applyBigEaterBeltStatBuff, triggerSilence, getAdjacentCells) and the real MagicPowderStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in units on the real Board): the shield request and its helpers, the opposing neighbours, the ignored cast target, a corner caster, and the Rune / tree / MURKY / HYDRATION / longer-timer cases."
   ],
   "evidence": [
    {
@@ -398,6 +411,20 @@
     "expect": "skill = Ability.MAGIC_POWDER",
     "note": ""
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T200753Z",
+   "reason": "ignores target, shield then guarded silence of opposing neighbours",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

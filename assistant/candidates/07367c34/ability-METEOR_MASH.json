@@ -56,7 +56,7 @@
     "dispatch-attack"
    ]
   },
-  "summary": "Single-target multi-hit special attack: 3 hits (4 if the caster has the psychicField status when the cast starts). Each hit is a separate SPECIAL handleSpecialDamage call of the same requested amount = round(caster ATK x 100/120/140% by caster stars (200% fallback)), and after every hit the caster gains +2 ATK (requested; Big Eater Belt x1.25 rounded down, Twist Band irrelevant for a positive self-buff). The damage is computed once before the loop from the ATK at cast start, so the +2 ATK per hit does not raise the later hits of the same cast; the gained ATK stays for the rest of the fight (not permanent beyond it).",
+  "summary": "Single target. The hit count (3, or 4 with the caster's psychicField) and the raw per-hit amount round(current ATK x 100 / 120 / 140 / 200 %) are computed ONCE before the loop. Each iteration is a SPECIAL hit then addAttack(2, caster, 0, false), even when the hit returned 0 (no early exit; a Big Eater Belt floors 2.5 to 2). ATK gained during the cast does not raise this cast's raw hits. DOUBLE_DAMAGE is consumed by the first hit, so hits can differ. No delay between iterations.",
   "targeting": {
    "who": "the single current target (the same target entity for every hit)",
    "needsTarget": true,
@@ -88,7 +88,7 @@
      "note": "requested amount per hit; ATK is the caster's current atk read once at cast start (after items/buffs already applied to atk), not a fixed table value"
     },
     "scaling": "requested amount: round(atk x percent/100); then per hit inside handleSpecialDamage: x (1 + AP/100) (apBoost default true); x2 once if the caster has DOUBLE_DAMAGE (the effect is deleted after the first hit, so only hit 1 of the cast is doubled); x1.2 if STRANGE_STEAM_BOARD_EFFECT on either side; crit multiplier per hit only if the cast crit (canCritByDefault false: needs ABILITY_CRIT); the caster's psychicField then multiplies each hit x1.2 inside handleDamage",
-    "resolution": "applied amount: per hit the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1 elsewhere in handleDamage) and later modifiers; a hit on a target with protect / skydiving / magicBounce is blocked (death false, takenDamage 0), and magicBounce can reflect special damage back at the caster; every hit is attempted regardless of earlier hits' results; the return values (death, takenDamage incl. shield damage) are ignored by this ability",
+    "resolution": "applied amount: per hit the target's SPE_DEF division (damage / (1 + 0.05 x SPE_DEF), min 1 elsewhere in handleDamage) and later modifiers; a hit on a target with protect / skydiving / magicBounce is blocked (death false, takenDamage 0), and magicBounce can reflect special damage back at the caster; every hit is attempted regardless of earlier hits' results; the return values (death, takenDamage incl. shield damage) are ignored by this ability Executed: raw 30 / 36 / 42 / 60 by stars at ATK 30 for every hit even though ATK reads 30, 32, 34 at the three calls; round(33 x 120 %) = 40; the psychicField adds a fourth hit and x1.2 per hit (returned 36 each); DOUBLE_DAMAGE gives returns 60, 30, 30; a Protected target returns 0, 0, 0 while the ATK gains continue.",
     "evidence": [
      "mm-damage",
      "mm-loop",
@@ -155,7 +155,7 @@
     "METANG": 120,
     "METAGROSS": 140
    },
-   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry 200 and the fallback 200 are not reached by these units' bare star counts (1, 2, 3). Hit count (3 or 4) does not depend on stars. maxPP is 100 and range 1 for all three.",
+   "note": "indexed by the casting entity's stars (pokemon.stars - 1); the 4-star entry and the fallback (200) is declared in the tables but unused by the bound baseline classes (Beldum 1, Metang 2, Metagross 3). Hit count (3 or 4) does not depend on stars. maxPP is 100 and range 1 for all three.",
    "evidence": [
     "mm-damage",
     "unit-beldum",
@@ -165,7 +165,7 @@
   },
   "positionalConditions": "None beyond needing a target in range. The extra fourth hit needs the caster to be in psychicField at cast time.",
   "repeatedCastsAndModes": "No state is stored by the ability. The +2 ATK per hit accumulates on the caster for the rest of the fight, so later casts start from a higher atk (a later cast's base damage uses that higher atk). Psychic field can be added or removed during the fight (Psychic synergy terrain effect, ExpandingForce, TerrainPulse, dishes, items; removed when the PSYCHIC_TERRAIN passive entity leaves), so the hit count can change between casts. No modes.",
-  "rawVsResolved": "Requested per-hit damage: round(atk x 1.00 / 1.20 / 1.40) for BELDUM / METANG / METAGROSS using the atk at cast start, the same value for all hits. Applied per hit: x(1 + AP/100), optional DOUBLE_DAMAGE x2 on the first hit only, optional steam x1.2, crit factor if the cast crit, psychicField x1.2 (caster) in handleDamage, then the SPE_DEF division and later modifiers; takenDamage (incl. shield damage) is not used. Requested ATK gain: +2 per hit; received gain 2 after Big Eater Belt rounding down (x1.25 of 2 = 2.5 -> 2), floor of atk 1 irrelevant for a positive gain.",
+  "rawVsResolved": "Requested per-hit damage: round(ATK at cast start x 1.00 / 1.20 / 1.40) for Beldum / Metang / Metagross, the same value for every hit of the cast. Applied per hit: x(1 + AP/100), DOUBLE_DAMAGE x2 on the first hit only, steam x1.2, crit factor if the cast crit, the caster's psychicField x1.2 in handleDamage, then the SPE_DEF division and later modifiers; the returned values are not read. Requested ATK gain +2 per hit; stored +2 (a Big Eater Belt gives 2.5 rounded down to 2).",
   "sourceTables": [
    {
     "id": "meteorMashPercent",
@@ -179,13 +179,14 @@
    "Final damage after handleDamage's later modifiers (shields, items, damage-reduction effects, resurrection) - only the SPECIAL speDef division, the psychicField x1.2 and the minimum of 1 were read",
    "Target selection and when the cast fires in a real fight (PP gain, canCast, range, movement)",
    "Crit chance resolution (only the ABILITY_CRIT / canCritByDefault gate and the damage-side multiplier were read)",
-   "Behaviour of repeated handleSpecialDamage calls on a target that died on an earlier hit of the same cast (the loop does not check death; handling of an already dead target in handleDamage was not traced)"
+   "A killed target is still hit by the remaining iterations (they return 0 and the ATK gain still happens, executed on the stand-in); death-cancelling effects and resurrection were not traced"
   ],
   "unresolved": [
    "Consulted for the helpers: addAttack, applyBigEaterBeltStatBuff and applyTwistBandBuff (pokemon-entity.ts), handleSpecialDamage, PokemonState.handleDamage; shared references core-mechanics.md and item-effects.json for Big Eater Belt / Twist Band",
    "Whether death-cancelling effects or resurrection change repeated hits on one target",
    "Whether any other item or synergy effect changes METEOR_MASH beyond what is listed (e.g. on-ability-cast effects after castAbility)",
-   "Queue record lists no routing uncertainties"
+   "Queue record lists no routing uncertainties",
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addAttack, applyBigEaterBeltStatBuff, handleSpecialDamage, handleDamage) and the real MeteorMashStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster ATK 30, target HP 5000): the once-computed hit count and raw, +2 ATK after every hit including blocked / killing ones, the Belt result, the psychicField extra hit and multiplier, DOUBLE_DAMAGE consumption and the rounding."
   ],
   "evidence": [
    {
@@ -471,6 +472,20 @@
     "psychic-src-synergy",
     "psychic-remove"
    ]
+  },
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
   }
- }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T200753Z",
+   "reason": "hit count and raw computed once; +2 ATK after every hit",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }

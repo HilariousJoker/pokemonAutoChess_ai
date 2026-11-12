@@ -76,11 +76,11 @@
     "ro-super"
    ]
   },
-  "summary": "The caster first gains Defense (requested +2 / +5 / +10 by stars here; table 2/5/10/20), then deals SPECIAL damage to the cast target equal to 2 x its own Defense as it stands after that gain. The Defense gain is not temporary in this strategy (no timer, no revert), so it stays for the rest of the fight and each later cast starts from the higher Defense. The gain is scaled by AP and, on a crit, by critPower; a Big Eater Belt holder gets it x1.25 (rounded down). The damage amount then goes through the normal special-damage path (AP, crit, target SPE_DEF).",
+  "summary": "Self addDefense(2 / 5 / 10 / 20, caster, apBoost 1, cast crit) goes through AP, crit and the Big Eater Belt FIRST; then SPECIAL damage requests 2 x the caster's RESULTING current DEF (raw), with the normal downstream AP / crit. Example: AP 100, base DEF 10, 1 star -> gain round(2 x 2) = 4, DEF 14, raw 28 before the downstream AP (returned 56). No restore timer: the gain stays and later casts start from the higher DEF. A Protected target takes 0 but the DEF gain stays.",
   "targeting": {
    "who": "the caster (Defense gain) and the cast target (damage)",
    "needsTarget": true,
-   "note": "One target, no area. The damage argument is evaluated after the buff call returns, so pokemon.def in `multiplier * pokemon.def` already includes the gain. The entity's def field at that moment also includes whatever earlier items, synergies and buffs added (core-mechanics \u00a7I).",
+   "note": "One target, no area. The damage argument is evaluated after the buff call returns, so pokemon.def in `multiplier * pokemon.def` already includes the gain. The entity's def field at that moment also includes whatever earlier items, synergies and buffs added (core-mechanics §I).",
    "evidence": [
     "ro-buff",
     "ro-hit"
@@ -113,7 +113,7 @@
      "MILTANK": 10
     },
     "scaling": "called as addDefense(requested, caster, 1, crit): applied = Math.round(requested x (1 + AP/100) x (critPower if the cast crit else 1)); canCritByDefault is false, so crit needs ABILITY_CRIT. Then applyBigEaterBeltStatBuff (positive value: x1.25 rounded down for a holder) and applyTwistBandBuff (a positive value is unchanged).",
-    "resolution": "requested = +2 / +5 / +10. Applied = the rounded, AP / crit scaled value, then the Big Eater Belt adjustment for a holder; def = max(0, def + applied) with no upper clamp. `permanent` is not passed, so only the in-fight entity changes (the board unit is not updated), and there is no revert timer: the gain lasts for the rest of the fight and accumulates over casts.",
+    "resolution": "requested = +2 / +5 / +10 (20 fallback). Applied = the rounded, AP / crit scaled value, then the Belt (+2 stays 2, +5 becomes 6) and the Twist helper; def = max(0, def + applied) with no upper clamp. `permanent` is not passed, so only the in-fight entity changes, and there is no revert timer: the gain lasts for the rest of the fight and accumulates (executed: a second cast starts from DEF 12 and requests 28, ending at DEF 14).",
     "evidence": [
      "ro-boost",
      "ro-buff",
@@ -133,8 +133,8 @@
      "description": "requested damage = 2 x pokemon.def after the Defense gain (no table)",
      "multiplier": 2
     },
-    "scaling": "requested = 2 x the caster's current Defense (post-gain); handleSpecialDamage then x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit; x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT. A crit therefore raises both the Defense gain and the damage.",
-    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef) of the target, rounds up with a minimum of 1 and lets the shield absorb first; takenDamage = shield damage + HP damage (HP part capped at current hp), 0 with protect / skydiving / magicBounce; the Defense gain is applied whether or not the damage is blocked. Bare-catalog illustration (no items, no synergy, AP 0, no crit): Sandshrew def 6 + 2 = 8 -> requested 16; Sandslash def 10 + 5 = 15 -> 30; Miltank def 10 + 10 = 20 -> 40 (before the target's SPE_DEF).",
+    "scaling": "requested = 2 x the caster's current DEF AFTER the gain (executed: 24 / 30 / 40 / 60 for DEF 10 base at 1 / 2 / 3 / 5 stars); handleSpecialDamage then x (1 + AP/100) (apBoost default true); x critPower (reduced by Rocky Helmet / Black Augurite) only if the cast crit; x2 once with DOUBLE_DAMAGE; x1.2 with STRANGE_STEAM_BOARD_EFFECT. A crit therefore raises both the DEF gain and the damage (AP 100 + crit: DEF 18, raw 36, returned 144).",
+    "resolution": "applied = requested after those multipliers; PokemonState.handleDamage then applies attacker / field / weather multipliers, divides by (1 + ARMOR_FACTOR x speDef) of the target, rounds up with a minimum of 1 and lets the shield absorb first; The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1). Bare-catalog illustration (no items, no synergy, AP 0, no crit): Sandshrew def 6 + 2 = 8 -> requested 16; Sandslash def 10 + 5 = 15 -> 30; Miltank def 10 + 10 = 20 -> 40 (before the target's SPE_DEF).",
     "evidence": [
      "ro-mult",
      "ro-hit",
@@ -165,7 +165,7 @@
     "SANDSLASH": 5,
     "MILTANK": 10
    },
-   "note": "Only the Defense gain is indexed by stars (the 4-star value 20, also the ?? fallback, is not reachable by the bare factory star counts of these units); the damage multiplier 2 is fixed, so the damage scales with the caster's Defense rather than its stars directly. Base Defense (catalog): Sandshrew 6, Sandslash 10, Miltank 10.",
+   "note": "Only the Defense gain is indexed by stars (the 4-star value 20, also the ?? fallback, is declared in the tables but unused by the bound baseline classes for Sandshrew 1, Sandslash 2, Miltank 3); the damage multiplier 2 is fixed, so the damage scales with the caster's Defense rather than its stars directly. Base Defense (catalog): Sandshrew 6, Sandslash 10, Miltank 10.",
    "evidence": [
     "ro-boost",
     "ro-mult",
@@ -176,7 +176,7 @@
   },
   "positionalConditions": "None: no positional or geometric condition in the strategy; the cast target is chosen by the generic targeting code before the strategy runs.",
   "repeatedCastsAndModes": "No stored state or modes. Each cast spends maxPP of PP, adds the Defense gain again (cumulative in the fight) and deals 2 x the then-current Defense, so later casts hit harder than earlier ones if nothing reduces Defense in between.",
-  "rawVsResolved": "Requested: Defense +2 / +5 / +10 (Sandshrew / Sandslash / Miltank) and damage 2 x post-gain Defense. Applied Defense gain = round(requested x (1 + AP/100) x optional critPower), then x1.25 rounded down for a Big Eater Belt holder. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1; takenDamage includes shield damage.",
+  "rawVsResolved": "Requested: Defense +2 / +5 / +10 (Sandshrew / Sandslash / Miltank) and damage 2 x post-gain Defense. Applied Defense gain = round(requested x (1 + AP/100) x optional critPower), then x1.25 rounded down for a Big Eater Belt holder. Applied damage = requested x (1 + AP/100) x optional crit / double-damage / steam multipliers, then SPE_DEF division and minimum 1. The returned takenDamage is not read by this ability (shield part, Shiny Charm, Fossil and Cover Band accounting is in core-mechanics.md section J1).",
   "sourceTables": [
    {
     "id": "defense-boost",
@@ -189,14 +189,14 @@
   "numericExamples": [],
   "dependsOnUnverifiedGenericCombat": [
    "Which unit is the cast target and when the cast fires in a real fight (PP gain, silence, targeting) - only the pp >= maxPP && canCast gate and the crit roll were read",
-   "How the entity's def field is initialised from the unit, items, synergies and permanent bonuses (core-mechanics \u00a7I describes the declared item bonuses; synergy and weather terms were not re-traced here)",
+   "How the entity's def field is initialised from the unit, items, synergies and permanent bonuses (core-mechanics §I describes the declared item bonuses; synergy and weather terms were not re-traced here)",
    "Later handleDamage branches (Shiny Charm, Fossil shield, death handling) were not read"
   ],
   "unresolved": [
    "Whether anything in the simulation reduces or resets the caster's Defense later (debuffs, cleanse, evolution) was not examined",
    "Whether the three units ever reach a different star count than the bare factory value",
    "The bare-catalog illustration ignores held items, synergy bonuses and the target's SPE_DEF; it is arithmetic on declared values, not a probe result",
-   "No gameplay evidence; candidate is source reading plus mechanical checks only"
+   "Evidence: source reading, mechanical checks and executed probes. The pinned helper text (addDefense, the Belt / Twist helpers, handleSpecialDamage) and the real RolloutStrategy strategy text were run against stand-in units with controlled callbacks (probes/pinned-helper-probe.mjs, section CATCHUP_E3); the whole ability in a real fight, targeting and timing before the cast, and full battles were NOT executed, and nothing was observed in a live game. Executed (stand-in caster DEF 10, target HP 5000): the gain through AP / crit / Belt before the raw 2 x resulting DEF, the downstream AP / crit, the Protected case and the persistence across two casts."
   ],
   "evidence": [
    {
@@ -540,6 +540,20 @@
     "expect": "value *= -1 // twist band turn debuffs into buffs",
     "note": "only negative values from an enemy / the environment are flipped; the self buff is positive"
    }
-  ]
- }
+  ],
+  "reproduction": {
+   "command": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "section": "CATCHUP_E3",
+   "note": "reads the pinned function text with git show and runs it against stubs; it shows what the pinned helpers request or return for the stated inputs, not a fight"
+  }
+ },
+ "repairs": [
+  {
+   "runId": "run-20261112T200753Z",
+   "reason": "DEF gain through helpers before 2 x resulting DEF; no restore timer",
+   "reproduction": "node assistant/probes/pinned-helper-probe.mjs --check",
+   "probeSection": "CATCHUP_E3",
+   "reviewStatusAfter": "candidate, independent review pending"
+  }
+ ]
 }
