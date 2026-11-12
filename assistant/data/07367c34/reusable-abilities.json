@@ -55992,7 +55992,7 @@
       "call": "status.clearNegativeStatus(caster, caster)"
      },
      "scaling": "none",
-     "resolution": "Zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blind; clears the curse flag but adds 2000 ms to a running curse cooldown; possession is kept when the origin is a teammate. The boolean flags (wound, burn, ...) are cleared by the update methods on a later status update, not inside this call (updateWound sets wound = false when its cooldown runs out).",
+     "resolution": "Zeroes the cooldowns of burn, silence, fatigue, poison, freeze, sleep, confusion, wound, paralysis, charm, flinch, armor reduction, locked and blind; clears the curse flag and adds 2000 to curseCooldown only when curse is true AND curseCooldown > 0 (curse false with cooldown 3000 stays 3000; curse true with 3000 becomes 5000); possession is kept when the origin is a teammate. The boolean flags (wound, burn, ...) are cleared by the update methods on a later status update, not inside this call (updateWound sets wound = false when its cooldown runs out).",
      "evidence": [
       "clear-call",
       "clear",
@@ -56091,7 +56091,7 @@
       "unit": "ms (cooldowns zeroed at once)"
      },
      "scaling": "none",
-     "guards": "no Rune Protect or immunity check; boolean flags (wound, burn, ...) are NOT cleared here, only cooldowns; the curse cooldown gets +2000 ms instead of being zeroed",
+     "guards": "no Rune Protect or immunity check; boolean flags (wound, burn, ...) are NOT cleared here, only cooldowns; curseCooldown gets +2000 only when curse is true AND curseCooldown > 0 (executed: curse false with 3000 stays 3000, curse true with 3000 becomes 5000), then the curse flag is cleared",
      "combatEffect": "wound and burn flags stay set during the following heal (executed: burn halves it, wound blocks it)",
      "evidence": [
       "clear",
@@ -56508,7 +56508,8 @@
     "against": "07367c341fe928763da2b565c2eee010433e4fc1",
     "notes": [
      "Strategy file, bound unit class blocks (stars, maxPP, range, skill, passive), source tables and the helper definitions it relies on (Status.clearNegativeStatus / triggerSleep / applyStatusDurationReductions, handleHeal) were re-read at the pinned revision; the draft's control flow and arithmetic agree except for the corrections listed here. The candidate file and its repair history stay as a historical draft.",
-     "Kept: order cleanse, heal, sleep; heal fraction 0.3 (0.6 at four stars / fallback). Made explicit: the cleanse leaves wound / burn flags active during the heal (wound blocks HP healing but may route Blood Moon shielding; burn halves permitted healing); the sleep is an attempt with the listed guards and duration modifiers and a Chesto reaction; the VIGOROTH / SLAKING mentions are scoped hooks, not passive imports."
+     "Kept: order cleanse, heal, sleep; heal fraction 0.3 (0.6 at four stars / fallback). Made explicit: the cleanse leaves wound / burn flags active during the heal (wound blocks HP healing but may route Blood Moon shielding; burn halves permitted healing); the sleep is an attempt with the listed guards and duration modifiers and a Chesto reaction; the VIGOROTH / SLAKING mentions are scoped hooks, not passive imports.",
+     "Cleanup in run run-20261112T193010Z: clearNegativeStatus adds 2000 to curseCooldown only when curse is true AND curseCooldown > 0 and then clears the flag (curse false with 3000 stays 3000; curse true becomes 5000). Executed with the real clearNegativeStatus text."
     ]
    }
   },
@@ -57487,7 +57488,7 @@
      "dp-class"
     ]
    },
-   "summary": "Single target. The confusion ATTEMPT triggerConfusion(2000 / 4000 / 6000 / 8000, target, caster) comes BEFORE SPECIAL damage 40 / 80 / 160 / 320 (fallback 8000 / 320), with NO application chance roll (unlike PSYBEAM). Existing confusion, Rune Protect and IMMUNITY_CONFUSION refuse it; the victim's weather, duration reductions and berry rules apply. AP and crit scale the damage, not the requested confusion duration. A PSYDUCK victim's reaction is a helper request (addAbilityPower 100), not a guaranteed final +100 AP. The damage lands whether or not the confusion applied. What confusion does to targeting is bounded evidence reused from PSYBEAM.",
+   "summary": "Single target. The confusion ATTEMPT triggerConfusion(2000 / 4000 / 6000 / 8000, target, caster) comes BEFORE SPECIAL damage 40 / 80 / 160 / 320 (fallback 8000 / 320), with NO application chance roll (unlike PSYBEAM). Existing confusion, Rune Protect and IMMUNITY_CONFUSION refuse it; the victim's weather, duration reductions and berry rules apply. AP and crit scale the damage, not the requested confusion duration. A PSYDUCK victim's reaction is a helper request (addAbilityPower 100), not a guaranteed final +100 AP. The damage call proceeds independently of the confusion, subject to the damage guards. What confusion does to targeting is bounded evidence reused from PSYBEAM.",
    "targeting": {
     "who": "the cast target only",
     "needsTarget": true,
@@ -57886,7 +57887,8 @@
     "against": "07367c341fe928763da2b565c2eee010433e4fc1",
     "notes": [
      "Strategy file, bound unit class blocks (stars, maxPP, range, skill, passive), source tables and the helper definitions it relies on (Status.triggerConfusion / applyStatusDurationReductions, handleSpecialDamage, addAbilityPower) were re-read at the pinned revision; the draft's control flow and arithmetic agree except for the corrections listed here. The candidate file and its repair history stay as a historical draft.",
-     "Kept: confusion attempt 2000 / 4000 / 6000 / 8000 BEFORE SPECIAL damage 40 / 80 / 160 / 320 with no application chance roll. Made explicit: AP / crit scale only the damage; existing confusion, Rune Protect and IMMUNITY_CONFUSION refuse it and the victim's weather / reductions / berry rules apply; the PSYDUCK reaction is a helper request (Belt 125, Nullify -> ATK), not a guaranteed +100 AP; the confusion-targeting evidence is the bounded PSYBEAM evidence."
+     "Kept: confusion attempt 2000 / 4000 / 6000 / 8000 BEFORE SPECIAL damage 40 / 80 / 160 / 320 with no application chance roll. Made explicit: AP / crit scale only the damage; existing confusion, Rune Protect and IMMUNITY_CONFUSION refuse it and the victim's weather / reductions / berry rules apply; the PSYDUCK reaction is a helper request (Belt 125, Nullify -> ATK), not a guaranteed +100 AP; the confusion-targeting evidence is the bounded PSYBEAM evidence.",
+     "Cleanup in run run-20261112T193010Z: 'the damage lands whether or not the confusion applied' became 'the damage call proceeds independently, subject to the damage guards'."
     ]
    }
   },
@@ -59266,7 +59268,7 @@
      "ss-class"
     ]
    },
-   "summary": "Single target. The paralysis ATTEMPT triggerParalysis(5000, target, caster) comes BEFORE SPECIAL damage 10 / 20 / 50 / 100 (fallback 100). There is no AP duration multiplier (AP scales only the damage). The victim's Rune Protect or IMMUNITY_PARALYSIS refuses it; STORM weather (x1.3, Electric Quartz x0.8 each), the victim's duration reductions and a Cheri Berry reaction apply, and a longer remaining paralysis is kept - so a fixed 5000 request does not guarantee a lasting five-second status. The damage lands whether or not the paralysis applied. No movement.",
+   "summary": "Single target. The paralysis ATTEMPT triggerParalysis(5000, target, caster) comes BEFORE SPECIAL damage 10 / 20 / 50 / 100 (fallback 100). There is no AP duration multiplier (AP scales only the damage). The victim's Rune Protect or IMMUNITY_PARALYSIS refuses it; STORM weather (x1.3, then x(1 - 0.2 x n) for n Electric Quartz, only inside STORM: a 5000 ms request stores 5200 / 3900 / 2600 ms for one / two / three Quartz and stays 5000 ms with two Quartz outside STORM; the factor is linear, not 0.8^n), the victim's duration reductions and a Cheri Berry reaction apply, and a longer remaining paralysis is kept - so a fixed 5000 request does not guarantee a lasting five-second status. The damage call is attempted independently of the paralysis (damage guards such as protect still apply). No movement.",
    "targeting": {
     "who": "the cast target passed to process (the unit's current attack target); no retargeting or area",
     "needsTarget": true,
@@ -59336,7 +59338,7 @@
      },
      "scaling": "none from AP or crit (apBoost is not passed); one fixed request for every star count; stored = round(5000 x STORM 1.3 x (1 - 0.2 per Electric Quartz) x the victim's reductions)",
      "applicationOrder": "paralysis is applied BEFORE the damage call in the source",
-     "guards": "not applied if runeProtect or IMMUNITY_PARALYSIS; storm weather x1.3 (Electric Quartz lowers it); aquatic/Odd Keystone reductions via applyStatusDurationReductions; a new paralysis only replaces the remaining time if it is longer",
+     "guards": "not applied if runeProtect or IMMUNITY_PARALYSIS; storm weather x1.3 and then x(1 - 0.2 x n) for n Electric Quartz of the victim's player, only inside STORM (5000 -> 5200 / 3900 / 2600 ms for 1 / 2 / 3 Quartz; unchanged outside STORM); aquatic/Odd Keystone reductions via applyStatusDurationReductions; a new paralysis only replaces the remaining time if it is longer",
      "combatEffect": "while paralysed the target's speed counts as half in the attack interval and in move speed, and it cannot dodge basic attacks. Other uses of status.paralysis by some abilities (e.g. bug-buzz, force-palm, zing-zap) and passives were seen in a search but not read here.",
      "evidence": [
       "ss-para",
@@ -59758,7 +59760,8 @@
     "against": "07367c341fe928763da2b565c2eee010433e4fc1",
     "notes": [
      "Strategy file, bound unit class blocks (stars, maxPP, range, skill, passive), source tables and the helper definitions it relies on (Status.triggerParalysis / applyStatusDurationReductions, handleSpecialDamage) were re-read at the pinned revision; the draft's control flow and arithmetic agree except for the corrections listed here. The candidate file and its repair history stay as a historical draft.",
-     "Kept: paralysis 5000 ms attempted BEFORE SPECIAL 10 / 20 / 50 / 100 with no AP duration multiplier. Made explicit: victim reductions and STORM / Electric Quartz / Cheri rules apply and a longer remaining paralysis is kept, so the fixed request is not a guaranteed lasting status. Normalised the free-text per-star status value to a supported duration / unit shape."
+     "Kept: paralysis 5000 ms attempted BEFORE SPECIAL 10 / 20 / 50 / 100 with no AP duration multiplier. Made explicit: victim reductions and STORM / Electric Quartz / Cheri rules apply and a longer remaining paralysis is kept, so the fixed request is not a guaranteed lasting status. Normalised the free-text per-star status value to a supported duration / unit shape.",
+     "Cleanup in run run-20261112T193010Z: the Electric Quartz factor is (1 - 0.2 x n) only inside STORM, not 0.8^n (5000 ms -> 5200 / 3900 / 2600 for one / two / three Quartz; two Quartz outside STORM leave 5000), and the 'damage lands' wording became 'the damage call is attempted independently, subject to damage guards'. Executed with the real triggerParalysis text."
     ]
    }
   },
